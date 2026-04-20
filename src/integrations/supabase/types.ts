@@ -14,6 +14,122 @@ export type Database = {
   }
   public: {
     Tables: {
+      broadcasts: {
+        Row: {
+          audience_tag: Database["public"]["Enums"]["lead_tag"] | null
+          body: string
+          campaign_id: string | null
+          created_at: string
+          delivered_count: number
+          failed_count: number
+          id: string
+          owner_id: string
+          read_count: number
+          recipient_count: number
+          scheduled_at: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["broadcast_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          audience_tag?: Database["public"]["Enums"]["lead_tag"] | null
+          body: string
+          campaign_id?: string | null
+          created_at?: string
+          delivered_count?: number
+          failed_count?: number
+          id?: string
+          owner_id: string
+          read_count?: number
+          recipient_count?: number
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["broadcast_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          audience_tag?: Database["public"]["Enums"]["lead_tag"] | null
+          body?: string
+          campaign_id?: string | null
+          created_at?: string
+          delivered_count?: number
+          failed_count?: number
+          id?: string
+          owner_id?: string
+          read_count?: number
+          recipient_count?: number
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["broadcast_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcasts_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          audience_size: number
+          budget: number
+          channel: Database["public"]["Enums"]["campaign_channel"]
+          conversion_count: number
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          opened_count: number
+          owner_id: string
+          replied_count: number
+          scheduled_at: string | null
+          sent_count: number
+          status: Database["public"]["Enums"]["campaign_status"]
+          updated_at: string
+        }
+        Insert: {
+          audience_size?: number
+          budget?: number
+          channel?: Database["public"]["Enums"]["campaign_channel"]
+          conversion_count?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          opened_count?: number
+          owner_id: string
+          replied_count?: number
+          scheduled_at?: string | null
+          sent_count?: number
+          status?: Database["public"]["Enums"]["campaign_status"]
+          updated_at?: string
+        }
+        Update: {
+          audience_size?: number
+          budget?: number
+          channel?: Database["public"]["Enums"]["campaign_channel"]
+          conversion_count?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          opened_count?: number
+          owner_id?: string
+          replied_count?: number
+          scheduled_at?: string | null
+          sent_count?: number
+          status?: Database["public"]["Enums"]["campaign_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       contacts: {
         Row: {
           created_at: string
@@ -246,6 +362,66 @@ export type Database = {
         }
         Relationships: []
       }
+      tasks: {
+        Row: {
+          completed_at: string | null
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string
+          due_at: string | null
+          id: string
+          notes: string | null
+          owner_id: string
+          priority: Database["public"]["Enums"]["task_priority"]
+          status: Database["public"]["Enums"]["task_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          notes?: string | null
+          owner_id: string
+          priority?: Database["public"]["Enums"]["task_priority"]
+          status?: Database["public"]["Enums"]["task_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          notes?: string | null
+          owner_id?: string
+          priority?: Database["public"]["Enums"]["task_priority"]
+          status?: Database["public"]["Enums"]["task_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -282,6 +458,9 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "agent"
+      broadcast_status: "draft" | "scheduled" | "sending" | "sent" | "failed"
+      campaign_channel: "whatsapp" | "sms" | "email" | "multi"
+      campaign_status: "draft" | "scheduled" | "active" | "paused" | "completed"
       conversation_status: "open" | "pending" | "closed"
       deal_stage:
         | "new"
@@ -293,6 +472,8 @@ export type Database = {
       lead_tag: "hot" | "warm" | "cold"
       message_direction: "inbound" | "outbound"
       message_status: "queued" | "sent" | "delivered" | "read" | "failed"
+      task_priority: "low" | "medium" | "high" | "urgent"
+      task_status: "pending" | "in_progress" | "completed" | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -421,6 +602,9 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "agent"],
+      broadcast_status: ["draft", "scheduled", "sending", "sent", "failed"],
+      campaign_channel: ["whatsapp", "sms", "email", "multi"],
+      campaign_status: ["draft", "scheduled", "active", "paused", "completed"],
       conversation_status: ["open", "pending", "closed"],
       deal_stage: [
         "new",
@@ -433,6 +617,8 @@ export const Constants = {
       lead_tag: ["hot", "warm", "cold"],
       message_direction: ["inbound", "outbound"],
       message_status: ["queued", "sent", "delivered", "read", "failed"],
+      task_priority: ["low", "medium", "high", "urgent"],
+      task_status: ["pending", "in_progress", "completed", "cancelled"],
     },
   },
 } as const
