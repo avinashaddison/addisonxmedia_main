@@ -1,5 +1,15 @@
-import { Inbox, LayoutDashboard, Users, Megaphone, Radio, Bell, Settings, MessageCircle } from "lucide-react";
+import { Inbox, LayoutDashboard, Users, Megaphone, Radio, Bell, Settings, MessageCircle, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 
 type Props = {
   active: string;
@@ -17,6 +27,19 @@ const items = [
 ];
 
 export const AppSidebar = ({ active, onNavigate }: Props) => {
+  const { user, signOut } = useAuth();
+  const initials = (user?.user_metadata?.display_name || user?.email || "U")
+    .split(/[\s@]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s: string) => s[0]?.toUpperCase())
+    .join("");
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success("Signed out");
+  };
+
   return (
     <aside className="w-[60px] h-screen sticky top-0 bg-card border-r border-border flex flex-col items-center z-50 flex-shrink-0">
       {/* Logo */}
@@ -59,9 +82,30 @@ export const AppSidebar = ({ active, onNavigate }: Props) => {
 
       {/* User */}
       <div className="pb-3">
-        <button className="w-8 h-8 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center justify-center hover:ring-2 hover:ring-primary/30 transition-all">
-          AP
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="w-8 h-8 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center justify-center hover:ring-2 hover:ring-primary/30 transition-all">
+              {initials || "U"}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="end" className="w-56">
+            <DropdownMenuLabel>
+              <div className="flex flex-col">
+                <span className="text-[13px] font-semibold truncate">
+                  {user?.user_metadata?.display_name || "Agent"}
+                </span>
+                <span className="text-[11px] text-muted-foreground truncate font-normal">
+                  {user?.email}
+                </span>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </aside>
   );
