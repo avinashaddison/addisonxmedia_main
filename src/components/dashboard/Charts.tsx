@@ -10,59 +10,49 @@ const data = [
 
 export const Charts = () => {
   const max = Math.max(...data.map(d => d.new));
-  const total = data.reduce((s, d) => s + d.new, 0);
-  const wonTotal = data.reduce((s, d) => s + d.won, 0);
+  const totalNew = data.reduce((s, d) => s + d.new, 0);
+  const totalWon = data.reduce((s, d) => s + d.won, 0);
 
   return (
     <div className="surface p-5">
-      <div className="flex items-start justify-between mb-5">
+      <div className="flex items-start justify-between mb-4">
         <div>
-          <h3 className="text-[15px] font-bold tracking-tight">Lead Performance</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">New leads vs deals won this week</p>
+          <h3 className="text-[14px] font-bold tracking-tight">Lead Performance</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">New leads vs deals closed this week</p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-5">
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-accent" />
-              <span className="text-[11px] text-muted-foreground">New leads</span>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="w-2 h-2 rounded-sm bg-accent" />
+              <span className="text-[10px] text-muted-foreground">New</span>
             </div>
-            <p className="text-base font-bold mt-0.5">{total}</p>
+            <p className="text-base font-bold tabular-nums">{totalNew}</p>
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-primary" />
-              <span className="text-[11px] text-muted-foreground">Won</span>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="w-2 h-2 rounded-sm bg-primary" />
+              <span className="text-[10px] text-muted-foreground">Won</span>
             </div>
-            <p className="text-base font-bold mt-0.5">{wonTotal}</p>
+            <p className="text-base font-bold tabular-nums">{totalWon}</p>
           </div>
         </div>
       </div>
 
-      <div className="flex items-end justify-between gap-3 h-44 px-1">
+      <div className="flex items-end justify-between gap-4 h-40 px-1">
         {data.map((d, i) => {
           const newH = (d.new / max) * 100;
           const wonH = (d.won / max) * 100;
           return (
-            <div key={d.day} className="flex-1 flex flex-col items-center gap-2 group">
-              <div className="w-full flex items-end justify-center gap-1 h-full">
-                <div
-                  className="flex-1 max-w-[18px] bg-accent/80 rounded-t-md hover:bg-accent transition-all relative group/bar"
-                  style={{ height: `${newH}%`, animationDelay: `${i * 80}ms` }}
-                >
-                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold opacity-0 group-hover/bar:opacity-100 transition-opacity bg-foreground text-background px-1.5 py-0.5 rounded whitespace-nowrap">
-                    {d.new}
-                  </span>
+            <div key={d.day} className="flex-1 flex flex-col items-center gap-1.5 group">
+              <div className="w-full flex items-end justify-center gap-[3px] h-full">
+                <div className="flex-1 max-w-[16px] bg-accent/20 rounded-t hover:bg-accent/30 transition-all relative" style={{ height: `${newH}%` }}>
+                  <div className="absolute inset-x-0 bottom-0 bg-accent rounded-t transition-all" style={{ height: '100%' }} />
                 </div>
-                <div
-                  className="flex-1 max-w-[18px] bg-primary rounded-t-md hover:bg-primary-glow transition-all relative group/bar"
-                  style={{ height: `${wonH}%` }}
-                >
-                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold opacity-0 group-hover/bar:opacity-100 transition-opacity bg-foreground text-background px-1.5 py-0.5 rounded whitespace-nowrap">
-                    {d.won}
-                  </span>
+                <div className="flex-1 max-w-[16px] bg-primary/20 rounded-t hover:bg-primary/30 transition-all relative" style={{ height: `${wonH}%` }}>
+                  <div className="absolute inset-x-0 bottom-0 bg-primary rounded-t transition-all" style={{ height: '100%' }} />
                 </div>
               </div>
-              <span className="text-[11px] text-muted-foreground font-medium">{d.day}</span>
+              <span className="text-[10px] text-muted-foreground font-medium">{d.day}</span>
             </div>
           );
         })}
