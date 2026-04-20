@@ -2,6 +2,11 @@ import { useState } from "react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { InboxPage } from "@/components/inbox/InboxPage";
 import { DashboardPage } from "@/components/dashboard/DashboardPage";
+import { ContactsPage } from "@/components/contacts/ContactsPage";
+import { CampaignsPage } from "@/components/campaigns/CampaignsPage";
+import { BroadcastsPage } from "@/components/broadcasts/BroadcastsPage";
+import { FollowupsPage } from "@/components/followups/FollowupsPage";
+import { SettingsPage } from "@/components/settings/SettingsPage";
 
 const Index = () => {
   const [page, setPage] = useState("inbox");
@@ -11,14 +16,11 @@ const Index = () => {
       <AppSidebar active={page} onNavigate={setPage} />
       {page === "inbox" && <InboxPage />}
       {page === "dashboard" && <DashboardPage />}
-      {!["inbox", "dashboard"].includes(page) && (
-        <div className="flex-1 flex items-center justify-center bg-background">
-          <div className="text-center">
-            <p className="text-lg font-bold text-foreground capitalize mb-1">{page}</p>
-            <p className="text-[13px] text-muted-foreground">Coming soon</p>
-          </div>
-        </div>
-      )}
+      {page === "contacts" && <ContactsPage />}
+      {page === "campaigns" && <CampaignsPage />}
+      {page === "broadcasts" && <BroadcastsPage />}
+      {page === "followups" && <FollowupsPage />}
+      {page === "settings" && <SettingsPage />}
     </div>
   );
 };
