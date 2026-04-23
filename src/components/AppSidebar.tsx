@@ -190,9 +190,10 @@ export const AppSidebar = ({ active, onNavigate }: Props) => {
 
       {/* AI status card */}
       {!collapsed ? (
-        <div className="mx-2.5 mb-2 p-3 rounded-xl bg-gradient-to-br from-primary-soft via-card to-accent-soft border border-primary/15">
-          <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center shadow-sm">
+        <div className="relative mx-2.5 mb-2 p-3 rounded-xl bg-gradient-to-br from-primary-soft via-card to-accent-soft border border-primary/15 overflow-hidden">
+          <div className="absolute inset-0 animate-shimmer pointer-events-none" />
+          <div className="relative flex items-center gap-2 mb-1.5">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center shadow-md shadow-primary/30 ring-1 ring-primary-foreground/10">
               <Sparkles className="w-3.5 h-3.5 text-primary-foreground" />
             </div>
             <div className="flex-1">
@@ -203,7 +204,7 @@ export const AppSidebar = ({ active, onNavigate }: Props) => {
               </p>
             </div>
           </div>
-          <p className="text-[10px] text-muted-foreground leading-snug">Suggesting replies in real time</p>
+          <p className="relative text-[10px] text-muted-foreground leading-snug">Suggesting replies in real time</p>
         </div>
       ) : (
         <div className="mb-2 mx-auto group relative">
