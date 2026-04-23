@@ -31,15 +31,22 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading }:
     return true;
   });
 
+  const unreadTotal = conversations.reduce((a, c) => a + (c.unread_count || 0), 0);
+  const hotCount = conversations.filter((c) => c.contact.tag === "hot").length;
+
   return (
-    <div className="w-[320px] h-full bg-card border-r border-border flex flex-col flex-shrink-0">
+    <div className="w-[340px] h-full bg-card border-r border-border flex flex-col flex-shrink-0 relative">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-primary/5 to-transparent" />
+
       {/* Header */}
-      <div className="h-14 flex items-center justify-between px-4 border-b border-border flex-shrink-0">
-        <h2 className="text-[15px] font-bold">Chats</h2>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground font-medium">{conversations.length}</span>
-          <NewConversationDialog onCreated={onSelect} />
+      <div className="relative h-16 flex items-center justify-between px-4 border-b border-border flex-shrink-0">
+        <div className="min-w-0">
+          <h2 className="text-[16px] font-bold tracking-tight leading-tight">Chats</h2>
+          <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+            {conversations.length} total · {unreadTotal} unread · {hotCount} hot
+          </p>
         </div>
+        <NewConversationDialog onCreated={onSelect} />
       </div>
 
       {/* Search */}
@@ -101,18 +108,28 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading }:
               key={conv.id}
               onClick={() => onSelect(conv.id)}
               className={cn(
-                "w-full flex items-start gap-3 px-4 py-3 text-left transition-colors border-b border-border/50 hover:bg-muted/50",
-                isActive && "bg-primary-soft/40 border-l-2 border-l-primary"
+                "relative w-full flex items-start gap-3 px-4 py-3 text-left transition-all border-b border-border/40 group",
+                isActive
+                  ? "bg-gradient-to-r from-primary-soft/70 via-primary-soft/30 to-transparent"
+                  : "hover:bg-muted/50"
               )}
             >
+              {isActive && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-10 rounded-r-full bg-gradient-to-b from-primary to-primary-glow shadow-[0_0_12px_hsl(var(--primary)/0.5)]" />
+              )}
               {/* Avatar */}
               <div className="relative flex-shrink-0">
                 <div className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold text-card-foreground",
-                  conv.contact.tag === "hot" ? "bg-hot-soft" : conv.contact.tag === "warm" ? "bg-warning-soft" : "bg-muted"
+                  "w-11 h-11 rounded-full flex items-center justify-center text-[12px] font-bold ring-2 ring-card transition-transform group-hover:scale-105",
+                  conv.contact.tag === "hot" ? "bg-gradient-to-br from-hot-soft to-hot/20 text-hot" :
+                  conv.contact.tag === "warm" ? "bg-gradient-to-br from-warning-soft to-warning/20 text-warning" :
+                  "bg-gradient-to-br from-muted to-muted/60 text-muted-foreground"
                 )}>
                   {initials}
                 </div>
+                {conv.contact.tag === "hot" && (
+                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-hot ring-2 ring-card animate-pulse" />
+                )}
               </div>
 
               {/* Content */}

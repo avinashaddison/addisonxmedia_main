@@ -56,17 +56,20 @@ export const ChatWindow = ({ conversation }: Props) => {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-card min-w-0">
+    <div className="flex-1 flex flex-col bg-card min-w-0 relative">
       {/* Chat header */}
-      <div className="h-14 flex items-center justify-between px-4 border-b border-border flex-shrink-0">
+      <div className="h-16 flex items-center justify-between px-5 border-b border-border flex-shrink-0 glass-strong z-10 relative">
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative flex-shrink-0">
             <div className={cn(
-              "w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold",
-              contact.tag === "hot" ? "bg-hot-soft text-hot" : contact.tag === "warm" ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground"
+              "w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold ring-2 ring-card",
+              contact.tag === "hot" ? "bg-gradient-to-br from-hot-soft to-hot/20 text-hot" :
+              contact.tag === "warm" ? "bg-gradient-to-br from-warning-soft to-warning/20 text-warning" :
+              "bg-gradient-to-br from-muted to-muted/60 text-muted-foreground"
             )}>
               {initials}
             </div>
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success rounded-full ring-2 ring-card" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -104,7 +107,10 @@ export const ChatWindow = ({ conversation }: Props) => {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2" style={{ background: "hsl(var(--chat-bg))" }}>
+      <div
+        className="flex-1 overflow-y-auto px-5 py-5 space-y-2 relative dot-pattern"
+        style={{ background: "hsl(var(--chat-bg))" }}
+      >
         {isLoading && (
           <div className="flex justify-center py-8">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -153,19 +159,22 @@ export const ChatWindow = ({ conversation }: Props) => {
       </div>
 
       {/* AI Suggestions */}
-      <div className="px-4 pt-2.5 pb-2 border-t border-border bg-card flex-shrink-0">
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <Sparkles className="w-3 h-3 text-primary" />
-          <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">AI Quick Replies</span>
+      <div className="px-5 pt-3 pb-2 border-t border-border bg-gradient-to-r from-primary-soft/40 via-card to-accent-soft/30 flex-shrink-0">
+        <div className="flex items-center gap-1.5 mb-2">
+          <div className="w-4 h-4 rounded bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center shadow-sm shadow-primary/30">
+            <Sparkles className="w-2.5 h-2.5 text-primary-foreground" />
+          </div>
+          <span className="text-[10px] font-bold text-primary uppercase tracking-[0.15em]">Addison AI · Suggestions</span>
+          <span className="ml-1 w-1 h-1 rounded-full bg-success animate-pulse" />
         </div>
         <div className="flex gap-1.5 flex-wrap">
           {aiSuggestions.map((s) => (
             <button
               key={s.text}
               onClick={() => setInput(s.text)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary-soft text-primary text-[11px] font-semibold border border-primary/15 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all hover:-translate-y-0.5"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card text-foreground text-[11px] font-semibold border border-border hover:border-primary hover:bg-primary hover:text-primary-foreground hover:shadow-md hover:shadow-primary/20 transition-all hover:-translate-y-0.5"
             >
-              <s.icon className="w-3 h-3" />
+              <s.icon className="w-3 h-3 text-primary group-hover:text-primary-foreground" />
               {s.text}
             </button>
           ))}
@@ -173,8 +182,8 @@ export const ChatWindow = ({ conversation }: Props) => {
       </div>
 
       {/* Input */}
-      <div className="px-4 py-2.5 border-t border-border bg-card flex items-end gap-2 flex-shrink-0">
-        <button className="w-9 h-9 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
+      <div className="px-5 py-3 border-t border-border bg-card flex items-end gap-2 flex-shrink-0">
+        <button className="w-10 h-10 rounded-xl hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
           <Paperclip className="w-4 h-4" />
         </button>
         <div className="flex-1 relative">
@@ -182,21 +191,21 @@ export const ChatWindow = ({ conversation }: Props) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="Type a message…"
+            placeholder="Type a message…  ⌘ + Enter to send"
             rows={1}
-            className="w-full resize-none rounded-xl bg-muted border-0 px-4 py-2.5 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            className="w-full resize-none rounded-2xl bg-muted border border-transparent px-4 py-2.5 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 focus:bg-card transition-all"
           />
         </div>
-        <button className="w-9 h-9 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
+        <button className="w-10 h-10 rounded-xl hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
           <Smile className="w-4 h-4" />
         </button>
         <button
           onClick={handleSend}
           disabled={!input.trim() || sendMut.isPending}
           className={cn(
-            "w-9 h-9 rounded-lg flex items-center justify-center transition-all flex-shrink-0",
+            "w-10 h-10 rounded-xl flex items-center justify-center transition-all flex-shrink-0",
             input.trim() && !sendMut.isPending
-              ? "bg-primary text-primary-foreground hover:bg-primary-glow shadow-sm"
+              ? "bg-gradient-to-br from-primary to-primary-glow text-primary-foreground hover:shadow-lg hover:shadow-primary/40 hover:-translate-y-0.5"
               : "bg-muted text-muted-foreground"
           )}
         >
@@ -205,10 +214,10 @@ export const ChatWindow = ({ conversation }: Props) => {
       </div>
 
       {/* Sticky CTA bar */}
-      <div className="px-4 py-3 border-t border-border bg-gradient-to-r from-primary-soft via-card to-primary-soft flex items-center gap-2 flex-shrink-0">
+      <div className="px-5 py-3 border-t border-border bg-gradient-to-r from-primary-soft via-card to-accent-soft flex items-center gap-2 flex-shrink-0">
         <button
           onClick={() => toast.success(`Offer sent to ${contact.name}`)}
-          className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground text-[13px] font-bold flex items-center justify-center gap-2 hover:bg-primary-glow transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5"
+          className="flex-1 h-11 rounded-xl bg-gradient-to-br from-primary to-primary-glow text-primary-foreground text-[13px] font-bold flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-primary/40 transition-all hover:-translate-y-0.5"
         >
           <Send className="w-4 h-4" />
           Send Offer

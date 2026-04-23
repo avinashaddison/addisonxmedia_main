@@ -46,9 +46,10 @@ export const LeadPanel = ({ contact, onClose }: Props) => {
   const estimatedValue = Math.round(2000 + contact.score * 100);
 
   return (
-    <div className="w-[320px] h-full bg-card border-l border-border flex flex-col flex-shrink-0 overflow-hidden">
+    <div className="w-[340px] h-full bg-card border-l border-border flex flex-col flex-shrink-0 overflow-hidden relative">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-accent/5 to-transparent" />
       {/* Header */}
-      <div className="h-14 flex items-center justify-between px-4 border-b border-border flex-shrink-0">
+      <div className="relative h-16 flex items-center justify-between px-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-2">
           <h3 className="text-[13px] font-bold">Sales Intelligence</h3>
           <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-success-soft">
