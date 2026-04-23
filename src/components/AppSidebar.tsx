@@ -1,4 +1,4 @@
-import { Inbox, LayoutDashboard, Users, Megaphone, Radio, Bell, Settings, MessageCircle, LogOut, Sparkles, ChevronRight } from "lucide-react";
+import { Inbox, LayoutDashboard, Users, Megaphone, Radio, Bell, Settings, MessageCircle, LogOut, Sparkles, ChevronRight, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Link } from "react-router-dom";
 
 type Props = {
   active: string;
@@ -169,6 +170,12 @@ export const AppSidebar = ({ active, onNavigate }: Props) => {
             <DropdownMenuItem onClick={() => onNavigate("settings")}>
               <Settings className="w-4 h-4 mr-2" />
               Workspace settings
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/">
+                <Globe className="w-4 h-4 mr-2" />
+                View landing page
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
