@@ -20,7 +20,7 @@ const Auth = () => {
 
   // Redirect already-logged-in users straight to the app
   useEffect(() => {
-    if (!sessionLoading && user) navigate("/", { replace: true });
+    if (!sessionLoading && user) navigate("/app", { replace: true });
   }, [user, sessionLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,7 +33,7 @@ const Auth = () => {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/`,
+            emailRedirectTo: `${window.location.origin}/app`,
             data: { display_name: displayName || email.split("@")[0] },
           },
         });
@@ -44,7 +44,7 @@ const Auth = () => {
         if (error) throw error;
         toast.success("Welcome back");
       }
-      navigate("/", { replace: true });
+      navigate("/app", { replace: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Authentication failed";
       // Friendly message for the common case
