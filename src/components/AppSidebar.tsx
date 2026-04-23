@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { useState } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type Props = {
   active: string;
@@ -205,6 +206,11 @@ export const AppSidebar = ({ active, onNavigate }: Props) => {
           </div>
         </div>
       )}
+
+      {/* Theme toggle */}
+      <div className="px-2.5 pb-2">
+        <ThemeToggle collapsed={collapsed} />
+      </div>
 
       {/* User menu */}
       <div className="p-2.5 border-t border-border">
