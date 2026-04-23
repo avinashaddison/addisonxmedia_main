@@ -1,11 +1,12 @@
-import { MessageSquare, Users, CheckCircle2, IndianRupee, ArrowUpRight, TrendingUp, Flame, Bell, Megaphone, Radio, Sparkles, Zap } from "lucide-react";
+import { MessageSquare, Users, IndianRupee, ArrowUpRight, TrendingUp, Flame, Bell, Megaphone, Radio, Sparkles, Zap, Loader2, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { PageShell } from "@/components/PageShell";
 import { initialsFor, formatRelative } from "@/lib/inbox-types";
+import { toast } from "sonner";
 
 const useCount = (target: number, duration = 1000) => {
   const [val, setVal] = useState(0);
@@ -52,6 +53,8 @@ const useDashboardData = () => {
 
 export const DashboardPage = () => {
   const { data, isLoading } = useDashboardData();
+  const qc = useQueryClient();
+  const [seeding, setSeeding] = useState(false);
 
   const stats = useMemo(() => {
     if (!data) return { total: 0, open: 0, hot: 0, revenue: 0, msgs7d: 0, tasksOpen: 0 };
@@ -74,14 +77,71 @@ export const DashboardPage = () => {
     { icon: Flame, label: "Hot Leads", value: stats.hot, trend: 38, color: "text-hot", bg: "bg-hot-soft" },
     { icon: IndianRupee, label: "Revenue", value: stats.revenue, trend: 56, color: "text-success", bg: "bg-success-soft", isCurrency: true },
   ];
-  const counts = tiles.map((t) => useCount(t.value));
+
+  // Pre-compute counts at the top level (Hooks rule: same number every render)
+  const c0 = useCount(tiles[0].value);
+  const c1 = useCount(tiles[1].value);
+  const c2 = useCount(tiles[2].value);
+  const c3 = useCount(tiles[3].value);
+  const counts = [c0, c1, c2, c3];
+
+  const handleSeed = async () => {
+    setSeeding(true);
+    try {
+      const { data: result, error } = await supabase.functions.invoke("seed-demo-data");
+      if (error) throw error;
+      if (result?.skipped) {
+        toast.info("Demo data already loaded");
+      } else {
+        toast.success("Demo data loaded — your workspace just got real ✨");
+      }
+      await qc.invalidateQueries();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to load demo data");
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const isEmpty = !isLoading && stats.total === 0;
 
   return (
     <PageShell
       title="Dashboard"
       subtitle="Your sales performance at a glance"
       icon={<TrendingUp className="w-4 h-4" />}
+      actions={
+        <button
+          onClick={handleSeed}
+          disabled={seeding}
+          className="flex items-center gap-2 bg-foreground text-background px-3.5 py-2 rounded-lg text-[12px] font-bold hover:opacity-90 transition-all disabled:opacity-60"
+        >
+          {seeding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+          {seeding ? "Loading…" : "Load demo data"}
+        </button>
+      }
     >
+      {/* Empty state takeover */}
+      {isEmpty && (
+        <div className="bg-gradient-to-br from-primary-soft via-card to-accent-soft border border-primary/20 rounded-2xl p-8 mb-5 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mx-auto mb-4">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <h2 className="text-xl font-bold tracking-tight">Welcome to AddisonX 🎉</h2>
+          <p className="text-[13px] text-muted-foreground mt-2 max-w-md mx-auto">
+            Your workspace is ready. Load a realistic demo dataset to see what AddisonX feels like in action.
+          </p>
+          <button
+            onClick={handleSeed}
+            disabled={seeding}
+            className="mt-5 inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-xl text-[13px] font-bold hover:bg-primary-glow transition-all shadow-lg shadow-primary/30 disabled:opacity-60"
+          >
+            {seeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+            {seeding ? "Loading demo workspace…" : "Load demo workspace"}
+          </button>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         {tiles.map((s, i) => (
@@ -146,7 +206,7 @@ export const DashboardPage = () => {
           </div>
           {isLoading && <p className="text-[12px] text-muted-foreground text-center py-6">Loading…</p>}
           {!isLoading && recent.length === 0 && (
-            <p className="text-[12px] text-muted-foreground text-center py-6">No contacts yet — start a conversation in the Inbox.</p>
+            <p className="text-[12px] text-muted-foreground text-center py-6">No contacts yet — load demo data above to populate.</p>
           )}
           <div className="space-y-2">
             {recent.map((c) => (
