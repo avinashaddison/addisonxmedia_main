@@ -56,17 +56,20 @@ export const ChatWindow = ({ conversation }: Props) => {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-card min-w-0">
+    <div className="flex-1 flex flex-col bg-card min-w-0 relative">
       {/* Chat header */}
-      <div className="h-14 flex items-center justify-between px-4 border-b border-border flex-shrink-0">
+      <div className="h-16 flex items-center justify-between px-5 border-b border-border flex-shrink-0 glass-strong z-10 relative">
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative flex-shrink-0">
             <div className={cn(
-              "w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold",
-              contact.tag === "hot" ? "bg-hot-soft text-hot" : contact.tag === "warm" ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground"
+              "w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold ring-2 ring-card",
+              contact.tag === "hot" ? "bg-gradient-to-br from-hot-soft to-hot/20 text-hot" :
+              contact.tag === "warm" ? "bg-gradient-to-br from-warning-soft to-warning/20 text-warning" :
+              "bg-gradient-to-br from-muted to-muted/60 text-muted-foreground"
             )}>
               {initials}
             </div>
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success rounded-full ring-2 ring-card" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -104,7 +107,10 @@ export const ChatWindow = ({ conversation }: Props) => {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2" style={{ background: "hsl(var(--chat-bg))" }}>
+      <div
+        className="flex-1 overflow-y-auto px-5 py-5 space-y-2 relative dot-pattern"
+        style={{ background: "hsl(var(--chat-bg))" }}
+      >
         {isLoading && (
           <div className="flex justify-center py-8">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
