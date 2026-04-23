@@ -15,7 +15,7 @@ const Index = () => {
     <div className="flex h-screen w-full overflow-hidden">
       <AppSidebar active={page} onNavigate={setPage} />
       {page === "inbox" && <InboxPage />}
-      {page === "dashboard" && <DashboardPage />}
+      {page === "dashboard" && <DashboardPage onNavigate={setPage} />}
       {page === "contacts" && <ContactsPage />}
       {page === "campaigns" && <CampaignsPage />}
       {page === "broadcasts" && <BroadcastsPage />}
