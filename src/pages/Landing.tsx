@@ -5,7 +5,7 @@ import {
   ChevronRight, Play, IndianRupee, MessageSquare, Phone, Inbox,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import heroImage from "@/assets/hero-product.jpg";
+
 
 const features = [
   {
