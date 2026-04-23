@@ -1,6 +1,6 @@
 import {
   MessageSquare, Users, IndianRupee, ArrowUpRight, TrendingUp, Flame, Bell, Megaphone, Radio,
-  Sparkles, Zap, Loader2, Wand2, Activity, Target, Clock, ArrowRight, CheckCircle2, Send,
+  Sparkles, Zap, Loader2, Wand2, Activity, Target, Clock, ArrowRight, CheckCircle2, Send, Crown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState, useMemo } from "react";
@@ -54,10 +54,13 @@ const useDashboardData = () => {
   });
 };
 
-export const DashboardPage = () => {
+type Props = { onNavigate?: (page: string) => void };
+
+export const DashboardPage = ({ onNavigate }: Props) => {
   const { data, isLoading } = useDashboardData();
   const qc = useQueryClient();
   const [seeding, setSeeding] = useState(false);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   const stats = useMemo(() => {
     if (!data) return { total: 0, open: 0, hot: 0, revenue: 0, msgs7d: 0, tasksOpen: 0, replies: 0 };
@@ -74,8 +77,9 @@ export const DashboardPage = () => {
   const urgentTasks = (data?.tasks ?? [])
     .filter((t) => t.due_at && new Date(t.due_at).getTime() < Date.now() + 24 * 3600 * 1000)
     .slice(0, 5);
+  const hotContacts = (data?.contacts ?? []).filter((c) => c.tag === "hot").slice(0, 5);
 
-  // Build a simple 7-day revenue trend from won deals
+  // Build a 7-day revenue trend from won deals
   const trend = useMemo(() => {
     const days = Array.from({ length: 7 }).map((_, i) => {
       const d = new Date();
@@ -94,27 +98,58 @@ export const DashboardPage = () => {
     return days;
   }, [data]);
   const trendMax = Math.max(1, ...trend.map((t) => t.value));
+  const trendTotal = trend.reduce((a, t) => a + t.value, 0);
+
+  // Build SVG area path for revenue chart
+  const chartPaths = useMemo(() => {
+    const W = 600;
+    const H = 180;
+    const padX = 24;
+    const padY = 16;
+    const innerW = W - padX * 2;
+    const innerH = H - padY * 2;
+    const points = trend.map((d, i) => {
+      const x = padX + (innerW * i) / Math.max(1, trend.length - 1);
+      const y = padY + innerH - (d.value / trendMax) * innerH;
+      return { x, y, value: d.value, label: d.label };
+    });
+    if (points.length === 0) return { line: "", area: "", points: [], W, H };
+    // Smooth curve via simple cubic bezier between points
+    let line = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i];
+      const p1 = points[i + 1];
+      const cx = (p0.x + p1.x) / 2;
+      line += ` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;
+    }
+    const area = `${line} L ${points[points.length - 1].x} ${padY + innerH} L ${points[0].x} ${padY + innerH} Z`;
+    return { line, area, points, W, H };
+  }, [trend, trendMax]);
 
   const tiles = [
     {
       icon: MessageSquare, label: "Total Contacts", value: stats.total, trend: 24, sub: "this month",
-      gradient: "from-primary/10 via-primary/5 to-transparent",
       iconBg: "bg-primary text-primary-foreground",
+      ring: "from-primary/30 to-transparent",
+      sparkColor: "hsl(var(--primary))",
     },
     {
       icon: Users, label: "Open Chats", value: stats.open, trend: 12, sub: "right now",
-      gradient: "from-accent/10 via-accent/5 to-transparent",
       iconBg: "bg-accent text-accent-foreground",
+      ring: "from-accent/30 to-transparent",
+      sparkColor: "hsl(var(--accent))",
     },
     {
       icon: Flame, label: "Hot Leads", value: stats.hot, trend: 38, sub: "ready to buy",
-      gradient: "from-hot/10 via-hot/5 to-transparent",
       iconBg: "bg-hot text-hot-foreground",
+      ring: "from-hot/30 to-transparent",
+      sparkColor: "hsl(var(--hot))",
     },
     {
       icon: IndianRupee, label: "Revenue Closed", value: stats.revenue, trend: 56, sub: "all time", isCurrency: true,
-      gradient: "from-success/10 via-success/5 to-transparent",
       iconBg: "bg-success text-success-foreground",
+      ring: "from-success/30 to-transparent",
+      sparkColor: "hsl(var(--success))",
     },
   ];
 
@@ -124,6 +159,19 @@ export const DashboardPage = () => {
   const c2 = useCount(tiles[2].value);
   const c3 = useCount(tiles[3].value);
   const counts = [c0, c1, c2, c3];
+
+  // Synthetic sparkline data per tile (deterministic from value)
+  const sparkSeed = (seed: number) =>
+    Array.from({ length: 12 }).map((_, i) => {
+      const x = Math.sin(seed * (i + 1) * 0.7) * 0.5 + 0.5;
+      return 0.25 + x * 0.65;
+    });
+  const sparks = [
+    sparkSeed(stats.total + 3),
+    sparkSeed(stats.open + 7),
+    sparkSeed(stats.hot + 11),
+    sparkSeed(Math.max(1, Math.floor(stats.revenue / 1000)) + 5),
+  ];
 
   const handleSeed = async () => {
     setSeeding(true);
@@ -148,6 +196,8 @@ export const DashboardPage = () => {
     return "Good evening";
   })();
 
+  const conversionPct = 34.7;
+
   return (
     <PageShell
       title="Dashboard"
@@ -157,7 +207,7 @@ export const DashboardPage = () => {
         <button
           onClick={handleSeed}
           disabled={seeding}
-          className="flex items-center gap-2 bg-foreground text-background px-3.5 py-2 rounded-lg text-[12px] font-bold hover:opacity-90 transition-all disabled:opacity-60"
+          className="flex items-center gap-2 bg-foreground text-background px-3.5 py-2 rounded-lg text-[12px] font-bold hover:opacity-90 transition-all disabled:opacity-60 shadow-md"
         >
           {seeding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
           {seeding ? "Loading…" : "Load demo data"}
@@ -165,32 +215,78 @@ export const DashboardPage = () => {
       }
     >
       {/* Hero greeting banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-foreground via-foreground to-primary text-background p-6 lg:p-8 mb-5">
-        <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/30 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-accent/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] opacity-70">{greeting}</p>
-            <h2 className="text-2xl lg:text-3xl font-bold tracking-tight mt-1">
-              You have <span className="bg-gradient-to-r from-primary-glow to-accent bg-clip-text text-transparent">{stats.hot} hot leads</span> waiting.
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-foreground via-foreground to-primary text-background p-6 lg:p-8 mb-5 ring-1 ring-foreground/10 shadow-2xl shadow-primary/10">
+        <div className="absolute -top-32 -right-24 w-72 h-72 bg-primary/40 rounded-full blur-3xl pointer-events-none animate-float" />
+        <div className="absolute -bottom-32 -left-24 w-72 h-72 bg-accent/25 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute inset-0 opacity-[0.07] grid-pattern pointer-events-none" />
+
+        <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] opacity-70 flex items-center gap-2">
+              <Crown className="w-3 h-3" /> {greeting}
+            </p>
+            <h2 className="text-2xl lg:text-[32px] font-bold tracking-tight mt-2 leading-tight">
+              You have{" "}
+              <span className="bg-gradient-to-r from-primary-glow via-accent to-primary-glow bg-clip-text text-transparent">
+                {stats.hot} hot leads
+              </span>{" "}
+              waiting.
             </h2>
-            <p className="text-[13px] opacity-80 mt-2 max-w-xl">
+            <p className="text-[13px] opacity-80 mt-2.5 max-w-xl">
               {stats.open} open conversations · {stats.tasksOpen} follow-ups due · ₹{stats.revenue.toLocaleString()} closed
             </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="px-3 py-1.5 rounded-full bg-background/10 backdrop-blur border border-background/10 text-[11px] font-bold flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-              AI Co-Pilot active
+
+            {/* Mini KPI row inside hero */}
+            <div className="flex flex-wrap items-center gap-2 mt-4">
+              <button
+                onClick={() => onNavigate?.("inbox")}
+                className="px-3 py-1.5 rounded-full bg-background/10 hover:bg-background/20 backdrop-blur border border-background/10 text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <MessageSquare className="w-3 h-3" /> Open inbox
+                <ArrowRight className="w-3 h-3 opacity-60" />
+              </button>
+              <button
+                onClick={() => onNavigate?.("followups")}
+                className="px-3 py-1.5 rounded-full bg-background/10 hover:bg-background/20 backdrop-blur border border-background/10 text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <Bell className="w-3 h-3" /> Follow-ups queue
+                <ArrowRight className="w-3 h-3 opacity-60" />
+              </button>
+              <div className="px-3 py-1.5 rounded-full bg-success/20 backdrop-blur border border-success/20 text-[11px] font-bold flex items-center gap-1.5 text-success">
+                <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                AI Co-Pilot active
+              </div>
             </div>
           </div>
+
+          {/* Hot leads avatar pile */}
+          {hotContacts.length > 0 && (
+            <div className="flex items-center gap-3 pl-4 lg:pl-0 lg:border-l border-background/15 lg:pl-6 self-stretch lg:self-end">
+              <div className="flex -space-x-2">
+                {hotContacts.map((c, i) => (
+                  <div
+                    key={c.id}
+                    className="w-10 h-10 rounded-full bg-gradient-to-br from-hot to-warning ring-2 ring-foreground flex items-center justify-center text-[11px] font-bold text-hot-foreground shadow-md"
+                    style={{ zIndex: hotContacts.length - i }}
+                    title={c.name}
+                  >
+                    {initialsFor(c.name)}
+                  </div>
+                ))}
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Top hot leads</p>
+                <p className="text-[13px] font-semibold leading-tight">Reply now to win them</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Empty state */}
       {isEmpty && (
         <div className="bg-gradient-to-br from-primary-soft via-card to-accent-soft border border-primary/20 rounded-2xl p-8 mb-5 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mx-auto mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
             <Sparkles className="w-5 h-5" />
           </div>
           <h2 className="text-xl font-bold tracking-tight">Welcome to AddisonX 🎉</h2>
@@ -208,103 +304,237 @@ export const DashboardPage = () => {
         </div>
       )}
 
-      {/* Stat tiles */}
+      {/* Stat tiles with sparklines */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
-        {tiles.map((s, i) => (
-          <div
-            key={s.label}
-            className={cn(
-              "relative overflow-hidden bg-card border border-border rounded-2xl p-5 hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5 transition-all animate-slide-up bg-gradient-to-br",
-              s.gradient
-            )}
-            style={{ animationDelay: `${i * 60}ms` }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-sm", s.iconBg)}>
-                <s.icon className="w-5 h-5" />
+        {tiles.map((s, i) => {
+          const spark = sparks[i];
+          const sparkW = 120;
+          const sparkH = 36;
+          const sparkPath = spark
+            .map((v, idx) => {
+              const x = (sparkW * idx) / (spark.length - 1);
+              const y = sparkH - v * sparkH;
+              return `${idx === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+            })
+            .join(" ");
+          const sparkArea = `${sparkPath} L ${sparkW} ${sparkH} L 0 ${sparkH} Z`;
+          return (
+            <div
+              key={s.label}
+              className="relative overflow-hidden bg-card border border-border rounded-2xl p-5 hover:shadow-xl hover:border-primary/30 hover:-translate-y-0.5 transition-all animate-slide-up group"
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
+              <div className={cn("absolute -top-16 -right-16 w-40 h-40 rounded-full blur-2xl opacity-60 bg-gradient-to-br", s.ring)} />
+              <div className="relative flex items-center justify-between mb-4">
+                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-md group-hover:scale-105 transition-transform", s.iconBg)}>
+                  <s.icon className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-bold text-success bg-success-soft px-2 py-1 rounded-full flex items-center gap-0.5">
+                  <ArrowUpRight className="w-3 h-3" /> +{s.trend}%
+                </span>
               </div>
-              <span className="text-[10px] font-bold text-success bg-success-soft px-2 py-1 rounded-full flex items-center gap-0.5">
-                <ArrowUpRight className="w-3 h-3" /> +{s.trend}%
-              </span>
+              <p className="relative text-[11px] text-muted-foreground font-bold uppercase tracking-wider">{s.label}</p>
+              <p className="relative text-3xl font-bold tracking-tight mt-1 tabular-nums">
+                {s.isCurrency ? "₹" : ""}{counts[i].toLocaleString()}
+              </p>
+              <div className="relative flex items-end justify-between mt-2 gap-2">
+                <p className="text-[11px] text-muted-foreground">{s.sub}</p>
+                <svg width={sparkW} height={sparkH} viewBox={`0 0 ${sparkW} ${sparkH}`} className="opacity-90">
+                  <defs>
+                    <linearGradient id={`spark-${i}`} x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor={s.sparkColor} stopOpacity="0.35" />
+                      <stop offset="100%" stopColor={s.sparkColor} stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path d={sparkArea} fill={`url(#spark-${i})`} />
+                  <path d={sparkPath} fill="none" stroke={s.sparkColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
             </div>
-            <p className="text-[11px] text-muted-foreground font-bold uppercase tracking-wider">{s.label}</p>
-            <p className="text-3xl font-bold tracking-tight mt-1 tabular-nums">
-              {s.isCurrency ? "₹" : ""}{counts[i].toLocaleString()}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">{s.sub}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Main grid: Revenue trend (wide) + Conversion donut */}
+      {/* Main grid: Revenue area chart + Conversion donut */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mb-5">
-        {/* Revenue chart */}
-        <div className="xl:col-span-8 bg-card border border-border rounded-2xl p-5 lg:p-6">
-          <div className="flex items-start justify-between mb-5">
+        {/* Revenue area chart */}
+        <div className="xl:col-span-8 relative overflow-hidden bg-card border border-border rounded-2xl p-5 lg:p-6">
+          <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="relative flex items-start justify-between mb-5">
             <div>
               <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-primary" />
+                <div className="w-7 h-7 rounded-lg bg-primary-soft text-primary flex items-center justify-center">
+                  <Activity className="w-3.5 h-3.5" />
+                </div>
                 <h3 className="text-[14px] font-bold tracking-tight">Revenue Trend</h3>
                 <span className="text-[10px] font-bold text-success bg-success-soft px-1.5 py-0.5 rounded">Last 7 days</span>
               </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Closed-won deals per day</p>
+              <p className="text-[11px] text-muted-foreground mt-1 ml-9">Closed-won deals per day</p>
             </div>
             <div className="text-right">
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">7d Total</p>
-              <p className="text-2xl font-bold tabular-nums">₹{trend.reduce((a, t) => a + t.value, 0).toLocaleString()}</p>
+              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">7d Total</p>
+              <p className="text-2xl font-bold tabular-nums bg-gradient-to-r from-foreground to-primary bg-clip-text text-transparent">
+                ₹{trendTotal.toLocaleString()}
+              </p>
             </div>
           </div>
-          <div className="h-56 flex items-end gap-2 lg:gap-3 pt-4">
-            {trend.map((d, i) => {
-              const h = (d.value / trendMax) * 100;
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
-                  <div className="relative w-full flex-1 flex items-end">
-                    <div
-                      className={cn(
-                        "w-full rounded-t-lg transition-all group-hover:opacity-90",
-                        d.value > 0
-                          ? "bg-gradient-to-t from-primary to-primary-glow shadow-md shadow-primary/20"
-                          : "bg-muted"
-                      )}
-                      style={{ height: `${Math.max(h, 4)}%` }}
-                    />
-                    {d.value > 0 && (
-                      <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold opacity-0 group-hover:opacity-100 bg-foreground text-background px-1.5 py-0.5 rounded whitespace-nowrap transition-opacity">
-                        ₹{d.value.toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{d.label}</span>
-                </div>
-              );
-            })}
+
+          <div className="relative">
+            <svg
+              viewBox={`0 0 ${chartPaths.W} ${chartPaths.H}`}
+              className="w-full h-56"
+              preserveAspectRatio="none"
+              onMouseLeave={() => setHoverIdx(null)}
+            >
+              <defs>
+                <linearGradient id="revArea" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+                </linearGradient>
+                <linearGradient id="revLine" x1="0" x2="1" y1="0" y2="0">
+                  <stop offset="0%" stopColor="hsl(var(--primary))" />
+                  <stop offset="100%" stopColor="hsl(var(--primary-glow))" />
+                </linearGradient>
+              </defs>
+
+              {/* Horizontal grid lines */}
+              {[0.25, 0.5, 0.75, 1].map((p) => {
+                const y = 16 + (180 - 32) * p;
+                return (
+                  <line
+                    key={p}
+                    x1="24"
+                    x2={chartPaths.W - 24}
+                    y1={y}
+                    y2={y}
+                    stroke="hsl(var(--border))"
+                    strokeWidth="1"
+                    strokeDasharray="2 4"
+                    opacity="0.6"
+                  />
+                );
+              })}
+
+              {trendTotal > 0 && (
+                <>
+                  <path d={chartPaths.area} fill="url(#revArea)" />
+                  <path
+                    d={chartPaths.line}
+                    fill="none"
+                    stroke="url(#revLine)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {chartPaths.points.map((p, i) => (
+                    <g key={i}>
+                      {/* hit area */}
+                      <rect
+                        x={p.x - 22}
+                        y={0}
+                        width={44}
+                        height={chartPaths.H}
+                        fill="transparent"
+                        onMouseEnter={() => setHoverIdx(i)}
+                      />
+                      <circle
+                        cx={p.x}
+                        cy={p.y}
+                        r={hoverIdx === i ? 5 : 3}
+                        fill="hsl(var(--card))"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth="2"
+                        className="transition-all"
+                      />
+                    </g>
+                  ))}
+                  {hoverIdx !== null && chartPaths.points[hoverIdx] && (
+                    <g>
+                      <line
+                        x1={chartPaths.points[hoverIdx].x}
+                        x2={chartPaths.points[hoverIdx].x}
+                        y1={16}
+                        y2={chartPaths.H - 16}
+                        stroke="hsl(var(--primary))"
+                        strokeWidth="1"
+                        strokeDasharray="2 3"
+                        opacity="0.4"
+                      />
+                    </g>
+                  )}
+                </>
+              )}
+
+              {trendTotal === 0 && (
+                <text
+                  x="50%"
+                  y="50%"
+                  textAnchor="middle"
+                  className="fill-muted-foreground"
+                  style={{ fontSize: 11, fontWeight: 600 }}
+                >
+                  No closed-won deals yet
+                </text>
+              )}
+            </svg>
+
+            {/* Day labels */}
+            <div className="flex justify-between px-6 mt-2">
+              {trend.map((d, i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    "text-[10px] font-bold uppercase tracking-wider transition-colors",
+                    hoverIdx === i ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  {d.label}
+                </span>
+              ))}
+            </div>
+
+            {/* Hover tooltip */}
+            {hoverIdx !== null && trend[hoverIdx] && trend[hoverIdx].value > 0 && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-foreground text-background text-[11px] font-bold shadow-lg pointer-events-none">
+                {trend[hoverIdx].label} · ₹{trend[hoverIdx].value.toLocaleString()}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Conversion donut */}
-        <div className="xl:col-span-4 bg-card border border-border rounded-2xl p-5 lg:p-6 flex flex-col">
-          <div className="flex items-center gap-2 mb-1">
-            <Target className="w-4 h-4 text-primary" />
+        <div className="xl:col-span-4 relative overflow-hidden bg-card border border-border rounded-2xl p-5 lg:p-6 flex flex-col">
+          <div className="absolute -top-16 -right-16 w-40 h-40 bg-primary/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="relative flex items-center gap-2 mb-1">
+            <div className="w-7 h-7 rounded-lg bg-primary-soft text-primary flex items-center justify-center">
+              <Target className="w-3.5 h-3.5" />
+            </div>
             <h3 className="text-[14px] font-bold tracking-tight">Conversion</h3>
           </div>
-          <p className="text-[11px] text-muted-foreground">Leads → Won</p>
-          <div className="flex-1 flex flex-col items-center justify-center py-2">
-            <div className="relative w-36 h-36">
+          <p className="relative text-[11px] text-muted-foreground ml-9">Leads → Won</p>
+          <div className="relative flex-1 flex flex-col items-center justify-center py-2">
+            <div className="relative w-40 h-40">
               <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+                <defs>
+                  <linearGradient id="donutGrad" x1="0" x2="1" y1="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" />
+                    <stop offset="100%" stopColor="hsl(var(--primary-glow))" />
+                  </linearGradient>
+                </defs>
                 <circle cx="60" cy="60" r="50" fill="none" stroke="hsl(var(--muted))" strokeWidth="10" />
                 <circle
                   cx="60" cy="60" r="50" fill="none"
-                  stroke="hsl(var(--primary))" strokeWidth="10"
+                  stroke="url(#donutGrad)" strokeWidth="10"
                   strokeDasharray={`${2 * Math.PI * 50}`}
-                  strokeDashoffset={`${2 * Math.PI * 50 * (1 - 0.347)}`}
+                  strokeDashoffset={`${2 * Math.PI * 50 * (1 - conversionPct / 100)}`}
                   strokeLinecap="round"
-                  className="drop-shadow-md"
+                  className="drop-shadow-md transition-all"
+                  style={{ filter: "drop-shadow(0 0 8px hsl(var(--primary) / 0.4))" }}
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold tabular-nums">34.7%</span>
-                <span className="text-[10px] text-muted-foreground font-medium">conversion</span>
+                <span className="text-3xl font-bold tabular-nums tracking-tight">{conversionPct}%</span>
+                <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">conversion</span>
               </div>
             </div>
             <div className="flex items-center gap-1 mt-3 text-success text-[12px] font-bold bg-success-soft px-2.5 py-1 rounded-full">
@@ -326,7 +556,12 @@ export const DashboardPage = () => {
               </h3>
               <p className="text-[11px] text-muted-foreground mt-0.5">Latest leads added</p>
             </div>
-            <span className="text-[11px] text-muted-foreground font-semibold">{recent.length} of {stats.total}</span>
+            <button
+              onClick={() => onNavigate?.("contacts")}
+              className="text-[11px] text-primary font-bold hover:underline flex items-center gap-1"
+            >
+              View all <ArrowRight className="w-3 h-3" />
+            </button>
           </div>
           {isLoading && <p className="text-[12px] text-muted-foreground text-center py-6">Loading…</p>}
           {!isLoading && recent.length === 0 && (
@@ -334,15 +569,18 @@ export const DashboardPage = () => {
           )}
           <div className="space-y-1">
             {recent.map((c) => (
-              <div key={c.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+              <div key={c.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group cursor-pointer">
                 <div className={cn(
-                  "w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0",
-                  c.tag === "hot" ? "bg-hot-soft text-hot ring-1 ring-hot/20" : c.tag === "warm" ? "bg-warning-soft text-warning ring-1 ring-warning/20" : "bg-muted text-muted-foreground"
+                  "w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ring-2 transition-transform group-hover:scale-105",
+                  c.tag === "hot" ? "bg-hot-soft text-hot ring-hot/20" : c.tag === "warm" ? "bg-warning-soft text-warning ring-warning/20" : "bg-muted text-muted-foreground ring-transparent"
                 )}>
                   {initialsFor(c.name)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold truncate">{c.name}</p>
+                  <p className="text-[13px] font-semibold truncate flex items-center gap-1.5">
+                    {c.name}
+                    {c.tag === "hot" && <Flame className="w-3 h-3 text-hot" />}
+                  </p>
                   <p className="text-[11px] text-muted-foreground font-mono truncate">{c.phone}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
@@ -376,7 +614,7 @@ export const DashboardPage = () => {
           )}
           <div className="space-y-2">
             {urgentTasks.map((t) => (
-              <div key={t.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-border hover:border-warning/40 hover:shadow-sm transition-all">
+              <div key={t.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-border hover:border-warning/40 hover:shadow-sm transition-all group cursor-pointer">
                 <div className={cn(
                   "w-2 h-2 rounded-full flex-shrink-0",
                   t.priority === "urgent" ? "bg-hot animate-pulse" : t.priority === "high" ? "bg-warning" : "bg-accent"
@@ -392,8 +630,9 @@ export const DashboardPage = () => {
         </div>
 
         {/* Quick actions */}
-        <div className="xl:col-span-3 bg-gradient-to-br from-primary via-primary to-primary-glow text-primary-foreground rounded-2xl p-5 lg:p-6 relative overflow-hidden">
+        <div className="xl:col-span-3 bg-gradient-to-br from-primary via-primary to-primary-glow text-primary-foreground rounded-2xl p-5 lg:p-6 relative overflow-hidden shadow-xl shadow-primary/20">
           <div className="absolute -top-12 -right-12 w-32 h-32 bg-primary-foreground/10 rounded-full blur-2xl" />
+          <div className="absolute inset-0 opacity-10 dot-pattern" />
           <div className="relative">
             <div className="flex items-center gap-2 mb-1">
               <Zap className="w-4 h-4" />
@@ -401,10 +640,10 @@ export const DashboardPage = () => {
             </div>
             <p className="text-[11px] opacity-80 mb-4">Jump into common workflows.</p>
             <div className="space-y-2">
-              <ActionRow icon={<Megaphone className="w-3.5 h-3.5" />} label="Launch a campaign" />
-              <ActionRow icon={<Radio className="w-3.5 h-3.5" />} label="Send a broadcast" />
-              <ActionRow icon={<Bell className="w-3.5 h-3.5" />} label="Schedule follow-up" />
-              <ActionRow icon={<Send className="w-3.5 h-3.5" />} label="Open inbox" />
+              <ActionRow icon={<Megaphone className="w-3.5 h-3.5" />} label="Launch a campaign" onClick={() => onNavigate?.("campaigns")} />
+              <ActionRow icon={<Radio className="w-3.5 h-3.5" />} label="Send a broadcast" onClick={() => onNavigate?.("broadcasts")} />
+              <ActionRow icon={<Bell className="w-3.5 h-3.5" />} label="Schedule follow-up" onClick={() => onNavigate?.("followups")} />
+              <ActionRow icon={<Send className="w-3.5 h-3.5" />} label="Open inbox" onClick={() => onNavigate?.("inbox")} />
             </div>
           </div>
         </div>
@@ -413,10 +652,13 @@ export const DashboardPage = () => {
   );
 };
 
-const ActionRow = ({ icon, label }: { icon: React.ReactNode; label: string }) => (
-  <div className="flex items-center gap-2 bg-background/10 backdrop-blur rounded-lg px-3 py-2 hover:bg-background/20 transition-colors cursor-pointer group">
+const ActionRow = ({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick?: () => void }) => (
+  <button
+    onClick={onClick}
+    className="w-full flex items-center gap-2 bg-background/10 hover:bg-background/25 backdrop-blur rounded-lg px-3 py-2.5 transition-all cursor-pointer group hover:translate-x-0.5"
+  >
     {icon}
-    <span className="text-[12px] font-semibold flex-1">{label}</span>
-    <ArrowRight className="w-3.5 h-3.5 opacity-60 group-hover:translate-x-0.5 transition-transform" />
-  </div>
+    <span className="text-[12px] font-semibold flex-1 text-left">{label}</span>
+    <ArrowRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-transform" />
+  </button>
 );
