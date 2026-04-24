@@ -1,4 +1,4 @@
-import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3 } from "lucide-react";
+import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AddisonMark, AddisonLogo } from "@/components/brand/AddisonLogo";
@@ -40,6 +40,10 @@ const groups: { label: string; items: { icon: any; label: string; id: string; ba
       { icon: Radio, label: "Broadcasts", id: "broadcasts", hint: "Mass messages" },
       { icon: Bell, label: "Follow-ups", id: "followups", badgeKey: "tasks", hint: "Tasks queue" },
     ],
+  },
+  {
+    label: "Intelligence",
+    items: [{ icon: Brain, label: "AI Training", id: "ai-training", hint: "Train Addison AI" }],
   },
   {
     label: "System",
