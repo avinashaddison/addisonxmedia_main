@@ -392,9 +392,9 @@ const AISection = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {(
               [
-                { id: "manual",   title: "Manual",    desc: "You write every reply",                    icon: User },
-                { id: "assisted", title: "Assisted",  desc: "AI suggests, you approve",                 icon: Sparkles },
-                { id: "auto",     title: "Automatic", desc: "AI replies instantly, 24/7",               icon: Rocket, danger: true },
+                { id: "manual",   title: "Manual",    desc: "You write every reply",      icon: User,     danger: false },
+                { id: "assisted", title: "Assisted",  desc: "AI suggests, you approve",   icon: Sparkles, danger: false },
+                { id: "auto",     title: "Automatic", desc: "AI replies instantly, 24/7", icon: Rocket,   danger: true  },
               ] as const
             ).map((opt) => {
               const Icon = opt.icon;
