@@ -220,54 +220,6 @@ export const DashboardPage = ({ onNavigate }: Props) => {
         </button>
       }
     >
-      {/* Addison AI · Next best action — compact, action-driven */}
-      {!isEmpty && (
-        <div className="mb-5">
-          <NextBestAction
-            compact
-            items={
-              [
-                hotContacts[0] && {
-                  id: "nba-hot",
-                  title: `Send offer to ${hotContacts[0].name} (high intent)`,
-                  hint: "Replying within 2 min increases close rate ~3x",
-                  icon: Flame,
-                  tone: "danger" as const,
-                  cta: "Reply now",
-                  onClick: () => {
-                    toast.success(`Opening chat with ${hotContacts[0].name}…`);
-                    onNavigate?.("inbox");
-                  },
-                },
-                stats.tasksOpen > 0 && {
-                  id: "nba-followups",
-                  title: `Follow up with ${stats.tasksOpen} lead${stats.tasksOpen > 1 ? "s" : ""} now`,
-                  hint: "Overdue follow-ups → leaking pipeline",
-                  icon: Clock,
-                  tone: "warning" as const,
-                  cta: "Open queue",
-                  onClick: () => {
-                    toast("Opening follow-up queue…");
-                    onNavigate?.("followups");
-                  },
-                },
-                stats.open > 0 && {
-                  id: "nba-broadcast",
-                  title: `Re-engage ${stats.total - stats.hot} cold contacts with a broadcast`,
-                  hint: "Best send time today: 6–9 PM",
-                  icon: Send,
-                  tone: "success" as const,
-                  cta: "Compose",
-                  onClick: () => {
-                    toast("Drafting broadcast…");
-                    onNavigate?.("broadcasts");
-                  },
-                },
-              ].filter(Boolean) as NBAItem[]
-            }
-          />
-        </div>
-      )}
 
       {/* Empty state */}
       {isEmpty && (
