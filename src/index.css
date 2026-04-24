@@ -263,3 +263,40 @@
 @keyframes spark-draw {
   to { stroke-dashoffset: 0; }
 }
+@keyframes urgency-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-1px); }
+  40% { transform: translateX(1px); }
+  60% { transform: translateX(-1px); }
+  80% { transform: translateX(1px); }
+}
+@keyframes hot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--hot) / 0.55), 0 0 14px 0 hsl(var(--hot) / 0.35); }
+  50% { box-shadow: 0 0 0 8px hsl(var(--hot) / 0), 0 0 22px 4px hsl(var(--hot) / 0.55); }
+}
+@keyframes bubble-pop {
+  0% { opacity: 0; transform: translateY(6px) scale(0.96); }
+  60% { opacity: 1; transform: translateY(0) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+@layer utilities {
+  .animate-urgency-shake { animation: urgency-shake 0.6s ease-in-out infinite; }
+  .animate-hot-pulse { animation: hot-pulse 2s ease-in-out infinite; }
+  .animate-bubble-pop { animation: bubble-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .typing-dot {
+    width: 4px; height: 4px; border-radius: 9999px;
+    background: hsl(var(--muted-foreground));
+    animation: typing-bounce 1.2s infinite ease-in-out;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+  .hot-glow {
+    box-shadow: inset 3px 0 0 hsl(var(--hot)), 0 0 20px -8px hsl(var(--hot) / 0.4);
+  }
+}
