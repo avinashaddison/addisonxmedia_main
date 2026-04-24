@@ -505,7 +505,7 @@ export const AnalyticsPage = () => {
     data.deals.length === 0;
 
   return (
-    <main className="flex-1 h-screen overflow-y-auto bg-gradient-to-br from-background via-background to-muted/20">
+    <main className="flex-1 min-h-0 overflow-y-auto bg-gradient-to-br from-background via-background to-muted/20">
       {/* Header */}
       <header className="sticky top-0 z-20 backdrop-blur-xl bg-background/80 border-b border-border">
         <div className="px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
