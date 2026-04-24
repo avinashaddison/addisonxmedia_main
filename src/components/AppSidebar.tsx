@@ -29,6 +29,7 @@ const groups: { label: string; items: { icon: any; label: string; id: string; ba
       { icon: LayoutDashboard, label: "Dashboard", id: "dashboard", hint: "Overview & KPIs" },
       { icon: Inbox, label: "Chats", id: "inbox", badgeKey: "inbox", hint: "WhatsApp inbox" },
       { icon: Users, label: "Contacts", id: "contacts", hint: "Leads & CRM" },
+      { icon: Trophy, label: "Deals", id: "deals", hint: "Sales pipeline" },
     ],
   },
   {
