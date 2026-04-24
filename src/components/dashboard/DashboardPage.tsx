@@ -12,7 +12,6 @@ import { initialsFor, formatRelative } from "@/lib/inbox-types";
 import { toast } from "sonner";
 import { TypingText } from "@/components/dashboard/TypingText";
 import { AIAssistant } from "@/components/dashboard/AIAssistant";
-import { NextBestAction, type NBAItem } from "@/components/global/NextBestAction";
 
 const useCount = (target: number, duration = 1100) => {
   const [val, setVal] = useState(0);
