@@ -7,6 +7,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Contact, initialsFor } from "@/lib/inbox-types";
 import { toast } from "sonner";
+import { ActivityTimeline, type TimelineEvent } from "@/components/global/ActivityTimeline";
+import { NextBestAction, type NBAItem } from "@/components/global/NextBestAction";
 
 type Props = {
   contact: Contact;
