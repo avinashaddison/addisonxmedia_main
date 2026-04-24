@@ -283,6 +283,15 @@
   0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
   30% { transform: translateY(-4px); opacity: 1; }
 }
+@keyframes shine {
+  0%, 100% { transform: translateX(-120%) rotate(12deg); opacity: 0; }
+  40% { opacity: 1; }
+  70% { transform: translateX(420%) rotate(12deg); opacity: 0; }
+}
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
 
 @layer utilities {
   .animate-urgency-shake { animation: urgency-shake 0.6s ease-in-out infinite; }
