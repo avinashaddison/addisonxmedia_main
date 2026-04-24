@@ -348,26 +348,25 @@ const AddDealDialog = ({
   const [notes, setNotes] = useState("");
 
   // Reset on open
-  useMemo(() => {
-    if (open) {
-      setStage(defaultStage);
-      if (ai) {
-        const c = contacts[0];
-        setContactId(c?.id ?? "");
-        setTitle(c ? `${c.name} — qualified opportunity` : "AI-generated opportunity");
-        setValue(25000);
-        setProbability(55);
-        setNotes("AI suggestion: warm lead with recent engagement. Recommend offer within 24h.");
-      } else {
-        setContactId("");
-        setTitle("");
-        setValue(10000);
-        setProbability(40);
-        setNotes("");
-      }
+  useEffect(() => {
+    if (!open) return;
+    setStage(defaultStage);
+    if (ai) {
+      const c = contacts[0];
+      setContactId(c?.id ?? "");
+      setTitle(c ? `${c.name} — qualified opportunity` : "AI-generated opportunity");
+      setValue(25000);
+      setProbability(55);
+      setNotes("AI suggestion: warm lead with recent engagement. Recommend offer within 24h.");
+    } else {
+      setContactId("");
+      setTitle("");
+      setValue(10000);
+      setProbability(40);
+      setNotes("");
     }
-    return null;
-  }, [open, defaultStage, ai, contacts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultStage, ai]);
 
   const submit = async () => {
     if (!contactId) return toast.error("Select a contact");
