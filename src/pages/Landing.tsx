@@ -226,7 +226,7 @@ const Landing = () => {
                 <ChevronRight className="w-3 h-3 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
               </div>
 
-              <h1 className="text-[40px] md:text-6xl lg:text-[72px] font-bold tracking-[-0.025em] leading-[1.02]">
+              <h1 className="text-[32px] sm:text-[40px] md:text-6xl lg:text-[72px] font-bold tracking-[-0.025em] leading-[1.05] md:leading-[1.02] break-words">
                 Turn every <span className="relative inline-block">
                   <span className="relative z-10">WhatsApp</span>
                   <span className="absolute inset-x-0 bottom-1 h-3 bg-success/25 rounded -z-0" />
@@ -520,10 +520,10 @@ const Landing = () => {
         <div className="grid md:grid-cols-3 gap-4">
           {testimonials.map((t, i) => (
             <Reveal key={t.name} delay={i * 90}>
-              <div className="bg-card border border-border rounded-2xl p-6 flex flex-col h-full hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1 transition-all group relative overflow-hidden">
+              <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 flex flex-col h-full hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1 transition-all group relative overflow-hidden">
                 {/* metric badge */}
-                <div className="absolute top-5 right-5 text-right">
-                  <p className="text-2xl font-black bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent leading-none">
+                <div className="absolute top-4 right-4 sm:top-5 sm:right-5 text-right">
+                  <p className="text-xl sm:text-2xl font-black bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent leading-none">
                     {t.metric}
                   </p>
                   <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">{t.metricLabel}</p>
@@ -532,7 +532,7 @@ const Landing = () => {
                 <div className="flex gap-0.5 text-warning mb-4">
                   {[...Array(5)].map((_, k) => <Star key={k} className="w-3.5 h-3.5 fill-current" />)}
                 </div>
-                <p className="text-[14px] leading-relaxed flex-1">"{t.quote}"</p>
+                <p className="text-[14px] leading-relaxed flex-1 pr-16 sm:pr-20">"{t.quote}"</p>
                 <div className="mt-5 pt-4 border-t border-border flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${t.color} text-white text-[12px] font-bold flex items-center justify-center shadow-md`}>
                     {t.avatar}
@@ -595,9 +595,9 @@ const Landing = () => {
               return (
                 <div
                   key={t.name}
-                  className={`rounded-2xl p-7 flex flex-col relative transition-all ${
+                  className={`rounded-2xl p-6 sm:p-7 flex flex-col relative transition-all ${
                     t.featured
-                      ? "bg-gradient-to-b from-primary to-primary-glow text-primary-foreground shadow-2xl shadow-primary/40 scale-[1.04] border border-primary/20 animate-glow-pulse"
+                      ? "bg-gradient-to-b from-primary to-primary-glow text-primary-foreground shadow-2xl shadow-primary/40 md:scale-[1.04] border border-primary/20 md:animate-glow-pulse mt-4 md:mt-0"
                       : "bg-card border border-border hover:border-primary/30 hover:shadow-xl hover:-translate-y-1"
                   }`}
                 >
@@ -650,17 +650,17 @@ const Landing = () => {
       <FAQSection />
 
       {/* Final CTA — aggressive */}
-      <section className="max-w-7xl mx-auto px-6 py-24">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
         <Reveal>
-          <div className="relative bg-gradient-to-br from-foreground via-foreground to-primary text-background rounded-3xl p-12 lg:p-16 overflow-hidden">
+          <div className="relative bg-gradient-to-br from-foreground via-foreground to-primary text-background rounded-3xl p-6 sm:p-10 lg:p-16 overflow-hidden">
             <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/30 rounded-full blur-3xl animate-float" />
             <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-accent/20 rounded-full blur-3xl animate-float" style={{ animationDelay: "2s" }} />
             <div className="relative text-center">
-              <span className="inline-flex items-center gap-2 bg-hot/20 text-hot border border-hot/30 rounded-full px-3 py-1.5 mb-6 text-[11px] font-bold uppercase tracking-wider">
+              <span className="inline-flex items-center gap-2 bg-hot/20 text-hot border border-hot/30 rounded-full px-3 py-1.5 mb-5 sm:mb-6 text-[11px] font-bold uppercase tracking-wider">
                 <Flame className="w-3 h-3 fill-current animate-urgency-shake" />
                 Stop the bleed
               </span>
-              <h2 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight max-w-3xl mx-auto leading-[1.05]">
+              <h2 className="text-[26px] sm:text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight max-w-3xl mx-auto leading-[1.08] sm:leading-[1.05]">
                 Every missed reply ={" "}
                 <span className="bg-gradient-to-r from-hot via-warning to-hot bg-clip-text text-transparent">
                   lost revenue.
@@ -668,16 +668,16 @@ const Landing = () => {
                 <br />
                 Fix it now.
               </h2>
-              <p className="text-base md:text-lg opacity-80 mt-5 max-w-xl mx-auto">
+              <p className="text-sm sm:text-base md:text-lg opacity-80 mt-4 sm:mt-5 max-w-xl mx-auto leading-relaxed">
                 Join 1,200+ teams already closing more, faster, with AddisonX. Setup in 2 minutes. First deal in 24 hours.
               </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-7 sm:mt-8">
                 <Link
                   to={ctaHref}
-                  className="group bg-primary text-primary-foreground px-7 py-4 rounded-xl font-bold text-[14px] flex items-center gap-2 hover:bg-primary-glow transition-all shadow-2xl shadow-primary/50 hover:scale-[1.04] hover:-translate-y-0.5"
+                  className="group bg-primary text-primary-foreground px-5 sm:px-7 py-3.5 sm:py-4 rounded-xl font-bold text-[13px] sm:text-[14px] flex items-center gap-2 hover:bg-primary-glow transition-all shadow-2xl shadow-primary/50 hover:scale-[1.04] hover:-translate-y-0.5 text-center"
                 >
-                  {user ? "Open your workspace" : "Start free → close your first deal today"}
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  <span className="truncate">{user ? "Open your workspace" : "Start free → close your first deal today"}</span>
+                  <ArrowRight className="w-4 h-4 flex-shrink-0 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
               <p className="mt-5 text-[12px] opacity-70">
@@ -689,13 +689,13 @@ const Landing = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-muted/20">
-        <div className="max-w-7xl mx-auto px-6 py-12 grid md:grid-cols-4 gap-8">
-          <div>
+      <footer className="border-t border-border bg-muted/20 pb-24 md:pb-0">
+        <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="col-span-2 md:col-span-1">
             <Link to="/" className="inline-flex mb-4">
               <AddisonXLogo size={38} withWordmark withTagline />
             </Link>
-            <p className="text-[12px] text-muted-foreground leading-relaxed">
+            <p className="text-[12px] text-muted-foreground leading-relaxed max-w-xs">
               The AI-powered WhatsApp sales engine for modern Indian teams. Reply in 2 seconds, close in 24 hours.
             </p>
           </div>
@@ -704,7 +704,7 @@ const Landing = () => {
           <FooterCol title="Legal" links={["Privacy", "Terms", "Security", "DPA"]} />
         </div>
         <div className="border-t border-border">
-          <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between text-[11px] text-muted-foreground">
+          <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col sm:flex-row items-center sm:justify-between gap-2 text-[11px] text-muted-foreground text-center sm:text-left">
             <span>© {new Date().getFullYear()} AddisonX Media · Made in India 🇮🇳</span>
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" /> All systems normal</span>
