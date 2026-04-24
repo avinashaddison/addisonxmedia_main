@@ -95,24 +95,19 @@ export const AppSidebar = ({ active, onNavigate }: Props) => {
 
       {/* Logo header */}
       <div className="relative h-16 px-3 border-b border-border flex items-center gap-2.5 flex-shrink-0">
-        <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center shadow-lg shadow-primary/30 flex-shrink-0 ring-1 ring-primary-foreground/10">
-          <MessageCircle className="w-[18px] h-[18px] text-primary-foreground" fill="currentColor" strokeWidth={0} />
-          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success rounded-full border-2 border-card animate-pulse" />
-        </div>
-        {!collapsed && (
-          <div className="flex-1 min-w-0">
-            <p className="text-[14px] font-bold tracking-tight leading-tight truncate text-gradient">AddisonX</p>
-            <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-[0.18em]">Sales Engine</p>
-          </div>
-        )}
-        {!collapsed && (
-          <button
-            onClick={() => setCollapsed(true)}
-            className="w-7 h-7 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors flex-shrink-0"
-            title="Collapse sidebar"
-          >
-            <ChevronsLeft className="w-4 h-4" />
-          </button>
+        {collapsed ? (
+          <AddisonMark size={40} className="mx-auto" />
+        ) : (
+          <>
+            <AddisonLogo size={40} />
+            <button
+              onClick={() => setCollapsed(true)}
+              className="ml-auto w-7 h-7 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors flex-shrink-0"
+              title="Collapse sidebar"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </button>
+          </>
         )}
       </div>
 
