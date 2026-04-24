@@ -12,8 +12,6 @@ import { toast } from "sonner";
 
 type Props = {
   conversation: ConversationWithContact;
-  onBack?: () => void;
-  onShowDetails?: () => void;
 };
 
 type MessageStatus = Database["public"]["Enums"]["message_status"];
