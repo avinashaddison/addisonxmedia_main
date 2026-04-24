@@ -13,6 +13,10 @@ import { LiveActivityBadge } from "@/components/landing/LiveActivityBadge";
 import { InteractiveChatDemo } from "@/components/landing/InteractiveChatDemo";
 import { StickyTrialBar } from "@/components/landing/StickyTrialBar";
 import { Reveal } from "@/components/landing/Reveal";
+import { MetricsTicker } from "@/components/landing/MetricsTicker";
+import { ComparisonGrid } from "@/components/landing/ComparisonGrid";
+import { FAQSection } from "@/components/landing/FAQSection";
+import { AddisonXLogo } from "@/components/brand/AddisonXLogo";
 
 const benefits = [
   {
@@ -155,13 +159,9 @@ const Landing = () => {
       {/* Navbar */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center shadow-md shadow-primary/30">
-              <MessageCircle className="w-4 h-4 text-primary-foreground" fill="currentColor" strokeWidth={0} />
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-success rounded-full border-2 border-background animate-pulse" />
-            </div>
-            <span className="font-bold tracking-tight">AddisonX</span>
-            <span className="text-[10px] font-bold uppercase bg-primary-soft text-primary px-1.5 py-0.5 rounded">Beta</span>
+          <Link to="/" className="flex items-center gap-2">
+            <AddisonXLogo size={36} withWordmark withTagline={false} />
+            <span className="text-[10px] font-bold uppercase bg-primary-soft text-primary px-1.5 py-0.5 rounded ml-1">Beta</span>
           </Link>
           <nav className="hidden md:flex items-center gap-7 text-[13px] font-medium text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
@@ -558,14 +558,11 @@ const Landing = () => {
       <footer className="border-t border-border bg-muted/20">
         <div className="max-w-7xl mx-auto px-6 py-12 grid md:grid-cols-4 gap-8">
           <div>
-            <Link to="/" className="flex items-center gap-2.5 mb-4">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
-                <MessageCircle className="w-4 h-4 text-primary-foreground" fill="currentColor" strokeWidth={0} />
-              </div>
-              <span className="font-bold tracking-tight">AddisonX</span>
+            <Link to="/" className="inline-flex mb-4">
+              <AddisonXLogo size={38} withWordmark withTagline />
             </Link>
             <p className="text-[12px] text-muted-foreground leading-relaxed">
-              The AI-powered WhatsApp sales engine for modern teams.
+              The AI-powered WhatsApp sales engine for modern Indian teams. Reply in 2 seconds, close in 24 hours.
             </p>
           </div>
           <FooterCol title="Product" links={["Features", "Pricing", "Integrations", "Changelog"]} />
