@@ -44,10 +44,17 @@ export default {
       keyframes: {
         "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
         "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
+        shake: {
+          "0%, 92%, 100%": { transform: "translateX(0)" },
+          "94%": { transform: "translateX(-2px)" },
+          "96%": { transform: "translateX(2px)" },
+          "98%": { transform: "translateX(-1px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        shake: "shake 4s ease-in-out infinite",
       },
     },
   },
