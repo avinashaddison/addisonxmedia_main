@@ -595,9 +595,9 @@ const Landing = () => {
               return (
                 <div
                   key={t.name}
-                  className={`rounded-2xl p-7 flex flex-col relative transition-all ${
+                  className={`rounded-2xl p-6 sm:p-7 flex flex-col relative transition-all ${
                     t.featured
-                      ? "bg-gradient-to-b from-primary to-primary-glow text-primary-foreground shadow-2xl shadow-primary/40 scale-[1.04] border border-primary/20 animate-glow-pulse"
+                      ? "bg-gradient-to-b from-primary to-primary-glow text-primary-foreground shadow-2xl shadow-primary/40 md:scale-[1.04] border border-primary/20 md:animate-glow-pulse mt-4 md:mt-0"
                       : "bg-card border border-border hover:border-primary/30 hover:shadow-xl hover:-translate-y-1"
                   }`}
                 >
