@@ -265,10 +265,85 @@ export const LeadPanel = ({ contact, onClose }: Props) => {
                 Pay
               </button>
             </div>
-          </div>
         </div>
 
-        {/* Lead score — animated bar with color shift */}
+        {/* Addison AI · Next best action */}
+        <div className="px-4 mb-3">
+          <NextBestAction
+            compact
+            title="Next best action"
+            items={
+              [
+                contact.tag === "hot" && {
+                  id: "nba-close",
+                  title: "Send payment link to close",
+                  hint: "Lead intent ≥ 90% — strike now",
+                  icon: CreditCard,
+                  tone: "danger" as const,
+                  cta: "Send link",
+                  onClick: () => toast.success("Payment link sent!"),
+                },
+                contact.tag !== "cold" && {
+                  id: "nba-offer",
+                  title: contact.tag === "hot" ? "Send a 10% close-today offer" : "Share pricing + benefits",
+                  hint: "Worked on 7 of 9 similar leads this week",
+                  icon: Send,
+                  tone: contact.tag === "warm" ? ("warning" as const) : ("success" as const),
+                  cta: "Send",
+                  onClick: () => toast.success("Offer sent!"),
+                },
+                contact.tag === "cold" && {
+                  id: "nba-reengage",
+                  title: "Try a re-engagement message",
+                  hint: "Cold leads convert 22% with new angle",
+                  icon: Zap,
+                  tone: "info" as const,
+                  cta: "Draft",
+                  onClick: () => toast("Drafting re-engagement…"),
+                },
+              ].filter(Boolean) as NBAItem[]
+            }
+          />
+        </div>
+
+        {/* Activity timeline */}
+        <div className="px-4 py-3 border-t border-border">
+          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">Activity</h4>
+          <ActivityTimeline
+            events={
+              [
+                contact.tag === "hot" && {
+                  id: "ev-1",
+                  kind: "message_in" as const,
+                  title: "Asked about pricing",
+                  detail: "“What's the cost for the Pro plan?”",
+                  time: "2m ago",
+                },
+                {
+                  id: "ev-2",
+                  kind: "message_out" as const,
+                  title: "AI sent qualifying reply",
+                  detail: "Greeting + plan recommendation",
+                  time: "6m ago",
+                },
+                contact.tag !== "cold" && {
+                  id: "ev-3",
+                  kind: "offer" as const,
+                  title: "Offer shared",
+                  detail: "10% close-today incentive",
+                  time: "18m ago",
+                },
+                {
+                  id: "ev-4",
+                  kind: "lead" as const,
+                  title: "Lead captured",
+                  detail: contact.source ? `Via ${contact.source}` : "via website chat",
+                  time: "earlier today",
+                },
+              ].filter(Boolean) as TimelineEvent[]
+            }
+          />
+        </div>
         <div className="px-4 py-3 border-t border-border">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Lead Score</span>
