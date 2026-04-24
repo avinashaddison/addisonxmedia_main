@@ -212,7 +212,7 @@ const DealCard = ({ deal, onOpen, dragging }: CardProps) => {
           className={cn(
             "h-full rounded-full transition-all",
             deal.probability >= 70 ? "bg-gradient-to-r from-success to-primary-glow" :
-            deal.probability >= 40 ? "bg-gradient-to-r from-warning to-orange-500" :
+            deal.probability >= 40 ? "bg-gradient-to-r from-warning to-warning" :
             "bg-gradient-to-r from-muted-foreground/40 to-muted-foreground/60"
           )}
           style={{ width: `${Math.min(100, deal.probability)}%` }}
