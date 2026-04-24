@@ -520,10 +520,10 @@ const Landing = () => {
         <div className="grid md:grid-cols-3 gap-4">
           {testimonials.map((t, i) => (
             <Reveal key={t.name} delay={i * 90}>
-              <div className="bg-card border border-border rounded-2xl p-6 flex flex-col h-full hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1 transition-all group relative overflow-hidden">
+              <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 flex flex-col h-full hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1 transition-all group relative overflow-hidden">
                 {/* metric badge */}
-                <div className="absolute top-5 right-5 text-right">
-                  <p className="text-2xl font-black bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent leading-none">
+                <div className="absolute top-4 right-4 sm:top-5 sm:right-5 text-right">
+                  <p className="text-xl sm:text-2xl font-black bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent leading-none">
                     {t.metric}
                   </p>
                   <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">{t.metricLabel}</p>
@@ -532,7 +532,7 @@ const Landing = () => {
                 <div className="flex gap-0.5 text-warning mb-4">
                   {[...Array(5)].map((_, k) => <Star key={k} className="w-3.5 h-3.5 fill-current" />)}
                 </div>
-                <p className="text-[14px] leading-relaxed flex-1">"{t.quote}"</p>
+                <p className="text-[14px] leading-relaxed flex-1 pr-16 sm:pr-20">"{t.quote}"</p>
                 <div className="mt-5 pt-4 border-t border-border flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${t.color} text-white text-[12px] font-bold flex items-center justify-center shadow-md`}>
                     {t.avatar}
