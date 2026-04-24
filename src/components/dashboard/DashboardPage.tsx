@@ -63,6 +63,7 @@ export const DashboardPage = ({ onNavigate }: Props) => {
   const qc = useQueryClient();
   const [seeding, setSeeding] = useState(false);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [period, setPeriod] = useState<"daily" | "weekly" | "monthly">("daily");
 
   const stats = useMemo(() => {
     if (!data) return { total: 0, open: 0, hot: 0, revenue: 0, msgs7d: 0, tasksOpen: 0, replies: 0 };
@@ -216,63 +217,103 @@ export const DashboardPage = ({ onNavigate }: Props) => {
         </button>
       }
     >
-      {/* Hero greeting banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-foreground via-foreground to-primary text-background p-6 lg:p-8 mb-5 ring-1 ring-foreground/10 shadow-2xl shadow-primary/10">
-        <div className="absolute -top-32 -right-24 w-72 h-72 bg-primary/40 rounded-full blur-3xl pointer-events-none animate-float" />
-        <div className="absolute -bottom-32 -left-24 w-72 h-72 bg-accent/25 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute inset-0 opacity-[0.07] grid-pattern pointer-events-none" />
+      {/* HERO — animated command center */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-foreground via-foreground to-primary text-background p-6 lg:p-8 mb-5 ring-1 ring-foreground/10 shadow-2xl shadow-primary/20">
+        {/* aurora layers */}
+        <div className="absolute inset-0 aurora-bg animate-aurora opacity-80 pointer-events-none" />
+        <div className="absolute -top-32 -right-24 w-80 h-80 bg-primary/40 rounded-full blur-3xl pointer-events-none animate-float" />
+        <div className="absolute -bottom-32 -left-24 w-80 h-80 bg-accent/30 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute inset-0 opacity-[0.06] grid-pattern pointer-events-none" />
 
         <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] opacity-70 flex items-center gap-2">
-              <Crown className="w-3 h-3" /> {greeting}
+              <Crown className="w-3 h-3" /> {greeting} · Command center live
             </p>
-            <h2 className="text-2xl lg:text-[32px] font-bold tracking-tight mt-2 leading-tight">
+            <h2 className="text-2xl lg:text-[34px] font-bold tracking-tight mt-2 leading-[1.15]">
               You have{" "}
-              <span className="bg-gradient-to-r from-primary-glow via-accent to-primary-glow bg-clip-text text-transparent">
-                {stats.hot} hot leads
+              <span className="relative inline-block">
+                <span className="bg-gradient-to-r from-primary-glow via-accent to-primary-glow bg-clip-text text-transparent tabular-nums">
+                  {heroHotCount}
+                </span>
+                <span className="absolute -inset-x-1 -bottom-1 h-1 bg-gradient-to-r from-primary-glow/0 via-primary-glow/70 to-primary-glow/0 blur-sm" />
               </span>{" "}
-              waiting.
+              hot leads waiting.
             </h2>
             <p className="text-[13px] opacity-80 mt-2.5 max-w-xl">
-              {stats.open} open conversations · {stats.tasksOpen} follow-ups due · ₹{stats.revenue.toLocaleString()} closed
+              {stats.open} open conversations · {stats.tasksOpen} follow-ups due · ₹{heroRevenue.toLocaleString()} closed
             </p>
 
-            {/* Mini KPI row inside hero */}
-            <div className="flex flex-wrap items-center gap-2 mt-4">
+            {/* Live AI typing line */}
+            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/10 backdrop-blur border border-background/15">
+              <Sparkles className="w-3.5 h-3.5 text-primary-glow" />
+              <span className="text-[12px] font-semibold opacity-95 min-w-0">
+                <TypingText
+                  phrases={
+                    hotContacts.length > 0
+                      ? [
+                          `AI suggests replying to ${hotContacts[0].name}…`,
+                          "Drafting a closing message for the top deal…",
+                          `${stats.tasksOpen} follow-ups can be auto-sent now…`,
+                        ]
+                      : [
+                          "AI is scanning new conversations…",
+                          "Watching for high-intent signals…",
+                          "Ready to auto-reply when leads come in…",
+                        ]
+                  }
+                />
+              </span>
+            </div>
+
+            {/* CTAs */}
+            <div className="flex flex-wrap items-center gap-2.5 mt-5">
               <button
                 onClick={() => onNavigate?.("inbox")}
-                className="px-3 py-1.5 rounded-full bg-background/10 hover:bg-background/20 backdrop-blur border border-background/10 text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
+                className="group relative inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-hot via-warning to-hot text-hot-foreground text-[12.5px] font-bold shadow-lg shadow-hot/40 hover:shadow-xl hover:shadow-hot/50 hover:-translate-y-0.5 transition-all"
               >
-                <MessageSquare className="w-3 h-3" /> Open inbox
-                <ArrowRight className="w-3 h-3 opacity-60" />
+                <Flame className="w-4 h-4" />
+                Reply Now (Win Deal)
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </button>
               <button
-                onClick={() => onNavigate?.("followups")}
-                className="px-3 py-1.5 rounded-full bg-background/10 hover:bg-background/20 backdrop-blur border border-background/10 text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
+                onClick={() => {
+                  toast.success("Auto-reply queued", { description: "Addison AI is drafting replies for hot leads." });
+                  onNavigate?.("inbox");
+                }}
+                className="group inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-background/15 hover:bg-background/25 backdrop-blur border border-background/20 text-[12.5px] font-bold transition-all"
               >
-                <Bell className="w-3 h-3" /> Follow-ups queue
-                <ArrowRight className="w-3 h-3 opacity-60" />
+                <Zap className="w-4 h-4" />
+                Auto-Reply with AI
               </button>
-              <div className="px-3 py-1.5 rounded-full bg-success/20 backdrop-blur border border-success/20 text-[11px] font-bold flex items-center gap-1.5 text-success">
+              <div className="px-3 py-1.5 rounded-full bg-success/20 backdrop-blur border border-success/25 text-[11px] font-bold flex items-center gap-1.5 text-success">
                 <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                 AI Co-Pilot active
               </div>
             </div>
           </div>
 
-          {/* Hot leads avatar pile */}
+          {/* Hot leads avatar pile with glow + pulse */}
           {hotContacts.length > 0 && (
-            <div className="flex items-center gap-3 pl-4 lg:pl-0 lg:border-l border-background/15 lg:pl-6 self-stretch lg:self-end">
-              <div className="flex -space-x-2">
+            <div className="flex items-center gap-3 lg:border-l border-background/15 lg:pl-6 self-stretch lg:self-end">
+              <div className="flex -space-x-2.5">
                 {hotContacts.map((c, i) => (
-                  <div
-                    key={c.id}
-                    className="w-10 h-10 rounded-full bg-gradient-to-br from-hot to-warning ring-2 ring-foreground flex items-center justify-center text-[11px] font-bold text-hot-foreground shadow-md"
-                    style={{ zIndex: hotContacts.length - i }}
-                    title={c.name}
-                  >
-                    {initialsFor(c.name)}
+                  <div key={c.id} className="relative" style={{ zIndex: hotContacts.length - i }}>
+                    {i === 0 && (
+                      <span className="absolute inset-0 rounded-full bg-hot/60 blur-md animate-breathe" />
+                    )}
+                    <div
+                      className={cn(
+                        "relative w-11 h-11 rounded-full bg-gradient-to-br from-hot to-warning ring-2 ring-foreground flex items-center justify-center text-[11px] font-bold text-hot-foreground shadow-md",
+                        i === 0 && "ring-primary-glow"
+                      )}
+                      title={c.name}
+                    >
+                      {initialsFor(c.name)}
+                      {i === 0 && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-success ring-2 ring-foreground animate-pulse" />
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
