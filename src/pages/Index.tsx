@@ -10,6 +10,10 @@ import { SettingsPage } from "@/components/settings/SettingsPage";
 import { DealsPage } from "@/components/deals/DealsPage";
 import { AnalyticsPage } from "@/components/analytics/AnalyticsPage";
 import { AITrainingPage } from "@/components/ai/AITrainingPage";
+import { TemplatesPage } from "@/components/templates/TemplatesPage";
+import { TeamPage } from "@/components/team/TeamPage";
+import { ActivityPage } from "@/components/activity/ActivityPage";
+import { IntegrationsPage } from "@/components/integrations/IntegrationsPage";
 import { GlobalTopbar } from "@/components/global/GlobalTopbar";
 import { QuickActionFAB } from "@/components/global/QuickActionFAB";
 
@@ -32,8 +36,12 @@ const Index = () => {
           {page === "analytics" && <AnalyticsPage />}
           {page === "campaigns" && <CampaignsPage />}
           {page === "broadcasts" && <BroadcastsPage />}
+          {page === "templates" && <TemplatesPage />}
           {page === "followups" && <FollowupsPage />}
           {page === "ai-training" && <AITrainingPage />}
+          {page === "activity" && <ActivityPage />}
+          {page === "team" && <TeamPage />}
+          {page === "integrations" && <IntegrationsPage />}
           {page === "settings" && <SettingsPage />}
         </div>
       </div>

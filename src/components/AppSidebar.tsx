@@ -1,4 +1,4 @@
-import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain } from "lucide-react";
+import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AddisonMark, AddisonLogo } from "@/components/brand/AddisonLogo";
@@ -38,16 +38,24 @@ const groups: { label: string; items: { icon: any; label: string; id: string; ba
     items: [
       { icon: Megaphone, label: "Campaigns", id: "campaigns", hint: "Multi-channel" },
       { icon: Radio, label: "Broadcasts", id: "broadcasts", hint: "Mass messages" },
+      { icon: FileText, label: "Templates", id: "templates", hint: "Reusable messages" },
       { icon: Bell, label: "Follow-ups", id: "followups", badgeKey: "tasks", hint: "Tasks queue" },
     ],
   },
   {
     label: "Intelligence",
-    items: [{ icon: Brain, label: "AI Training", id: "ai-training", hint: "Train Addison AI" }],
+    items: [
+      { icon: Brain, label: "AI Training", id: "ai-training", hint: "Train Addison AI" },
+      { icon: Activity, label: "Activity", id: "activity", hint: "System history" },
+    ],
   },
   {
-    label: "System",
-    items: [{ icon: Settings, label: "Settings", id: "settings", hint: "Workspace config" }],
+    label: "Workspace",
+    items: [
+      { icon: UsersRound, label: "Team", id: "team", hint: "Members & roles" },
+      { icon: Plug, label: "Integrations", id: "integrations", hint: "Connect tools" },
+      { icon: Settings, label: "Settings", id: "settings", hint: "Workspace config" },
+    ],
   },
 ];
 
