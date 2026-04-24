@@ -169,15 +169,15 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           )}
         </div>
 
-      {collapsed && (
-        <button
-          onClick={() => setCollapsed(false)}
-          className="mt-2 mx-auto w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors flex-shrink-0"
-          title="Expand sidebar"
-        >
-          <ChevronsRight className="w-4 h-4" />
-        </button>
-      )}
+        {collapsed && (
+          <button
+            onClick={() => setCollapsed(false)}
+            className="mt-2 mx-auto w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground hidden lg:flex items-center justify-center transition-colors flex-shrink-0"
+            title="Expand sidebar"
+          >
+            <ChevronsRight className="w-4 h-4" />
+          </button>
+        )}
 
       {/* Nav */}
       <nav className="relative flex-1 overflow-y-auto py-3 px-2.5 space-y-5">
