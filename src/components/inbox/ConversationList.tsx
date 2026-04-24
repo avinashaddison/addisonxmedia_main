@@ -23,7 +23,7 @@ const statusDot = (tag: string, hasUnread: boolean) => {
   return { color: "bg-success", pulse: false, label: "Online" };
 };
 
-export const ConversationList = ({ conversations, activeId, onSelect, loading }: Props) => {
+export const ConversationList = ({ conversations, activeId, onSelect, loading, className }: Props) => {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("All");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
