@@ -194,7 +194,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
               return (
                 <button
                   key={item.id}
-                  onClick={() => onNavigate(item.id)}
+                  onClick={() => handleNavigate(item.id)}
                   title={collapsed ? item.label : undefined}
                   className={cn(
                     "relative w-full h-10 rounded-xl flex items-center gap-3 px-2.5 transition-all group overflow-hidden",
