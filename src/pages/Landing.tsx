@@ -157,28 +157,39 @@ const Landing = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Navbar */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border">
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/75 border-b border-border/60">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2 group">
             <AddisonXLogo size={36} withWordmark withTagline={false} />
-            <span className="text-[10px] font-bold uppercase bg-primary-soft text-primary px-1.5 py-0.5 rounded ml-1">Beta</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider bg-gradient-to-r from-primary to-accent text-primary-foreground px-1.5 py-0.5 rounded ml-1 shadow-sm shadow-primary/30">Beta</span>
           </Link>
-          <nav className="hidden md:flex items-center gap-7 text-[13px] font-medium text-muted-foreground">
-            <a href="#features" className="hover:text-foreground transition-colors">Features</a>
-            <a href="#how" className="hover:text-foreground transition-colors">How it works</a>
-            <a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a>
-            <a href="#customers" className="hover:text-foreground transition-colors">Customers</a>
+          <nav className="hidden md:flex items-center gap-1 text-[13px] font-medium">
+            {[
+              { label: "Features", href: "#features" },
+              { label: "How it works", href: "#how" },
+              { label: "Pricing", href: "#pricing" },
+              { label: "Customers", href: "#customers" },
+            ].map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                className="px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
+              >
+                {l.label}
+              </a>
+            ))}
           </nav>
           <div className="flex items-center gap-2">
-            <Link to="/auth" className="text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors px-3 py-2">
+            <Link to="/auth" className="text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors px-3 py-2 hidden sm:block">
               Log in
             </Link>
             <Link
               to={ctaHref}
-              className="text-[13px] font-bold bg-foreground text-background px-4 py-2 rounded-lg hover:opacity-90 transition-all flex items-center gap-1.5 shadow-sm hover:scale-[1.03]"
+              className="relative text-[13px] font-bold bg-foreground text-background px-4 py-2 rounded-lg hover:opacity-90 transition-all flex items-center gap-1.5 shadow-md hover:scale-[1.03] overflow-hidden group"
             >
-              {user ? "Open app" : "Start free"}
-              <ArrowRight className="w-3.5 h-3.5" />
+              <span className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/20 to-primary/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+              <span className="relative">{user ? "Open app" : "Start free"}</span>
+              <ArrowRight className="w-3.5 h-3.5 relative group-hover:translate-x-0.5 transition-transform" />
             </Link>
           </div>
         </div>
@@ -186,21 +197,45 @@ const Landing = () => {
 
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 aurora-bg opacity-50 pointer-events-none animate-aurora" />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/60 to-background pointer-events-none" />
+        {/* Layered backgrounds — mesh + grid + aurora */}
+        <div className="absolute inset-0 aurora-bg opacity-40 pointer-events-none animate-aurora" />
+        <div
+          className="absolute inset-0 opacity-[0.08] pointer-events-none"
+          style={{
+            backgroundImage:
+              "linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)",
+            backgroundSize: "56px 56px",
+            maskImage: "radial-gradient(ellipse 70% 60% at 50% 30%, black 30%, transparent 75%)",
+            WebkitMaskImage: "radial-gradient(ellipse 70% 60% at 50% 30%, black 30%, transparent 75%)",
+          }}
+        />
+        {/* color blobs */}
+        <div className="absolute -top-32 -left-20 w-[520px] h-[520px] rounded-full bg-primary/20 blur-[120px] pointer-events-none" />
+        <div className="absolute -top-24 right-0 w-[460px] h-[460px] rounded-full bg-accent/15 blur-[120px] pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/40 to-background pointer-events-none" />
 
-        <div className="relative max-w-7xl mx-auto px-6 pt-16 pb-12 lg:pt-24 lg:pb-20">
-          <div className="grid lg:grid-cols-[1fr_auto] gap-10 lg:gap-12 items-center">
+        <div className="relative max-w-7xl mx-auto px-6 pt-14 pb-16 lg:pt-20 lg:pb-24">
+          <div className="grid lg:grid-cols-[1.05fr_1fr] gap-10 lg:gap-14 items-center">
             <div className="text-center lg:text-left">
               <LiveActivityBadge />
 
-              <h1 className="text-4xl md:text-6xl lg:text-[68px] font-bold tracking-tight leading-[1.04]">
-                Turn every WhatsApp chat into{" "}
+              {/* New product pill */}
+              <div className="hidden lg:inline-flex items-center gap-2 mb-5 ml-3 text-[11px] font-semibold bg-card/80 backdrop-blur border border-border rounded-full pl-1 pr-3 py-1 shadow-sm hover:border-primary/40 transition-colors group cursor-default">
+                <span className="bg-gradient-to-r from-primary to-accent text-primary-foreground text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">New</span>
+                <span className="text-foreground/80">AI Voice replies for WhatsApp calls</span>
+                <ChevronRight className="w-3 h-3 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+              </div>
+
+              <h1 className="text-[40px] md:text-6xl lg:text-[72px] font-bold tracking-[-0.025em] leading-[1.02]">
+                Turn every <span className="relative inline-block">
+                  <span className="relative z-10">WhatsApp</span>
+                  <span className="absolute inset-x-0 bottom-1 h-3 bg-success/25 rounded -z-0" />
+                </span> chat into{" "}
                 <RotatingWord words={["closed deals.", "₹ in your bank.", "hot leads.", "loyal customers."]} />
               </h1>
 
-              <p className="text-base md:text-lg text-muted-foreground mt-6 max-w-2xl lg:max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                AddisonX is the AI sales engine that replies in 2 seconds, scores hot leads automatically, and closes deals while you sleep. Replace 4 tools and 2 spreadsheets.
+              <p className="text-base md:text-[17px] text-muted-foreground mt-6 max-w-2xl lg:max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                AddisonX is the AI sales engine that replies in <span className="text-foreground font-semibold">2 seconds</span>, scores hot leads automatically, and closes deals while you sleep. Replace <span className="text-foreground font-semibold">4 tools</span> and 2 spreadsheets.
               </p>
 
               {/* urgency line */}
@@ -212,16 +247,18 @@ const Landing = () => {
               <div className="flex flex-col sm:flex-row items-center lg:items-start justify-center lg:justify-start gap-3 mt-8">
                 <Link
                   to={ctaHref}
-                  className="group bg-primary text-primary-foreground px-6 py-3.5 rounded-xl font-bold text-[14px] flex items-center gap-2 hover:bg-primary-glow transition-all shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/50 hover:-translate-y-0.5 hover:scale-[1.02]"
+                  className="group relative bg-primary text-primary-foreground px-6 py-3.5 rounded-xl font-bold text-[14px] flex items-center gap-2 transition-all shadow-lg shadow-primary/30 hover:shadow-2xl hover:shadow-primary/50 hover:-translate-y-0.5 hover:scale-[1.02] overflow-hidden"
                 >
-                  {user ? "Open your workspace" : "Start closing leads now"}
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  <span className="absolute inset-0 bg-gradient-to-r from-primary via-primary-glow to-accent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                  <span className="relative">{user ? "Open your workspace" : "Start closing leads now"}</span>
+                  <ArrowRight className="w-4 h-4 relative group-hover:translate-x-1 transition-transform" />
                 </Link>
                 <a
                   href="#how"
-                  className="bg-card border border-border px-5 py-3.5 rounded-xl font-semibold text-[14px] flex items-center gap-2 hover:bg-muted hover:border-foreground/20 transition-all group"
+                  className="bg-card/80 backdrop-blur border border-border px-5 py-3.5 rounded-xl font-semibold text-[14px] flex items-center gap-2 hover:bg-muted hover:border-foreground/20 transition-all group"
                 >
-                  <span className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <span className="w-7 h-7 rounded-full bg-foreground text-background flex items-center justify-center group-hover:scale-110 transition-transform">
                     <Play className="w-3 h-3 fill-current ml-0.5" />
                   </span>
                   Watch 60-sec demo
@@ -233,31 +270,119 @@ const Landing = () => {
                 <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-success" /> No credit card</span>
                 <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-success" /> Setup in 2 min</span>
               </div>
+
+              {/* Mini avatar social proof */}
+              <div className="mt-7 flex items-center justify-center lg:justify-start gap-3">
+                <div className="flex -space-x-2">
+                  {[
+                    { i: "PM", c: "from-hot to-warning" },
+                    { i: "RK", c: "from-primary to-accent" },
+                    { i: "AS", c: "from-accent to-success" },
+                    { i: "VK", c: "from-success to-primary" },
+                  ].map((a) => (
+                    <div
+                      key={a.i}
+                      className={`w-8 h-8 rounded-full bg-gradient-to-br ${a.c} ring-2 ring-background flex items-center justify-center text-[10px] font-bold text-primary-foreground`}
+                    >
+                      {a.i}
+                    </div>
+                  ))}
+                  <div className="w-8 h-8 rounded-full bg-card border-2 border-background flex items-center justify-center text-[9px] font-bold text-foreground">
+                    +1.2k
+                  </div>
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-0.5">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-3 h-3 fill-warning text-warning" />
+                    ))}
+                    <span className="text-[11px] font-bold text-foreground ml-1">4.9</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground font-medium">Loved by 1,200+ India sales teams</p>
+                </div>
+              </div>
             </div>
 
             {/* Interactive demo column */}
-            <div className="relative mx-auto lg:mx-0 hidden md:block">
-              <div className="absolute -inset-6 bg-gradient-to-tr from-primary/20 via-accent/10 to-transparent blur-3xl pointer-events-none" />
-              <div className="relative animate-float">
-                <InteractiveChatDemo />
+            <div className="relative mx-auto lg:mx-0 hidden md:block w-full max-w-md lg:max-w-none">
+              {/* Aurora glow ring behind */}
+              <div className="absolute -inset-8 bg-[conic-gradient(from_140deg_at_50%_50%,hsl(var(--primary)/0.25),hsl(var(--accent)/0.2),hsl(var(--primary-glow)/0.25),hsl(var(--primary)/0.25))] blur-3xl pointer-events-none animate-aurora" />
+              {/* Frame */}
+              <div className="relative">
+                <div className="absolute -inset-px rounded-[28px] bg-gradient-to-br from-primary/40 via-accent/30 to-primary-glow/40 pointer-events-none" />
+                <div className="relative bg-card/60 backdrop-blur-xl border border-border rounded-[27px] p-3 shadow-2xl shadow-primary/10">
+                  {/* Browser-style header */}
+                  <div className="flex items-center justify-between px-2 pb-2.5 mb-2.5 border-b border-border/60">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-hot/70" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-warning/70" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-success/70" />
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono bg-muted/60 rounded px-2 py-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                      app.addisonx.ai/inbox
+                    </div>
+                    <span className="text-[10px] font-semibold text-success bg-success-soft px-1.5 py-0.5 rounded">LIVE</span>
+                  </div>
+                  <div className="animate-float">
+                    <InteractiveChatDemo />
+                  </div>
+                </div>
               </div>
-              {/* floating stat */}
-              <div className="absolute -left-10 top-12 hidden lg:flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 shadow-lg animate-slide-up">
-                <div className="w-8 h-8 rounded-lg bg-success-soft flex items-center justify-center">
-                  <TrendingUp className="w-4 h-4 text-success" />
+
+              {/* floating stat — top */}
+              <div className="absolute -left-6 lg:-left-12 top-16 hidden lg:flex items-center gap-2.5 bg-card/95 backdrop-blur border border-border rounded-2xl px-3.5 py-2.5 shadow-xl shadow-primary/10 animate-slide-up hover:scale-105 transition-transform">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-success to-primary flex items-center justify-center shadow-md">
+                  <TrendingUp className="w-4 h-4 text-primary-foreground" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Conversions</p>
-                  <p className="text-sm font-bold">+312% this week</p>
+                  <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Conversions</p>
+                  <p className="text-sm font-bold flex items-center gap-1">
+                    <span className="bg-gradient-to-r from-success to-primary bg-clip-text text-transparent">+312%</span>
+                    <span className="text-[10px] text-muted-foreground font-medium">this wk</span>
+                  </p>
                 </div>
               </div>
-              <div className="absolute -right-8 -bottom-4 hidden lg:flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 shadow-lg animate-slide-up" style={{ animationDelay: "180ms" }}>
-                <div className="w-8 h-8 rounded-lg bg-hot-soft flex items-center justify-center animate-hot-pulse">
-                  <Flame className="w-4 h-4 text-hot" />
+
+              {/* floating stat — middle right */}
+              <div
+                className="absolute -right-4 lg:-right-10 top-1/3 hidden lg:flex items-center gap-2.5 bg-card/95 backdrop-blur border border-border rounded-2xl px-3.5 py-2.5 shadow-xl shadow-primary/10 animate-slide-up hover:scale-105 transition-transform"
+                style={{ animationDelay: "120ms" }}
+              >
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md">
+                  <Zap className="w-4 h-4 text-primary-foreground" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Hot leads</p>
-                  <p className="text-sm font-bold">28 ready to buy</p>
+                  <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Avg reply</p>
+                  <p className="text-sm font-bold">1.8<span className="text-muted-foreground">s</span></p>
+                </div>
+              </div>
+
+              {/* floating stat — bottom */}
+              <div
+                className="absolute -right-4 lg:-right-8 -bottom-2 hidden lg:flex items-center gap-2.5 bg-card/95 backdrop-blur border border-border rounded-2xl px-3.5 py-2.5 shadow-xl shadow-hot/10 animate-slide-up hover:scale-105 transition-transform"
+                style={{ animationDelay: "220ms" }}
+              >
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-hot to-warning flex items-center justify-center shadow-md animate-hot-pulse">
+                  <Flame className="w-4 h-4 text-primary-foreground" />
+                </div>
+                <div>
+                  <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Hot leads</p>
+                  <p className="text-sm font-bold">28 <span className="text-[10px] text-muted-foreground font-medium">ready to buy</span></p>
+                </div>
+              </div>
+
+              {/* floating stat — bottom left */}
+              <div
+                className="absolute -left-4 lg:-left-10 bottom-10 hidden lg:flex items-center gap-2.5 bg-card/95 backdrop-blur border border-border rounded-2xl px-3.5 py-2.5 shadow-xl shadow-success/10 animate-slide-up hover:scale-105 transition-transform"
+                style={{ animationDelay: "320ms" }}
+              >
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-success to-success flex items-center justify-center shadow-md">
+                  <IndianRupee className="w-4 h-4 text-primary-foreground" />
+                </div>
+                <div>
+                  <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Just paid</p>
+                  <p className="text-sm font-bold text-success">₹49,000</p>
                 </div>
               </div>
             </div>
