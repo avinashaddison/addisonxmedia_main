@@ -18,7 +18,7 @@ import { GlobalTopbar } from "@/components/global/GlobalTopbar";
 import { QuickActionFAB } from "@/components/global/QuickActionFAB";
 
 const Index = () => {
-  const [page, setPage] = useState("inbox");
+  const [page, setPage] = useState("dashboard");
 
   // Inbox & AI Training have their own internal headers — skip the global topbar there
   const showTopbar = page !== "inbox" && page !== "ai-training";
