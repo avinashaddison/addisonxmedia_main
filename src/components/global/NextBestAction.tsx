@@ -1,5 +1,4 @@
-import { Sparkles, ArrowRight, type LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { type LucideIcon } from "lucide-react";
 
 export type NBAItem = {
   id: string;
@@ -9,13 +8,6 @@ export type NBAItem = {
   tone?: "success" | "warning" | "danger" | "info";
   onClick?: () => void;
   cta?: string;
-};
-
-const toneClasses: Record<NonNullable<NBAItem["tone"]>, string> = {
-  success: "border-success/30 bg-success/5 hover:bg-success/10 text-success",
-  warning: "border-warning/30 bg-warning/5 hover:bg-warning/10 text-warning",
-  danger: "border-destructive/30 bg-destructive/5 hover:bg-destructive/10 text-destructive",
-  info: "border-primary/30 bg-primary-soft/40 hover:bg-primary-soft/70 text-primary",
 };
 
 type Props = {
