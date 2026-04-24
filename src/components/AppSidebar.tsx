@@ -52,7 +52,7 @@ const groups: { label: string; items: { icon: any; label: string; id: string; ba
     ],
   },
   {
-    label: "Workspace",
+    label: "Account",
     items: [
       { icon: UsersRound, label: "Team", id: "team", hint: "Members & roles" },
       { icon: Plug, label: "Integrations", id: "integrations", hint: "Connect tools" },
