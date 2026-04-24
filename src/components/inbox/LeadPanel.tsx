@@ -265,6 +265,7 @@ export const LeadPanel = ({ contact, onClose }: Props) => {
                 Pay
               </button>
             </div>
+          </div>
         </div>
 
         {/* Addison AI · Next best action */}
