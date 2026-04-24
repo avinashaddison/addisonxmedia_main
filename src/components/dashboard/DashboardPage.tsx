@@ -428,22 +428,41 @@ export const DashboardPage = ({ onNavigate }: Props) => {
         {/* Revenue area chart */}
         <div className="xl:col-span-8 relative overflow-hidden bg-card border border-border rounded-2xl p-5 lg:p-6">
           <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="relative flex items-start justify-between mb-5">
+          <div className="relative flex items-start justify-between mb-5 gap-3 flex-wrap">
             <div>
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-primary-soft text-primary flex items-center justify-center">
                   <Activity className="w-3.5 h-3.5" />
                 </div>
                 <h3 className="text-[14px] font-bold tracking-tight">Revenue Trend</h3>
-                <span className="text-[10px] font-bold text-success bg-success-soft px-1.5 py-0.5 rounded">Last 7 days</span>
+                <span className="text-[10px] font-bold text-success bg-success-soft px-1.5 py-0.5 rounded capitalize">{period}</span>
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1 ml-9">Closed-won deals per day</p>
+              <p className="text-[11px] text-muted-foreground mt-1 ml-9">Closed-won deals · hover for details</p>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">7d Total</p>
-              <p className="text-2xl font-bold tabular-nums bg-gradient-to-r from-foreground to-primary bg-clip-text text-transparent">
-                ₹{trendTotal.toLocaleString()}
-              </p>
+            <div className="flex items-center gap-3">
+              {/* Period toggle */}
+              <div className="inline-flex items-center bg-muted rounded-lg p-0.5 gap-0.5">
+                {(["daily", "weekly", "monthly"] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriod(p)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md text-[10.5px] font-bold capitalize transition-all",
+                      period === p
+                        ? "bg-card text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Total</p>
+                <p className="text-2xl font-bold tabular-nums bg-gradient-to-r from-foreground to-primary bg-clip-text text-transparent">
+                  ₹{trendTotal.toLocaleString()}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -716,6 +735,9 @@ export const DashboardPage = ({ onNavigate }: Props) => {
           </div>
         </div>
       </div>
+
+      {/* Floating AI assistant */}
+      <AIAssistant hotCount={stats.hot} pendingCount={stats.tasksOpen} onNavigate={onNavigate} />
     </PageShell>
   );
 };
