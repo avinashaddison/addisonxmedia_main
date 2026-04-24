@@ -217,3 +217,91 @@ export const useContactsLookup = () => {
     },
   });
 };
+
+// ---------------- DEALS ----------------
+export const useDeals = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["deals", user?.id],
+    enabled: !!user,
+    queryFn: async (): Promise<DealWithContact[]> => {
+      const { data, error } = await supabase
+        .from("deals")
+        .select("*, contact:contacts(*)")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as DealWithContact[];
+    },
+  });
+};
+
+export const useCreateDeal = () => {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (input: Omit<TablesInsert<"deals">, "owner_id">) => {
+      if (!user) throw new Error("Not signed in");
+      const { data, error } = await supabase
+        .from("deals")
+        .insert({ ...input, owner_id: user.id })
+        .select("*, contact:contacts(*)")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deals", user?.id] });
+      toast.success("Deal added to pipeline");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+};
+
+export const useUpdateDeal = () => {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async ({ id, ...patch }: TablesUpdate<"deals"> & { id: string }) => {
+      const { data, error } = await supabase
+        .from("deals")
+        .update(patch)
+        .eq("id", id)
+        .select("*, contact:contacts(*)")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onMutate: async ({ id, ...patch }) => {
+      const key = ["deals", user?.id];
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<DealWithContact[]>(key);
+      if (prev) {
+        qc.setQueryData<DealWithContact[]>(
+          key,
+          prev.map((d) => (d.id === id ? { ...d, ...patch } as DealWithContact : d))
+        );
+      }
+      return { prev };
+    },
+    onError: (e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["deals", user?.id], ctx.prev);
+      toast.error(e instanceof Error ? e.message : "Failed");
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["deals", user?.id] }),
+  });
+};
+
+export const useDeleteDeal = () => {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("deals").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deals", user?.id] });
+      toast.success("Deal removed");
+    },
+  });
+};
