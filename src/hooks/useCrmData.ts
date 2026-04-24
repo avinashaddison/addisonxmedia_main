@@ -7,6 +7,8 @@ import { toast } from "sonner";
 export type Campaign = Tables<"campaigns">;
 export type Broadcast = Tables<"broadcasts">;
 export type Task = Tables<"tasks">;
+export type Deal = Tables<"deals">;
+export type DealWithContact = Deal & { contact?: Tables<"contacts"> | null };
 
 // ---------------- CAMPAIGNS ----------------
 export const useCampaigns = () => {
