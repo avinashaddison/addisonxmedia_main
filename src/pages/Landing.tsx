@@ -689,13 +689,13 @@ const Landing = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-muted/20">
-        <div className="max-w-7xl mx-auto px-6 py-12 grid md:grid-cols-4 gap-8">
-          <div>
+      <footer className="border-t border-border bg-muted/20 pb-24 md:pb-0">
+        <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="col-span-2 md:col-span-1">
             <Link to="/" className="inline-flex mb-4">
               <AddisonXLogo size={38} withWordmark withTagline />
             </Link>
-            <p className="text-[12px] text-muted-foreground leading-relaxed">
+            <p className="text-[12px] text-muted-foreground leading-relaxed max-w-xs">
               The AI-powered WhatsApp sales engine for modern Indian teams. Reply in 2 seconds, close in 24 hours.
             </p>
           </div>
@@ -704,7 +704,7 @@ const Landing = () => {
           <FooterCol title="Legal" links={["Privacy", "Terms", "Security", "DPA"]} />
         </div>
         <div className="border-t border-border">
-          <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between text-[11px] text-muted-foreground">
+          <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col sm:flex-row items-center sm:justify-between gap-2 text-[11px] text-muted-foreground text-center sm:text-left">
             <span>© {new Date().getFullYear()} AddisonX Media · Made in India 🇮🇳</span>
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" /> All systems normal</span>
