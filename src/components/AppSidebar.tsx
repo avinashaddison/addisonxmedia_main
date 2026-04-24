@@ -1,4 +1,4 @@
-import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug } from "lucide-react";
+import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AddisonMark, AddisonLogo } from "@/components/brand/AddisonLogo";
@@ -20,6 +20,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 type Props = {
   active: string;
   onNavigate: (page: string) => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 };
 
 const groups: { label: string; items: { icon: any; label: string; id: string; badgeKey?: "inbox" | "tasks"; hint?: string }[] }[] = [
