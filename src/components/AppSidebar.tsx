@@ -328,6 +328,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 };
