@@ -66,7 +66,7 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
   const hotCount = conversations.filter((c) => c.contact.tag === "hot").length;
 
   return (
-    <div className="w-[340px] h-full bg-card border-r border-border flex flex-col flex-shrink-0 relative">
+    <div className={cn("w-full md:w-[340px] h-full bg-card border-r border-border flex flex-col flex-shrink-0 relative", className)}>
       <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-primary/5 to-transparent" />
 
       {/* Header */}
