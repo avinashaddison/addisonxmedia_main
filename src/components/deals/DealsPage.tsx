@@ -80,12 +80,12 @@ type StageDef = {
 };
 
 const STAGES: StageDef[] = [
-  { id: "new", label: "New Lead", hint: "Just landed", accent: "from-slate-400/30 to-slate-300/0", ring: "border-slate-400/40", dot: "bg-slate-400" },
-  { id: "qualification", label: "Contacted", hint: "Reach out done", accent: "from-accent/30 to-accent/0", ring: "border-accent/40", dot: "bg-accent" },
-  { id: "proposal", label: "Interested", hint: "Hot signals", accent: "from-warning/30 to-warning/0", ring: "border-warning/40", dot: "bg-warning" },
-  { id: "closing", label: "Negotiation", hint: "Pricing / terms", accent: "from-orange-500/30 to-orange-500/0", ring: "border-orange-500/40", dot: "bg-orange-500" },
-  { id: "won", label: "Won 💰", hint: "Money in", accent: "from-success/35 to-success/0", ring: "border-success/50", dot: "bg-success" },
-  { id: "lost", label: "Lost", hint: "Closed lost", accent: "from-destructive/25 to-destructive/0", ring: "border-destructive/40", dot: "bg-destructive" },
+  { id: "new", label: "New Lead", hint: "Just landed", accent: "from-muted-foreground/15 to-transparent", ring: "border-muted-foreground/20", dot: "bg-muted-foreground" },
+  { id: "qualification", label: "Contacted", hint: "Reach out done", accent: "from-accent/20 to-transparent", ring: "border-accent/30", dot: "bg-accent" },
+  { id: "proposal", label: "Interested", hint: "Hot signals", accent: "from-warning/25 to-transparent", ring: "border-warning/30", dot: "bg-warning" },
+  { id: "closing", label: "Negotiation", hint: "Pricing / terms", accent: "from-warning/30 to-transparent", ring: "border-warning/40", dot: "bg-warning" },
+  { id: "won", label: "Won 💰", hint: "Money in", accent: "from-success/30 to-transparent", ring: "border-success/40", dot: "bg-success" },
+  { id: "lost", label: "Lost", hint: "Closed lost", accent: "from-destructive/20 to-transparent", ring: "border-destructive/30", dot: "bg-destructive" },
 ];
 
 const fmtINR = (n: number) =>
