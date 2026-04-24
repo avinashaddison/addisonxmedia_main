@@ -247,13 +247,12 @@ const Auth = () => {
                   Password
                 </Label>
                 {mode === "login" && (
-                  <button
-                    type="button"
+                  <Link
+                    to="/forgot-password"
                     className="text-[11px] text-muted-foreground hover:text-primary transition-colors font-medium"
-                    onClick={() => toast.info("Password reset coming soon")}
                   >
                     Forgot?
-                  </button>
+                  </Link>
                 )}
               </div>
               <Input
