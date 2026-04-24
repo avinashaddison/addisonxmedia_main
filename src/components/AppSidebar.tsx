@@ -1,4 +1,4 @@
-import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug } from "lucide-react";
+import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AddisonMark, AddisonLogo } from "@/components/brand/AddisonLogo";
@@ -20,6 +20,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 type Props = {
   active: string;
   onNavigate: (page: string) => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 };
 
 const groups: { label: string; items: { icon: any; label: string; id: string; badgeKey?: "inbox" | "tasks"; hint?: string }[] }[] = [
@@ -50,7 +52,7 @@ const groups: { label: string; items: { icon: any; label: string; id: string; ba
     ],
   },
   {
-    label: "Workspace",
+    label: "Account",
     items: [
       { icon: UsersRound, label: "Team", id: "team", hint: "Members & roles" },
       { icon: Plug, label: "Integrations", id: "integrations", hint: "Connect tools" },
@@ -76,7 +78,7 @@ const useSidebarBadges = () => {
   });
 };
 
-export const AppSidebar = ({ active, onNavigate }: Props) => {
+export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClose }: Props) => {
   const { user, signOut } = useAuth();
   const { data: badges } = useSidebarBadges();
   const [collapsed, setCollapsed] = useState(false);
@@ -95,45 +97,87 @@ export const AppSidebar = ({ active, onNavigate }: Props) => {
     toast.success("Signed out");
   };
 
-  const widthClass = collapsed ? "w-[72px]" : "w-[244px]";
+  // On mobile the sidebar always shows full width (never collapsed) when open
+  const widthClass = collapsed ? "lg:w-[72px]" : "lg:w-[244px]";
+
+  const handleNavigate = (page: string) => {
+    onNavigate(page);
+    onMobileClose?.();
+  };
 
   return (
-    <aside
-      className={cn(
-        "h-screen sticky top-0 bg-card border-r border-border flex flex-col z-50 flex-shrink-0 transition-[width] duration-200 ease-out relative",
-        widthClass
+    <>
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-foreground/40 backdrop-blur-sm animate-fade-in"
+          onClick={onMobileClose}
+        />
       )}
-    >
-      {/* subtle top glow */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-primary/5 to-transparent" />
 
-      {/* Logo header */}
-      <div className="relative h-16 px-3 border-b border-border flex items-center gap-2.5 flex-shrink-0">
-        {collapsed ? (
-          <AddisonMark size={40} className="mx-auto" />
-        ) : (
-          <>
-            <AddisonLogo size={40} />
-            <button
-              onClick={() => setCollapsed(true)}
-              className="ml-auto w-7 h-7 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors flex-shrink-0"
-              title="Collapse sidebar"
-            >
-              <ChevronsLeft className="w-4 h-4" />
-            </button>
-          </>
+      <aside
+        className={cn(
+          "bg-card border-r border-border flex flex-col flex-shrink-0 transition-all duration-200 ease-out",
+          // Desktop: sticky in flow
+          "lg:h-screen lg:sticky lg:top-0 lg:relative lg:translate-x-0 lg:z-40",
+          widthClass,
+          // Mobile: full-height fixed drawer
+          "fixed top-0 bottom-0 left-0 z-50 w-[280px] h-screen",
+          mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full lg:translate-x-0"
         )}
-      </div>
+      >
+        {/* subtle top glow */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-primary/5 to-transparent" />
 
-      {collapsed && (
-        <button
-          onClick={() => setCollapsed(false)}
-          className="mt-2 mx-auto w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors flex-shrink-0"
-          title="Expand sidebar"
-        >
-          <ChevronsRight className="w-4 h-4" />
-        </button>
-      )}
+        {/* Logo header */}
+        <div className="relative h-16 px-3 border-b border-border flex items-center gap-2.5 flex-shrink-0">
+          {collapsed ? (
+            <AddisonMark size={40} className="mx-auto hidden lg:block" />
+          ) : (
+            <>
+              <AddisonLogo size={40} />
+              {/* Desktop collapse */}
+              <button
+                onClick={() => setCollapsed(true)}
+                className="ml-auto w-7 h-7 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground hidden lg:flex items-center justify-center transition-colors flex-shrink-0"
+                title="Collapse sidebar"
+              >
+                <ChevronsLeft className="w-4 h-4" />
+              </button>
+              {/* Mobile close */}
+              <button
+                onClick={onMobileClose}
+                className="ml-auto w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground lg:hidden flex items-center justify-center transition-colors flex-shrink-0"
+                aria-label="Close menu"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </>
+          )}
+          {/* Show mobile-only logo + close even when desktop is collapsed */}
+          {collapsed && (
+            <div className="flex items-center gap-2 lg:hidden flex-1">
+              <AddisonLogo size={40} />
+              <button
+                onClick={onMobileClose}
+                className="ml-auto w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors"
+                aria-label="Close menu"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {collapsed && (
+          <button
+            onClick={() => setCollapsed(false)}
+            className="mt-2 mx-auto w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground hidden lg:flex items-center justify-center transition-colors flex-shrink-0"
+            title="Expand sidebar"
+          >
+            <ChevronsRight className="w-4 h-4" />
+          </button>
+        )}
 
       {/* Nav */}
       <nav className="relative flex-1 overflow-y-auto py-3 px-2.5 space-y-5">
@@ -150,7 +194,7 @@ export const AppSidebar = ({ active, onNavigate }: Props) => {
               return (
                 <button
                   key={item.id}
-                  onClick={() => onNavigate(item.id)}
+                  onClick={() => handleNavigate(item.id)}
                   title={collapsed ? item.label : undefined}
                   className={cn(
                     "relative w-full h-10 rounded-xl flex items-center gap-3 px-2.5 transition-all group overflow-hidden",
@@ -266,7 +310,7 @@ export const AppSidebar = ({ active, onNavigate }: Props) => {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onNavigate("settings")}>
+            <DropdownMenuItem onClick={() => handleNavigate("settings")}>
               <Settings className="w-4 h-4 mr-2" />
               Workspace settings
             </DropdownMenuItem>
@@ -284,6 +328,7 @@ export const AppSidebar = ({ active, onNavigate }: Props) => {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 };
