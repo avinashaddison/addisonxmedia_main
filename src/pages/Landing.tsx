@@ -226,7 +226,7 @@ const Landing = () => {
                 <ChevronRight className="w-3 h-3 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
               </div>
 
-              <h1 className="text-[40px] md:text-6xl lg:text-[72px] font-bold tracking-[-0.025em] leading-[1.02]">
+              <h1 className="text-[32px] sm:text-[40px] md:text-6xl lg:text-[72px] font-bold tracking-[-0.025em] leading-[1.05] md:leading-[1.02] break-words">
                 Turn every <span className="relative inline-block">
                   <span className="relative z-10">WhatsApp</span>
                   <span className="absolute inset-x-0 bottom-1 h-3 bg-success/25 rounded -z-0" />
