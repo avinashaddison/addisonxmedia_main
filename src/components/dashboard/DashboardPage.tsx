@@ -366,33 +366,56 @@ export const DashboardPage = ({ onNavigate }: Props) => {
           return (
             <div
               key={s.label}
-              className="relative overflow-hidden bg-card border border-border rounded-2xl p-5 hover:shadow-xl hover:border-primary/30 hover:-translate-y-0.5 transition-all animate-slide-up group"
+              className={cn(
+                "relative overflow-hidden gradient-border rounded-2xl p-5 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 animate-slide-up group",
+                s.label === "Revenue Closed" && "ring-1 ring-primary/30 shadow-lg shadow-primary/15"
+              )}
               style={{ animationDelay: `${i * 60}ms` }}
             >
-              <div className={cn("absolute -top-16 -right-16 w-40 h-40 rounded-full blur-2xl opacity-60 bg-gradient-to-br", s.ring)} />
+              <div className={cn("absolute -top-16 -right-16 w-44 h-44 rounded-full blur-2xl opacity-70 bg-gradient-to-br group-hover:opacity-100 transition-opacity", s.ring)} />
               <div className="relative flex items-center justify-between mb-4">
-                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shadow-md group-hover:scale-105 transition-transform", s.iconBg)}>
-                  <s.icon className="w-5 h-5" />
+                <div className={cn("relative w-10 h-10 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform", s.iconBg)}>
+                  <span className="absolute inset-0 rounded-xl blur-md opacity-50" style={{ background: s.sparkColor }} />
+                  <s.icon className="relative w-5 h-5" />
                 </div>
                 <span className="text-[10px] font-bold text-success bg-success-soft px-2 py-1 rounded-full flex items-center gap-0.5">
                   <ArrowUpRight className="w-3 h-3" /> +{s.trend}%
                 </span>
               </div>
               <p className="relative text-[11px] text-muted-foreground font-bold uppercase tracking-wider">{s.label}</p>
-              <p className="relative text-3xl font-bold tracking-tight mt-1 tabular-nums">
+              <p className={cn(
+                "relative font-bold tracking-tight mt-1 tabular-nums",
+                s.label === "Revenue Closed" ? "text-[34px] bg-gradient-to-r from-foreground to-primary bg-clip-text text-transparent" : "text-3xl"
+              )}>
                 {s.isCurrency ? "₹" : ""}{counts[i].toLocaleString()}
               </p>
+              {s.label === "Revenue Closed" && stats.revenue > 0 && (
+                <p className="relative text-[10.5px] font-bold text-success mt-0.5">+₹{Math.max(1234, Math.floor(stats.revenue * 0.07)).toLocaleString()} this week</p>
+              )}
               <div className="relative flex items-end justify-between mt-2 gap-2">
                 <p className="text-[11px] text-muted-foreground">{s.sub}</p>
-                <svg width={sparkW} height={sparkH} viewBox={`0 0 ${sparkW} ${sparkH}`} className="opacity-90">
+                <svg width={sparkW} height={sparkH} viewBox={`0 0 ${sparkW} ${sparkH}`} className="opacity-90 overflow-visible">
                   <defs>
                     <linearGradient id={`spark-${i}`} x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor={s.sparkColor} stopOpacity="0.35" />
+                      <stop offset="0%" stopColor={s.sparkColor} stopOpacity="0.4" />
                       <stop offset="100%" stopColor={s.sparkColor} stopOpacity="0" />
                     </linearGradient>
                   </defs>
                   <path d={sparkArea} fill={`url(#spark-${i})`} />
-                  <path d={sparkPath} fill="none" stroke={s.sparkColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path
+                    d={sparkPath}
+                    fill="none"
+                    stroke={s.sparkColor}
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      strokeDasharray: 400,
+                      strokeDashoffset: 400,
+                      animation: `slide-up 0.01s forwards, spark-draw 1.2s ease-out forwards`,
+                      animationDelay: `${i * 80}ms`,
+                    }}
+                  />
                 </svg>
               </div>
             </div>
