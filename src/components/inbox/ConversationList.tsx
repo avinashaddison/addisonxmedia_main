@@ -9,6 +9,7 @@ type Props = {
   activeId: string | null;
   onSelect: (id: string) => void;
   loading: boolean;
+  className?: string;
 };
 
 const filters = ["All", "Unread", "Hot", "Closed"] as const;
