@@ -162,6 +162,8 @@ export const DashboardPage = ({ onNavigate }: Props) => {
   const c2 = useCount(tiles[2].value);
   const c3 = useCount(tiles[3].value);
   const counts = [c0, c1, c2, c3];
+  const heroHotCount = useCount(stats.hot, 1300);
+  const heroRevenue = useCount(stats.revenue, 1500);
 
   // Synthetic sparkline data per tile (deterministic from value)
   const sparkSeed = (seed: number) =>
