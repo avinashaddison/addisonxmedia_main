@@ -8,6 +8,7 @@ import { BroadcastsPage } from "@/components/broadcasts/BroadcastsPage";
 import { FollowupsPage } from "@/components/followups/FollowupsPage";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { DealsPage } from "@/components/deals/DealsPage";
+import { AnalyticsPage } from "@/components/analytics/AnalyticsPage";
 
 const Index = () => {
   const [page, setPage] = useState("inbox");
@@ -19,6 +20,7 @@ const Index = () => {
       {page === "dashboard" && <DashboardPage onNavigate={setPage} />}
       {page === "contacts" && <ContactsPage />}
       {page === "deals" && <DealsPage />}
+      {page === "analytics" && <AnalyticsPage />}
       {page === "campaigns" && <CampaignsPage />}
       {page === "broadcasts" && <BroadcastsPage />}
       {page === "followups" && <FollowupsPage />}
