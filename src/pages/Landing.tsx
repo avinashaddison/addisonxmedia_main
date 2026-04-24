@@ -423,6 +423,9 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* Comparison — Why teams switch */}
+      <ComparisonGrid />
+
       {/* Pricing */}
       <section id="pricing" className="bg-muted/30 border-y border-border">
         <div className="max-w-7xl mx-auto px-6 py-20">
