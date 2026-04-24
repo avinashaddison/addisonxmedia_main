@@ -9,6 +9,7 @@ import { FollowupsPage } from "@/components/followups/FollowupsPage";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { DealsPage } from "@/components/deals/DealsPage";
 import { AnalyticsPage } from "@/components/analytics/AnalyticsPage";
+import { AITrainingPage } from "@/components/ai/AITrainingPage";
 
 const Index = () => {
   const [page, setPage] = useState("inbox");
@@ -24,6 +25,7 @@ const Index = () => {
       {page === "campaigns" && <CampaignsPage />}
       {page === "broadcasts" && <BroadcastsPage />}
       {page === "followups" && <FollowupsPage />}
+      {page === "ai-training" && <AITrainingPage />}
       {page === "settings" && <SettingsPage />}
     </div>
   );
