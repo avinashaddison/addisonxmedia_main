@@ -650,17 +650,17 @@ const Landing = () => {
       <FAQSection />
 
       {/* Final CTA — aggressive */}
-      <section className="max-w-7xl mx-auto px-6 py-24">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
         <Reveal>
-          <div className="relative bg-gradient-to-br from-foreground via-foreground to-primary text-background rounded-3xl p-12 lg:p-16 overflow-hidden">
+          <div className="relative bg-gradient-to-br from-foreground via-foreground to-primary text-background rounded-3xl p-6 sm:p-10 lg:p-16 overflow-hidden">
             <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/30 rounded-full blur-3xl animate-float" />
             <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-accent/20 rounded-full blur-3xl animate-float" style={{ animationDelay: "2s" }} />
             <div className="relative text-center">
-              <span className="inline-flex items-center gap-2 bg-hot/20 text-hot border border-hot/30 rounded-full px-3 py-1.5 mb-6 text-[11px] font-bold uppercase tracking-wider">
+              <span className="inline-flex items-center gap-2 bg-hot/20 text-hot border border-hot/30 rounded-full px-3 py-1.5 mb-5 sm:mb-6 text-[11px] font-bold uppercase tracking-wider">
                 <Flame className="w-3 h-3 fill-current animate-urgency-shake" />
                 Stop the bleed
               </span>
-              <h2 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight max-w-3xl mx-auto leading-[1.05]">
+              <h2 className="text-[26px] sm:text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight max-w-3xl mx-auto leading-[1.08] sm:leading-[1.05]">
                 Every missed reply ={" "}
                 <span className="bg-gradient-to-r from-hot via-warning to-hot bg-clip-text text-transparent">
                   lost revenue.
@@ -668,16 +668,16 @@ const Landing = () => {
                 <br />
                 Fix it now.
               </h2>
-              <p className="text-base md:text-lg opacity-80 mt-5 max-w-xl mx-auto">
+              <p className="text-sm sm:text-base md:text-lg opacity-80 mt-4 sm:mt-5 max-w-xl mx-auto leading-relaxed">
                 Join 1,200+ teams already closing more, faster, with AddisonX. Setup in 2 minutes. First deal in 24 hours.
               </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-7 sm:mt-8">
                 <Link
                   to={ctaHref}
-                  className="group bg-primary text-primary-foreground px-7 py-4 rounded-xl font-bold text-[14px] flex items-center gap-2 hover:bg-primary-glow transition-all shadow-2xl shadow-primary/50 hover:scale-[1.04] hover:-translate-y-0.5"
+                  className="group bg-primary text-primary-foreground px-5 sm:px-7 py-3.5 sm:py-4 rounded-xl font-bold text-[13px] sm:text-[14px] flex items-center gap-2 hover:bg-primary-glow transition-all shadow-2xl shadow-primary/50 hover:scale-[1.04] hover:-translate-y-0.5 text-center"
                 >
-                  {user ? "Open your workspace" : "Start free → close your first deal today"}
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  <span className="truncate">{user ? "Open your workspace" : "Start free → close your first deal today"}</span>
+                  <ArrowRight className="w-4 h-4 flex-shrink-0 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
               <p className="mt-5 text-[12px] opacity-70">
