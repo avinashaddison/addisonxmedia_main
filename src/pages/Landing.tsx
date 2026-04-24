@@ -265,6 +265,9 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* Live metrics ticker */}
+      <MetricsTicker />
+
       {/* Logo bar */}
       <section className="border-y border-border bg-muted/30 py-8">
         <div className="max-w-6xl mx-auto px-6">
