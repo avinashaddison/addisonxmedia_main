@@ -793,8 +793,8 @@ export const DealsPage = () => {
 
       {/* Kanban */}
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex-1 min-h-0 overflow-x-auto">
-          <div className="flex gap-3 h-full pb-2 min-w-max">
+        <div className="overflow-x-auto pb-2 -mx-2 px-2" style={{ height: "calc(100vh - 320px)", minHeight: 480 }}>
+          <div className="flex gap-3 h-full min-w-max">
             {STAGES.map((s) => (
               <Column
                 key={s.id}
