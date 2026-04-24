@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo } from "react";
 import {
   Send, Paperclip, Smile, Check, CheckCheck, MoreVertical,
   FileText, CreditCard, Clock, Sparkles, Phone, Video, Zap, Loader2,
-  Mic, Bot, ChevronDown, Image as ImageIcon, Wand2, Timer, ArrowRight,
+  Mic, Bot, ChevronDown, Image as ImageIcon, Wand2, Timer, ArrowRight, ArrowLeft, User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConversationWithContact, formatTime, initialsFor } from "@/lib/inbox-types";
@@ -12,6 +12,8 @@ import { toast } from "sonner";
 
 type Props = {
   conversation: ConversationWithContact;
+  onBack?: () => void;
+  onShowDetails?: () => void;
 };
 
 type MessageStatus = Database["public"]["Enums"]["message_status"];
