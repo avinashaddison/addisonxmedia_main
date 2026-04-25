@@ -85,7 +85,7 @@ const useInView = <T extends Element>(opts: IntersectionObserverInit = { thresho
 const Landing = () => {
   const { user } = useAuth();
   const ctaHref = user ? "/app" : "/auth";
-  useForceDark();
+  useForceLight();
 
   const heroRef = useRef<HTMLDivElement>(null);
   useSpotlight(heroRef);
