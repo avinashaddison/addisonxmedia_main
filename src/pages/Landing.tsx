@@ -24,13 +24,13 @@ import { FAQSection } from "@/components/landing/FAQSection";
 const SERIF = { fontFamily: "'Instrument Serif', serif" };
 const SANS = { fontFamily: "'Work Sans', system-ui, sans-serif" };
 
-// Force dark mode for landing — premium, immersive feel
-const useForceDark = () => {
+// Force light mode for landing — bright, editorial, premium
+const useForceLight = () => {
   useEffect(() => {
     const root = document.documentElement;
     const wasDark = root.classList.contains("dark");
-    root.classList.add("dark");
-    return () => { if (!wasDark) root.classList.remove("dark"); };
+    root.classList.remove("dark");
+    return () => { if (wasDark) root.classList.add("dark"); };
   }, []);
 };
 
@@ -85,7 +85,7 @@ const useInView = <T extends Element>(opts: IntersectionObserverInit = { thresho
 const Landing = () => {
   const { user } = useAuth();
   const ctaHref = user ? "/app" : "/auth";
-  useForceDark();
+  useForceLight();
 
   const heroRef = useRef<HTMLDivElement>(null);
   useSpotlight(heroRef);
