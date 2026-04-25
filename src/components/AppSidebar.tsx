@@ -213,21 +213,39 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
                     isActive
                       ? "bg-gradient-to-r from-primary-soft via-primary-soft to-transparent text-primary font-semibold shadow-sm"
                       : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                    collapsed && "justify-center px-0"
+                    collapsed && "justify-center px-0",
+                    item.smart && !isActive && "hover:bg-gradient-to-r hover:from-primary-soft/60 hover:to-accent-soft/40"
                   )}
                 >
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-gradient-to-b from-primary to-primary-glow shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
                   )}
-                  <item.icon
-                    className={cn(
-                      "flex-shrink-0 transition-transform group-hover:scale-105",
-                      collapsed ? "w-[18px] h-[18px]" : "w-[17px] h-[17px]"
+                  {item.smart && (
+                    <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/0 via-primary/5 to-accent/0 animate-shimmer pointer-events-none" />
+                  )}
+                  <span className="relative">
+                    <item.icon
+                      className={cn(
+                        "flex-shrink-0 transition-transform group-hover:scale-105",
+                        collapsed ? "w-[18px] h-[18px]" : "w-[17px] h-[17px]",
+                        item.smart && "text-primary"
+                      )}
+                      strokeWidth={isActive ? 2.4 : 2}
+                    />
+                    {item.smart && (
+                      <span className="absolute -inset-1 rounded-full bg-primary/20 blur-md -z-10" />
                     )}
-                    strokeWidth={isActive ? 2.4 : 2}
-                  />
+                    {item.live && !collapsed && (
+                      <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-success animate-pulse ring-2 ring-card" />
+                    )}
+                  </span>
                   {!collapsed && (
                     <span className="flex-1 text-left text-[13px] truncate">{item.label}</span>
+                  )}
+                  {item.smart && !collapsed && (
+                    <span className="text-[8px] font-bold uppercase tracking-[0.12em] bg-gradient-to-r from-primary to-accent text-primary-foreground px-1.5 py-0.5 rounded shadow-sm shadow-primary/30">
+                      Smart
+                    </span>
                   )}
                   {badgeValue && badgeValue > 0 ? (
                     collapsed ? (
