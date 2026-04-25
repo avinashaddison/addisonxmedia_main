@@ -1,4 +1,4 @@
-import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X } from "lucide-react";
+import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X, Bot, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AddisonMark, AddisonLogo } from "@/components/brand/AddisonLogo";
@@ -24,36 +24,48 @@ type Props = {
   onMobileClose?: () => void;
 };
 
-const groups: { label: string; items: { icon: any; label: string; id: string; badgeKey?: "inbox" | "tasks"; hint?: string }[] }[] = [
+type NavItem = {
+  icon: any;
+  label: string;
+  id: string;
+  badgeKey?: "inbox" | "tasks";
+  hint?: string;
+  smart?: boolean;
+  live?: boolean;
+};
+
+const groups: { label: string; items: NavItem[] }[] = [
   {
-    label: "Workspace",
+    label: "Sales",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard", id: "dashboard", hint: "Overview & KPIs" },
-      { icon: Inbox, label: "Chats", id: "inbox", badgeKey: "inbox", hint: "WhatsApp inbox" },
+      { icon: LayoutDashboard, label: "Dashboard", id: "dashboard", hint: "Command center" },
+      { icon: Inbox, label: "Chats", id: "inbox", badgeKey: "inbox", hint: "Live WhatsApp inbox", live: true },
       { icon: Users, label: "Contacts", id: "contacts", hint: "Leads & CRM" },
       { icon: Trophy, label: "Deals", id: "deals", hint: "Sales pipeline" },
-      { icon: BarChart3, label: "Analytics", id: "analytics", hint: "Reports & insights" },
     ],
   },
   {
-    label: "Outreach",
+    label: "Marketing",
     items: [
       { icon: Megaphone, label: "Campaigns", id: "campaigns", hint: "Multi-channel" },
       { icon: Radio, label: "Broadcasts", id: "broadcasts", hint: "Mass messages" },
       { icon: FileText, label: "Templates", id: "templates", hint: "Reusable messages" },
+    ],
+  },
+  {
+    label: "Automation & AI",
+    items: [
+      { icon: Bot, label: "AI Assistant", id: "ai-assistant", hint: "Your AI co-pilot", smart: true },
+      { icon: Brain, label: "AI Training", id: "ai-training", hint: "Train Addison AI" },
+      { icon: Workflow, label: "Workflows", id: "workflows", hint: "Automated journeys" },
       { icon: Bell, label: "Follow-ups", id: "followups", badgeKey: "tasks", hint: "Tasks queue" },
     ],
   },
   {
-    label: "Intelligence",
+    label: "System",
     items: [
-      { icon: Brain, label: "AI Training", id: "ai-training", hint: "Train Addison AI" },
+      { icon: BarChart3, label: "Analytics", id: "analytics", hint: "Reports & insights" },
       { icon: Activity, label: "Activity", id: "activity", hint: "System history" },
-    ],
-  },
-  {
-    label: "Account",
-    items: [
       { icon: UsersRound, label: "Team", id: "team", hint: "Members & roles" },
       { icon: Plug, label: "Integrations", id: "integrations", hint: "Connect tools" },
       { icon: Settings, label: "Settings", id: "settings", hint: "Workspace config" },
@@ -201,21 +213,39 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
                     isActive
                       ? "bg-gradient-to-r from-primary-soft via-primary-soft to-transparent text-primary font-semibold shadow-sm"
                       : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                    collapsed && "justify-center px-0"
+                    collapsed && "justify-center px-0",
+                    item.smart && !isActive && "hover:bg-gradient-to-r hover:from-primary-soft/60 hover:to-accent-soft/40"
                   )}
                 >
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-gradient-to-b from-primary to-primary-glow shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
                   )}
-                  <item.icon
-                    className={cn(
-                      "flex-shrink-0 transition-transform group-hover:scale-105",
-                      collapsed ? "w-[18px] h-[18px]" : "w-[17px] h-[17px]"
+                  {item.smart && (
+                    <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/0 via-primary/5 to-accent/0 animate-shimmer pointer-events-none" />
+                  )}
+                  <span className="relative">
+                    <item.icon
+                      className={cn(
+                        "flex-shrink-0 transition-transform group-hover:scale-105",
+                        collapsed ? "w-[18px] h-[18px]" : "w-[17px] h-[17px]",
+                        item.smart && "text-primary"
+                      )}
+                      strokeWidth={isActive ? 2.4 : 2}
+                    />
+                    {item.smart && (
+                      <span className="absolute -inset-1 rounded-full bg-primary/20 blur-md -z-10" />
                     )}
-                    strokeWidth={isActive ? 2.4 : 2}
-                  />
+                    {item.live && !collapsed && (
+                      <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-success animate-pulse ring-2 ring-card" />
+                    )}
+                  </span>
                   {!collapsed && (
                     <span className="flex-1 text-left text-[13px] truncate">{item.label}</span>
+                  )}
+                  {item.smart && !collapsed && (
+                    <span className="text-[8px] font-bold uppercase tracking-[0.12em] bg-gradient-to-r from-primary to-accent text-primary-foreground px-1.5 py-0.5 rounded shadow-sm shadow-primary/30">
+                      Smart
+                    </span>
                   )}
                   {badgeValue && badgeValue > 0 ? (
                     collapsed ? (

@@ -10,6 +10,8 @@ import { SettingsPage } from "@/components/settings/SettingsPage";
 import { DealsPage } from "@/components/deals/DealsPage";
 import { AnalyticsPage } from "@/components/analytics/AnalyticsPage";
 import { AITrainingPage } from "@/components/ai/AITrainingPage";
+import { AIAssistantPage } from "@/components/ai/AIAssistantPage";
+import { WorkflowsPage } from "@/components/automation/WorkflowsPage";
 import { TemplatesPage } from "@/components/templates/TemplatesPage";
 import { TeamPage } from "@/components/team/TeamPage";
 import { ActivityPage } from "@/components/activity/ActivityPage";
@@ -65,6 +67,8 @@ const Index = () => {
           {page === "templates" && <TemplatesPage />}
           {page === "followups" && <FollowupsPage />}
           {page === "ai-training" && <AITrainingPage />}
+          {page === "ai-assistant" && <AIAssistantPage />}
+          {page === "workflows" && <WorkflowsPage />}
           {page === "activity" && <ActivityPage />}
           {page === "team" && <TeamPage />}
           {page === "integrations" && <IntegrationsPage />}
