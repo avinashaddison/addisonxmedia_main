@@ -6,61 +6,61 @@
 
 @layer base {
   :root {
-    --background: 0 0% 97%;
-    --foreground: 220 20% 14%;
+    --background: 38 30% 97%;
+    --foreground: 220 25% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 20% 14%;
+    --card-foreground: 220 25% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 14%;
+    --popover-foreground: 220 25% 10%;
 
-    --primary: 142 64% 40%;
+    --primary: 142 68% 38%;
     --primary-foreground: 0 0% 100%;
     --primary-soft: 142 55% 94%;
-    --primary-glow: 142 64% 46%;
+    --primary-glow: 158 75% 48%;
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 20% 14%;
+    --secondary: 38 20% 94%;
+    --secondary-foreground: 220 25% 10%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 38 18% 93%;
+    --muted-foreground: 220 12% 42%;
 
-    --accent: 217 91% 60%;
+    --accent: 24 92% 56%;
     --accent-foreground: 0 0% 100%;
-    --accent-soft: 217 90% 96%;
+    --accent-soft: 24 90% 95%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 64% 40%;
+    --success: 142 68% 38%;
     --success-foreground: 0 0% 100%;
     --success-soft: 142 55% 94%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 220 20% 14%;
+    --warning: 38 95% 52%;
+    --warning-foreground: 220 25% 10%;
     --warning-soft: 38 90% 95%;
 
     --hot: 0 84% 60%;
     --hot-foreground: 0 0% 100%;
     --hot-soft: 0 80% 96%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 142 64% 40%;
+    --border: 38 18% 88%;
+    --input: 38 18% 88%;
+    --ring: 142 68% 38%;
     --radius: 0.75rem;
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 220 10% 46%;
-    --sidebar-primary: 142 64% 40%;
+    --sidebar-foreground: 220 12% 42%;
+    --sidebar-primary: 142 68% 38%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 142 55% 94%;
     --sidebar-accent-foreground: 142 64% 30%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 142 64% 40%;
+    --sidebar-border: 38 18% 88%;
+    --sidebar-ring: 142 68% 38%;
 
-    --chat-bg: 220 20% 95%;
-    --chat-outgoing: 142 55% 92%;
+    --chat-bg: 38 25% 95%;
+    --chat-outgoing: 142 55% 90%;
     --chat-incoming: 0 0% 100%;
   }
 
