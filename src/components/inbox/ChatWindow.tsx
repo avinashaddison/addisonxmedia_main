@@ -300,6 +300,23 @@ export const ChatWindow = ({ conversation }: Props) => {
 
         {messages.map((msg) => {
           const isOutbound = msg.direction === "outbound";
+          const productPayload = decodeProductDelivery(msg.body);
+
+          // Render premium product-delivery card
+          if (productPayload) {
+            return (
+              <div key={msg.id} className={cn("flex animate-bubble-pop", isOutbound ? "justify-end" : "justify-start")}>
+                <div className="relative">
+                  <ProductDeliveryCard payload={productPayload} />
+                  <div className={cn("flex items-center gap-1 mt-1", isOutbound ? "justify-end" : "justify-start")}>
+                    <span className="text-[10px] text-muted-foreground">{formatTime(msg.created_at)}</span>
+                    {isOutbound && <StatusIcon status={msg.status} />}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
           const highlight = isHighlighted(msg.body);
           return (
             <div key={msg.id} className={cn("flex animate-bubble-pop", isOutbound ? "justify-end" : "justify-start")}>
