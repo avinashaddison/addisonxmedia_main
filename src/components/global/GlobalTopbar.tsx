@@ -7,6 +7,8 @@ import { NotificationCenter } from "./NotificationCenter";
 type Props = { onNavigate: (page: string) => void; onMenuClick?: () => void };
 
 export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === "dark";
   const [syncedAt, setSyncedAt] = useState<number>(Date.now());
   const [now, setNow] = useState<number>(Date.now());
   const [activeNow] = useState<number>(() => 2 + Math.floor(Math.random() * 4)); // 2–5 active
