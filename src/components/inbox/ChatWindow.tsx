@@ -3,12 +3,16 @@ import {
   Send, Paperclip, Smile, Check, CheckCheck, MoreVertical,
   FileText, CreditCard, Clock, Sparkles, Phone, Video, Zap, Loader2,
   Mic, Bot, ChevronDown, Image as ImageIcon, Wand2, Timer, ArrowRight, ArrowLeft, User,
+  Package, Trophy, TrendingUp, MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConversationWithContact, formatTime, initialsFor } from "@/lib/inbox-types";
 import { Database } from "@/integrations/supabase/types";
 import { useMessages, useSendMessage } from "@/hooks/useInboxData";
 import { toast } from "sonner";
+import { SendProductDialog, type ProductDeliveryPayload } from "./SendProductDialog";
+import { ProductDeliveryCard, decodeProductDelivery, encodeProductDelivery } from "./ProductDeliveryCard";
+import { supabase } from "@/integrations/supabase/client";
 
 type Props = {
   conversation: ConversationWithContact;
