@@ -73,6 +73,9 @@ export const ChatWindow = ({ conversation }: Props) => {
   const [aiAuto, setAiAuto] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [aiTyping, setAiTyping] = useState(false);
+  const [productOpen, setProductOpen] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
+  const [showUpsell, setShowUpsell] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
