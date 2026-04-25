@@ -1,7 +1,7 @@
-import { Menu, RefreshCw, Moon, Sun } from "lucide-react";
+import { Menu, RefreshCw, Moon, Sun, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { GlobalSearch } from "./GlobalSearch";
+import { CommandPalette } from "./CommandPalette";
 import { NotificationCenter } from "./NotificationCenter";
 
 type Props = { onNavigate: (page: string) => void; onMenuClick?: () => void };
@@ -12,6 +12,19 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
   const [syncedAt, setSyncedAt] = useState<number>(Date.now());
   const [now, setNow] = useState<number>(Date.now());
   const [activeNow] = useState<number>(() => 2 + Math.floor(Math.random() * 4)); // 2–5 active
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Global ⌘K / Ctrl+K to open command palette
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // Tick every second for "Last sync" label
   useEffect(() => {
