@@ -473,6 +473,32 @@ export const ChatWindow = ({ conversation }: Props) => {
         </button>
       </div>
 
+      {/* Post-delivery upsell strip */}
+      {showUpsell && (
+        <div className="px-5 py-2.5 border-t border-success/30 bg-gradient-to-r from-success/10 via-card to-primary-soft/40 flex items-center gap-3 flex-shrink-0 animate-fade-in">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-success to-success/70 flex items-center justify-center text-success-foreground flex-shrink-0">
+            <TrendingUp className="w-3.5 h-3.5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-success">Client activated · Sales intelligence</div>
+            <div className="text-[12px] font-semibold text-foreground truncate">Suggest an upsell or ask for a testimonial</div>
+          </div>
+          <button
+            onClick={() => { useTemplate(`Hey ${contact.name}! Hope you're loving it so far 🎉 Quick favourite — would you mind sharing a 1-line testimonial?`); setShowUpsell(false); }}
+            className="h-8 px-3 rounded-lg bg-card border border-border text-[11px] font-bold hover:border-primary hover:text-primary transition-colors flex items-center gap-1"
+          >
+            <MessageCircle className="w-3 h-3" /> Testimonial
+          </button>
+          <button
+            onClick={() => { useTemplate(`Since you're already on board, want me to add the Pro Add-on at 30% off? It pairs perfectly with what you just got.`); setShowUpsell(false); }}
+            className="h-8 px-3 rounded-lg bg-gradient-to-br from-primary to-primary-glow text-primary-foreground text-[11px] font-bold hover:shadow-md hover:shadow-primary/30 transition-all flex items-center gap-1"
+          >
+            <Zap className="w-3 h-3" /> Upsell
+          </button>
+          <button onClick={() => setShowUpsell(false)} className="text-[10px] text-muted-foreground hover:text-foreground px-1">✕</button>
+        </div>
+      )}
+
       {/* Sticky CTA bar */}
       <div className="px-5 py-3 border-t border-border bg-gradient-to-r from-primary-soft via-card to-accent-soft flex items-center gap-2 flex-shrink-0">
         <button
@@ -481,6 +507,14 @@ export const ChatWindow = ({ conversation }: Props) => {
         >
           <Send className="w-4 h-4" />
           Send Offer
+        </button>
+        <button
+          onClick={() => setProductOpen(true)}
+          className="h-11 px-4 rounded-xl bg-gradient-to-br from-accent to-primary text-primary-foreground text-[12px] font-bold flex items-center gap-1.5 hover:shadow-lg hover:shadow-accent/40 transition-all hover:-translate-y-0.5 active:scale-95 shadow-md ring-1 ring-white/20"
+          title="Deliver digital product"
+        >
+          <Package className="w-4 h-4" />
+          Send Product
         </button>
         <button
           onClick={() => toast.success(`Payment link sent to ${contact.name}`)}
@@ -497,6 +531,29 @@ export const ChatWindow = ({ conversation }: Props) => {
           Call Now
         </button>
       </div>
+
+      {/* Send Product Dialog */}
+      <SendProductDialog
+        open={productOpen}
+        onOpenChange={setProductOpen}
+        contactName={contact.name}
+        onDeliver={handleDeliverProduct}
+      />
+
+      {/* Deal-won celebration overlay */}
+      {celebrate && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none animate-fade-in">
+          <div className="absolute inset-0 bg-gradient-to-br from-success/20 via-transparent to-primary/20 backdrop-blur-[2px]" />
+          <div className="relative bg-card border border-success/30 rounded-3xl px-8 py-6 shadow-2xl shadow-success/30 flex flex-col items-center gap-2 animate-bubble-pop">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-success to-success/70 flex items-center justify-center text-success-foreground shadow-lg shadow-success/40">
+              <Trophy className="w-8 h-8" />
+            </div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-success">Deal Closed</div>
+            <div className="text-xl font-bold text-foreground">🎉 Successfully Won!</div>
+            <div className="text-[11px] text-muted-foreground">Marked as WON · 100% probability</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
