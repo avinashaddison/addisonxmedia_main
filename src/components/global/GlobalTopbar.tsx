@@ -1,5 +1,6 @@
-import { Menu, RefreshCw } from "lucide-react";
+import { Menu, RefreshCw, Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import { GlobalSearch } from "./GlobalSearch";
 import { NotificationCenter } from "./NotificationCenter";
 
