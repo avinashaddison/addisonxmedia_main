@@ -103,6 +103,8 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
       </button>
 
       <NotificationCenter onNavigate={onNavigate} />
+
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onNavigate={onNavigate} />
     </header>
   );
 };
