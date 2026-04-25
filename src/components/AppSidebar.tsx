@@ -1,4 +1,4 @@
-import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X } from "lucide-react";
+import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X, Bot, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AddisonMark, AddisonLogo } from "@/components/brand/AddisonLogo";
@@ -24,36 +24,48 @@ type Props = {
   onMobileClose?: () => void;
 };
 
-const groups: { label: string; items: { icon: any; label: string; id: string; badgeKey?: "inbox" | "tasks"; hint?: string }[] }[] = [
+type NavItem = {
+  icon: any;
+  label: string;
+  id: string;
+  badgeKey?: "inbox" | "tasks";
+  hint?: string;
+  smart?: boolean;
+  live?: boolean;
+};
+
+const groups: { label: string; items: NavItem[] }[] = [
   {
-    label: "Workspace",
+    label: "Sales",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard", id: "dashboard", hint: "Overview & KPIs" },
-      { icon: Inbox, label: "Chats", id: "inbox", badgeKey: "inbox", hint: "WhatsApp inbox" },
+      { icon: LayoutDashboard, label: "Dashboard", id: "dashboard", hint: "Command center" },
+      { icon: Inbox, label: "Chats", id: "inbox", badgeKey: "inbox", hint: "Live WhatsApp inbox", live: true },
       { icon: Users, label: "Contacts", id: "contacts", hint: "Leads & CRM" },
       { icon: Trophy, label: "Deals", id: "deals", hint: "Sales pipeline" },
-      { icon: BarChart3, label: "Analytics", id: "analytics", hint: "Reports & insights" },
     ],
   },
   {
-    label: "Outreach",
+    label: "Marketing",
     items: [
       { icon: Megaphone, label: "Campaigns", id: "campaigns", hint: "Multi-channel" },
       { icon: Radio, label: "Broadcasts", id: "broadcasts", hint: "Mass messages" },
       { icon: FileText, label: "Templates", id: "templates", hint: "Reusable messages" },
+    ],
+  },
+  {
+    label: "Automation & AI",
+    items: [
+      { icon: Bot, label: "AI Assistant", id: "ai-assistant", hint: "Your AI co-pilot", smart: true },
+      { icon: Brain, label: "AI Training", id: "ai-training", hint: "Train Addison AI" },
+      { icon: Workflow, label: "Workflows", id: "workflows", hint: "Automated journeys" },
       { icon: Bell, label: "Follow-ups", id: "followups", badgeKey: "tasks", hint: "Tasks queue" },
     ],
   },
   {
-    label: "Intelligence",
+    label: "System",
     items: [
-      { icon: Brain, label: "AI Training", id: "ai-training", hint: "Train Addison AI" },
+      { icon: BarChart3, label: "Analytics", id: "analytics", hint: "Reports & insights" },
       { icon: Activity, label: "Activity", id: "activity", hint: "System history" },
-    ],
-  },
-  {
-    label: "Account",
-    items: [
       { icon: UsersRound, label: "Team", id: "team", hint: "Members & roles" },
       { icon: Plug, label: "Integrations", id: "integrations", hint: "Connect tools" },
       { icon: Settings, label: "Settings", id: "settings", hint: "Workspace config" },
