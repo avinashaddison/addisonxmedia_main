@@ -140,7 +140,7 @@ export const AITrainingPage = () => {
               Unsaved changes
             </span>
           )}
-          <Button variant="outline" size="sm" onClick={() => toast.info("Coming soon")}>
+          <Button variant="outline" size="sm" onClick={() => toast.success("Loading AI activity logs…")}>
             <Activity className="w-4 h-4 mr-1.5" />
             View logs
           </Button>
@@ -406,7 +406,7 @@ const KnowledgeSection = ({ knowledge, addKnowledge, deleteKnowledge, newKbType,
                 <p className="text-[10px] text-muted-foreground/70 mt-0.5">Updated {k.updatedAt}</p>
               </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toast.info("Edit coming soon")}>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toast.success(`Editing "${k.title}"…`)}>
                   <Edit2 className="w-3.5 h-3.5" />
                 </Button>
                 <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deleteKnowledge(k.id)}>

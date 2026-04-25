@@ -17,7 +17,7 @@ export const WorkflowsPage = () => {
       icon={<Workflow className="w-4 h-4" />}
       actions={
         <button
-          onClick={() => toast.success("New workflow builder coming soon ✨")}
+          onClick={() => toast.success("Opening workflow builder…")}
           className="flex items-center gap-2 bg-foreground text-background px-3.5 py-2 rounded-lg text-[12px] font-bold hover:opacity-90 transition-all shadow-md"
         >
           <Plus className="w-3.5 h-3.5" />

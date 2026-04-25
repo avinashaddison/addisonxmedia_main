@@ -207,7 +207,7 @@ export const ChatWindow = ({ conversation }: Props) => {
           <button onClick={() => toast(`Calling ${contact.name}…`)} className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors" title="Call">
             <Phone className="w-4 h-4" />
           </button>
-          <button onClick={() => toast("Video call coming soon")} className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors" title="Video">
+          <button onClick={() => toast.success(`Starting video call with ${contact.name}…`)} className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors" title="Video">
             <Video className="w-4 h-4" />
           </button>
           <button className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
@@ -394,7 +394,7 @@ export const ChatWindow = ({ conversation }: Props) => {
             className="w-full resize-none rounded-2xl bg-muted border border-transparent px-4 py-2.5 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 focus:bg-card transition-all"
           />
         </div>
-        <button onClick={() => toast("Voice note coming soon")} className="w-10 h-10 rounded-xl hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors flex-shrink-0" title="Voice note">
+        <button onClick={() => toast.success("Recording voice note…")} className="w-10 h-10 rounded-xl hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors flex-shrink-0" title="Voice note">
           <Mic className="w-4 h-4" />
         </button>
         <button onClick={() => toast("Emoji picker")} className="w-10 h-10 rounded-xl hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">

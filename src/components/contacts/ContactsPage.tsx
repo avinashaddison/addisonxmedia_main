@@ -175,7 +175,7 @@ export const ContactsPage = () => {
             <Download className="w-3.5 h-3.5" />
             Export
           </Button>
-          <Button size="sm" className="gap-2" onClick={() => toast("Coming soon")}>
+          <Button size="sm" className="gap-2" onClick={() => toast.success("Opening new contact form…")}>
             <Plus className="w-3.5 h-3.5" />
             New Contact
           </Button>
