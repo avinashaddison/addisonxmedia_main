@@ -1,14 +1,30 @@
-import { Menu, RefreshCw } from "lucide-react";
+import { Menu, RefreshCw, Moon, Sun, Search } from "lucide-react";
 import { useEffect, useState } from "react";
-import { GlobalSearch } from "./GlobalSearch";
+import { useTheme } from "next-themes";
+import { CommandPalette } from "./CommandPalette";
 import { NotificationCenter } from "./NotificationCenter";
 
 type Props = { onNavigate: (page: string) => void; onMenuClick?: () => void };
 
 export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === "dark";
   const [syncedAt, setSyncedAt] = useState<number>(Date.now());
   const [now, setNow] = useState<number>(Date.now());
   const [activeNow] = useState<number>(() => 2 + Math.floor(Math.random() * 4)); // 2–5 active
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Global ⌘K / Ctrl+K to open command palette
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // Tick every second for "Last sync" label
   useEffect(() => {
@@ -38,7 +54,18 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
       )}
 
       <div className="flex-1 flex items-center justify-center min-w-0">
-        <GlobalSearch onNavigate={onNavigate} />
+        <button
+          onClick={() => setPaletteOpen(true)}
+          className="group w-full max-w-md h-9 pl-3 pr-2 rounded-xl bg-muted/50 hover:bg-muted/80 border border-transparent hover:border-border flex items-center gap-2 transition-all"
+        >
+          <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <span className="flex-1 text-left text-[13px] text-muted-foreground truncate">
+            Search or jump to…
+          </span>
+          <kbd className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-card border border-border text-[9px] font-bold text-muted-foreground flex-shrink-0">
+            ⌘K
+          </kbd>
+        </button>
       </div>
 
       {/* Live presence — desktop only */}
@@ -65,7 +92,19 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
         </button>
       </div>
 
+      <button
+        onClick={() => setTheme(isDark ? "light" : "dark")}
+        title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        aria-label="Toggle theme"
+        className="w-9 h-9 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors flex-shrink-0 relative overflow-hidden"
+      >
+        <Sun className={`w-4 h-4 absolute transition-all duration-300 ${isDark ? "rotate-90 scale-0 opacity-0" : "rotate-0 scale-100 opacity-100"}`} />
+        <Moon className={`w-4 h-4 absolute transition-all duration-300 ${isDark ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-0 opacity-0"}`} />
+      </button>
+
       <NotificationCenter onNavigate={onNavigate} />
+
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onNavigate={onNavigate} />
     </header>
   );
 };

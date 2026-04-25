@@ -18,6 +18,7 @@ import { ActivityPage } from "@/components/activity/ActivityPage";
 import { IntegrationsPage } from "@/components/integrations/IntegrationsPage";
 import { GlobalTopbar } from "@/components/global/GlobalTopbar";
 import { QuickActionFAB } from "@/components/global/QuickActionFAB";
+import { OnboardingFlow } from "@/components/global/OnboardingFlow";
 import { Menu } from "lucide-react";
 import { AddisonLogo } from "@/components/brand/AddisonLogo";
 
@@ -76,6 +77,7 @@ const Index = () => {
         </div>
       </div>
       <QuickActionFAB onNavigate={handleNavigate} />
+      <OnboardingFlow onNavigate={handleNavigate} />
     </div>
   );
 };
