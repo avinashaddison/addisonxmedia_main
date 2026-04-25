@@ -63,24 +63,6 @@ export default function Landing() {
   useForceLight();
   const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  return (
-    <div className="min-h-screen bg-background text-foreground antialiased">
-      {/* ============== NAV ============== */}
-      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
-        <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <MessageCircle className="w-4 h-4 text-primary-foreground" fill="currentColor" strokeWidth={0} />
-            </div>
-            <span className="font-bold text-lg tracking-tight">AddisonX</span>
-          </Link>
-
-          <nav className="hidden lg:flex items-center gap-7 text-sm font-medium text-muted-foreground">
-export default function Landing() {
-  useForceLight();
-  const { user } = useAuth();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
   const [solutionsOpen, setSolutionsOpen] = useState(false);
