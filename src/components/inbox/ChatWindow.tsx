@@ -136,6 +136,41 @@ export const ChatWindow = ({ conversation }: Props) => {
     textareaRef.current?.focus();
   };
 
+  const handleDeliverProduct = async (payload: ProductDeliveryPayload, autoCloseDeal: boolean) => {
+    // 1. Send the encoded card as a chat message
+    sendMut.mutate({ conversationId: conversation.id, body: encodeProductDelivery(payload) });
+    toast.success(`🚀 ${payload.productName} delivered to ${contact.name}`);
+
+    // 2. Optionally auto-close any open deal for this conversation as WON
+    if (autoCloseDeal) {
+      try {
+        const { data: deals } = await supabase
+          .from("deals")
+          .select("id")
+          .eq("conversation_id", conversation.id)
+          .neq("stage", "won")
+          .neq("stage", "lost");
+        if (deals && deals.length > 0) {
+          await supabase
+            .from("deals")
+            .update({
+              stage: "won",
+              probability: 100,
+              closed_at: new Date().toISOString(),
+            })
+            .in("id", deals.map((d) => d.id));
+        }
+        setCelebrate(true);
+        setTimeout(() => setCelebrate(false), 2800);
+      } catch (e) {
+        console.error("Auto-close failed", e);
+      }
+    }
+
+    // 3. Show upsell suggestion strip
+    setTimeout(() => setShowUpsell(true), 1200);
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-card min-w-0 relative">
       {/* Chat header */}
