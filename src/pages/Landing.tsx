@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -21,9 +21,31 @@ import {
   CheckCheck,
   Menu,
   X,
+  Inbox,
+  Megaphone,
+  Workflow,
+  LayoutGrid,
+  ChevronDown,
+  TrendingUp,
+  Clock,
+  Headphones,
+  Briefcase,
+  Plane,
+  ArrowUpRight,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { FAQSection } from "@/components/landing/FAQSection";
+
+const HERO_ROTATING = ["growing businesses.", "modern e-commerce.", "smart educators.", "busy clinics.", "ambitious agencies."];
+
+const useRotator = (items: string[], interval = 2400) => {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((p) => (p + 1) % items.length), interval);
+    return () => clearInterval(t);
+  }, [items.length, interval]);
+  return items[i];
+};
 
 // Force light mode for landing
 const useForceLight = () => {
