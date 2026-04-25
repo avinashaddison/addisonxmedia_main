@@ -1,768 +1,737 @@
 import { Link } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
-  ArrowUpRight,
-  Bot,
   Check,
-  Inbox,
   MessageCircle,
   Sparkles,
-  Wallet,
   Zap,
   Star,
-  Clock,
   Shield,
-  TrendingUp,
-  Quote,
-  Play,
+  Users,
+  BarChart3,
+  Bot,
+  Send,
+  ShoppingBag,
+  GraduationCap,
+  Stethoscope,
+  Building2,
+  Globe,
+  PlayCircle,
+  CheckCheck,
+  Menu,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { InteractiveChatDemo } from "@/components/landing/InteractiveChatDemo";
 import { FAQSection } from "@/components/landing/FAQSection";
 
-const SERIF = { fontFamily: "'Instrument Serif', serif" };
-const SANS = { fontFamily: "'Work Sans', system-ui, sans-serif" };
-
-// Force light mode for landing — bright, editorial, premium
+// Force light mode for landing
 const useForceLight = () => {
   useEffect(() => {
     const root = document.documentElement;
     const wasDark = root.classList.contains("dark");
     root.classList.remove("dark");
-    return () => { if (wasDark) root.classList.add("dark"); };
+    return () => {
+      if (wasDark) root.classList.add("dark");
+    };
   }, []);
 };
 
-// Cursor-following spotlight
-const useSpotlight = (ref: React.RefObject<HTMLElement>) => {
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const onMove = (e: MouseEvent) => {
-      const r = el.getBoundingClientRect();
-      el.style.setProperty("--mx", `${e.clientX - r.left}px`);
-      el.style.setProperty("--my", `${e.clientY - r.top}px`);
-    };
-    el.addEventListener("mousemove", onMove);
-    return () => el.removeEventListener("mousemove", onMove);
-  }, [ref]);
-};
-
-// Animated counter
-const useCountUp = (target: number, duration = 1800, start = false) => {
-  const [v, setV] = useState(0);
-  useEffect(() => {
-    if (!start) return;
-    let raf = 0; const t0 = performance.now();
-    const tick = (t: number) => {
-      const p = Math.min(1, (t - t0) / duration);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setV(Math.floor(target * eased));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration, start]);
-  return v;
-};
-
-// In-view hook
-const useInView = <T extends Element>(opts: IntersectionObserverInit = { threshold: 0.25 }) => {
-  const ref = useRef<T | null>(null);
-  const [seen, setSeen] = useState(false);
-  useEffect(() => {
-    if (!ref.current || seen) return;
-    const io = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) { setSeen(true); io.disconnect(); }
-    }, opts);
-    io.observe(ref.current);
-    return () => io.disconnect();
-  }, [seen]);
-  return [ref, seen] as const;
-};
-
-const Landing = () => {
-  const { user } = useAuth();
-  const ctaHref = user ? "/app" : "/auth";
+export default function Landing() {
   useForceLight();
-
-  const heroRef = useRef<HTMLDivElement>(null);
-  useSpotlight(heroRef);
+  const { user } = useAuth();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background text-foreground antialiased overflow-x-hidden selection:bg-primary/30 selection:text-foreground" style={SANS}>
-      {/* ============ NAV ============ */}
-      <header className="sticky top-0 z-40 bg-background/60 backdrop-blur-xl border-b border-border/30">
-        <nav className="max-w-7xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <span className="relative w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm overflow-hidden ring-1 ring-border/60">
-              <span className="absolute inset-0 bg-gradient-to-br from-primary via-accent to-primary-glow" />
-              <span className="absolute inset-0 bg-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              <span className="relative z-10 text-background">A</span>
-            </span>
-            <span className="text-[16px] font-semibold tracking-tight">Addison</span>
-            <span className="hidden sm:inline-flex items-center gap-1 ml-1 text-[9px] font-bold uppercase tracking-[0.18em] text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">
-              <span className="w-1 h-1 rounded-full bg-primary animate-pulse" />
-              Live
-            </span>
+    <div className="min-h-screen bg-background text-foreground antialiased">
+      {/* ============== NAV ============== */}
+      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <MessageCircle className="w-4 h-4 text-primary-foreground" fill="currentColor" strokeWidth={0} />
+            </div>
+            <span className="font-bold text-lg tracking-tight">AddisonX</span>
           </Link>
 
-          <div className="hidden md:flex items-center gap-1 text-[13px] text-muted-foreground bg-card/40 backdrop-blur border border-border/40 rounded-full px-2 py-1">
-            {[
-              ["Product", "#product"],
-              ["How", "#how"],
-              ["Pricing", "#pricing"],
-              ["FAQ", "#faq"],
-            ].map(([l, h]) => (
-              <a key={l} href={h} className="px-3 py-1.5 rounded-full hover:bg-foreground/5 hover:text-foreground transition-colors">
-                {l}
-              </a>
-            ))}
+          <nav className="hidden lg:flex items-center gap-7 text-sm font-medium text-muted-foreground">
+            <a href="#product" className="hover:text-foreground transition">Product</a>
+            <a href="#solutions" className="hover:text-foreground transition">Solutions</a>
+            <a href="#features" className="hover:text-foreground transition">Features</a>
+            <a href="#pricing" className="hover:text-foreground transition">Pricing</a>
+            <a href="#faq" className="hover:text-foreground transition">Resources</a>
+          </nav>
+
+          <div className="hidden lg:flex items-center gap-3">
+            {user ? (
+              <Link to="/app" className="text-sm font-semibold px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition">
+                Open dashboard
+              </Link>
+            ) : (
+              <>
+                <Link to="/auth" className="text-sm font-medium text-muted-foreground hover:text-foreground transition">
+                  Sign in
+                </Link>
+                <Link
+                  to="/auth"
+                  className="text-sm font-semibold px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition shadow-sm"
+                >
+                  Start free trial
+                </Link>
+              </>
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <Link to="/auth" className="hidden sm:inline-flex text-[13px] font-medium text-muted-foreground hover:text-foreground px-3 py-2 transition-colors">
-              Sign in
-            </Link>
-            <Link
-              to={ctaHref}
-              className="group relative text-[13px] font-semibold bg-foreground text-background rounded-full px-4 py-2 inline-flex items-center gap-1.5 overflow-hidden hover:shadow-[0_8px_32px_-8px_hsl(var(--primary)/0.6)] transition-shadow"
-            >
-              <span className="relative z-10 flex items-center gap-1.5">
-                Start free
-                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-              </span>
+          <button className="lg:hidden" onClick={() => setMobileOpen(!mobileOpen)}>
+            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
+
+        {mobileOpen && (
+          <div className="lg:hidden border-t border-border bg-background px-5 py-4 space-y-3 text-sm font-medium">
+            <a href="#product" className="block py-2">Product</a>
+            <a href="#solutions" className="block py-2">Solutions</a>
+            <a href="#features" className="block py-2">Features</a>
+            <a href="#pricing" className="block py-2">Pricing</a>
+            <Link to="/auth" className="block py-3 px-4 bg-primary text-primary-foreground rounded-lg text-center font-semibold">
+              Start free trial
             </Link>
           </div>
-        </nav>
+        )}
       </header>
 
-      {/* ============ HERO ============ */}
-      <section
-        ref={heroRef}
-        className="relative border-b border-border/30 overflow-hidden group/hero"
-        style={{
-          background: `radial-gradient(600px circle at var(--mx, 50%) var(--my, 30%), hsl(var(--primary) / 0.08), transparent 60%)`,
-        }}
-      >
-        {/* Aurora */}
-        <div className="pointer-events-none absolute inset-0 -z-10">
-          <div
-            className="absolute inset-0 opacity-90"
-            style={{
-              background:
-                "radial-gradient(55% 60% at 18% 18%, hsl(var(--primary) / 0.28), transparent 60%), radial-gradient(50% 55% at 82% 25%, hsl(var(--accent) / 0.22), transparent 60%), radial-gradient(70% 60% at 50% 110%, hsl(var(--primary-glow) / 0.18), transparent 60%)",
-              animation: "aurora 14s ease-in-out infinite",
-              backgroundSize: "200% 200%",
-            }}
-          />
-          <div
-            className="absolute inset-0 opacity-[0.07]"
-            style={{
-              backgroundImage:
-                "linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)",
-              backgroundSize: "52px 52px",
-              maskImage: "radial-gradient(ellipse 75% 65% at 50% 35%, black 30%, transparent 80%)",
-            }}
-          />
-          {/* Noise */}
-          <div
-            className="absolute inset-0 opacity-[0.025] mix-blend-overlay"
-            style={{
-              backgroundImage:
-                "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
-            }}
-          />
+      {/* ============== HERO ============== */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute top-0 left-1/3 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-accent/10 rounded-full blur-[120px]" />
         </div>
 
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 pt-16 sm:pt-24 pb-20 sm:pb-28 grid lg:grid-cols-12 gap-12 lg:gap-14 items-center relative">
-          <div className="lg:col-span-7 relative z-10">
-            <div className="inline-flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground/85 mb-8 bg-card/40 backdrop-blur border border-border/50 rounded-full pl-2 pr-3.5 py-1.5 shadow-[inset_0_1px_0_hsl(var(--foreground)/0.05)]">
-              <span className="flex items-center gap-1.5 bg-primary/15 border border-primary/25 rounded-full px-2 py-0.5">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping" />
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary" />
-                </span>
-                <span className="text-primary text-[10px]">New</span>
-              </span>
-              Addison v2 · Now with AI follow-ups
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 pt-16 lg:pt-24 pb-16 lg:pb-20 grid lg:grid-cols-[1.05fr_1fr] gap-12 items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-soft border border-primary/20 text-xs font-semibold text-primary mb-6">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Official WhatsApp Business API · Powered by AI</span>
             </div>
 
-            <h1
-              className="text-[48px] sm:text-[72px] lg:text-[92px] leading-[0.95] tracking-[-0.03em] text-foreground"
-              style={SERIF}
-            >
-              The inbox
-              <br />
-              that <span className="italic bg-gradient-to-br from-primary via-accent to-primary-glow bg-clip-text text-transparent">closes</span>
-              <br />
-              deals for you.
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.05] text-foreground">
+              The WhatsApp platform for{" "}
+              <span className="text-primary">growing businesses.</span>
             </h1>
 
-            <p className="mt-8 text-[16px] sm:text-[19px] leading-[1.55] text-muted-foreground max-w-[560px]">
-              Addison turns WhatsApp, Instagram, and forms into one calm inbox — with an AI that
-              drafts replies, sends pay links, and closes deals while you focus on the work that
-              matters.
+            <p className="mt-6 text-lg text-muted-foreground leading-relaxed max-w-xl">
+              AddisonX helps 12,000+ businesses convert leads, automate support, and broadcast campaigns —
+              all from one shared WhatsApp inbox with AI built in.
             </p>
 
-            <div className="mt-10 flex flex-col sm:flex-row gap-3 sm:items-center">
+            <form className="mt-8 flex flex-col sm:flex-row gap-3 max-w-lg">
+              <input
+                type="email"
+                placeholder="Enter your work email"
+                className="flex-1 px-4 py-3.5 rounded-lg border border-input bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
               <Link
-                to={ctaHref}
-                className="group/cta relative inline-flex items-center justify-center gap-2 bg-foreground text-background rounded-full px-6 py-4 text-[14px] font-semibold transition-all hover:scale-[1.02] overflow-hidden shadow-[0_10px_40px_-10px_hsl(var(--primary)/0.5)] hover:shadow-[0_20px_60px_-15px_hsl(var(--primary)/0.8)]"
+                to="/auth"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition shadow-md hover:shadow-lg whitespace-nowrap"
               >
-                <span className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary-glow opacity-0 group-hover/cta:opacity-100 transition-opacity" />
-                <span className="absolute inset-0 -translate-x-full group-hover/cta:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-background/30 to-transparent" />
-                <span className="relative z-10 flex items-center gap-2">
-                  Start free — no card
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover/cta:translate-x-0.5" />
-                </span>
+                Start free trial
+                <ArrowRight className="w-4 h-4" />
               </Link>
-              <a
-                href="#product"
-                className="group/play inline-flex items-center justify-center gap-2.5 text-[14px] font-medium text-foreground hover:text-primary transition-colors px-3 py-3.5"
-              >
-                <span className="relative w-9 h-9 rounded-full border border-border bg-card/40 backdrop-blur flex items-center justify-center group-hover/play:border-primary/60 group-hover/play:bg-primary/10 transition-all">
-                  <Play className="w-3 h-3 fill-current ml-0.5" />
-                </span>
-                Watch 90s demo
-              </a>
-            </div>
+            </form>
 
-            <div className="mt-12 flex flex-wrap items-center gap-x-7 gap-y-3 text-[12px] text-muted-foreground">
-              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-primary" /> 14-day trial</span>
-              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-primary" /> Setup in 4 min</span>
-              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-primary" /> Cancel anytime</span>
-              <span className="flex items-center gap-1.5">
-                <span className="flex -space-x-1.5">
-                  {["A", "R", "K", "S"].map((c, i) => (
-                    <span
-                      key={i}
-                      className="w-6 h-6 rounded-full border-2 border-background bg-gradient-to-br from-primary to-accent text-[10px] font-bold text-background flex items-center justify-center"
-                    >
-                      {c}
-                    </span>
-                  ))}
-                </span>
-                <span className="flex items-center gap-1 text-foreground/85 font-medium">
-                  <Star className="w-3 h-3 fill-warning text-warning" />
-                  4.9 · joined by 2,400+ founders
-                </span>
-              </span>
-            </div>
-          </div>
+            <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+              <li className="flex items-center gap-1.5"><Check className="w-4 h-4 text-primary" /> 7-day free trial</li>
+              <li className="flex items-center gap-1.5"><Check className="w-4 h-4 text-primary" /> No credit card</li>
+              <li className="flex items-center gap-1.5"><Check className="w-4 h-4 text-primary" /> Setup in 5 min</li>
+            </ul>
 
-          <div className="lg:col-span-5 flex justify-center lg:justify-end relative z-10">
-            <div className="relative">
-              {/* Glow */}
-              <div className="absolute -inset-12 bg-gradient-to-br from-primary/30 via-accent/15 to-primary-glow/25 blur-3xl -z-10 rounded-full animate-pulse" style={{ animationDuration: "5s" }} />
-              {/* Floating chips */}
-              <div className="absolute -top-5 -left-8 hidden sm:flex items-center gap-1.5 bg-card/80 backdrop-blur-xl border border-border/60 rounded-full px-3 py-1.5 shadow-2xl shadow-primary/20 z-20" style={{ animation: "float 4s ease-in-out infinite" }}>
-                <Bot className="w-3 h-3 text-primary" />
-                <span className="text-[10px] font-semibold">AI replied in 1.2s</span>
-              </div>
-              <div className="absolute top-10 -right-6 hidden md:flex items-center gap-1.5 bg-card/80 backdrop-blur-xl border border-border/60 rounded-full px-3 py-1.5 shadow-2xl shadow-accent/20 z-20" style={{ animation: "float 5s ease-in-out infinite", animationDelay: "0.5s" }}>
-                <TrendingUp className="w-3 h-3 text-accent" />
-                <span className="text-[10px] font-semibold">+38% close rate</span>
-              </div>
-              <div className="absolute -bottom-4 -right-5 hidden sm:flex items-center gap-1.5 bg-card/80 backdrop-blur-xl border border-border/60 rounded-full px-3 py-1.5 shadow-2xl shadow-success/20 z-20" style={{ animation: "float 4.5s ease-in-out infinite", animationDelay: "1s" }}>
-                <Wallet className="w-3 h-3 text-success" />
-                <span className="text-[10px] font-semibold">+₹2,499 received</span>
-              </div>
-              <InteractiveChatDemo />
-            </div>
-          </div>
-        </div>
-
-        {/* Big editorial wordmark — bottom of hero */}
-        <div className="relative pb-6 pointer-events-none select-none overflow-hidden">
-          <p
-            className="text-center text-[18vw] sm:text-[15vw] leading-[0.85] tracking-[-0.06em] bg-gradient-to-b from-foreground/[0.06] to-transparent bg-clip-text text-transparent"
-            style={SERIF}
-          >
-            Addison
-          </p>
-        </div>
-      </section>
-
-      {/* ============ MARQUEE ============ */}
-      <section className="border-b border-border/30 bg-card/30 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 py-8">
-          <p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground text-center mb-5">
-            Powering revenue at
-          </p>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-            <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
-            <div className="flex gap-14 whitespace-nowrap" style={{ animation: "ticker-scroll 32s linear infinite" }}>
-              {[
-                "Lumen Coaching", "Brewd Studio", "PitchCraft", "Northbound", "Crescent Tutors",
-                "Maker House", "Halcyon", "Saffron Labs", "Arclight", "Pulse Academy",
-                "Lumen Coaching", "Brewd Studio", "PitchCraft", "Northbound", "Crescent Tutors",
-                "Maker House", "Halcyon", "Saffron Labs", "Arclight", "Pulse Academy",
-              ].map((name, i) => (
-                <span
-                  key={i}
-                  className="text-[22px] sm:text-[26px] tracking-tight text-muted-foreground/60 hover:text-foreground transition-colors italic"
-                  style={SERIF}
-                >
-                  {name}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ============ STATS — animated counters ============ */}
-      <StatsSection />
-
-      {/* ============ PRODUCT — interactive tabs ============ */}
-      <ProductShowcase />
-
-      {/* ============ HOW IT WORKS ============ */}
-      <section id="how" className="border-b border-border/30 bg-card/20 relative overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 blur-[120px] rounded-full pointer-events-none" />
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 py-24 sm:py-32 relative">
-          <div className="grid lg:grid-cols-12 gap-12">
-            <div className="lg:col-span-4 lg:sticky lg:top-24 self-start">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-primary mb-4 font-semibold flex items-center gap-2">
-                <span className="w-6 h-px bg-primary" />
-                How it works
-              </p>
-              <h2 className="text-[40px] sm:text-[60px] leading-[1.0] tracking-[-0.02em]" style={SERIF}>
-                Four minutes to your <span className="italic text-muted-foreground">first closed deal.</span>
-              </h2>
-              <p className="mt-6 text-[15px] text-muted-foreground leading-relaxed max-w-sm">
-                No agency. No setup call. Connect your channels and let Addison do what it does best.
-              </p>
-            </div>
-
-            <ol className="lg:col-span-8 space-y-1">
-              {[
-                { n: "01", t: "Connect WhatsApp & Instagram", d: "One tap. We handle the OAuth dance and sync your last 30 days of chats automatically." },
-                { n: "02", t: "Train Addison on your voice", d: "Paste your three best replies. Addison learns tone, pricing, objections, the lot — in under sixty seconds." },
-                { n: "03", t: "Go live, watch deals close", d: "Approve AI drafts with a tap. Send pay links. Get notified the moment money lands in your account." },
-              ].map((s, i) => (
-                <RevealStep key={s.n} index={i} {...s} />
-              ))}
-            </ol>
-          </div>
-        </div>
-      </section>
-
-      {/* ============ TESTIMONIAL ============ */}
-      <section className="border-b border-border/30 relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 opacity-50" style={{
-          background: "radial-gradient(60% 60% at 50% 50%, hsl(var(--primary) / 0.14), transparent 70%)",
-        }} />
-        <div className="max-w-5xl mx-auto px-5 sm:px-8 py-24 sm:py-32 text-center relative">
-          <Quote className="w-10 h-10 text-primary/30 mx-auto mb-6" strokeWidth={1.5} />
-          <div className="inline-flex items-center gap-1 mb-6">
-            {[1,2,3,4,5].map(i => (
-              <Star key={i} className="w-4 h-4 fill-warning text-warning" />
-            ))}
-          </div>
-          <blockquote
-            className="text-[30px] sm:text-[52px] leading-[1.16] tracking-[-0.015em] text-foreground"
-            style={SERIF}
-          >
-            We replaced three tools with Addison and our close rate jumped from{" "}
-            <span className="italic text-muted-foreground">14%</span> to{" "}
-            <span className="bg-gradient-to-r from-primary via-accent to-primary-glow bg-clip-text text-transparent">38%</span>{" "}
-            in six weeks. The AI replies feel like me, but on a really good day.
-          </blockquote>
-          <div className="mt-10 flex items-center justify-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-hot to-accent text-background flex items-center justify-center text-[13px] font-bold ring-2 ring-background shadow-xl shadow-primary/20">
-              RA
-            </div>
-            <div className="text-left">
-              <p className="text-[14px] font-semibold">Riya Agarwal</p>
-              <p className="text-[12px] text-muted-foreground">Founder, Lumen Coaching</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ============ PRICING ============ */}
-      <section id="pricing" className="border-b border-border/30 relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 opacity-40" style={{
-          background: "radial-gradient(50% 60% at 50% 0%, hsl(var(--accent) / 0.12), transparent 70%)",
-        }} />
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 py-24 sm:py-32">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-primary mb-4 font-semibold flex items-center justify-center gap-2">
-              <span className="w-6 h-px bg-primary" /> Pricing <span className="w-6 h-px bg-primary" />
-            </p>
-            <h2 className="text-[40px] sm:text-[64px] leading-[1.0] tracking-[-0.02em]" style={SERIF}>
-              Simple. Honest. <span className="italic text-muted-foreground">Cancel anytime.</span>
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-5 max-w-3xl mx-auto">
-            {[
-              { name: "Starter", price: "₹999", tag: "For solo founders",
-                feat: ["1 inbox", "500 AI replies / mo", "UPI pay links", "Email support"], primary: false },
-              { name: "Growth", price: "₹2,499", tag: "For small teams",
-                feat: ["Everything in Starter", "Unlimited AI replies", "Up to 5 teammates", "Broadcasts + analytics", "Priority support"], primary: true },
-            ].map((p) => (
-              <div
-                key={p.name}
-                className={`group/card relative rounded-3xl p-8 sm:p-10 border transition-all hover:-translate-y-1 overflow-hidden ${
-                  p.primary
-                    ? "bg-card border-primary/30 shadow-2xl shadow-primary/20"
-                    : "bg-card/40 border-border hover:border-primary/30"
-                }`}
-              >
-                {p.primary && (
-                  <>
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-transparent to-accent/10 pointer-events-none" />
-                    <div className="absolute -top-px left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-[0.18em] bg-gradient-to-r from-primary to-accent text-background px-4 py-1 rounded-b-lg shadow-lg">
-                      Most popular
-                    </div>
-                    <div className="absolute -top-32 -right-32 w-72 h-72 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
-                  </>
-                )}
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-[28px] tracking-tight" style={SERIF}>
-                      {p.name}
-                    </h3>
-                    {p.primary && <Sparkles className="w-4 h-4 text-primary" />}
+            <div className="mt-10 flex items-center gap-5">
+              <div className="flex -space-x-2">
+                {["PM", "RK", "AS", "VG", "NK"].map((i, k) => (
+                  <div key={k} className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/40 to-accent/40 border-2 border-background flex items-center justify-center text-[10px] font-bold text-foreground">
+                    {i}
                   </div>
-                  <p className="text-[12px] mb-7 text-muted-foreground">
-                    {p.tag}
-                  </p>
-                  <p className="flex items-baseline gap-1.5 mb-8">
-                    <span className="text-[60px] tracking-[-0.02em] leading-none" style={SERIF}>
-                      {p.price}
-                    </span>
-                    <span className="text-[13px] text-muted-foreground">
-                      /month
-                    </span>
-                  </p>
-                  <ul className="space-y-3.5 mb-9">
-                    {p.feat.map((f) => (
-                      <li key={f} className="flex items-start gap-2.5 text-[14px]">
-                        <span className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center ${p.primary ? "bg-primary/20" : "bg-muted"}`}>
-                          <Check className={`w-2.5 h-2.5 ${p.primary ? "text-primary" : "text-foreground"}`} strokeWidth={3} />
+                ))}
+              </div>
+              <div>
+                <div className="flex items-center gap-1">
+                  {[...Array(5)].map((_, k) => (
+                    <Star key={k} className="w-4 h-4 fill-warning text-warning" />
+                  ))}
+                  <span className="ml-1.5 font-bold text-sm">4.9/5</span>
+                </div>
+                <p className="text-xs text-muted-foreground">From 1,200+ verified reviews</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Hero visual: dashboard + chat preview */}
+          <div className="relative">
+            <div className="relative rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+              {/* Browser bar */}
+              <div className="flex items-center gap-1.5 px-4 py-2.5 bg-muted border-b border-border">
+                <span className="w-2.5 h-2.5 rounded-full bg-destructive/60" />
+                <span className="w-2.5 h-2.5 rounded-full bg-warning/60" />
+                <span className="w-2.5 h-2.5 rounded-full bg-primary/60" />
+                <span className="ml-3 text-[11px] text-muted-foreground font-medium">app.addisonx.com/inbox</span>
+              </div>
+
+              <div className="grid grid-cols-[140px_1fr] h-[460px]">
+                {/* Mini sidebar */}
+                <div className="bg-muted/40 border-r border-border p-3 space-y-1">
+                  {[
+                    { icon: MessageCircle, label: "Inbox", active: true, badge: "12" },
+                    { icon: Users, label: "Contacts" },
+                    { icon: Send, label: "Broadcasts" },
+                    { icon: Bot, label: "Automation" },
+                    { icon: BarChart3, label: "Analytics" },
+                  ].map((it, k) => (
+                    <div
+                      key={k}
+                      className={`flex items-center gap-2 px-2.5 py-2 rounded-md text-[11px] font-medium ${
+                        it.active ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      <it.icon className="w-3.5 h-3.5" />
+                      <span className="flex-1">{it.label}</span>
+                      {it.badge && (
+                        <span className={`text-[9px] px-1.5 rounded-full ${it.active ? "bg-primary-foreground/20" : "bg-primary text-primary-foreground"}`}>
+                          {it.badge}
                         </span>
-                        <span className="text-foreground">{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Link
-                    to={ctaHref}
-                    className={`group/btn w-full inline-flex items-center justify-center gap-2 rounded-full py-3.5 text-[14px] font-semibold transition-all ${
-                      p.primary
-                        ? "bg-foreground text-background hover:shadow-[0_10px_30px_-8px_hsl(var(--primary)/0.6)]"
-                        : "bg-card border border-border hover:border-foreground/40 text-foreground"
-                    }`}
-                  >
-                    Start free trial
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-0.5" />
-                  </Link>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Chat preview */}
+                <div className="flex flex-col bg-[hsl(var(--chat-bg))]">
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-card border-b border-border">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-[10px] font-bold text-primary-foreground">PM</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold leading-tight">Priya Mehta</p>
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-primary rounded-full" /> online
+                      </p>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-hot-soft text-hot font-bold uppercase">Hot</span>
+                  </div>
+
+                  <div className="flex-1 p-3 space-y-2 overflow-hidden">
+                    <ChatBubble incoming text="Hi, what are your fees for class 10?" />
+                    <ChatBubble text="Hi Priya 👋 Class 10 batch is ₹8,500/mo. Should I block your seat?" ai />
+                    <ChatBubble incoming text="Yes please, share the link." />
+                    <ChatBubble text="Tap to pay ₹8,500 → razorpay.me/mehta · Seat confirmed instantly ✨" ai />
+                    <ChatBubble incoming text="Done ✅" />
+                    <div className="mt-2 mx-1 p-2 rounded-lg bg-primary-soft border border-primary/20">
+                      <p className="text-[9px] uppercase tracking-wider text-primary font-bold">✨ Deal closed by AI</p>
+                      <p className="text-xs font-bold mt-0.5 text-foreground">+ ₹8,500 · 12 seconds</p>
+                    </div>
+                  </div>
+
+                  <div className="px-3 py-2 bg-card border-t border-border flex items-center gap-2">
+                    <div className="flex-1 px-3 py-1.5 rounded-full bg-muted text-[10px] text-muted-foreground">Type a message…</div>
+                    <button className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                      <Send className="w-3 h-3 text-primary-foreground" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
 
-          <p className="text-center mt-12 text-[12px] text-muted-foreground inline-flex items-center gap-2 w-full justify-center">
-            <Shield className="w-3.5 h-3.5 text-primary" />
-            Bank-grade encryption · GDPR + DPDP compliant · Hosted in Mumbai
-          </p>
+            {/* Floating cards */}
+            <div className="hidden lg:block absolute -left-6 top-12 bg-card border border-border rounded-xl shadow-lg p-3 w-48">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-7 h-7 rounded-lg bg-primary-soft flex items-center justify-center">
+                  <Zap className="w-3.5 h-3.5 text-primary" />
+                </div>
+                <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Today</p>
+              </div>
+              <p className="text-xl font-bold text-foreground">₹47,250</p>
+              <p className="text-[10px] text-primary font-semibold">↑ 312% vs last week</p>
+            </div>
+
+            <div className="hidden lg:block absolute -right-4 bottom-12 bg-card border border-border rounded-xl shadow-lg p-3 w-44">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-7 h-7 rounded-lg bg-accent-soft flex items-center justify-center">
+                  <Bot className="w-3.5 h-3.5 text-accent" />
+                </div>
+                <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">AI replies</p>
+              </div>
+              <p className="text-xl font-bold text-foreground">1.4s</p>
+              <p className="text-[10px] text-muted-foreground">avg response time</p>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ============ FAQ ============ */}
-      <section id="faq" className="border-b border-border/30">
-        <div className="max-w-3xl mx-auto px-5 sm:px-8 py-24 sm:py-32">
-          <div className="text-center mb-14">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-primary mb-4 font-semibold flex items-center justify-center gap-2">
-              <span className="w-6 h-px bg-primary" /> Questions <span className="w-6 h-px bg-primary" />
-            </p>
-            <h2 className="text-[40px] sm:text-[56px] leading-[1.02] tracking-[-0.02em]" style={SERIF}>
-              Things people <span className="italic">usually ask.</span>
+      {/* ============== TRUST BAR ============== */}
+      <section className="border-y border-border bg-muted/30">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 py-10">
+          <p className="text-center text-xs uppercase tracking-[0.2em] font-semibold text-muted-foreground mb-6">
+            Trusted by 12,000+ businesses worldwide
+          </p>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-6 items-center justify-items-center opacity-60">
+            {["Mehta Tutorials", "Urban Closet", "Clinic+", "GrowthLab", "Finova", "RetailHub"].map((b) => (
+              <span key={b} className="text-sm md:text-base font-bold text-foreground tracking-tight">{b}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ============== FEATURE PILLARS ============== */}
+      <section id="features" className="py-20 lg:py-28">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8">
+          <div className="max-w-2xl mx-auto text-center mb-14">
+            <p className="text-xs uppercase tracking-[0.2em] font-bold text-primary mb-3">Everything you need</p>
+            <h2 className="text-3xl lg:text-5xl font-bold tracking-tight">
+              One platform to <span className="text-primary">sell, support, and scale</span> on WhatsApp
             </h2>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {FEATURES.map((f) => (
+              <div key={f.title} className="group relative p-6 rounded-2xl border border-border bg-card hover:shadow-lg hover:border-primary/40 transition-all">
+                <div className="w-11 h-11 rounded-xl bg-primary-soft flex items-center justify-center mb-4">
+                  <f.icon className="w-5 h-5 text-primary" />
+                </div>
+                <h3 className="text-lg font-bold mb-2">{f.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ============== SOLUTIONS / USE CASES ============== */}
+      <section id="solutions" className="py-20 lg:py-24 bg-muted/30 border-y border-border">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8">
+          <div className="max-w-2xl mb-12">
+            <p className="text-xs uppercase tracking-[0.2em] font-bold text-primary mb-3">Built for your industry</p>
+            <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
+              From edtech to e-commerce — AddisonX adapts to you
+            </h2>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {USE_CASES.map((u) => (
+              <div key={u.title} className="p-6 rounded-2xl bg-card border border-border hover:border-primary/40 hover:-translate-y-1 transition-all">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center mb-4 shadow-md">
+                  <u.icon className="w-6 h-6 text-primary-foreground" />
+                </div>
+                <h3 className="font-bold mb-1.5">{u.title}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{u.desc}</p>
+                <p className="text-xs text-primary font-semibold mt-3 flex items-center gap-1">
+                  Learn more <ArrowRight className="w-3 h-3" />
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ============== PRODUCT SHOWCASE: Split sections ============== */}
+      <section id="product" className="py-20 lg:py-28">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 space-y-24">
+          {/* Row 1: Shared Inbox */}
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] font-bold text-primary mb-3">Shared inbox</p>
+              <h3 className="text-3xl lg:text-4xl font-bold tracking-tight mb-5">
+                One inbox for your whole team
+              </h3>
+              <p className="text-muted-foreground leading-relaxed mb-6">
+                Assign chats, leave internal notes, set quick replies, and never lose a lead in the cracks again.
+                Built for teams of 2 to 200.
+              </p>
+              <ul className="space-y-3">
+                {["Auto-assign based on rules", "Internal notes & @mentions", "Tags, filters, and saved views", "Mobile + web + desktop apps"].map((p) => (
+                  <li key={p} className="flex items-start gap-2.5 text-sm">
+                    <div className="w-5 h-5 rounded-full bg-primary-soft flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Check className="w-3 h-3 text-primary" />
+                    </div>
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-2xl border border-border bg-card p-6 shadow-xl">
+              <div className="space-y-2">
+                {[
+                  { name: "Priya Mehta", msg: "Yes please, share the link.", time: "2m", unread: 2, hot: true },
+                  { name: "Rohan Kumar", msg: "Done ✅", time: "5m", unread: 0 },
+                  { name: "Anjali S.", msg: "Can we talk tomorrow?", time: "12m", unread: 1 },
+                  { name: "Vikram G.", msg: "Sounds good!", time: "1h", unread: 0 },
+                ].map((c, k) => (
+                  <div key={k} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition cursor-pointer">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center text-xs font-bold">
+                      {c.name.split(" ").map((n) => n[0]).join("")}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold truncate">{c.name}</p>
+                        {c.hot && <span className="text-[9px] px-1.5 py-0.5 bg-hot-soft text-hot rounded font-bold uppercase">Hot</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{c.msg}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-muted-foreground">{c.time}</p>
+                      {c.unread > 0 && <span className="inline-flex w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold items-center justify-center">{c.unread}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Broadcasts (reversed) */}
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div className="lg:order-2">
+              <p className="text-xs uppercase tracking-[0.2em] font-bold text-accent mb-3">Broadcasts & campaigns</p>
+              <h3 className="text-3xl lg:text-4xl font-bold tracking-tight mb-5">
+                Reach 10,000 contacts in one click
+              </h3>
+              <p className="text-muted-foreground leading-relaxed mb-6">
+                Send approved templates to segmented audiences. Track opens, clicks, and replies in real time.
+                Build drip campaigns that nurture leads while you sleep.
+              </p>
+              <ul className="space-y-3">
+                {["Template manager with WhatsApp approval", "Smart audience segments", "Click & reply analytics", "A/B testing built in"].map((p) => (
+                  <li key={p} className="flex items-start gap-2.5 text-sm">
+                    <div className="w-5 h-5 rounded-full bg-accent-soft flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Check className="w-3 h-3 text-accent" />
+                    </div>
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="lg:order-1 rounded-2xl border border-border bg-card p-6 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Diwali Sale 2025</p>
+                  <p className="text-lg font-bold">12,548 sent</p>
+                </div>
+                <span className="text-[10px] px-2 py-1 bg-primary-soft text-primary rounded font-bold uppercase">Live</span>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { label: "Delivered", value: 12421, pct: 99 },
+                  { label: "Read", value: 9810, pct: 79 },
+                  { label: "Replied", value: 1842, pct: 15 },
+                  { label: "Converted", value: 412, pct: 3.3 },
+                ].map((m) => (
+                  <div key={m.label}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-muted-foreground">{m.label}</span>
+                      <span className="font-bold">{m.value.toLocaleString()} <span className="text-muted-foreground font-normal">({m.pct}%)</span></span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-primary to-primary-glow rounded-full" style={{ width: `${m.pct}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 p-3 rounded-lg bg-primary-soft border border-primary/20">
+                <p className="text-xs font-bold text-primary">+ ₹3,42,500 revenue generated</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: AI */}
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] font-bold text-primary mb-3">Addison AI</p>
+              <h3 className="text-3xl lg:text-4xl font-bold tracking-tight mb-5">
+                An AI agent that closes deals while you sleep
+              </h3>
+              <p className="text-muted-foreground leading-relaxed mb-6">
+                Train Addison on your products, FAQs, and pricing. It answers in your tone, qualifies leads,
+                books appointments, and even sends payment links — 24/7.
+              </p>
+              <ul className="space-y-3">
+                {["Trained on your data in minutes", "Multi-language (EN, HI, AR + 50 more)", "Hands off to humans seamlessly", "Always within your guardrails"].map((p) => (
+                  <li key={p} className="flex items-start gap-2.5 text-sm">
+                    <div className="w-5 h-5 rounded-full bg-primary-soft flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Check className="w-3 h-3 text-primary" />
+                    </div>
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-2xl border border-border bg-gradient-to-br from-primary-soft to-card p-6 shadow-xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-primary-foreground" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm">Addison AI</p>
+                  <p className="text-[10px] text-muted-foreground">Always learning · always on</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="bg-card rounded-lg p-3 border border-border">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Today's brief</p>
+                  <p className="text-xs text-foreground">3 hot leads ready to close · 2 deals waiting on payment</p>
+                </div>
+                <div className="bg-card rounded-lg p-3 border border-border">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Suggested action</p>
+                  <p className="text-xs text-foreground">Follow up with Priya M. — she viewed your pricing 3x today.</p>
+                </div>
+                <div className="bg-card rounded-lg p-3 border border-border">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Auto-replied</p>
+                  <p className="text-xs text-foreground">28 conversations handled · 12 escalated to humans</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ============== INTEGRATIONS ============== */}
+      <section className="py-16 border-y border-border bg-muted/30">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 text-center">
+          <p className="text-xs uppercase tracking-[0.2em] font-bold text-primary mb-3">Integrations</p>
+          <h2 className="text-2xl lg:text-3xl font-bold tracking-tight mb-8">
+            Plays nicely with your favorite tools
+          </h2>
+          <div className="flex flex-wrap justify-center gap-3">
+            {["Shopify", "HubSpot", "Zapier", "Stripe", "Razorpay", "Google Sheets", "Salesforce", "Calendly", "Notion", "Slack"].map((tool) => (
+              <span key={tool} className="px-4 py-2 rounded-full bg-card border border-border text-sm font-medium hover:border-primary/40 transition cursor-default">
+                {tool}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ============== TESTIMONIAL ============== */}
+      <section className="py-20 lg:py-24">
+        <div className="max-w-4xl mx-auto px-5 lg:px-8 text-center">
+          <div className="flex justify-center mb-6">
+            {[...Array(5)].map((_, k) => <Star key={k} className="w-5 h-5 fill-warning text-warning" />)}
+          </div>
+          <p className="text-2xl lg:text-3xl font-semibold leading-snug tracking-tight mb-8">
+            "AddisonX replaced 3 different tools for us. Our WhatsApp revenue went from{" "}
+            <span className="text-primary">₹40K to ₹3.2L per month</span> in just 90 days. The AI alone closes 60% of new leads."
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-primary-foreground font-bold">
+              RM
+            </div>
+            <div className="text-left">
+              <p className="font-bold text-sm">Rohit Mehta</p>
+              <p className="text-xs text-muted-foreground">Founder, Mehta Tutorials</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ============== PRICING TEASER ============== */}
+      <section id="pricing" className="py-20 lg:py-24 bg-muted/30 border-y border-border">
+        <div className="max-w-6xl mx-auto px-5 lg:px-8">
+          <div className="text-center mb-12">
+            <p className="text-xs uppercase tracking-[0.2em] font-bold text-primary mb-3">Pricing</p>
+            <h2 className="text-3xl lg:text-4xl font-bold tracking-tight mb-3">Simple plans that grow with you</h2>
+            <p className="text-muted-foreground">Start free. Upgrade when you're ready. Cancel anytime.</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-5">
+            {PLANS.map((p) => (
+              <div
+                key={p.name}
+                className={`relative p-7 rounded-2xl border bg-card transition-all ${
+                  p.featured ? "border-primary shadow-xl scale-105" : "border-border hover:border-primary/40"
+                }`}
+              >
+                {p.featured && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider rounded-full">
+                    Most popular
+                  </span>
+                )}
+                <h3 className="font-bold text-lg">{p.name}</h3>
+                <p className="text-xs text-muted-foreground mt-1">{p.tag}</p>
+                <div className="mt-5">
+                  <span className="text-4xl font-bold tracking-tight">{p.price}</span>
+                  <span className="text-sm text-muted-foreground">/mo</span>
+                </div>
+                <Link
+                  to="/auth"
+                  className={`mt-5 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm transition ${
+                    p.featured
+                      ? "bg-primary text-primary-foreground hover:opacity-90 shadow-md"
+                      : "bg-secondary text-secondary-foreground hover:bg-muted"
+                  }`}
+                >
+                  {p.cta}
+                </Link>
+                <ul className="mt-6 space-y-2.5">
+                  {p.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <Check className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ============== FAQ ============== */}
+      <section id="faq" className="py-20 lg:py-24">
+        <div className="max-w-3xl mx-auto px-5 lg:px-8">
+          <div className="text-center mb-12">
+            <p className="text-xs uppercase tracking-[0.2em] font-bold text-primary mb-3">FAQ</p>
+            <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">Frequently asked questions</h2>
           </div>
           <FAQSection />
         </div>
       </section>
 
-      {/* ============ FINAL CTA ============ */}
-      <section className="relative overflow-hidden">
-        <div
-          className="absolute inset-0 -z-10"
-          style={{
-            background:
-              "radial-gradient(60% 80% at 50% 0%, hsl(var(--primary) / 0.30), transparent 65%), radial-gradient(50% 60% at 50% 100%, hsl(var(--accent) / 0.20), transparent 60%)",
-          }}
-        />
-        <div className="absolute inset-0 -z-10 opacity-[0.06]" style={{
-          backgroundImage:
-            "linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)",
-          backgroundSize: "52px 52px",
-          maskImage: "radial-gradient(ellipse 60% 60% at 50% 50%, black 30%, transparent 80%)",
-        }} />
-        <div className="max-w-5xl mx-auto px-5 sm:px-8 py-32 sm:py-40 text-center relative">
-          <div className="inline-flex items-center gap-2 mb-8 bg-card/40 backdrop-blur border border-border/50 rounded-full px-3 py-1.5">
-            <Sparkles className="w-3 h-3 text-primary" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.16em]">Ready when you are</span>
-          </div>
-          <h2 className="text-[52px] sm:text-[88px] leading-[0.95] tracking-[-0.03em]" style={SERIF}>
-            Stop missing replies.
-            <br />
-            <span className="italic bg-gradient-to-br from-primary via-accent to-primary-glow bg-clip-text text-transparent">
-              Start closing deals.
-            </span>
+      {/* ============== FINAL CTA ============== */}
+      <section className="py-20 lg:py-28 bg-gradient-to-br from-primary to-primary-glow text-primary-foreground">
+        <div className="max-w-4xl mx-auto px-5 lg:px-8 text-center">
+          <h2 className="text-3xl lg:text-5xl font-bold tracking-tight mb-5">
+            Ready to turn WhatsApp into your #1 revenue channel?
           </h2>
-          <p className="mt-8 text-[16px] sm:text-[18px] text-muted-foreground max-w-lg mx-auto">
-            Try Addison free for 14 days. No card. Cancel in two clicks.
+          <p className="text-lg opacity-90 mb-8">
+            Join 12,000+ businesses growing faster with AddisonX. Free trial, no credit card.
           </p>
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              to={ctaHref}
-              className="group/cta relative inline-flex items-center justify-center gap-2 bg-foreground text-background rounded-full px-7 py-4 text-[14px] font-semibold transition-all hover:scale-[1.02] w-full sm:w-auto overflow-hidden shadow-[0_10px_40px_-10px_hsl(var(--primary)/0.6)] hover:shadow-[0_20px_60px_-15px_hsl(var(--primary)/0.9)]"
-            >
-              <span className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary-glow opacity-0 group-hover/cta:opacity-100 transition-opacity" />
-              <span className="relative z-10 flex items-center gap-2">
-                Start free trial
-                <ArrowRight className="w-4 h-4 transition-transform group-hover/cta:translate-x-0.5" />
-              </span>
-            </Link>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               to="/auth"
-              className="inline-flex items-center justify-center gap-2 text-[14px] font-medium text-foreground hover:text-primary transition-colors px-3 py-3.5"
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg bg-background text-foreground font-bold text-sm hover:bg-card transition shadow-lg"
             >
-              Sign in instead
-              <ArrowUpRight className="w-3.5 h-3.5" />
+              Start free trial
+              <ArrowRight className="w-4 h-4" />
             </Link>
+            <a
+              href="#"
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg bg-primary-foreground/10 backdrop-blur border border-primary-foreground/20 text-primary-foreground font-bold text-sm hover:bg-primary-foreground/15 transition"
+            >
+              <PlayCircle className="w-4 h-4" />
+              Book a demo
+            </a>
           </div>
+          <p className="mt-6 text-xs opacity-70">No credit card required · Setup in 5 minutes · Cancel anytime</p>
         </div>
       </section>
 
-      {/* ============ FOOTER ============ */}
-      <footer className="border-t border-border/30 bg-card/20">
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 py-12 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <span className="relative w-7 h-7 rounded-md flex items-center justify-center font-bold text-[12px] overflow-hidden">
-              <span className="absolute inset-0 bg-gradient-to-br from-primary via-accent to-primary-glow" />
-              <span className="relative z-10 text-background">A</span>
-            </span>
-            <span className="text-[13px] font-semibold">Addison</span>
-            <span className="text-[12px] text-muted-foreground ml-2">© {new Date().getFullYear()}</span>
+      {/* ============== FOOTER ============== */}
+      <footer className="bg-card border-t border-border">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 py-14 grid md:grid-cols-2 lg:grid-cols-5 gap-8">
+          <div className="lg:col-span-2">
+            <Link to="/" className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                <MessageCircle className="w-4 h-4 text-primary-foreground" fill="currentColor" strokeWidth={0} />
+              </div>
+              <span className="font-bold text-lg">AddisonX</span>
+            </Link>
+            <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+              The WhatsApp Business platform powered by AI. Trusted by 12,000+ businesses worldwide.
+            </p>
+            <div className="flex items-center gap-2 mt-5 text-xs text-muted-foreground">
+              <Shield className="w-4 h-4" />
+              <span>SOC 2 Type II · GDPR · Meta Business Partner</span>
+            </div>
           </div>
-          <div className="flex items-center gap-6 text-[12px] text-muted-foreground">
-            <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
-            <a href="#" className="hover:text-foreground transition-colors">Terms</a>
-            <a href="mailto:hi@addison.app" className="hover:text-foreground transition-colors flex items-center gap-1.5">
-              <MessageCircle className="w-3.5 h-3.5" />
-              hi@addison.app
-            </a>
+
+          {[
+            { title: "Product", links: ["Inbox", "Broadcasts", "Automation", "AI Agent", "Analytics"] },
+            { title: "Solutions", links: ["E-commerce", "Education", "Healthcare", "Real Estate", "Agencies"] },
+            { title: "Company", links: ["About", "Customers", "Careers", "Contact", "Blog"] },
+          ].map((col) => (
+            <div key={col.title}>
+              <p className="text-xs uppercase tracking-wider font-bold text-foreground mb-4">{col.title}</p>
+              <ul className="space-y-2.5 text-sm text-muted-foreground">
+                {col.links.map((l) => (
+                  <li key={l}><a href="#" className="hover:text-primary transition">{l}</a></li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-border">
+          <div className="max-w-7xl mx-auto px-5 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
+            <p>© 2025 AddisonX Media. All rights reserved.</p>
+            <div className="flex items-center gap-5">
+              <a href="#" className="hover:text-foreground transition">Privacy</a>
+              <a href="#" className="hover:text-foreground transition">Terms</a>
+              <a href="#" className="hover:text-foreground transition flex items-center gap-1">
+                <Globe className="w-3 h-3" /> English
+              </a>
+            </div>
           </div>
         </div>
       </footer>
     </div>
   );
-};
+}
 
-/* ============ STATS ============ */
-const StatsSection = () => {
-  const [ref, seen] = useInView<HTMLDivElement>();
-  const revenue = useCountUp(420, 1800, seen);
-  const speed = useCountUp(31, 1600, seen);
-  const capture = useCountUp(92, 1500, seen);
-  const latency = useCountUp(2, 1200, seen);
+/* ====================== Helpers ====================== */
 
-  const items = [
-    { k: `₹${(revenue / 100).toFixed(1)} Cr`, v: "Revenue closed in chat", icon: TrendingUp },
-    { k: `${(speed / 10).toFixed(1)}×`, v: "Faster reply time", icon: Zap },
-    { k: `${capture}%`, v: "Hot-lead capture", icon: Star },
-    { k: `<${latency}s`, v: "AI reply latency", icon: Clock },
-  ];
-
-  return (
-    <section ref={ref} className="border-b border-border/30 relative">
-      <div className="max-w-7xl mx-auto px-5 sm:px-8 py-16 sm:py-20">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border/40 rounded-3xl overflow-hidden border border-border/40">
-          {items.map((s) => (
-            <div key={s.v} className="bg-background p-7 sm:p-9 group hover:bg-card/40 transition-colors relative overflow-hidden">
-              <div className="absolute -top-12 -right-12 w-32 h-32 bg-primary/5 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-              <s.icon className="w-4 h-4 text-primary mb-4" strokeWidth={1.75} />
-              <p className="text-[40px] sm:text-[52px] tracking-[-0.025em] text-foreground leading-none" style={SERIF}>
-                {s.k}
-              </p>
-              <p className="text-[12px] text-muted-foreground mt-3 uppercase tracking-[0.12em]">{s.v}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-};
-
-/* ============ INTERACTIVE PRODUCT SHOWCASE ============ */
-const ProductShowcase = () => {
-  const [active, setActive] = useState(0);
-  const features = [
-    {
-      icon: Bot, tag: "AI replies",
-      title: "Drafted in under two seconds.",
-      body: "Tone-matched, price-aware suggestions trained on your top scripts. Approve with a tap, edit before sending, or let Addison send on your behalf.",
-      stat: "1.2s", statLabel: "Avg draft time",
-    },
-    {
-      icon: Inbox, tag: "Unified inbox",
-      title: "WhatsApp. Instagram. Forms.",
-      body: "Every conversation in one calm stream, sorted by intent. Hot leads bubble to the top automatically — no more swiping between five apps.",
-      stat: "5→1", statLabel: "Tools replaced",
-    },
-    {
-      icon: Wallet, tag: "Pay links",
-      title: "Money in, deal won.",
-      body: "Razorpay & UPI inside the chat. Webhooks close the deal the moment payment lands. Auto-receipts, auto-tags, auto-everything.",
-      stat: "₹4.2 Cr", statLabel: "Closed in chat",
-    },
-    {
-      icon: Zap, tag: "Broadcasts",
-      title: "10K leads, every rupee tracked.",
-      body: "Personalized blasts with merge tags, A/B variants, and revenue attribution. Know exactly which message made you money.",
-      stat: "38%", statLabel: "Open rate",
-    },
-  ];
-
-  const F = features[active];
-
-  return (
-    <section id="product" className="border-b border-border/30 relative overflow-hidden">
-      <div className="absolute top-1/3 -left-32 w-[500px] h-[500px] bg-primary/8 rounded-full blur-[120px] -z-10" />
-      <div className="absolute bottom-1/4 -right-32 w-[500px] h-[500px] bg-accent/8 rounded-full blur-[120px] -z-10" />
-
-      <div className="max-w-7xl mx-auto px-5 sm:px-8 py-24 sm:py-32">
-        <div className="max-w-3xl mb-16">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-primary mb-4 font-semibold flex items-center gap-2">
-            <span className="w-6 h-px bg-primary" />
-            The product
-          </p>
-          <h2 className="text-[40px] sm:text-[64px] leading-[1.0] tracking-[-0.02em]" style={SERIF}>
-            Four tools, <span className="italic text-muted-foreground">one quiet inbox.</span>
-          </h2>
-          <p className="mt-6 text-[16px] sm:text-[18px] text-muted-foreground leading-relaxed max-w-xl">
-            No bloat. No 47 tabs. Just the four things that actually move money — built to feel like one product.
-          </p>
-        </div>
-
-        <div className="grid lg:grid-cols-12 gap-8 items-start">
-          {/* Tabs */}
-          <div className="lg:col-span-5 space-y-2">
-            {features.map((f, i) => (
-              <button
-                key={f.tag}
-                onClick={() => setActive(i)}
-                className={`w-full text-left group/tab relative rounded-2xl border p-5 sm:p-6 transition-all overflow-hidden ${
-                  active === i
-                    ? "bg-card border-primary/30 shadow-xl shadow-primary/10"
-                    : "bg-card/30 border-border/50 hover:border-border hover:bg-card/50"
-                }`}
-              >
-                {active === i && (
-                  <span className="absolute left-0 top-4 bottom-4 w-0.5 bg-gradient-to-b from-primary to-accent rounded-r-full" />
-                )}
-                <div className="flex items-center gap-3">
-                  <span className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                    active === i ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
-                  }`}>
-                    <f.icon className="w-4 h-4" strokeWidth={2} />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-semibold mb-1">{f.tag}</p>
-                    <p className="text-[15px] sm:text-[16px] font-semibold tracking-tight">{f.title}</p>
-                  </div>
-                  <ArrowRight className={`w-4 h-4 transition-all ${active === i ? "text-primary translate-x-0" : "text-muted-foreground -translate-x-1 opacity-0"}`} />
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Showcase panel */}
-          <div className="lg:col-span-7 lg:sticky lg:top-24">
-            <div key={active} className="relative rounded-3xl border border-border/60 bg-card overflow-hidden animate-fade-in">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-transparent to-accent/8 pointer-events-none" />
-              <div className="absolute -top-24 -right-24 w-72 h-72 bg-primary/15 rounded-full blur-3xl pointer-events-none" />
-
-              <div className="relative p-8 sm:p-12">
-                <div className="flex items-center gap-2 mb-6">
-                  <span className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/20 flex items-center justify-center">
-                    <F.icon className="w-4 h-4 text-primary" strokeWidth={2} />
-                  </span>
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold">{F.tag}</span>
-                </div>
-
-                <h3 className="text-[32px] sm:text-[42px] leading-[1.05] tracking-[-0.02em]" style={SERIF}>
-                  {F.title}
-                </h3>
-                <p className="mt-5 text-[15px] sm:text-[16px] text-muted-foreground leading-relaxed max-w-md">
-                  {F.body}
-                </p>
-
-                <div className="mt-10 flex items-end gap-8 pt-8 border-t border-border/50">
-                  <div>
-                    <p className="text-[48px] sm:text-[64px] leading-none tracking-[-0.025em] bg-gradient-to-br from-foreground via-foreground to-muted-foreground bg-clip-text text-transparent" style={SERIF}>
-                      {F.stat}
-                    </p>
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground mt-2">{F.statLabel}</p>
-                  </div>
-                  <div className="flex-1 flex justify-end">
-                    <div className="flex gap-1.5">
-                      {features.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setActive(i)}
-                          aria-label={`Show feature ${i + 1}`}
-                          className={`h-1.5 rounded-full transition-all ${active === i ? "w-8 bg-primary" : "w-1.5 bg-muted hover:bg-muted-foreground/40"}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-};
-
-/* ============ REVEAL STEP ============ */
-const RevealStep = ({ n, t, d, index }: { n: string; t: string; d: string; index: number }) => {
-  const [ref, seen] = useInView<HTMLLIElement>({ threshold: 0.3 });
-  return (
-    <li
-      ref={ref}
-      className="grid grid-cols-[auto_1fr] gap-6 sm:gap-12 py-8 border-t border-border/40 first:border-t-0 group transition-all"
-      style={{
-        opacity: seen ? 1 : 0,
-        transform: seen ? "translateY(0)" : "translateY(20px)",
-        transition: `opacity 0.6s ease ${index * 0.1}s, transform 0.6s ease ${index * 0.1}s`,
-      }}
+const ChatBubble = ({ text, incoming, ai }: { text: string; incoming?: boolean; ai?: boolean }) => (
+  <div className={`flex ${incoming ? "justify-start" : "justify-end"}`}>
+    <div
+      className={`max-w-[85%] px-2.5 py-1.5 rounded-xl text-[11px] leading-snug ${
+        incoming
+          ? "bg-[hsl(var(--chat-incoming))] text-foreground rounded-bl-sm border border-border"
+          : ai
+          ? "bg-gradient-to-br from-primary to-primary-glow text-primary-foreground rounded-br-sm shadow-sm"
+          : "bg-[hsl(var(--chat-outgoing))] text-foreground rounded-br-sm"
+      }`}
     >
-      <span
-        className="text-[40px] sm:text-[56px] tabular-nums tracking-[-0.02em] bg-gradient-to-br from-primary via-accent to-primary-glow bg-clip-text text-transparent leading-none pt-1"
-        style={SERIF}
-      >
-        {n}
-      </span>
-      <div>
-        <h3 className="text-[24px] sm:text-[32px] tracking-[-0.015em] group-hover:text-primary transition-colors" style={SERIF}>
-          {t}
-        </h3>
-        <p className="mt-3 text-[15px] sm:text-[16px] text-muted-foreground leading-relaxed max-w-xl">
-          {d}
-        </p>
-      </div>
-    </li>
-  );
-};
+      {text}
+      {!incoming && (
+        <div className="flex items-center justify-end gap-0.5 mt-0.5 opacity-70">
+          <CheckCheck className="w-2.5 h-2.5" />
+        </div>
+      )}
+    </div>
+  </div>
+);
 
-export default Landing;
+const FEATURES = [
+  { icon: MessageCircle, title: "Shared Team Inbox", desc: "Collaborate on every chat with assignments, notes, tags, and quick replies." },
+  { icon: Send, title: "Bulk Broadcasts", desc: "Send approved WhatsApp templates to segmented audiences in one click." },
+  { icon: Bot, title: "AI Chatbot", desc: "24/7 AI agent trained on your data — answers FAQs, qualifies leads, books meetings." },
+  { icon: Zap, title: "No-Code Automation", desc: "Build drip campaigns and workflow triggers without writing a line of code." },
+  { icon: BarChart3, title: "Real-Time Analytics", desc: "Track agent performance, campaign ROI, and conversation insights live." },
+  { icon: Shield, title: "Official WhatsApp API", desc: "Verified green tick, secure & compliant. Built on Meta's Business Platform." },
+];
+
+const USE_CASES = [
+  { icon: ShoppingBag, title: "E-commerce", desc: "Recover abandoned carts, send order updates, run flash sales on WhatsApp." },
+  { icon: GraduationCap, title: "Education", desc: "Enroll students faster, send class reminders, collect fees seamlessly." },
+  { icon: Stethoscope, title: "Healthcare", desc: "Book appointments, share reports, send prescription refill nudges." },
+  { icon: Building2, title: "Real Estate", desc: "Qualify property leads, schedule visits, follow up automatically." },
+];
+
+const PLANS = [
+  {
+    name: "Starter",
+    tag: "For solo founders & small teams",
+    price: "₹999",
+    cta: "Start free trial",
+    featured: false,
+    features: ["1,000 conversations/mo", "2 team members", "Basic broadcasts", "Email support"],
+  },
+  {
+    name: "Growth",
+    tag: "For scaling businesses",
+    price: "₹2,999",
+    cta: "Start free trial",
+    featured: true,
+    features: ["10,000 conversations/mo", "Unlimited team members", "AI chatbot included", "Automations & workflows", "Priority support"],
+  },
+  {
+    name: "Enterprise",
+    tag: "For high-volume teams",
+    price: "Custom",
+    cta: "Contact sales",
+    featured: false,
+    features: ["Unlimited conversations", "Dedicated account manager", "Custom integrations", "SSO & advanced security", "SLA & onboarding"],
+  },
+];
