@@ -77,6 +77,7 @@ const Index = () => {
         </div>
       </div>
       <QuickActionFAB onNavigate={handleNavigate} />
+      <OnboardingFlow onNavigate={handleNavigate} />
     </div>
   );
 };
