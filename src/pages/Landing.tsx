@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -21,9 +21,31 @@ import {
   CheckCheck,
   Menu,
   X,
+  Inbox,
+  Megaphone,
+  Workflow,
+  LayoutGrid,
+  ChevronDown,
+  TrendingUp,
+  Clock,
+  Headphones,
+  Briefcase,
+  Plane,
+  ArrowUpRight,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { FAQSection } from "@/components/landing/FAQSection";
+
+const HERO_ROTATING = ["growing businesses.", "modern e-commerce.", "smart educators.", "busy clinics.", "ambitious agencies."];
+
+const useRotator = (items: string[], interval = 2400) => {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((p) => (p + 1) % items.length), interval);
+    return () => clearInterval(t);
+  }, [items.length, interval]);
+  return items[i];
+};
 
 // Force light mode for landing
 const useForceLight = () => {
@@ -41,101 +63,242 @@ export default function Landing() {
   useForceLight();
   const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [productOpen, setProductOpen] = useState(false);
+  const [solutionsOpen, setSolutionsOpen] = useState(false);
+  const rotating = useRotator(HERO_ROTATING);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground antialiased">
+      {/* ============== ANNOUNCEMENT BAR ============== */}
+      <div className="bg-foreground text-background text-[12px] py-2 px-5 text-center font-medium">
+        <span className="hidden sm:inline opacity-70">🎉 New: </span>
+        <span>Addison AI 2.0 is live — close 3× more deals on autopilot.</span>{" "}
+        <Link to="/auth" className="underline underline-offset-2 font-semibold inline-flex items-center gap-0.5">
+          See what's new <ArrowUpRight className="w-3 h-3" />
+        </Link>
+      </div>
+
       {/* ============== NAV ============== */}
-      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
+      <header
+        className={`sticky top-0 z-50 transition-all duration-300 ${
+          scrolled
+            ? "bg-background/85 backdrop-blur-xl border-b border-border shadow-[0_1px_0_0_hsl(var(--border))]"
+            : "bg-background/60 backdrop-blur-md border-b border-transparent"
+        }`}
+      >
         <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <MessageCircle className="w-4 h-4 text-primary-foreground" fill="currentColor" strokeWidth={0} />
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <div className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center shadow-md shadow-primary/30 group-hover:shadow-primary/50 transition-shadow">
+              <MessageCircle className="w-4.5 h-4.5 text-primary-foreground" fill="currentColor" strokeWidth={0} />
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-success rounded-full border-2 border-background" />
             </div>
-            <span className="font-bold text-lg tracking-tight">AddisonX</span>
+            <div className="leading-tight">
+              <span className="font-bold text-[17px] tracking-tight block">AddisonX</span>
+              <span className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground font-semibold">WhatsApp Suite</span>
+            </div>
           </Link>
 
-          <nav className="hidden lg:flex items-center gap-7 text-sm font-medium text-muted-foreground">
-            <a href="#product" className="hover:text-foreground transition">Product</a>
-            <a href="#solutions" className="hover:text-foreground transition">Solutions</a>
-            <a href="#features" className="hover:text-foreground transition">Features</a>
-            <a href="#pricing" className="hover:text-foreground transition">Pricing</a>
-            <a href="#faq" className="hover:text-foreground transition">Resources</a>
+          <nav className="hidden lg:flex items-center gap-1 text-sm font-medium">
+            {/* Product mega menu */}
+            <div
+              className="relative"
+              onMouseEnter={() => setProductOpen(true)}
+              onMouseLeave={() => setProductOpen(false)}
+            >
+              <button className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition flex items-center gap-1">
+                Product <ChevronDown className={`w-3.5 h-3.5 transition-transform ${productOpen ? "rotate-180" : ""}`} />
+              </button>
+              {productOpen && (
+                <div className="absolute top-full left-0 pt-2 w-[560px] animate-fade-in">
+                  <div className="bg-card border border-border rounded-2xl shadow-2xl p-2 grid grid-cols-2 gap-1">
+                    {[
+                      { icon: Inbox, title: "Shared Inbox", desc: "One chat for the whole team", color: "text-primary", bg: "bg-primary-soft" },
+                      { icon: Bot, title: "Addison AI", desc: "Replies in 1.4s, 24/7", color: "text-accent", bg: "bg-accent-soft" },
+                      { icon: Megaphone, title: "Broadcasts", desc: "Send to 10K in one click", color: "text-warning", bg: "bg-warning-soft" },
+                      { icon: Workflow, title: "Automation", desc: "No-code workflows", color: "text-success", bg: "bg-success-soft" },
+                      { icon: BarChart3, title: "Analytics", desc: "Track revenue per agent", color: "text-primary", bg: "bg-primary-soft" },
+                      { icon: LayoutGrid, title: "Integrations", desc: "Shopify, Razorpay, +30 more", color: "text-accent", bg: "bg-accent-soft" },
+                    ].map((p, k) => (
+                      <a
+                        key={k}
+                        href="#features"
+                        className="flex items-start gap-3 p-3 rounded-xl hover:bg-muted/60 transition group"
+                      >
+                        <div className={`w-9 h-9 rounded-lg ${p.bg} flex items-center justify-center flex-shrink-0`}>
+                          <p.icon className={`w-4 h-4 ${p.color}`} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold text-foreground flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                            {p.title} <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
+                          </p>
+                          <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{p.desc}</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Solutions mega menu */}
+            <div
+              className="relative"
+              onMouseEnter={() => setSolutionsOpen(true)}
+              onMouseLeave={() => setSolutionsOpen(false)}
+            >
+              <button className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition flex items-center gap-1">
+                Solutions <ChevronDown className={`w-3.5 h-3.5 transition-transform ${solutionsOpen ? "rotate-180" : ""}`} />
+              </button>
+              {solutionsOpen && (
+                <div className="absolute top-full left-0 pt-2 w-[320px] animate-fade-in">
+                  <div className="bg-card border border-border rounded-2xl shadow-2xl p-2">
+                    {[
+                      { icon: ShoppingBag, label: "E-commerce", desc: "Recover carts, ship fast" },
+                      { icon: GraduationCap, label: "Education", desc: "Enroll & support students" },
+                      { icon: Stethoscope, label: "Healthcare", desc: "Bookings & reminders" },
+                      { icon: Briefcase, label: "Agencies", desc: "Manage 100s of clients" },
+                      { icon: Plane, label: "Travel", desc: "Itineraries & rebooking" },
+                    ].map((s, k) => (
+                      <a key={k} href="#solutions" className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/60 transition">
+                        <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                          <s.icon className="w-4 h-4 text-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-[13px] font-semibold">{s.label}</p>
+                          <p className="text-[11px] text-muted-foreground">{s.desc}</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <a href="#pricing" className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition">Pricing</a>
+            <a href="#faq" className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition">Resources</a>
+            <a href="#" className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition">Customers</a>
           </nav>
 
-          <div className="hidden lg:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-2">
             {user ? (
-              <Link to="/app" className="text-sm font-semibold px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition">
+              <Link to="/app" className="text-sm font-semibold px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition shadow-sm">
                 Open dashboard
               </Link>
             ) : (
               <>
-                <Link to="/auth" className="text-sm font-medium text-muted-foreground hover:text-foreground transition">
+                <a href="#" className="text-sm font-medium text-muted-foreground hover:text-foreground transition px-3 py-2">
+                  Book demo
+                </a>
+                <Link to="/auth" className="text-sm font-medium text-muted-foreground hover:text-foreground transition px-3 py-2">
                   Sign in
                 </Link>
                 <Link
                   to="/auth"
-                  className="text-sm font-semibold px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition shadow-sm"
+                  className="group text-sm font-semibold pl-4 pr-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition shadow-md shadow-primary/20 inline-flex items-center gap-1.5"
                 >
                   Start free trial
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
               </>
             )}
           </div>
 
-          <button className="lg:hidden" onClick={() => setMobileOpen(!mobileOpen)}>
+          <button className="lg:hidden p-2 -mr-2" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Menu">
             {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
 
         {mobileOpen && (
-          <div className="lg:hidden border-t border-border bg-background px-5 py-4 space-y-3 text-sm font-medium">
-            <a href="#product" className="block py-2">Product</a>
-            <a href="#solutions" className="block py-2">Solutions</a>
-            <a href="#features" className="block py-2">Features</a>
-            <a href="#pricing" className="block py-2">Pricing</a>
-            <Link to="/auth" className="block py-3 px-4 bg-primary text-primary-foreground rounded-lg text-center font-semibold">
-              Start free trial
-            </Link>
+          <div className="lg:hidden border-t border-border bg-background px-5 py-4 space-y-1 text-sm font-medium animate-fade-in">
+            <a href="#product" className="block py-2.5 px-2 rounded-lg hover:bg-muted">Product</a>
+            <a href="#solutions" className="block py-2.5 px-2 rounded-lg hover:bg-muted">Solutions</a>
+            <a href="#features" className="block py-2.5 px-2 rounded-lg hover:bg-muted">Features</a>
+            <a href="#pricing" className="block py-2.5 px-2 rounded-lg hover:bg-muted">Pricing</a>
+            <a href="#faq" className="block py-2.5 px-2 rounded-lg hover:bg-muted">Resources</a>
+            <div className="pt-3 mt-3 border-t border-border space-y-2">
+              <Link to="/auth" className="block py-2.5 px-3 rounded-lg border border-border text-center font-semibold">
+                Sign in
+              </Link>
+              <Link to="/auth" className="block py-3 px-4 bg-primary text-primary-foreground rounded-lg text-center font-semibold shadow-md">
+                Start free trial →
+              </Link>
+            </div>
           </div>
         )}
       </header>
 
       {/* ============== HERO ============== */}
       <section className="relative overflow-hidden">
+        {/* Decorative background */}
         <div className="absolute inset-0 -z-10">
-          <div className="absolute top-0 left-1/3 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px]" />
-          <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-accent/10 rounded-full blur-[120px]" />
+          <div className="absolute top-0 left-1/3 w-[600px] h-[600px] bg-primary/15 rounded-full blur-[140px] animate-pulse" style={{ animationDuration: "6s" }} />
+          <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-accent/10 rounded-full blur-[140px] animate-pulse" style={{ animationDuration: "8s" }} />
+          {/* Subtle grid */}
+          <div
+            className="absolute inset-0 opacity-[0.025]"
+            style={{
+              backgroundImage:
+                "linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)",
+              backgroundSize: "44px 44px",
+            }}
+          />
         </div>
 
-        <div className="max-w-7xl mx-auto px-5 lg:px-8 pt-16 lg:pt-24 pb-16 lg:pb-20 grid lg:grid-cols-[1.05fr_1fr] gap-12 items-center">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 pt-12 lg:pt-20 pb-16 lg:pb-24 grid lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-10 items-center">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-soft border border-primary/20 text-xs font-semibold text-primary mb-6">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Official WhatsApp Business API · Powered by AI</span>
+            {/* Live badge */}
+            <div className="inline-flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full bg-card border border-border shadow-sm text-xs font-semibold mb-6 animate-fade-in">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] uppercase tracking-wider">
+                <Sparkles className="w-3 h-3" /> New
+              </span>
+              <span className="text-foreground">Official WhatsApp Business API · Powered by AI</span>
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-success opacity-75 animate-ping" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-success" />
+              </span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.05] text-foreground">
+            <h1 className="text-[2.5rem] sm:text-5xl lg:text-[4rem] font-bold tracking-tight leading-[1.02] text-foreground">
               The WhatsApp platform for{" "}
-              <span className="text-primary">growing businesses.</span>
+              <span className="relative inline-block">
+                <span
+                  key={rotating}
+                  className="bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent inline-block animate-fade-in"
+                >
+                  {rotating}
+                </span>
+              </span>
             </h1>
 
             <p className="mt-6 text-lg text-muted-foreground leading-relaxed max-w-xl">
-              AddisonX helps 12,000+ businesses convert leads, automate support, and broadcast campaigns —
-              all from one shared WhatsApp inbox with AI built in.
+              AddisonX helps <span className="font-semibold text-foreground">12,000+ businesses</span> convert leads, automate
+              support, and broadcast campaigns — all from one shared WhatsApp inbox with AI built in.
             </p>
 
-            <form className="mt-8 flex flex-col sm:flex-row gap-3 max-w-lg">
-              <input
-                type="email"
-                placeholder="Enter your work email"
-                className="flex-1 px-4 py-3.5 rounded-lg border border-input bg-card text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+            <form className="mt-8 flex flex-col sm:flex-row gap-2.5 max-w-lg p-1.5 sm:bg-card sm:border sm:border-border sm:rounded-2xl sm:shadow-lg">
+              <div className="flex-1 flex items-center sm:px-3">
+                <span className="hidden sm:flex w-8 h-8 rounded-lg bg-primary-soft items-center justify-center mr-2">
+                  <MessageCircle className="w-4 h-4 text-primary" />
+                </span>
+                <input
+                  type="email"
+                  placeholder="Enter your work email"
+                  className="flex-1 px-4 py-3.5 sm:px-0 sm:py-2.5 rounded-lg sm:rounded-none border border-input sm:border-0 bg-card sm:bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-ring sm:focus:ring-0"
+                />
+              </div>
               <Link
                 to="/auth"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition shadow-md hover:shadow-lg whitespace-nowrap"
+                className="group inline-flex items-center justify-center gap-2 px-6 py-3.5 sm:py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition shadow-md hover:shadow-xl hover:shadow-primary/30 whitespace-nowrap"
               >
                 Start free trial
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </form>
 
@@ -143,25 +306,37 @@ export default function Landing() {
               <li className="flex items-center gap-1.5"><Check className="w-4 h-4 text-primary" /> 7-day free trial</li>
               <li className="flex items-center gap-1.5"><Check className="w-4 h-4 text-primary" /> No credit card</li>
               <li className="flex items-center gap-1.5"><Check className="w-4 h-4 text-primary" /> Setup in 5 min</li>
+              <li className="flex items-center gap-1.5"><Shield className="w-4 h-4 text-primary" /> SOC 2 secure</li>
             </ul>
 
-            <div className="mt-10 flex items-center gap-5">
-              <div className="flex -space-x-2">
-                {["PM", "RK", "AS", "VG", "NK"].map((i, k) => (
-                  <div key={k} className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/40 to-accent/40 border-2 border-background flex items-center justify-center text-[10px] font-bold text-foreground">
-                    {i}
-                  </div>
-                ))}
-              </div>
-              <div>
-                <div className="flex items-center gap-1">
-                  {[...Array(5)].map((_, k) => (
-                    <Star key={k} className="w-4 h-4 fill-warning text-warning" />
+            <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex -space-x-2">
+                  {["PM", "RK", "AS", "VG", "NK"].map((i, k) => (
+                    <div key={k} className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/40 to-accent/40 border-2 border-background flex items-center justify-center text-[10px] font-bold text-foreground">
+                      {i}
+                    </div>
                   ))}
-                  <span className="ml-1.5 font-bold text-sm">4.9/5</span>
                 </div>
-                <p className="text-xs text-muted-foreground">From 1,200+ verified reviews</p>
+                <div>
+                  <div className="flex items-center gap-1">
+                    {[...Array(5)].map((_, k) => (
+                      <Star key={k} className="w-4 h-4 fill-warning text-warning" />
+                    ))}
+                    <span className="ml-1.5 font-bold text-sm">4.9/5</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">From 1,200+ verified reviews</p>
+                </div>
               </div>
+
+              <div className="h-10 w-px bg-border hidden sm:block" />
+
+              <a href="#" className="group inline-flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary transition">
+                <span className="w-9 h-9 rounded-full bg-card border border-border shadow-sm flex items-center justify-center group-hover:scale-110 transition">
+                  <PlayCircle className="w-4 h-4 text-primary" />
+                </span>
+                Watch 90s demo
+              </a>
             </div>
           </div>
 
@@ -174,6 +349,9 @@ export default function Landing() {
                 <span className="w-2.5 h-2.5 rounded-full bg-warning/60" />
                 <span className="w-2.5 h-2.5 rounded-full bg-primary/60" />
                 <span className="ml-3 text-[11px] text-muted-foreground font-medium">app.addisonx.com/inbox</span>
+                <span className="ml-auto text-[10px] text-muted-foreground flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-success rounded-full" /> Live
+                </span>
               </div>
 
               <div className="grid grid-cols-[140px_1fr] h-[460px]">
@@ -239,27 +417,58 @@ export default function Landing() {
             </div>
 
             {/* Floating cards */}
-            <div className="hidden lg:block absolute -left-6 top-12 bg-card border border-border rounded-xl shadow-lg p-3 w-48">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-7 h-7 rounded-lg bg-primary-soft flex items-center justify-center">
-                  <Zap className="w-3.5 h-3.5 text-primary" />
-                </div>
-                <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Today</p>
+            <div className="hidden lg:flex absolute -left-6 top-12 bg-card border border-border rounded-xl shadow-xl p-3 w-52 items-start gap-3 animate-fade-in">
+              <div className="w-9 h-9 rounded-lg bg-primary-soft flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="w-4 h-4 text-primary" />
               </div>
-              <p className="text-xl font-bold text-foreground">₹47,250</p>
-              <p className="text-[10px] text-primary font-semibold">↑ 312% vs last week</p>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Revenue today</p>
+                <p className="text-xl font-bold text-foreground tabular-nums">₹47,250</p>
+                <p className="text-[10px] text-success font-semibold flex items-center gap-0.5">
+                  <ArrowUpRight className="w-3 h-3" /> 312% vs last week
+                </p>
+              </div>
             </div>
 
-            <div className="hidden lg:block absolute -right-4 bottom-12 bg-card border border-border rounded-xl shadow-lg p-3 w-44">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-7 h-7 rounded-lg bg-accent-soft flex items-center justify-center">
-                  <Bot className="w-3.5 h-3.5 text-accent" />
-                </div>
-                <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">AI replies</p>
+            <div className="hidden lg:flex absolute -right-4 bottom-12 bg-card border border-border rounded-xl shadow-xl p-3 w-48 items-start gap-3 animate-fade-in" style={{ animationDelay: "0.15s" }}>
+              <div className="w-9 h-9 rounded-lg bg-accent-soft flex items-center justify-center flex-shrink-0">
+                <Bot className="w-4 h-4 text-accent" />
               </div>
-              <p className="text-xl font-bold text-foreground">1.4s</p>
-              <p className="text-[10px] text-muted-foreground">avg response time</p>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">AI replies</p>
+                <p className="text-xl font-bold text-foreground tabular-nums">1.4s</p>
+                <p className="text-[10px] text-muted-foreground">avg response time</p>
+              </div>
             </div>
+
+            <div className="hidden lg:flex absolute -right-2 top-4 bg-card border border-border rounded-full shadow-lg pl-1 pr-3 py-1 items-center gap-2 animate-fade-in" style={{ animationDelay: "0.3s" }}>
+              <span className="w-6 h-6 rounded-full bg-success-soft flex items-center justify-center">
+                <CheckCheck className="w-3 h-3 text-success" />
+              </span>
+              <span className="text-[10px] font-semibold text-foreground">98.4% delivered</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats strip */}
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 pb-12 lg:pb-16">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border rounded-2xl overflow-hidden border border-border">
+            {[
+              { val: "12,000+", label: "Active businesses", icon: Building2 },
+              { val: "48M+", label: "Messages / month", icon: MessageCircle },
+              { val: "1.4s", label: "Avg AI reply", icon: Clock },
+              { val: "98.4%", label: "Delivery rate", icon: CheckCheck },
+            ].map((s, k) => (
+              <div key={k} className="bg-card p-5 lg:p-6 flex items-center gap-4">
+                <div className="w-11 h-11 rounded-xl bg-primary-soft flex items-center justify-center flex-shrink-0">
+                  <s.icon className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl lg:text-3xl font-bold text-foreground tabular-nums tracking-tight">{s.val}</p>
+                  <p className="text-xs text-muted-foreground">{s.label}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
