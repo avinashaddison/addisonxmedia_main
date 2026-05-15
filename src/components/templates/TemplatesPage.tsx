@@ -1,381 +1,402 @@
 import { useMemo, useState } from "react";
-import { Copy, Plus, Search, Sparkles, MessageSquare, Tag, Trash2, Pencil, Send, Star } from "lucide-react";
+import {
+  Copy, Search, Sparkles, MessageSquare, Tag, Send, RefreshCw, ExternalLink,
+  ShieldCheck, AlertTriangle, Inbox, FileText, Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
-type Category = "whatsapp" | "sales" | "offer" | "followup";
-
-type Template = {
-  id: string;
-  title: string;
-  body: string;
-  category: Category;
-  tags: string[];
-  uses: number;
-  starred?: boolean;
-  updatedAt: string;
+// Meta WhatsApp template types — mirrors Graph API response.
+type MetaTemplate = {
+  name: string;
+  language: string;
+  status: "APPROVED" | "PENDING" | "REJECTED" | "DISABLED" | string;
+  category: "MARKETING" | "UTILITY" | "AUTHENTICATION" | string;
+  components: Array<{
+    type: string; // BODY | HEADER | FOOTER | BUTTONS
+    text?: string;
+    format?: string;
+  }>;
 };
 
-const CATEGORIES: { id: Category | "all"; label: string; hint: string }[] = [
-  { id: "all", label: "All", hint: "Every template" },
-  { id: "whatsapp", label: "WhatsApp", hint: "Approved templates" },
-  { id: "sales", label: "Sales scripts", hint: "Pitch & objection handling" },
-  { id: "offer", label: "Offers", hint: "Discounts & promos" },
-  { id: "followup", label: "Follow-ups", hint: "Re-engage leads" },
-];
+const CATEGORIES = [
+  { id: "ALL", label: "All", icon: FileText },
+  { id: "MARKETING", label: "Marketing", icon: Tag },
+  { id: "UTILITY", label: "Utility", icon: ShieldCheck },
+  { id: "AUTHENTICATION", label: "Auth", icon: ShieldCheck },
+] as const;
 
-const CAT_STYLES: Record<Category, { tone: string; icon: typeof MessageSquare; label: string }> = {
-  whatsapp: { tone: "bg-success/10 text-success border-success/20", icon: MessageSquare, label: "WhatsApp" },
-  sales: { tone: "bg-primary/10 text-primary border-primary/20", icon: Sparkles, label: "Sales script" },
-  offer: { tone: "bg-warning/10 text-warning border-warning/20", icon: Tag, label: "Offer" },
-  followup: { tone: "bg-accent/10 text-accent border-accent/20", icon: Send, label: "Follow-up" },
+const STATUS_PILL: Record<string, string> = {
+  APPROVED: "bg-success-soft text-success border-success/30",
+  PENDING: "bg-warning-soft text-warning border-warning/30",
+  REJECTED: "bg-destructive/10 text-destructive border-destructive/30",
+  DISABLED: "bg-muted text-muted-foreground border-border",
 };
 
-const SEED: Template[] = [
-  {
-    id: "t1",
-    title: "Welcome — new lead",
-    category: "whatsapp",
-    tags: ["greeting", "intro"],
-    uses: 184,
-    starred: true,
-    updatedAt: "2d ago",
-    body: "Hi {{name}} 👋 Thanks for reaching out to AddisonX Media! I'm Addison, your dedicated growth partner. Quick question — what's the #1 thing you'd like to fix about your current marketing?",
-  },
-  {
-    id: "t2",
-    title: "Pricing reveal — premium",
-    category: "sales",
-    tags: ["pricing", "premium"],
-    uses: 92,
-    updatedAt: "1d ago",
-    body: "Great question {{name}}! Our growth packages start at ₹49,000/mo and most clients see 3–5× ROI within 60 days. Want me to share the breakdown that fits your goal?",
-  },
-  {
-    id: "t3",
-    title: "Festive offer — 25% off",
-    category: "offer",
-    tags: ["festive", "discount"],
-    uses: 47,
-    starred: true,
-    updatedAt: "5h ago",
-    body: "🎉 {{name}}, exclusive for you: get 25% off any AddisonX growth plan if you onboard before Sunday. Shall I send the payment link?",
-  },
-  {
-    id: "t4",
-    title: "Follow-up — 24h silent",
-    category: "followup",
-    tags: ["nudge", "soft"],
-    uses: 213,
-    updatedAt: "3h ago",
-    body: "Hey {{name}}, just circling back — still keen to chat about scaling your sales? I can hold a slot for you tomorrow.",
-  },
-  {
-    id: "t5",
-    title: "Objection — too expensive",
-    category: "sales",
-    tags: ["objection", "value"],
-    uses: 64,
-    updatedAt: "1w ago",
-    body: "Totally hear you {{name}}. Most of our clients felt the same — until they saw the avg ₹4.2L extra revenue in month 2. Want me to share a quick case study?",
-  },
-  {
-    id: "t6",
-    title: "Payment confirmation",
-    category: "whatsapp",
-    tags: ["payment", "thanks"],
-    uses: 128,
-    updatedAt: "4d ago",
-    body: "Payment received ✅ Thank you {{name}}! Your onboarding kit is on the way. Our team will reach out within 2 hours to kick things off 🚀",
-  },
-];
+const CAT_PILL: Record<string, string> = {
+  MARKETING: "bg-accent-soft text-accent",
+  UTILITY: "bg-primary-soft text-primary",
+  AUTHENTICATION: "bg-warning-soft text-warning",
+};
+
+// Extract body text from a Meta template's components (for preview)
+const bodyOf = (t: MetaTemplate): string =>
+  t.components.find((c) => c.type === "BODY")?.text ?? "(no body)";
 
 export const TemplatesPage = () => {
-  const [items, setItems] = useState<Template[]>(SEED);
-  const [filter, setFilter] = useState<Category | "all">("all");
+  const qc = useQueryClient();
+  const [filter, setFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "APPROVED" | "PENDING" | "REJECTED">("ALL");
   const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<Partial<Template>>({ category: "whatsapp" });
-  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Meta config — drives empty state vs templates list
+  const { data: metaCfg, isLoading: cfgLoading } = useQuery({
+    queryKey: ["meta-config"],
+    queryFn: () => api.getMetaConfig(),
+  });
+
+  // Templates fetched from Meta. Only attempt fetch when WABA ID is present.
+  const canFetch = !!metaCfg?.business_account_id;
+  const {
+    data: templatesResp,
+    isLoading: templatesLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["meta-templates", metaCfg?.business_account_id],
+    queryFn: () => api.listMetaTemplates(),
+    enabled: canFetch,
+    retry: 1,
+  });
+
+  const templates: MetaTemplate[] = (templatesResp?.data ?? []) as MetaTemplate[];
 
   const filtered = useMemo(() => {
-    return items
-      .filter((t) => (filter === "all" ? true : t.category === filter))
+    return templates
+      .filter((t) => filter === "ALL" || (t.category ?? "").toUpperCase() === filter)
+      .filter((t) => statusFilter === "ALL" || (t.status ?? "").toUpperCase() === statusFilter)
       .filter((t) => {
         if (!q.trim()) return true;
         const s = q.toLowerCase();
-        return t.title.toLowerCase().includes(s) || t.body.toLowerCase().includes(s) || t.tags.join(" ").includes(s);
+        return t.name.toLowerCase().includes(s) || bodyOf(t).toLowerCase().includes(s);
       })
-      .sort((a, b) => Number(!!b.starred) - Number(!!a.starred));
-  }, [items, filter, q]);
+      .sort((a, b) => {
+        // Approved first, then by name
+        const aw = a.status === "APPROVED" ? 0 : 1;
+        const bw = b.status === "APPROVED" ? 0 : 1;
+        if (aw !== bw) return aw - bw;
+        return a.name.localeCompare(b.name);
+      });
+  }, [templates, filter, statusFilter, q]);
 
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { all: items.length };
-    items.forEach((t) => (c[t.category] = (c[t.category] ?? 0) + 1));
-    return c;
-  }, [items]);
+  const counts = useMemo(() => ({
+    total: templates.length,
+    approved: templates.filter((t) => t.status === "APPROVED").length,
+    pending: templates.filter((t) => t.status === "PENDING").length,
+    rejected: templates.filter((t) => t.status === "REJECTED").length,
+  }), [templates]);
 
-  const totalUses = items.reduce((a, t) => a + t.uses, 0);
-
-  const copy = async (t: Template) => {
-    await navigator.clipboard.writeText(t.body);
-    setItems((prev) => prev.map((x) => (x.id === t.id ? { ...x, uses: x.uses + 1 } : x)));
-    toast.success("Template copied to clipboard");
+  const copy = async (t: MetaTemplate) => {
+    await navigator.clipboard.writeText(bodyOf(t));
+    toast.success(`Copied "${t.name}" body`, { description: "Paste in any chat or broadcast" });
   };
 
-  const remove = (id: string) => {
-    setItems((prev) => prev.filter((t) => t.id !== id));
-    toast.success("Template deleted");
+  const handleRefresh = async () => {
+    await qc.invalidateQueries({ queryKey: ["meta-templates"] });
+    refetch();
+    toast.success("Refreshed from Meta");
   };
 
-  const star = (id: string) => {
-    setItems((prev) => prev.map((t) => (t.id === id ? { ...t, starred: !t.starred } : t)));
-  };
+  const businessAccountId = metaCfg?.business_account_id;
+  const metaTemplatesUrl = businessAccountId
+    ? `https://business.facebook.com/wa/manage/message-templates/?business_id=&waba_id=${businessAccountId}`
+    : "https://business.facebook.com/wa/manage/message-templates/";
 
-  const startEdit = (t: Template) => {
-    setEditingId(t.id);
-    setDraft(t);
-    setOpen(true);
-  };
+  // ============================
+  // EMPTY STATES
+  // ============================
 
-  const save = () => {
-    if (!draft.title || !draft.body || !draft.category) {
-      toast.error("Title and body required");
-      return;
-    }
-    if (editingId) {
-      setItems((prev) =>
-        prev.map((t) =>
-          t.id === editingId
-            ? { ...t, ...(draft as Template), updatedAt: "just now" }
-            : t
-        )
-      );
-      toast.success("Template updated");
-    } else {
-      setItems((prev) => [
-        {
-          id: `t${Date.now()}`,
-          title: draft.title!,
-          body: draft.body!,
-          category: draft.category as Category,
-          tags: (draft.tags as any) || [],
-          uses: 0,
-          updatedAt: "just now",
-        },
-        ...prev,
-      ]);
-      toast.success("Template created");
-    }
-    setOpen(false);
-    setDraft({ category: "whatsapp" });
-    setEditingId(null);
-  };
+  if (cfgLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // No Meta config at all
+  if (!metaCfg) {
+    return (
+      <PageWrapper>
+        <EmptyState
+          icon={Inbox}
+          title="Connect WhatsApp first"
+          subtitle="Templates are managed in Meta Business Manager and synced here. Configure your WhatsApp Business credentials in Settings to see your templates."
+          action={
+            <Button asChild>
+              <Link to="/app/settings" className="gap-1.5">
+                <ShieldCheck className="w-4 h-4" />
+                Open Settings
+              </Link>
+            </Button>
+          }
+        />
+      </PageWrapper>
+    );
+  }
+
+  // Meta config exists but no business_account_id
+  if (!metaCfg.business_account_id) {
+    return (
+      <PageWrapper>
+        <EmptyState
+          icon={AlertTriangle}
+          title="Business Account ID required"
+          subtitle="To list templates, paste your WhatsApp Business Account (WABA) ID into Settings → Integrations. You'll find it in Meta App → WhatsApp → API Setup."
+          action={
+            <Button asChild variant="outline">
+              <Link to="/app/settings" className="gap-1.5">
+                <ShieldCheck className="w-4 h-4" />
+                Add WABA ID
+              </Link>
+            </Button>
+          }
+        />
+      </PageWrapper>
+    );
+  }
+
+  // Meta returned an error
+  if (error) {
+    const msg = error instanceof Error ? error.message : "Failed to load templates";
+    return (
+      <PageWrapper>
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load templates"
+          subtitle={msg}
+          action={
+            <Button onClick={handleRefresh} variant="outline" className="gap-1.5">
+              <RefreshCw className="w-4 h-4" />
+              Try again
+            </Button>
+          }
+        />
+      </PageWrapper>
+    );
+  }
+
+  // ============================
+  // CONNECTED, RENDERING TEMPLATES
+  // ============================
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto bg-muted/20">
-      <div className="max-w-[1400px] mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
+    <PageWrapper>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 mb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] text-white flex items-center justify-center shadow-md">
+            <FileText className="w-6 h-6" strokeWidth={2.5} />
+          </div>
           <div>
-            <h1 className="text-[26px] font-bold tracking-tight">Templates</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Reusable messages for chats, broadcasts & AI replies
+            <h1 className="text-[26px] font-black tracking-tight">WhatsApp Templates</h1>
+            <p className="text-[12px] text-foreground/70 mt-0.5 font-medium">
+              Approved message templates · WhatsApp Business Account se
+              {metaCfg.display_phone_number && <span> · {metaCfg.display_phone_number}</span>}
             </p>
           </div>
-          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditingId(null); setDraft({ category: "whatsapp" }); } }}>
-            <DialogTrigger asChild>
-              <Button className="gap-2 shadow-md shadow-primary/20">
-                <Plus className="w-4 h-4" />
-                New template
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{editingId ? "Edit template" : "Create template"}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Title</label>
-                  <Input
-                    value={draft.title ?? ""}
-                    onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                    placeholder="Welcome — new lead"
-                  />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleRefresh} variant="outline" size="sm" className="gap-2" disabled={isFetching}>
+            <RefreshCw className={cn("w-4 h-4", isFetching && "animate-spin")} />
+            {isFetching ? "Syncing…" : "Sync from Meta"}
+          </Button>
+          <a
+            href={metaTemplatesUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[12px] inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition font-semibold"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Manage in Meta
+          </a>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <StatCard label="Total" value={counts.total} icon={MessageSquare} />
+        <StatCard label="Approved" value={counts.approved} icon={ShieldCheck} tone="success" />
+        <StatCard label="Pending" value={counts.pending} icon={Sparkles} tone="warning" />
+        <StatCard label="Rejected" value={counts.rejected} icon={AlertTriangle} tone="destructive" />
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
+        <Tabs value={filter} onValueChange={setFilter} className="overflow-x-auto">
+          <TabsList>
+            {CATEGORIES.map((c) => (
+              <TabsTrigger key={c.id} value={c.id}>
+                {c.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="overflow-x-auto">
+          <TabsList>
+            <TabsTrigger value="ALL">All status</TabsTrigger>
+            <TabsTrigger value="APPROVED">Approved</TabsTrigger>
+            <TabsTrigger value="PENDING">Pending</TabsTrigger>
+            <TabsTrigger value="REJECTED">Rejected</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="relative md:ml-auto md:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search templates…" className="pl-9" />
+        </div>
+      </div>
+
+      {/* List */}
+      {templatesLoading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Inbox}
+          title={templates.length === 0 ? "No templates in your WhatsApp Business Account" : "No matches"}
+          subtitle={
+            templates.length === 0
+              ? "Create your first template in Meta Business Manager — they need to be approved by Meta before they can be sent."
+              : "Try a different category, status, or search term."
+          }
+          action={
+            templates.length === 0 ? (
+              <a
+                href={metaTemplatesUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition text-sm font-semibold"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Create in Meta
+              </a>
+            ) : null
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {filtered.map((t) => {
+            const body = bodyOf(t);
+            const status = (t.status ?? "PENDING").toUpperCase();
+            const cat = (t.category ?? "MARKETING").toUpperCase();
+            return (
+              <div
+                key={`${t.name}-${t.language}`}
+                className="rounded-2xl border border-border bg-card p-4 hover:border-primary/40 hover:shadow-md transition-all flex flex-col"
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold truncate">{t.name}</p>
+                    <p className="text-[11px] text-muted-foreground font-mono">{t.language}</p>
+                  </div>
+                  <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border", STATUS_PILL[status] ?? STATUS_PILL.PENDING)}>
+                    {status}
+                  </span>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Category</label>
-                  <Select
-                    value={draft.category as string}
-                    onValueChange={(v) => setDraft({ ...draft, category: v as Category })}
+
+                <span className={cn("inline-block text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider w-fit mb-3", CAT_PILL[cat] ?? "bg-muted text-muted-foreground")}>
+                  {cat}
+                </span>
+
+                <div className="bg-[hsl(var(--chat-incoming))] rounded-xl rounded-bl-sm p-3 border border-border mb-3 flex-1">
+                  <p className="text-[12px] leading-relaxed line-clamp-6 whitespace-pre-wrap">{body}</p>
+                </div>
+
+                <div className="flex items-center gap-1.5 pt-2 border-t border-border/60">
+                  <Button
+                    onClick={() => copy(t)}
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 h-8 text-[11px] gap-1"
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                      <SelectItem value="sales">Sales script</SelectItem>
-                      <SelectItem value="offer">Offer</SelectItem>
-                      <SelectItem value="followup">Follow-up</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Body</label>
-                  <Textarea
-                    rows={6}
-                    value={draft.body ?? ""}
-                    onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-                    placeholder="Hi {{name}}, ..."
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    Use <code className="px-1 rounded bg-muted">{`{{name}}`}</code> for personalization.
-                  </p>
+                    <Copy className="w-3 h-3" />
+                    Copy body
+                  </Button>
+                  <Link
+                    to="/app/broadcasts"
+                    className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-[11px] font-semibold flex items-center gap-1 hover:opacity-90 transition"
+                    title="Use in a broadcast"
+                  >
+                    <Send className="w-3 h-3" />
+                    Broadcast
+                  </Link>
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-                <Button onClick={save}>{editingId ? "Save changes" : "Create template"}</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            );
+          })}
         </div>
-
-        {/* Stat strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard label="Total templates" value={items.length} />
-          <StatCard label="Total uses" value={totalUses} accent />
-          <StatCard label="WhatsApp ready" value={counts.whatsapp ?? 0} />
-          <StatCard label="Starred" value={items.filter((t) => t.starred).length} />
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as any)} className="overflow-x-auto">
-            <TabsList>
-              {CATEGORIES.map((c) => (
-                <TabsTrigger key={c.id} value={c.id} className="gap-2">
-                  {c.label}
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-semibold">
-                    {counts[c.id] ?? 0}
-                  </span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <div className="relative md:ml-auto md:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search templates..."
-              className="pl-9"
-            />
-          </div>
-        </div>
-
-        {/* Grid */}
-        {filtered.length === 0 ? (
-          <EmptyState onCreate={() => setOpen(true)} />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((t) => {
-              const meta = CAT_STYLES[t.category];
-              const Icon = meta.icon;
-              return (
-                <div
-                  key={t.id}
-                  className="group bg-card border border-border rounded-2xl p-4 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col"
-                >
-                  <div className="flex items-start gap-2 mb-2">
-                    <div className={cn("w-8 h-8 rounded-lg border flex items-center justify-center flex-shrink-0", meta.tone)}>
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-[14px] truncate leading-tight">{t.title}</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">{meta.label} · {t.updatedAt}</p>
-                    </div>
-                    <button
-                      onClick={() => star(t.id)}
-                      className={cn(
-                        "p-1 rounded hover:bg-muted transition-colors",
-                        t.starred ? "text-warning" : "text-muted-foreground/50 hover:text-warning"
-                      )}
-                    >
-                      <Star className={cn("w-4 h-4", t.starred && "fill-current")} />
-                    </button>
-                  </div>
-
-                  <p className="text-[13px] text-foreground/80 leading-relaxed line-clamp-4 flex-1">{t.body}</p>
-
-                  <div className="flex flex-wrap gap-1 mt-3">
-                    {t.tags.map((tag) => (
-                      <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/60">
-                    <span className="text-[11px] text-muted-foreground font-medium">
-                      Used <span className="text-foreground font-bold">{t.uses}×</span>
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <Button size="sm" variant="ghost" className="h-8 px-2 gap-1.5" onClick={() => startEdit(t)}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-8 px-2 text-destructive hover:text-destructive" onClick={() => remove(t.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button size="sm" className="h-8 gap-1.5" onClick={() => copy(t)}>
-                        <Copy className="w-3.5 h-3.5" />
-                        Use
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+      )}
+    </PageWrapper>
   );
 };
 
-const StatCard = ({ label, value, accent }: { label: string; value: number; accent?: boolean }) => (
-  <div
-    className={cn(
-      "rounded-xl border p-3.5",
-      accent ? "bg-gradient-to-br from-primary-soft to-card border-primary/20" : "bg-card border-border"
-    )}
-  >
-    <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">{label}</p>
-    <p className={cn("text-2xl font-bold mt-1", accent && "text-primary")}>{value.toLocaleString()}</p>
+// ============================================================
+// Helpers
+// ============================================================
+
+const PageWrapper = ({ children }: { children: React.ReactNode }) => (
+  <div className="flex-1 min-h-0 overflow-y-auto bg-muted/20">
+    <div className="max-w-[1400px] mx-auto p-6">{children}</div>
   </div>
 );
 
-const EmptyState = ({ onCreate }: { onCreate: () => void }) => (
-  <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">
+const EmptyState = ({
+  icon: Icon, title, subtitle, action,
+}: {
+  icon: typeof MessageSquare;
+  title: string;
+  subtitle: string;
+  action?: React.ReactNode;
+}) => (
+  <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center max-w-xl mx-auto">
     <div className="w-14 h-14 rounded-2xl bg-primary-soft text-primary mx-auto flex items-center justify-center mb-3">
-      <MessageSquare className="w-6 h-6" />
+      <Icon className="w-6 h-6" />
     </div>
-    <p className="font-semibold">No templates here yet</p>
-    <p className="text-sm text-muted-foreground mt-1">Create your first reusable message and save hours every week.</p>
-    <Button onClick={onCreate} className="mt-4 gap-2">
-      <Plus className="w-4 h-4" />
-      Create template
-    </Button>
+    <h2 className="font-bold text-lg">{title}</h2>
+    <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">{subtitle}</p>
+    {action && <div className="mt-5">{action}</div>}
+  </div>
+);
+
+const StatCard = ({
+  label, value, icon: Icon, tone,
+}: {
+  label: string;
+  value: number;
+  icon: typeof MessageSquare;
+  tone?: "success" | "warning" | "destructive";
+}) => (
+  <div className="rounded-xl border border-border bg-card p-3.5">
+    <div className="flex items-center justify-between mb-1">
+      <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">{label}</p>
+      <div className={cn(
+        "w-7 h-7 rounded-lg flex items-center justify-center",
+        tone === "success" && "bg-success/10 text-success",
+        tone === "warning" && "bg-warning/10 text-warning",
+        tone === "destructive" && "bg-destructive/10 text-destructive",
+        !tone && "bg-muted text-muted-foreground"
+      )}>
+        <Icon className="w-3.5 h-3.5" />
+      </div>
+    </div>
+    <p className="text-2xl font-bold tabular-nums">{value}</p>
   </div>
 );

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { PageShell } from "@/components/PageShell";
 import {
@@ -15,105 +15,67 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type Section = "profile" | "integrations" | "ai" | "notifications" | "account" | "team" | "billing";
+type Section = "profile" | "integrations" | "account";
 
-const sections: { id: Section; label: string; icon: React.ElementType; description: string; accent: string }[] = [
-  { id: "profile",       label: "Profile",       icon: User,        description: "Identity & avatar",         accent: "from-primary to-primary-glow" },
-  { id: "integrations",  label: "Integrations",  icon: PlugZap,     description: "WhatsApp, payments, email", accent: "from-accent to-primary" },
-  { id: "ai",            label: "Addison AI",    icon: Bot,         description: "Mode, tone, knowledge",     accent: "from-primary to-accent" },
-  { id: "notifications", label: "Notifications", icon: Bell,        description: "Smart alerts & channels",   accent: "from-warning to-primary" },
-  { id: "team",          label: "Team",          icon: Users,       description: "Invite & assign roles",     accent: "from-accent to-primary-glow" },
-  { id: "billing",       label: "Billing",       icon: CreditCard,  description: "Plan, usage & upgrade",     accent: "from-primary-glow to-accent" },
-  { id: "account",       label: "Account",       icon: Shield,      description: "Security & 2FA",            accent: "from-hot to-warning" },
+const sections: { id: Section; label: string }[] = [
+  { id: "profile",      label: "Profile" },
+  { id: "integrations", label: "Integrations" },
+  { id: "account",      label: "Account" },
 ];
 
 export const SettingsPage = () => {
   const [active, setActive] = useState<Section>("profile");
-  const [dirty, setDirty] = useState(false);
+  const [, setDirty] = useState(false);
   const { user, signOut } = useAuth();
 
   return (
-    <PageShell
-      title="Settings"
-      subtitle="Configure how your sales engine runs"
-      icon={<Settings className="w-4 h-4" />}
-    >
-      <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5">
-        {/* Side nav */}
-        <nav className="bg-card border border-border rounded-xl p-2 h-fit lg:sticky lg:top-24 space-y-1">
-          {sections.map((s) => {
-            const Icon = s.icon;
-            const isActive = active === s.id;
-            return (
-              <button
-                key={s.id}
-                onClick={() => setActive(s.id)}
-                className={cn(
-                  "group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 relative overflow-hidden",
-                  isActive
-                    ? "bg-gradient-to-r from-primary/10 to-accent/5 text-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground hover:translate-x-0.5"
-                )}
-              >
-                {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 h-7 w-[3px] rounded-r-full bg-gradient-to-b from-primary to-accent" />
-                )}
-                <div
-                  className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all",
-                    isActive
-                      ? `bg-gradient-to-br ${s.accent} text-white shadow-md shadow-primary/30`
-                      : "bg-muted text-muted-foreground group-hover:bg-card group-hover:text-foreground"
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={cn("text-[13px] font-semibold leading-tight", isActive && "text-foreground")}>{s.label}</p>
-                  <p className="text-[10px] opacity-70 truncate leading-tight mt-0.5">{s.description}</p>
-                </div>
-              </button>
-            );
-          })}
-
-          <div className="mt-3 pt-3 border-t border-border px-2">
-            <div className="rounded-lg bg-gradient-to-br from-primary/10 via-accent/5 to-transparent p-3 text-[11px]">
-              <div className="flex items-center gap-1.5 font-semibold text-foreground mb-1">
-                <Crown className="w-3 h-3 text-warning" /> Pro tip
-              </div>
-              <p className="text-muted-foreground leading-snug">
-                Set Addison AI to <span className="text-primary font-semibold">Assisted</span> mode while you train it.
-              </p>
-            </div>
-          </div>
+    <PageShell title="Settings" subtitle="Workspace configuration · sab kuch yahan se control karein" icon={<Settings className="w-5 h-5" />}>
+      <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-8 max-w-5xl">
+        {/* Side nav — plain text, no icons, no descriptions */}
+        <nav className="lg:sticky lg:top-20 h-fit">
+          <ul className="space-y-px">
+            {sections.map((s) => {
+              const isActive = active === s.id;
+              return (
+                <li key={s.id}>
+                  <button
+                    onClick={() => setActive(s.id)}
+                    className={cn(
+                      "w-full text-left px-3 py-1.5 rounded-md text-[13px] transition-colors",
+                      isActive
+                        ? "bg-muted text-foreground font-semibold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    )}
+                  >
+                    {s.label}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </nav>
 
         {/* Section panel */}
-        <div className="space-y-4 animate-fade-in" key={active}>
+        <div className="min-w-0">
           {active === "profile"       && <ProfileSection user={user} onDirty={setDirty} />}
           {active === "integrations"  && <IntegrationsSection />}
-          {active === "ai"            && <AISection />}
-          {active === "notifications" && <NotificationsSection />}
-          {active === "team"          && <TeamSection />}
-          {active === "billing"       && <BillingSection />}
           {active === "account"       && <AccountSection email={user?.email} onSignOut={signOut} />}
         </div>
       </div>
-
-      {/* Sticky save bar (visual cue when dirty) */}
-      {dirty && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
-          <div className="glass-strong rounded-full px-4 py-2 flex items-center gap-3 shadow-2xl">
-            <span className="text-[12px] text-muted-foreground">You have unsaved changes</span>
-            <Button size="sm" className="h-7 rounded-full text-[11px] gap-1.5" onClick={() => { toast.success("All changes saved"); setDirty(false); }}>
-              <Save className="w-3 h-3" /> Save all
-            </Button>
-          </div>
-        </div>
-      )}
     </PageShell>
   );
 };
@@ -132,11 +94,7 @@ const ProfileSection = ({ user, onDirty }: { user: ReturnType<typeof useAuth>["u
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     enabled: !!user,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("*").eq("user_id", user!.id).maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.getProfile(),
   });
 
   useEffect(() => {
@@ -155,12 +113,16 @@ const ProfileSection = ({ user, onDirty }: { user: ReturnType<typeof useAuth>["u
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
-    const { error } = await supabase.from("profiles").update({ display_name: displayName, phone: phone || null }).eq("user_id", user.id);
-    setSaving(false);
-    if (error) { toast.error(error.message); return; }
-    initial.current = { displayName, phone, workspace };
-    onDirty(false);
-    toast.success("Profile updated", { icon: <Check className="w-4 h-4 text-success" /> });
+    try {
+      await api.updateProfile({ display_name: displayName, phone: phone || null });
+      initial.current = { displayName, phone, workspace };
+      onDirty(false);
+      toast.success("Profile updated", { icon: <Check className="w-4 h-4 text-success" /> });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -173,57 +135,48 @@ const ProfileSection = ({ user, onDirty }: { user: ReturnType<typeof useAuth>["u
   const initials = (displayName || user?.email || "U").slice(0, 2).toUpperCase();
 
   return (
-    <SectionCard
-      title="Profile"
-      subtitle="How you appear inside the workspace"
-      icon={<User className="w-4 h-4" />}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
-        {/* Avatar */}
-        <div className="flex flex-col items-center gap-3">
+    <SectionCard title="Profile" subtitle="How you appear in this workspace.">
+      <div className="space-y-6">
+        {/* Avatar row */}
+        <div className="flex items-center gap-4">
           <div className="relative group">
-            <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-primary to-accent text-white text-3xl font-bold flex items-center justify-center overflow-hidden ring-4 ring-primary/10">
-              {avatarPreview ? <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" /> : initials}
+            <div className="w-16 h-16 rounded-full bg-primary text-primary-foreground text-lg font-semibold flex items-center justify-center overflow-hidden">
+              {avatarPreview ? <img src={avatarPreview} alt="" className="w-full h-full object-cover" /> : initials}
             </div>
-            <button
-              onClick={() => fileInput.current?.click()}
-              className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100"
-            >
-              <Camera className="w-6 h-6 text-white" />
-            </button>
             <input ref={fileInput} type="file" accept="image/*" className="hidden" onChange={onPick} />
           </div>
-          <Badge variant="outline" className="gap-1.5 text-[10px] font-bold">
-            <ShieldCheck className="w-3 h-3 text-primary" /> {role}
-          </Badge>
-          <button onClick={() => fileInput.current?.click()} className="text-[11px] text-primary hover:underline font-semibold">
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-medium">{displayName || user?.email?.split("@")[0] || "—"}</p>
+            <p className="text-[12px] text-muted-foreground">{role}</p>
+          </div>
+          <button
+            onClick={() => fileInput.current?.click()}
+            className="text-[12px] font-medium text-foreground hover:text-primary border border-border hover:border-primary rounded-md px-3 py-1.5 transition-colors"
+          >
             Change photo
           </button>
         </div>
 
-        {/* Form */}
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FieldRow label="Display name">
-              <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" />
-            </FieldRow>
-            <FieldRow label="Workspace">
-              <Input value={workspace} onChange={(e) => setWorkspace(e.target.value)} />
-            </FieldRow>
-            <FieldRow label="Email" hint="Verified">
-              <Input value={user?.email ?? ""} disabled className="bg-muted/40" />
-            </FieldRow>
-            <FieldRow label="Phone">
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 …" />
-            </FieldRow>
-          </div>
+        {/* Form fields */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+          <FieldRow label="Display name">
+            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" />
+          </FieldRow>
+          <FieldRow label="Workspace">
+            <Input value={workspace} onChange={(e) => setWorkspace(e.target.value)} />
+          </FieldRow>
+          <FieldRow label="Email" hint="Verified">
+            <Input value={user?.email ?? ""} disabled />
+          </FieldRow>
+          <FieldRow label="Phone">
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" />
+          </FieldRow>
+        </div>
 
-          <div className="flex items-center gap-2 pt-2">
-            <Button onClick={handleSave} disabled={saving} className="gap-2 shadow-md shadow-primary/20">
-              {saving ? <>Saving…</> : <><Check className="w-4 h-4" /> Save changes</>}
-            </Button>
-            <span className="text-[11px] text-muted-foreground">Changes auto-sync across devices</span>
-          </div>
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+          <Button onClick={handleSave} disabled={saving} size="sm">
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
         </div>
       </div>
     </SectionCard>
@@ -237,112 +190,269 @@ type Integration = {
 };
 
 const IntegrationsSection = () => {
-  const [items, setItems] = useState<Integration[]>([
-    { name: "WhatsApp Business",  provider: "Twilio",      description: "Send & receive messages, templates, media",   icon: MessageSquare, category: "Messaging", connected: true,  tone: "primary" },
-    { name: "WhatsApp Cloud API", provider: "Meta",        description: "Direct integration with Meta's official API", icon: MessageSquare, category: "Messaging", connected: false, tone: "primary" },
-    { name: "Razorpay",           provider: "Payments",    description: "Send payment links, capture conversions",     icon: CreditCard,    category: "Payments",  connected: true,  tone: "accent" },
-    { name: "Stripe",             provider: "Payments",    description: "Global checkout for international leads",     icon: CreditCard,    category: "Payments",  connected: false, tone: "accent" },
-    { name: "Gmail / SMTP",       provider: "Email",       description: "Send transactional emails & follow-ups",      icon: Mail,          category: "Email",     connected: false, tone: "warning" },
-    { name: "Lovable AI Gateway", provider: "AI",          description: "Powers Addison AI replies & lead scoring",    icon: Sparkles,      category: "Messaging", connected: true,  tone: "primary" },
-  ]);
+  const qc = useQueryClient();
+  const { data: cfg, isLoading } = useQuery({
+    queryKey: ["meta-config"],
+    queryFn: () => api.getMetaConfig(),
+  });
 
-  const toggle = (name: string) => {
-    setItems((arr) => arr.map((i) => (i.name === name ? { ...i, connected: !i.connected } : i)));
-    toast.success(`Updated ${name}`);
+  const [accessToken, setAccessToken] = useState("");
+  const [phoneNumberId, setPhoneNumberId] = useState("");
+  const [businessAccountId, setBusinessAccountId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+
+  const isConnected = !!cfg && cfg.enabled;
+  const webhookUrl = typeof window !== "undefined" ? `${window.location.origin}/api/webhooks/meta` : "";
+
+  // Pre-fill non-secret fields when config exists
+  useEffect(() => {
+    if (cfg) {
+      setPhoneNumberId(cfg.phone_number_id ?? "");
+      setBusinessAccountId(cfg.business_account_id ?? "");
+    }
+  }, [cfg]);
+
+  const handleSave = async () => {
+    if (!accessToken.trim() || !phoneNumberId.trim()) {
+      toast.error("Access token and phone number ID are required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await api.saveMetaConfig({
+        access_token: accessToken.trim(),
+        phone_number_id: phoneNumberId.trim(),
+        business_account_id: businessAccountId.trim() || undefined,
+      });
+      toast.success(`Connected to ${res.display_phone_number ?? "WhatsApp"}`);
+      setAccessToken("");
+      qc.invalidateQueries({ queryKey: ["meta-config"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const test = (name: string) => toast.success(`Test ping sent to ${name}`, { icon: <Zap className="w-4 h-4 text-primary" /> });
+  const handleTest = async () => {
+    setTesting(true);
+    try {
+      const res = await api.testMetaConfig();
+      if (res.ok) {
+        toast.success(`✓ Connected · ${res.display_phone_number ?? "WhatsApp"}${res.quality_rating ? ` · quality: ${res.quality_rating}` : ""}`);
+        qc.invalidateQueries({ queryKey: ["meta-config"] });
+      } else {
+        toast.error(res.error ?? "Connection test failed");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Test failed");
+    } finally {
+      setTesting(false);
+    }
+  };
 
-  const grouped = useMemo(() => {
-    return items.reduce<Record<string, Integration[]>>((acc, i) => {
-      (acc[i.category] ??= []).push(i); return acc;
-    }, {});
-  }, [items]);
+  const handleDisconnect = async () => {
+    try {
+      await api.deleteMetaConfig();
+      toast.success("Disconnected");
+      qc.invalidateQueries({ queryKey: ["meta-config"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    }
+  };
+
+  const copyWebhookUrl = () => {
+    navigator.clipboard.writeText(webhookUrl).then(() => toast.success("Webhook URL copied"));
+  };
 
   return (
     <SectionCard
       title="Integrations"
-      subtitle="Connect the tools that power your revenue"
+      subtitle="Connect WhatsApp Business and other services"
       icon={<PlugZap className="w-4 h-4" />}
       headerRight={
-        <Badge variant="outline" className="gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-          {items.filter((i) => i.connected).length} of {items.length} connected
-        </Badge>
+        isConnected ? (
+          <Badge variant="outline" className="gap-1.5 border-success/40 text-success">
+            <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+            WhatsApp connected
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+            Not configured
+          </Badge>
+        )
       }
     >
-      <div className="space-y-5">
-        {Object.entries(grouped).map(([cat, list]) => (
-          <div key={cat}>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2 px-1">{cat}</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-              {list.map((i) => {
-                const Icon = i.icon;
-                const toneBg = {
-                  primary: "from-primary/15 to-primary/5 text-primary",
-                  accent:  "from-accent/15  to-accent/5  text-accent",
-                  warning: "from-warning/15 to-warning/5 text-warning",
-                  hot:     "from-hot/15     to-hot/5     text-hot",
-                }[i.tone];
-                return (
-                  <div
-                    key={i.name}
-                    className={cn(
-                      "group relative rounded-xl border p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
-                      i.connected ? "border-primary/30 bg-primary-soft/30" : "border-border bg-card hover:border-primary/40"
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center flex-shrink-0", toneBg)}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <p className="text-[13px] font-bold leading-tight">{i.name}</p>
-                          <span className="text-[9px] text-muted-foreground font-medium">{i.provider}</span>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground leading-snug">{i.description}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1.5">
-                        <span
-                          className={cn(
-                            "text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1",
-                            i.connected ? "bg-success-soft text-success" : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "w-1.5 h-1.5 rounded-full",
-                              i.connected ? "bg-success animate-pulse" : "bg-muted-foreground"
-                            )}
-                          />
-                          {i.connected ? "Live" : "Idle"}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-border/60">
-                      {i.connected ? (
-                        <>
-                          <Button size="sm" variant="outline" className="h-7 text-[11px] flex-1 gap-1" onClick={() => test(i.name)}>
-                            <Zap className="w-3 h-3" /> Test
-                          </Button>
-                          <Button size="sm" variant="outline" className="h-7 text-[11px] flex-1">Configure</Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-[11px] text-hot hover:text-hot hover:bg-hot/10" onClick={() => toggle(i.name)}>
-                            Disconnect
-                          </Button>
-                        </>
-                      ) : (
-                        <Button size="sm" className="h-7 text-[11px] w-full gap-1.5 shadow-sm shadow-primary/20" onClick={() => toggle(i.name)}>
-                          <Plug className="w-3 h-3" /> Connect {i.name}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+      <div className="space-y-6">
+        {/* WhatsApp Cloud API — primary integration */}
+        <div className={cn(
+          "rounded-xl border p-5",
+          isConnected ? "border-success/30 bg-success-soft/30" : "border-border bg-card"
+        )}>
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-11 h-11 rounded-xl bg-primary-soft text-primary flex items-center justify-center flex-shrink-0">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-[14px] font-bold">WhatsApp Cloud API</h3>
+                <span className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Meta</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Send and receive WhatsApp messages directly via Meta's official Business API.
+              </p>
+              {isConnected && cfg?.display_phone_number && (
+                <p className="text-[12px] mt-2 font-semibold text-success">
+                  ✓ Active on {cfg.display_phone_number}
+                  {cfg.last_verified_at && (
+                    <span className="text-muted-foreground font-normal"> · last verified {new Date(cfg.last_verified_at).toLocaleString()}</span>
+                  )}
+                </p>
+              )}
             </div>
           </div>
-        ))}
+
+          {/* Webhook URL (always visible — user needs to copy this into Meta App) */}
+          <div className="rounded-lg border border-border bg-muted/30 p-3 mb-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Webhook URL (paste this in Meta App)</p>
+              <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={copyWebhookUrl}>Copy</Button>
+            </div>
+            <code className="text-[11px] font-mono break-all">{webhookUrl}</code>
+            <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
+              In Meta App → WhatsApp → Configuration → Webhooks: paste the URL above, set the verify token to match
+              <code className="text-[10px] mx-1 px-1 py-0.5 bg-card rounded border border-border">META_WEBHOOK_VERIFY_TOKEN</code>
+              from your <code className="text-[10px] mx-1 px-1 py-0.5 bg-card rounded border border-border">.env.local</code>, and subscribe to the <strong>messages</strong> field.
+            </p>
+          </div>
+
+          {/* Credential form */}
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="meta-token" className="text-[12px] font-semibold">
+                Access Token {isConnected && <span className="text-muted-foreground font-normal">(leave blank to keep current)</span>}
+              </Label>
+              <div className="relative mt-1">
+                <Input
+                  id="meta-token"
+                  type={showToken ? "text" : "password"}
+                  autoComplete="off"
+                  value={accessToken}
+                  onChange={(e) => setAccessToken(e.target.value)}
+                  placeholder={isConnected ? "••••••••••••••••" : "EAAGm... (system user token)"}
+                  className="h-10 pr-16 font-mono text-[12px]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken((s) => !s)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-muted-foreground hover:text-foreground px-2 py-1"
+                >
+                  {showToken ? "Hide" : "Show"}
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Generate a System User token in Meta Business Manager → Users → System Users → Generate New Token. Grant <code>whatsapp_business_messaging</code> + <code>whatsapp_business_management</code> permissions.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="meta-phone" className="text-[12px] font-semibold">Phone Number ID *</Label>
+                <Input
+                  id="meta-phone"
+                  value={phoneNumberId}
+                  onChange={(e) => setPhoneNumberId(e.target.value)}
+                  placeholder="123456789012345"
+                  className="h-10 mt-1 font-mono text-[12px]"
+                />
+              </div>
+              <div>
+                <Label htmlFor="meta-waba" className="text-[12px] font-semibold">Business Account ID</Label>
+                <Input
+                  id="meta-waba"
+                  value={businessAccountId}
+                  onChange={(e) => setBusinessAccountId(e.target.value)}
+                  placeholder="WABA ID (for templates)"
+                  className="h-10 mt-1 font-mono text-[12px]"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              <Button onClick={handleSave} disabled={saving || (!accessToken.trim() && !isConnected)} className="gap-1.5">
+                {saving ? "Verifying with Meta…" : isConnected ? "Update credentials" : "Save & verify"}
+                {!saving && <ShieldCheck className="w-3.5 h-3.5" />}
+              </Button>
+              {isConnected && (
+                <>
+                  <Button variant="outline" onClick={handleTest} disabled={testing} className="gap-1.5">
+                    {testing ? "Testing…" : <>Test connection <Zap className="w-3.5 h-3.5" /></>}
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="text-[#D4308E] hover:text-[#D4308E] hover:bg-[#FCE5F0] ml-auto"
+                      >
+                        Disconnect
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>WhatsApp disconnect karein?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-foreground/70 font-medium">
+                          Outbound messages dry-run mode mein chale jaayenge · customers tak message nahi pahunchega jab tak wapas connect nahi karte.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDisconnect}
+                          className="bg-[#D4308E] text-white shadow-[0_4px_0_0_#A11A6A] hover:bg-[#C02680] hover:shadow-[0_2px_0_0_#A11A6A] hover:translate-y-[2px]"
+                        >
+                          Disconnect karein
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
+              )}
+            </div>
+          </div>
+
+          {isLoading && <p className="text-[11px] text-muted-foreground mt-3">Loading config…</p>}
+        </div>
+
+        {/* Other integrations — honest "coming soon" cards */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2 px-1">Coming soon</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            {[
+              { name: "Razorpay", provider: "Payments", icon: CreditCard, desc: "Send pay-in-chat links + auto-reconcile" },
+              { name: "Resend", provider: "Email", icon: Mail, desc: "Transactional emails for follow-ups + reset" },
+              { name: "Shiprocket", provider: "Logistics", icon: Plug, desc: "AWB tracking pushed to chat on order ship" },
+            ].map((i) => (
+              <div key={i.name} className="rounded-xl border border-border bg-card p-3.5 opacity-60">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+                    <i.icon className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="text-[13px] font-bold leading-tight">{i.name}</p>
+                      <span className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">{i.provider}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-snug">{i.desc}</p>
+                  </div>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">Soon</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </SectionCard>
   );
@@ -816,18 +926,13 @@ const AccountSection = ({ email, onSignOut }: { email?: string; onSignOut: () =>
 
 /* ============================== SHARED ============================== */
 const SectionCard = ({
-  title, subtitle, icon, children, headerRight,
-}: { title: string; subtitle: string; icon: React.ReactNode; children: React.ReactNode; headerRight?: React.ReactNode }) => (
-  <div className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow duration-300">
-    <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/15 to-accent/10 text-primary flex items-center justify-center">
-          {icon}
-        </div>
-        <div>
-          <h3 className="text-[15px] font-bold leading-tight">{title}</h3>
-          <p className="text-[11px] text-muted-foreground">{subtitle}</p>
-        </div>
+  title, subtitle, children, headerRight,
+}: { title: string; subtitle?: string; icon?: React.ReactNode; children: React.ReactNode; headerRight?: React.ReactNode }) => (
+  <div className="space-y-5">
+    <div className="flex items-start justify-between gap-3 pb-4 border-b border-border">
+      <div>
+        <h3 className="text-[15px] font-semibold tracking-tight">{title}</h3>
+        {subtitle && <p className="text-[12px] text-muted-foreground mt-0.5">{subtitle}</p>}
       </div>
       {headerRight}
     </div>
@@ -838,8 +943,8 @@ const SectionCard = ({
 const FieldRow = ({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) => (
   <div className="space-y-1.5">
     <div className="flex items-center justify-between">
-      <Label className="text-[11px] font-semibold text-foreground">{label}</Label>
-      {hint && <span className="text-[10px] text-success font-semibold flex items-center gap-1"><Check className="w-3 h-3" />{hint}</span>}
+      <Label className="text-[12px] font-medium text-foreground">{label}</Label>
+      {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
     </div>
     {children}
   </div>

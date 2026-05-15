@@ -1,8 +1,5 @@
-import { Tables } from "@/integrations/supabase/types";
-
-export type Contact = Tables<"contacts">;
-export type Conversation = Tables<"conversations">;
-export type Message = Tables<"messages">;
+import type { Contact, Conversation, Message } from "@/lib/api-types";
+export type { Contact, Conversation, Message };
 
 // Conversation joined with its contact (used by the inbox list & lead panel)
 export type ConversationWithContact = Conversation & {

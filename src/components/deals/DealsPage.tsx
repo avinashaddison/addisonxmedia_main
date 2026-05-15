@@ -64,11 +64,11 @@ import {
   useContactsLookup,
   type DealWithContact,
 } from "@/hooks/useCrmData";
-import type { Database } from "@/integrations/supabase/types";
+import type { DealStage } from "@/lib/api-types";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
-type Stage = Database["public"]["Enums"]["deal_stage"];
+type Stage = DealStage;
 
 type StageDef = {
   id: Stage;
@@ -575,23 +575,35 @@ const DealDrawer = ({
           )}
         </div>
 
-        {/* Action bar */}
-        <div className="border-t p-3 grid grid-cols-4 gap-2 bg-card">
-          <Button variant="outline" size="sm" className="flex-col h-14 gap-1" onClick={() => toast.success("Opening chat…")}>
-            <MessageSquare className="w-4 h-4 text-success" />
-            <span className="text-[10px]">Chat</span>
+        {/* Action bar — only Chat + Call are wired. Offer/Payment require Razorpay. */}
+        <div className="border-t p-3 grid grid-cols-3 gap-2 bg-card">
+          <Button variant="outline" size="sm" className="flex-col h-14 gap-1" asChild>
+            <a href="/app/inbox" title="Open inbox">
+              <MessageSquare className="w-4 h-4 text-success" />
+              <span className="text-[10px]">Chat</span>
+            </a>
           </Button>
-          <Button variant="outline" size="sm" className="flex-col h-14 gap-1" onClick={() => toast.success("Calling…")}>
-            <Phone className="w-4 h-4 text-accent" />
-            <span className="text-[10px]">Call</span>
+          <Button variant="outline" size="sm" className="flex-col h-14 gap-1" asChild>
+            <a
+              href={deal.contact?.phone ? `tel:${deal.contact.phone}` : "#"}
+              onClick={(e) => { if (!deal.contact?.phone) { e.preventDefault(); toast.error("No phone on contact"); } }}
+              title="Call contact"
+            >
+              <Phone className="w-4 h-4 text-accent" />
+              <span className="text-[10px]">Call</span>
+            </a>
           </Button>
-          <Button variant="outline" size="sm" className="flex-col h-14 gap-1" onClick={() => toast.success("Offer sent")}>
-            <Tag className="w-4 h-4 text-warning" />
-            <span className="text-[10px]">Offer</span>
-          </Button>
-          <Button variant="outline" size="sm" className="flex-col h-14 gap-1" onClick={() => toast.success("Payment link generated")}>
-            <Receipt className="w-4 h-4 text-primary" />
-            <span className="text-[10px]">Payment</span>
+          <Button variant="outline" size="sm" className="flex-col h-14 gap-1" asChild>
+            <a
+              href={deal.contact?.phone ? `https://wa.me/${deal.contact.phone.replace(/\D/g, "")}` : "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => { if (!deal.contact?.phone) { e.preventDefault(); toast.error("No phone on contact"); } }}
+              title="Open WhatsApp"
+            >
+              <Tag className="w-4 h-4 text-warning" />
+              <span className="text-[10px]">WhatsApp</span>
+            </a>
           </Button>
         </div>
         <div className="border-t p-2 flex items-center justify-end gap-2">
@@ -683,7 +695,7 @@ export const DealsPage = () => {
   // Empty state
   if (!isLoading && deals.length === 0) {
     return (
-      <PageShell title="Deals Pipeline" subtitle="Track every opportunity from first touch to revenue.">
+      <PageShell title="Deals Pipeline" subtitle="Har opportunity ko first touch se revenue tak track karein" icon={<Trophy className="w-5 h-5" />}>
         <div className="flex-1 flex items-center justify-center">
           <div className="max-w-md text-center">
             <div className="mx-auto w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center shadow-xl shadow-primary/30 mb-5">
@@ -712,7 +724,8 @@ export const DealsPage = () => {
   return (
     <PageShell
       title="Deals Pipeline"
-      subtitle="Drag, drop, and close. Every card is potential revenue."
+      icon={<Trophy className="w-5 h-5" />}
+      subtitle="Drag karo, drop karo, close karo · har card matlab kamai"
       actions={
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => { setDefaultStage("qualification"); setAiOpen(true); }}>
@@ -819,10 +832,10 @@ export const DealsPage = () => {
 
 // ---------------- Metric Tile ----------------
 const toneStyles = {
-  primary: "from-primary/15 to-primary/0 text-primary border-primary/20",
-  accent: "from-accent/15 to-accent/0 text-accent border-accent/20",
-  success: "from-success/15 to-success/0 text-success border-success/20",
-  warning: "from-warning/20 to-warning/0 text-warning border-warning/25",
+  primary: { border: "border-[#3C50E0]", shadow: "shadow-[0_4px_0_0_#2533A8]", iconBg: "bg-[#3C50E0]" },
+  accent:  { border: "border-[#FF6A1F]", shadow: "shadow-[0_4px_0_0_#B8420A]", iconBg: "bg-[#FF6A1F]" },
+  success: { border: "border-[#0E8A4B]", shadow: "shadow-[0_4px_0_0_#0A6E3C]", iconBg: "bg-[#0E8A4B]" },
+  warning: { border: "border-[#FFD23F]", shadow: "shadow-[0_4px_0_0_#E8B400]", iconBg: "bg-[#FFD23F] text-[#7A4A00]" },
 } as const;
 
 const MetricTile = ({
@@ -837,19 +850,22 @@ const MetricTile = ({
   icon: React.ReactNode;
   tone: keyof typeof toneStyles;
   hint?: string;
-}) => (
-  <div className={cn("rounded-xl border bg-gradient-to-br p-3.5 relative overflow-hidden", toneStyles[tone])}>
-    <div className="flex items-center justify-between">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <span className="opacity-80">{icon}</span>
+}) => {
+  const t = toneStyles[tone];
+  return (
+    <div className={cn("rounded-2xl bg-white border-2 p-4 relative overflow-hidden", t.border, t.shadow)}>
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-foreground/60">{label}</p>
+        <span className={cn("w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-md", t.iconBg)}>{icon}</span>
+      </div>
+      <p className="text-2xl font-black tracking-tight text-foreground mt-2">{value}</p>
+      {hint && (
+        <p className="text-[10px] text-foreground/60 mt-1 flex items-center gap-1 font-medium">
+          <ChevronRight className="w-3 h-3" /> {hint}
+        </p>
+      )}
     </div>
-    <p className="text-2xl font-extrabold tracking-tight text-foreground mt-1">{value}</p>
-    {hint && (
-      <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
-        <ChevronRight className="w-3 h-3" /> {hint}
-      </p>
-    )}
-  </div>
-);
+  );
+};
 
 export default DealsPage;

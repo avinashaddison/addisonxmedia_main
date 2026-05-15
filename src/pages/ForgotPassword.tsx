@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Mail, MessageCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, MessageCircle, CheckCircle2 } from "lucide-react";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -17,93 +17,90 @@ const ForgotPassword = () => {
     if (!email) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await authClient.forgetPassword({
+        email,
         redirectTo: `${window.location.origin}/reset-password`,
       });
-      if (error) throw error;
+      if (error) throw new Error(error.message ?? "Reset request failed");
       setSent(true);
-      toast.success("Reset link sent. Check your inbox.");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Something went wrong";
-      toast.error(msg);
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground flex items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute inset-0 grid-pattern opacity-40 pointer-events-none mask-fade-b" />
-      <div className="absolute -top-24 right-1/4 w-[400px] h-[400px] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="w-full max-w-[420px] relative z-10">
-        <Link to="/auth" className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground mb-6 transition-colors">
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to login
-        </Link>
-
-        <Link to="/" className="flex items-center gap-2 mb-8">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center shadow-lg shadow-primary/30">
-            <MessageCircle className="w-4 h-4 text-primary-foreground" fill="currentColor" strokeWidth={0} />
+    <div className="min-h-screen w-full bg-background text-foreground flex flex-col">
+      <header className="h-14 flex items-center justify-between px-5 sm:px-8 border-b border-border">
+        <Link to="/" className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+            <MessageCircle className="w-3.5 h-3.5 text-primary-foreground" fill="currentColor" strokeWidth={0} />
           </div>
-          <span className="font-bold tracking-tight">AddisonX</span>
+          <span className="font-semibold text-[14px] tracking-tight">AddisonX</span>
         </Link>
+        <Link to="/auth" className="text-[12px] text-muted-foreground hover:text-foreground transition-colors">
+          Back to sign in
+        </Link>
+      </header>
 
-        {!sent ? (
-          <>
-            <div className="mb-7">
-              <h1 className="text-[26px] font-bold tracking-tight leading-tight">Forgot your password?</h1>
-              <p className="text-[13px] text-muted-foreground mt-1.5">
-                Enter your account email and we'll send you a secure link to reset your password.
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-[12px] font-semibold">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  className="h-11 rounded-xl bg-card"
-                />
+      <main className="flex-1 flex items-center justify-center px-5 py-10">
+        <div className="w-full max-w-[400px]">
+          {!sent ? (
+            <>
+              <div className="mb-8">
+                <h1 className="text-[24px] font-semibold tracking-tight">Reset your password</h1>
+                <p className="text-[13px] text-muted-foreground mt-1.5">
+                  Enter the email associated with your account.
+                </p>
               </div>
 
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="w-full h-11 rounded-xl text-[13px] font-bold bg-gradient-to-r from-primary to-primary-glow hover:opacity-90 shadow-lg shadow-primary/25"
-              >
-                {submitting ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending link...</>
-                ) : (
-                  <><Mail className="w-4 h-4 mr-2" /> Send reset link</>
-                )}
-              </Button>
-            </form>
-          </>
-        ) : (
-          <div className="text-center space-y-4 py-6">
-            <div className="w-14 h-14 rounded-full bg-success/15 border border-success/30 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-7 h-7 text-success" />
-            </div>
-            <div>
-              <h1 className="text-[22px] font-bold tracking-tight">Check your email</h1>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-[12px] font-medium">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@company.com"
+                    className="h-10"
+                  />
+                </div>
+
+                <Button type="submit" disabled={submitting} className="w-full h-10">
+                  {submitting ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending…</>
+                  ) : (
+                    "Send reset link"
+                  )}
+                </Button>
+              </form>
+            </>
+          ) : (
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-full bg-success-soft text-success flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h1 className="text-[20px] font-semibold tracking-tight">Reset link generated</h1>
               <p className="text-[13px] text-muted-foreground mt-2">
-                We sent a password reset link to <span className="font-semibold text-foreground">{email}</span>.
-                The link expires in 1 hour.
+                If an account exists for <span className="text-foreground font-medium">{email}</span>, a reset link has been generated.
               </p>
+              <div className="mt-4 p-3 rounded-lg bg-warning-soft border border-warning/20 text-left text-[12px] leading-relaxed">
+                <span className="font-semibold">Dev note:</span> email delivery isn't wired yet. Check the API server console for the reset URL.
+              </div>
+              <button
+                onClick={() => setSent(false)}
+                className="mt-5 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Try a different email
+              </button>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              Didn't get it? Check spam, or{" "}
-              <button onClick={() => setSent(false)} className="text-primary font-medium hover:underline">try again</button>.
-            </p>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 };

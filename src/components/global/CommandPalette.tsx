@@ -34,7 +34,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 
@@ -93,25 +93,19 @@ export const CommandPalette = ({ open, onOpenChange, onNavigate }: Props) => {
     let cancelled = false;
     setLoading(true);
     const t = setTimeout(async () => {
-      const term = `%${q}%`;
-      const [contacts, convos, deals] = await Promise.all([
-        supabase.from("contacts").select("id,name,phone").or(`name.ilike.${term},phone.ilike.${term}`).limit(4),
-        supabase
-          .from("conversations")
-          .select("id,last_message_preview,contact:contacts(name)")
-          .ilike("last_message_preview", term)
-          .limit(4),
-        supabase.from("deals").select("id,title,value,stage").ilike("title", term).limit(4),
-      ]);
-      if (cancelled) return;
-      const r: SearchResult[] = [];
-      contacts.data?.forEach((c) => r.push({ kind: "contact", id: c.id, name: c.name, phone: c.phone }));
-      convos.data?.forEach((c: any) =>
-        r.push({ kind: "conversation", id: c.id, name: c.contact?.name ?? "Unknown", preview: c.last_message_preview ?? "" })
-      );
-      deals.data?.forEach((d) => r.push({ kind: "deal", id: d.id, title: d.title, value: Number(d.value), stage: d.stage }));
-      setResults(r);
-      setLoading(false);
+      try {
+        const data = await api.search(q);
+        if (cancelled) return;
+        const r: SearchResult[] = [];
+        data.contacts?.forEach((c: any) => r.push({ kind: "contact", id: c.id, name: c.name, phone: c.phone }));
+        data.conversations?.forEach((c: any) =>
+          r.push({ kind: "conversation", id: c.id, name: c.contact_name ?? "Unknown", preview: c.last_message_preview ?? "" })
+        );
+        data.deals?.forEach((d: any) => r.push({ kind: "deal", id: d.id, title: d.title, value: Number(d.value), stage: d.stage }));
+        setResults(r);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }, 200);
     return () => {
       cancelled = true;

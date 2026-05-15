@@ -12,9 +12,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { prefetchPage } from "@/lib/prefetch";
+
+const SIDEBAR_COLLAPSED_KEY = "addisonx-sidebar-collapsed";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 type Props = {
@@ -53,11 +56,8 @@ const groups: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "Automation & AI",
+    label: "Automation",
     items: [
-      { icon: Bot, label: "AI Assistant", id: "ai-assistant", hint: "Your AI co-pilot", smart: true },
-      { icon: Brain, label: "AI Training", id: "ai-training", hint: "Train Addison AI" },
-      { icon: Workflow, label: "Workflows", id: "workflows", hint: "Automated journeys" },
       { icon: Bell, label: "Follow-ups", id: "followups", badgeKey: "tasks", hint: "Tasks queue" },
     ],
   },
@@ -66,7 +66,6 @@ const groups: { label: string; items: NavItem[] }[] = [
     items: [
       { icon: BarChart3, label: "Analytics", id: "analytics", hint: "Reports & insights" },
       { icon: Activity, label: "Activity", id: "activity", hint: "System history" },
-      { icon: UsersRound, label: "Team", id: "team", hint: "Members & roles" },
       { icon: Plug, label: "Integrations", id: "integrations", hint: "Connect tools" },
       { icon: Settings, label: "Settings", id: "settings", hint: "Workspace config" },
     ],
@@ -79,21 +78,21 @@ const useSidebarBadges = () => {
     queryKey: ["sidebar-badges", user?.id],
     enabled: !!user,
     refetchInterval: 30_000,
-    queryFn: async () => {
-      const [unread, tasks] = await Promise.all([
-        supabase.from("conversations").select("unread_count").gt("unread_count", 0),
-        supabase.from("tasks").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      ]);
-      const inbox = (unread.data ?? []).reduce((a, c) => a + (c.unread_count ?? 0), 0);
-      return { inbox, tasks: tasks.count ?? 0 };
-    },
+    queryFn: () => api.getSidebarBadges(),
   });
 };
 
 export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClose }: Props) => {
   const { user, signOut } = useAuth();
   const { data: badges } = useSidebarBadges();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
+  }, [collapsed]);
 
   const initials = (user?.user_metadata?.display_name || user?.email || "U")
     .split(/[\s@]+/)
@@ -129,7 +128,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
 
       <aside
         className={cn(
-          "bg-card border-r border-border flex flex-col flex-shrink-0 transition-all duration-200 ease-out",
+          "bg-[#FFF6E8] border-r-2 border-[#E8B968] flex flex-col flex-shrink-0 transition-all duration-200 ease-out",
           // Desktop: sticky in flow
           "lg:h-screen lg:sticky lg:top-0 lg:relative lg:translate-x-0 lg:z-40",
           widthClass,
@@ -138,11 +137,9 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        {/* subtle top glow */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-primary/5 to-transparent" />
 
         {/* Logo header */}
-        <div className="relative h-16 px-3 border-b border-border flex items-center gap-2.5 flex-shrink-0">
+        <div className="relative h-16 px-3 border-b-2 border-[#E8B968] bg-white flex items-center gap-2.5 flex-shrink-0">
           {collapsed ? (
             <AddisonMark size={40} className="mx-auto hidden lg:block" />
           ) : (
@@ -152,7 +149,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
               <button
                 onClick={() => setCollapsed(true)}
                 className="ml-auto w-7 h-7 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground hidden lg:flex items-center justify-center transition-colors flex-shrink-0"
-                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
               >
                 <ChevronsLeft className="w-4 h-4" />
               </button>
@@ -185,7 +182,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           <button
             onClick={() => setCollapsed(false)}
             className="mt-2 mx-auto w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground hidden lg:flex items-center justify-center transition-colors flex-shrink-0"
-            title="Expand sidebar"
+            aria-label="Expand sidebar"
           >
             <ChevronsRight className="w-4 h-4" />
           </button>
@@ -193,10 +190,17 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
 
       {/* Nav */}
       <nav className="relative flex-1 overflow-y-auto py-3 px-2.5 space-y-5">
-        {groups.map((group) => (
-          <div key={group.label} className="space-y-0.5">
+        {groups.map((group) => {
+          const groupColors: Record<string, string> = {
+            Sales: "text-[#0E8A4B]",
+            Marketing: "text-[#FF6A1F]",
+            Automation: "text-[#D4308E]",
+            System: "text-[#B8651A]",
+          };
+          return (
+          <div key={group.label} className="space-y-1">
             {!collapsed && (
-              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60 px-2.5 mb-2">
+              <p className={cn("text-[10px] font-extrabold uppercase tracking-[0.2em] px-2.5 mb-2", groupColors[group.label] || "text-foreground/50")}>
                 {group.label}
               </p>
             )}
@@ -207,53 +211,50 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
                 <button
                   key={item.id}
                   onClick={() => handleNavigate(item.id)}
+                  onMouseEnter={() => prefetchPage(item.id)}
+                  onFocus={() => prefetchPage(item.id)}
                   title={collapsed ? item.label : undefined}
                   className={cn(
-                    "relative w-full h-10 rounded-xl flex items-center gap-3 px-2.5 transition-all group overflow-hidden",
+                    "relative w-full h-11 rounded-xl flex items-center gap-3 px-2.5 transition-all group overflow-hidden",
                     isActive
-                      ? "bg-gradient-to-r from-primary-soft via-primary-soft to-transparent text-primary font-semibold shadow-sm"
-                      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                    collapsed && "justify-center px-0",
-                    item.smart && !isActive && "hover:bg-gradient-to-r hover:from-primary-soft/60 hover:to-accent-soft/40"
+                      ? "bg-[#0E8A4B] text-white font-extrabold shadow-[0_3px_0_0_#073D22]"
+                      : "text-foreground/70 hover:bg-[#FFE8C7] hover:text-foreground font-semibold",
+                    collapsed && "justify-center px-0"
                   )}
                 >
                   {isActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-gradient-to-b from-primary to-primary-glow shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
-                  )}
-                  {item.smart && (
-                    <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/0 via-primary/5 to-accent/0 animate-shimmer pointer-events-none" />
+                    <span className="absolute -right-1 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rotate-45 bg-[#FFD23F] shadow" />
                   )}
                   <span className="relative">
                     <item.icon
                       className={cn(
-                        "flex-shrink-0 transition-transform group-hover:scale-105",
-                        collapsed ? "w-[18px] h-[18px]" : "w-[17px] h-[17px]",
-                        item.smart && "text-primary"
+                        "flex-shrink-0 transition-transform group-hover:scale-110",
+                        collapsed ? "w-[19px] h-[19px]" : "w-[18px] h-[18px]"
                       )}
-                      strokeWidth={isActive ? 2.4 : 2}
+                      strokeWidth={isActive ? 2.5 : 2.2}
                     />
-                    {item.smart && (
-                      <span className="absolute -inset-1 rounded-full bg-primary/20 blur-md -z-10" />
-                    )}
                     {item.live && !collapsed && (
-                      <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-success animate-pulse ring-2 ring-card" />
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#FFD23F] animate-pulse ring-2 ring-[#0E8A4B]" />
                     )}
                   </span>
                   {!collapsed && (
                     <span className="flex-1 text-left text-[13px] truncate">{item.label}</span>
                   )}
                   {item.smart && !collapsed && (
-                    <span className="text-[8px] font-bold uppercase tracking-[0.12em] bg-gradient-to-r from-primary to-accent text-primary-foreground px-1.5 py-0.5 rounded shadow-sm shadow-primary/30">
-                      Smart
+                    <span className="text-[8px] font-extrabold uppercase tracking-[0.12em] bg-[#FFD23F] text-[#7A4A00] px-1.5 py-0.5 rounded">
+                      AI
                     </span>
                   )}
                   {badgeValue && badgeValue > 0 ? (
                     collapsed ? (
-                      <span className="absolute top-1 right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-hot text-[9px] font-bold text-hot-foreground flex items-center justify-center ring-2 ring-card shadow-md shadow-hot/40">
+                      <span className="absolute top-1 right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-[#FF6A1F] text-[9px] font-extrabold text-white flex items-center justify-center ring-2 ring-[#FFF6E8] shadow-md">
                         {badgeValue > 99 ? "99+" : badgeValue}
                       </span>
                     ) : (
-                      <span className="min-w-[20px] h-[18px] px-1.5 rounded-full bg-gradient-to-br from-hot to-destructive text-[10px] font-bold text-hot-foreground flex items-center justify-center shadow-sm shadow-hot/40">
+                      <span className={cn(
+                        "min-w-[22px] h-[20px] px-1.5 rounded-full text-[10px] font-extrabold flex items-center justify-center",
+                        isActive ? "bg-[#FFD23F] text-[#7A4A00]" : "bg-[#FF6A1F] text-white"
+                      )}>
                         {badgeValue > 99 ? "99+" : badgeValue}
                       </span>
                     )
@@ -261,7 +262,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
 
                   {/* Tooltip when collapsed */}
                   {collapsed && (
-                    <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-[11px] font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
+                    <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
                       {item.label}
                     </span>
                   )}
@@ -269,31 +270,32 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
               );
             })}
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* AI status card */}
       {!collapsed ? (
-        <div className="relative mx-2.5 mb-2 p-3 rounded-xl bg-gradient-to-br from-primary-soft via-card to-accent-soft border border-primary/15 overflow-hidden">
-          <div className="absolute inset-0 animate-shimmer pointer-events-none" />
+        <div className="mx-2.5 mb-2 p-3 rounded-xl bg-gradient-to-br from-[#0A3D24] to-[#0D4E2E] border-2 border-[#FFD23F] shadow-[0_3px_0_0_#072917] relative overflow-hidden">
+          <div className="absolute -top-4 -right-4 w-12 h-12 bg-[#FFD23F]/20 rounded-full blur-xl" />
           <div className="relative flex items-center gap-2 mb-1.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center shadow-md shadow-primary/30 ring-1 ring-primary-foreground/10">
-              <Sparkles className="w-3.5 h-3.5 text-primary-foreground" />
+            <div className="w-8 h-8 rounded-xl bg-[#FFD23F] flex items-center justify-center text-[#7A4A00] shadow-md">
+              <Sparkles className="w-4 h-4" strokeWidth={2.5} />
             </div>
             <div className="flex-1">
-              <p className="text-[12px] font-bold leading-tight">Addison AI</p>
-              <p className="text-[10px] text-success font-semibold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+              <p className="text-[12px] font-extrabold leading-tight text-white">Addison AI</p>
+              <p className="text-[10px] text-[#FFD23F] font-extrabold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#16C172] animate-pulse" />
                 Online · Ready
               </p>
             </div>
           </div>
-          <p className="relative text-[10px] text-muted-foreground leading-snug">Suggesting replies in real time</p>
+          <p className="relative text-[10px] text-white/80 leading-snug font-medium">Hindi mein replies suggest kar raha hai</p>
         </div>
       ) : (
         <div className="mb-2 mx-auto group relative">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-soft to-accent-soft border border-primary/15 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-primary" />
+          <div className="w-9 h-9 rounded-xl bg-[#0A3D24] border-2 border-[#FFD23F] flex items-center justify-center shadow-md">
+            <Sparkles className="w-4 h-4 text-[#FFD23F]" />
           </div>
         </div>
       )}
@@ -304,25 +306,25 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
       </div>
 
       {/* User menu */}
-      <div className="p-2.5 border-t border-border">
+      <div className="p-2.5 border-t-2 border-[#E8B968] bg-white">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               className={cn(
-                "w-full rounded-xl hover:bg-muted transition-all flex items-center gap-2.5 p-1.5",
+                "w-full rounded-xl hover:bg-[#FFE8C7] transition-all flex items-center gap-2.5 p-1.5",
                 collapsed ? "justify-center" : ""
               )}
             >
               <div className="relative flex-shrink-0">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary-glow text-primary-foreground text-[12px] font-bold flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FF6A1F] to-[#D4308E] text-white text-[12px] font-extrabold flex items-center justify-center shadow-md">
                   {initials || "U"}
                 </div>
-                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-success rounded-full border-2 border-card" />
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#16C172] rounded-full border-2 border-white" />
               </div>
               {!collapsed && (
                 <div className="flex-1 min-w-0 text-left">
-                  <p className="text-[12px] font-bold truncate leading-tight">{displayName}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+                  <p className="text-[12px] font-extrabold truncate leading-tight">{displayName}</p>
+                  <p className="text-[10px] text-foreground/60 truncate font-medium">{user?.email}</p>
                 </div>
               )}
             </button>

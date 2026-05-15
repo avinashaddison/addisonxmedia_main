@@ -1,14 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import { api } from "@/lib/api";
+import type { Campaign, Broadcast, Task, Deal, Contact } from "@/lib/api-types";
 import { toast } from "sonner";
 
-export type Campaign = Tables<"campaigns">;
-export type Broadcast = Tables<"broadcasts">;
-export type Task = Tables<"tasks">;
-export type Deal = Tables<"deals">;
-export type DealWithContact = Deal & { contact?: Tables<"contacts"> | null };
+export type { Campaign, Broadcast, Task, Deal };
+export type DealWithContact = Deal & { contact?: Contact | null };
 
 // ---------------- CAMPAIGNS ----------------
 export const useCampaigns = () => {
@@ -16,14 +13,7 @@ export const useCampaigns = () => {
   return useQuery({
     queryKey: ["campaigns", user?.id],
     enabled: !!user,
-    queryFn: async (): Promise<Campaign[]> => {
-      const { data, error } = await supabase
-        .from("campaigns")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => api.listCampaigns() as Promise<Campaign[]>,
   });
 };
 
@@ -31,16 +21,7 @@ export const useCreateCampaign = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (input: Omit<TablesInsert<"campaigns">, "owner_id">) => {
-      if (!user) throw new Error("Not signed in");
-      const { data, error } = await supabase
-        .from("campaigns")
-        .insert({ ...input, owner_id: user.id })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: (input: Partial<Campaign>) => api.createCampaign(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["campaigns", user?.id] });
       toast.success("Campaign created");
@@ -53,11 +34,8 @@ export const useUpdateCampaign = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async ({ id, ...patch }: TablesUpdate<"campaigns"> & { id: string }) => {
-      const { data, error } = await supabase.from("campaigns").update(patch).eq("id", id).select().single();
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: ({ id, ...patch }: Partial<Campaign> & { id: string }) =>
+      api.updateCampaign(id, patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["campaigns", user?.id] }),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
@@ -67,10 +45,7 @@ export const useDeleteCampaign = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("campaigns").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => api.deleteCampaign(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["campaigns", user?.id] });
       toast.success("Campaign deleted");
@@ -84,14 +59,7 @@ export const useBroadcasts = () => {
   return useQuery({
     queryKey: ["broadcasts", user?.id],
     enabled: !!user,
-    queryFn: async (): Promise<Broadcast[]> => {
-      const { data, error } = await supabase
-        .from("broadcasts")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => api.listBroadcasts() as Promise<Broadcast[]>,
   });
 };
 
@@ -99,16 +67,7 @@ export const useCreateBroadcast = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (input: Omit<TablesInsert<"broadcasts">, "owner_id">) => {
-      if (!user) throw new Error("Not signed in");
-      const { data, error } = await supabase
-        .from("broadcasts")
-        .insert({ ...input, owner_id: user.id })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: (input: Partial<Broadcast>) => api.createBroadcast(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["broadcasts", user?.id] });
       toast.success("Broadcast saved");
@@ -117,18 +76,45 @@ export const useCreateBroadcast = () => {
   });
 };
 
+export const useUpdateBroadcast = () => {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: Partial<Broadcast> & { id: string }) =>
+      api.updateBroadcast(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["broadcasts", user?.id] }),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+};
+
 export const useDeleteBroadcast = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("broadcasts").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => api.deleteBroadcast(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["broadcasts", user?.id] });
       toast.success("Broadcast deleted");
     },
+  });
+};
+
+export const useSendBroadcast = () => {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: (id: string) => api.sendBroadcast(id),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["broadcasts", user?.id] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      qc.invalidateQueries({ queryKey: ["dashboard", user?.id] });
+      if (res.failed === 0) {
+        toast.success(`Sent to ${res.sent} contact${res.sent !== 1 ? "s" : ""}`);
+      } else {
+        toast.warning(`Sent ${res.sent}/${res.total}, ${res.failed} failed — check Meta logs`);
+      }
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Send failed"),
   });
 };
 
@@ -138,15 +124,7 @@ export const useTasks = () => {
   return useQuery({
     queryKey: ["tasks", user?.id],
     enabled: !!user,
-    queryFn: async (): Promise<(Task & { contact?: Tables<"contacts"> | null })[]> => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*, contact:contacts(*)")
-        .order("due_at", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as (Task & { contact?: Tables<"contacts"> | null })[];
-    },
+    queryFn: () => api.listTasks() as Promise<(Task & { contact?: Contact | null })[]>,
   });
 };
 
@@ -154,16 +132,7 @@ export const useCreateTask = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (input: Omit<TablesInsert<"tasks">, "owner_id">) => {
-      if (!user) throw new Error("Not signed in");
-      const { data, error } = await supabase
-        .from("tasks")
-        .insert({ ...input, owner_id: user.id })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: (input: Partial<Task>) => api.createTask(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks", user?.id] });
       toast.success("Follow-up added");
@@ -176,11 +145,8 @@ export const useUpdateTask = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async ({ id, ...patch }: TablesUpdate<"tasks"> & { id: string }) => {
-      const { data, error } = await supabase.from("tasks").update(patch).eq("id", id).select().single();
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: ({ id, ...patch }: Partial<Task> & { id: string }) =>
+      api.updateTask(id, patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks", user?.id] }),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
@@ -190,10 +156,7 @@ export const useDeleteTask = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("tasks").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => api.deleteTask(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks", user?.id] });
       toast.success("Follow-up removed");
@@ -208,12 +171,10 @@ export const useContactsLookup = () => {
     queryKey: ["contacts-lookup", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("id, name, phone, tag")
-        .order("name");
-      if (error) throw error;
-      return data ?? [];
+      const all = (await api.listContacts()) as Contact[];
+      return all
+        .map((c) => ({ id: c.id, name: c.name, phone: c.phone, tag: c.tag }))
+        .sort((a, b) => a.name.localeCompare(b.name));
     },
   });
 };
@@ -224,14 +185,7 @@ export const useDeals = () => {
   return useQuery({
     queryKey: ["deals", user?.id],
     enabled: !!user,
-    queryFn: async (): Promise<DealWithContact[]> => {
-      const { data, error } = await supabase
-        .from("deals")
-        .select("*, contact:contacts(*)")
-        .order("updated_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as DealWithContact[];
-    },
+    queryFn: () => api.listDeals() as Promise<DealWithContact[]>,
   });
 };
 
@@ -239,16 +193,7 @@ export const useCreateDeal = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (input: Omit<TablesInsert<"deals">, "owner_id">) => {
-      if (!user) throw new Error("Not signed in");
-      const { data, error } = await supabase
-        .from("deals")
-        .insert({ ...input, owner_id: user.id })
-        .select("*, contact:contacts(*)")
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: (input: Partial<Deal>) => api.createDeal(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["deals", user?.id] });
       toast.success("Deal added to pipeline");
@@ -261,16 +206,8 @@ export const useUpdateDeal = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async ({ id, ...patch }: TablesUpdate<"deals"> & { id: string }) => {
-      const { data, error } = await supabase
-        .from("deals")
-        .update(patch)
-        .eq("id", id)
-        .select("*, contact:contacts(*)")
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: ({ id, ...patch }: Partial<Deal> & { id: string }) =>
+      api.updateDeal(id, patch),
     onMutate: async ({ id, ...patch }) => {
       const key = ["deals", user?.id];
       await qc.cancelQueries({ queryKey: key });
@@ -278,7 +215,7 @@ export const useUpdateDeal = () => {
       if (prev) {
         qc.setQueryData<DealWithContact[]>(
           key,
-          prev.map((d) => (d.id === id ? { ...d, ...patch } as DealWithContact : d))
+          prev.map((d) => (d.id === id ? ({ ...d, ...patch } as DealWithContact) : d))
         );
       }
       return { prev };
@@ -295,10 +232,7 @@ export const useDeleteDeal = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("deals").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => api.deleteDeal(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["deals", user?.id] });
       toast.success("Deal removed");

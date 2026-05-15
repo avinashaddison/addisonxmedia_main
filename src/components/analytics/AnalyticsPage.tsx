@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useCampaigns, useDeals } from "@/hooks/useCrmData";
 import { Card } from "@/components/ui/card";
@@ -82,24 +82,14 @@ const useAnalyticsData = (range: Range) => {
       const prevSince = new Date();
       prevSince.setDate(prevSince.getDate() - days * 2);
 
-      const [contacts, conversations, messages, deals, campaigns, broadcasts] = await Promise.all([
-        supabase.from("contacts").select("id, tag, source, created_at"),
-        supabase.from("conversations").select("id, created_at"),
-        supabase
-          .from("messages")
-          .select("id, direction, created_at, is_ai_generated, conversation_id"),
-        supabase.from("deals").select("id, value, stage, created_at, closed_at, updated_at"),
-        supabase.from("campaigns").select("*"),
-        supabase.from("broadcasts").select("*"),
-      ]);
-
+      const data = await api.getAnalytics();
       return {
-        contacts: contacts.data ?? [],
-        conversations: conversations.data ?? [],
-        messages: messages.data ?? [],
-        deals: deals.data ?? [],
-        campaigns: campaigns.data ?? [],
-        broadcasts: broadcasts.data ?? [],
+        contacts: data.contacts ?? [],
+        conversations: data.conversations ?? [],
+        messages: data.messages ?? [],
+        deals: data.deals ?? [],
+        campaigns: data.campaigns ?? [],
+        broadcasts: data.broadcasts ?? [],
         since,
         prevSince,
       };
@@ -505,22 +495,22 @@ export const AnalyticsPage = () => {
     data.deals.length === 0;
 
   return (
-    <main className="flex-1 min-h-0 overflow-y-auto bg-gradient-to-br from-background via-background to-muted/20">
+    <main className="flex-1 min-h-0 overflow-y-auto bg-[#FFF6E8]">
       {/* Header */}
-      <header className="sticky top-0 z-20 backdrop-blur-xl bg-background/80 border-b border-border">
+      <header className="sticky top-0 z-20 backdrop-blur-xl bg-[#FFF6E8]/95 border-b-2 border-[#E8B968]">
         <div className="px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center shadow-md shadow-primary/30">
-                <BarChart3 className="w-3.5 h-3.5 text-primary-foreground" />
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] flex items-center justify-center shadow-md text-white">
+                <BarChart3 className="w-5 h-5" strokeWidth={2.5} />
               </div>
-              <h1 className="text-xl font-bold tracking-tight">Analytics & Insights</h1>
-              <Badge variant="secondary" className="ml-1 text-[10px] font-semibold">
-                LIVE
-              </Badge>
+              <h1 className="text-[22px] font-black tracking-tight">Analytics & Insights</h1>
+              <span className="ml-1 px-2 py-0.5 rounded-full bg-[#FFD23F] text-[#7A4A00] text-[10px] font-extrabold uppercase tracking-wider">
+                Live
+              </span>
             </div>
-            <p className="text-[12px] text-muted-foreground">
-              Revenue, conversions and what to do next — powered by Addison AI
+            <p className="text-[12px] text-foreground/70 font-medium">
+              Revenue · conversions · next steps — Addison AI ke saath
             </p>
           </div>
 
@@ -541,13 +531,30 @@ export const AnalyticsPage = () => {
                 </button>
               ))}
             </div>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5">
-              <Filter className="w-3.5 h-3.5" /> Filters
-            </Button>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5">
-              <Calendar className="w-3.5 h-3.5" /> Custom
-            </Button>
-            <Button size="sm" className="h-8 gap-1.5 bg-gradient-to-r from-primary to-primary-glow shadow-md shadow-primary/30">
+            <Button
+              size="sm"
+              className="h-8 gap-1.5 bg-gradient-to-r from-primary to-primary-glow shadow-md shadow-primary/30"
+              onClick={() => {
+                if (!data) return;
+                const rows = [
+                  ["Metric", "Value"],
+                  ["Range", range],
+                  ["Contacts", String(data.contacts?.length ?? 0)],
+                  ["Conversations", String(data.conversations?.length ?? 0)],
+                  ["Messages", String(data.messages?.length ?? 0)],
+                  ["Deals", String(data.deals?.length ?? 0)],
+                  ["Campaigns", String(data.campaigns?.length ?? 0)],
+                  ["Broadcasts", String(data.broadcasts?.length ?? 0)],
+                ];
+                const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = `analytics-${range}-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
               <Download className="w-3.5 h-3.5" /> Export
             </Button>
           </div>

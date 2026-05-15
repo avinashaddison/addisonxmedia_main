@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CheckCircle2, Plug, Plus, Settings, ExternalLink, MessageCircle, IndianRupee, Mail, Webhook, Zap, Globe, BarChart3 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 type Status = "connected" | "available" | "coming_soon";
 
@@ -20,28 +22,17 @@ type Integration = {
   enabled?: boolean;
 };
 
+// Static catalog — Meta status is overridden at runtime from /api/integrations/meta.
 const INTEGRATIONS: Integration[] = [
-  {
-    id: "twilio",
-    name: "WhatsApp via Twilio",
-    category: "Messaging",
-    description: "Send & receive WhatsApp messages with Twilio's official API.",
-    icon: MessageCircle,
-    iconBg: "bg-success",
-    status: "connected",
-    connectedAccount: "AC9d…f12 · +91 81234 56780",
-    features: ["2-way messaging", "Media support", "Delivery receipts"],
-    enabled: true,
-  },
   {
     id: "meta",
     name: "WhatsApp via Meta",
     category: "Messaging",
-    description: "Direct connection to WhatsApp Business Platform from Meta.",
+    description: "Direct connection to WhatsApp Business Platform from Meta. Configure in Settings → Integrations.",
     icon: MessageCircle,
     iconBg: "bg-[#25D366]",
     status: "available",
-    features: ["Lower cost per message", "Native templates", "Higher trust score"],
+    features: ["Send & receive messages", "Native templates", "Webhook for inbound", "Pay-in-chat ready"],
   },
   {
     id: "razorpay",
@@ -50,10 +41,8 @@ const INTEGRATIONS: Integration[] = [
     description: "Accept INR payments via UPI, cards & netbanking.",
     icon: IndianRupee,
     iconBg: "bg-[#3395FF]",
-    status: "connected",
-    connectedAccount: "rzp_live_4Xj…aQ",
+    status: "coming_soon",
     features: ["UPI / Cards / Netbanking", "Auto-reconcile", "Refunds"],
-    enabled: true,
   },
   {
     id: "stripe",
@@ -62,20 +51,18 @@ const INTEGRATIONS: Integration[] = [
     description: "Charge customers globally in 135+ currencies.",
     icon: IndianRupee,
     iconBg: "bg-[#635BFF]",
-    status: "available",
+    status: "coming_soon",
     features: ["Global checkout", "Subscriptions", "Smart routing"],
   },
   {
     id: "resend",
     name: "Resend (Email)",
     category: "Email",
-    description: "Transactional & marketing email with domain auth.",
+    description: "Transactional emails for password reset, follow-ups & receipts.",
     icon: Mail,
     iconBg: "bg-foreground",
-    status: "connected",
-    connectedAccount: "noreply@addisonx.media",
+    status: "coming_soon",
     features: ["DKIM/SPF", "Templates", "Webhooks"],
-    enabled: true,
   },
   {
     id: "gmail",
@@ -84,7 +71,7 @@ const INTEGRATIONS: Integration[] = [
     description: "Sync conversations to & from your Gmail inbox.",
     icon: Mail,
     iconBg: "bg-[#EA4335]",
-    status: "available",
+    status: "coming_soon",
     features: ["Inbox sync", "Send as", "Auto-threading"],
   },
   {
@@ -94,7 +81,7 @@ const INTEGRATIONS: Integration[] = [
     description: "Connect AddisonX to 6000+ apps without code.",
     icon: Zap,
     iconBg: "bg-[#FF4F00]",
-    status: "available",
+    status: "coming_soon",
     features: ["Triggers & actions", "Multi-step zaps", "Webhooks"],
   },
   {
@@ -140,19 +127,31 @@ const STATUS_BADGE: Record<Status, { label: string; className: string }> = {
 };
 
 export const IntegrationsPage = () => {
-  const [items, setItems] = useState<Integration[]>(INTEGRATIONS);
   const [active, setActive] = useState<(typeof CATEGORIES)[number]>("All");
+
+  // Real-time Meta status from server. Other catalog items are static.
+  const { data: metaCfg } = useQuery({
+    queryKey: ["meta-config"],
+    queryFn: () => api.getMetaConfig(),
+  });
+
+  // Merge live Meta status into the static catalog so the UI shows truth.
+  const items = useMemo<Integration[]>(() => {
+    return INTEGRATIONS.map((i) => {
+      if (i.id === "meta" && metaCfg) {
+        return {
+          ...i,
+          status: metaCfg.enabled ? "connected" : "available",
+          connectedAccount: metaCfg.display_phone_number ?? undefined,
+          enabled: metaCfg.enabled,
+        };
+      }
+      return i;
+    });
+  }, [metaCfg]);
 
   const filtered = active === "All" ? items : items.filter((i) => i.category === active);
   const connectedCount = items.filter((i) => i.status === "connected").length;
-
-  const toggle = (id: string) => {
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, enabled: !i.enabled } : i))
-    );
-    const it = items.find((i) => i.id === id);
-    toast.success(`${it?.name} ${it?.enabled ? "paused" : "resumed"}`);
-  };
 
   const connect = (id: string) => {
     const it = items.find((i) => i.id === id);
@@ -160,19 +159,29 @@ export const IntegrationsPage = () => {
       toast.info("This integration is launching soon — we'll notify you");
       return;
     }
-    toast.success(`Opening ${it?.name} setup wizard…`);
+    if (it?.id === "meta") {
+      // Direct user to settings → integrations where the form lives
+      window.location.href = "/app/settings";
+      return;
+    }
+    toast.info(`${it?.name} setup not yet wired — check Settings → Integrations`);
   };
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto bg-muted/20">
+    <div className="flex-1 min-h-0 overflow-y-auto bg-[#FFF6E8]">
       <div className="max-w-[1400px] mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[26px] font-bold tracking-tight">Integrations</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Connect AddisonX to the tools that power your business
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] text-white flex items-center justify-center shadow-md">
+              <Plug className="w-6 h-6" strokeWidth={2.5} />
+            </div>
+            <div>
+              <h1 className="text-[26px] font-black tracking-tight">Integrations</h1>
+              <p className="text-[12px] text-foreground/70 mt-0.5 font-medium">
+                AddisonX ko aapke business tools se connect karein
+              </p>
+            </div>
           </div>
           <Button variant="outline" className="gap-2">
             <Plug className="w-4 h-4" />
@@ -181,13 +190,13 @@ export const IntegrationsPage = () => {
         </div>
 
         {/* Hero strip */}
-        <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary-soft via-card to-accent-soft p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary-glow text-primary-foreground flex items-center justify-center shadow-md">
-            <Plug className="w-6 h-6" />
+        <div className="rounded-2xl border-2 border-[#0E8A4B] bg-white p-5 flex items-center gap-4 shadow-[0_4px_0_0_#0A6E3C]">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#0E8A4B] to-[#16C172] text-white flex items-center justify-center shadow-md">
+            <Plug className="w-6 h-6" strokeWidth={2.5} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-bold">{connectedCount} integrations active</p>
-            <p className="text-sm text-muted-foreground">All systems operational · last sync just now</p>
+            <p className="font-black text-lg"><span className="text-[#0E8A4B]">{connectedCount}</span> integrations active</p>
+            <p className="text-[12px] text-foreground/70 font-medium">Sab systems running · last sync abhi-abhi</p>
           </div>
           <div className="flex items-center gap-2 text-success text-sm font-semibold">
             <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
@@ -262,21 +271,13 @@ export const IntegrationsPage = () => {
 
                 <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/60">
                   {i.status === "connected" ? (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <Switch checked={i.enabled} onCheckedChange={() => toggle(i.id)} />
-                        <span className="text-[11px] text-muted-foreground font-medium">
-                          {i.enabled ? "Enabled" : "Paused"}
-                        </span>
-                      </div>
-                      <Button size="sm" variant="ghost" className="h-8 gap-1.5">
-                        <Settings className="w-3.5 h-3.5" />
-                        Configure
-                      </Button>
-                    </>
+                    <Button size="sm" variant="outline" className="w-full gap-1.5" onClick={() => connect(i.id)}>
+                      <Settings className="w-3.5 h-3.5" />
+                      Manage in Settings
+                    </Button>
                   ) : i.status === "coming_soon" ? (
                     <Button size="sm" variant="outline" className="w-full" disabled>
-                      Notify me
+                      Coming soon
                     </Button>
                   ) : (
                     <Button size="sm" className="w-full gap-1.5" onClick={() => connect(i.id)}>

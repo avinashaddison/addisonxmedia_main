@@ -1,420 +1,383 @@
 import { useEffect, useState } from "react";
 import {
-  Phone, Mail, Tag, Sparkles, Globe, StickyNote, UserPlus,
-  CheckCircle2, X, Flame, Zap, Send, CreditCard, Clock, TrendingUp,
-  AlertTriangle, Timer,
+  Phone, Mail, Tag, StickyNote, X, Flame, Snowflake, CircleDot,
+  Save, Trophy, Plus, Loader2, Globe, Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Contact, initialsFor } from "@/lib/inbox-types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Contact, initialsFor, formatRelative } from "@/lib/inbox-types";
+import type { Deal, Task } from "@/lib/api-types";
 import { toast } from "sonner";
-import { ActivityTimeline, type TimelineEvent } from "@/components/global/ActivityTimeline";
-import { NextBestAction, type NBAItem } from "@/components/global/NextBestAction";
+import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Props = {
   contact: Contact;
   onClose?: () => void;
 };
 
-const tagConfig: Record<Contact["tag"], { label: string; emoji: string; class: string }> = {
-  hot: { label: "Hot Lead", emoji: "🔥", class: "bg-hot text-hot-foreground" },
-  warm: { label: "Warm Lead", emoji: "🟡", class: "bg-warning text-warning-foreground" },
-  cold: { label: "Cold Lead", emoji: "❄️", class: "bg-accent text-accent-foreground" },
-};
-
-const aiReasons: Record<Contact["tag"], string[]> = {
-  hot: ["High purchase intent detected", "Asked about pricing 3x", "Response time: 45 sec avg"],
-  warm: ["Showed interest in features", "Engaged with last 3 messages", "Needs nurture touchpoint"],
-  cold: ["Low engagement detected", "Hasn't replied in 24h+", "Try re-engagement campaign"],
-};
-
-const aiVerdict: Record<Contact["tag"], { label: string; sub: string; class: string; icon: typeof Flame; alert?: string }> = {
-  hot: { label: "CLOSE NOW", sub: "Lead is ready to buy", class: "from-hot to-[hsl(15_90%_55%)]", icon: Flame, alert: "Respond within 2 min to close" },
-  warm: { label: "NURTURE", sub: "Needs one more push", class: "from-warning to-[hsl(28_92%_55%)]", icon: TrendingUp, alert: "Send proof in next 30 min" },
-  cold: { label: "RE-ENGAGE", sub: "Try a different angle", class: "from-accent to-[hsl(217_91%_50%)]", icon: Zap },
-};
-
-const formatCurrency = (n: number) =>
+const formatINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
-// Smooth animated count-up hook
-const useCount = (target: number, duration = 900) => {
-  const [val, setVal] = useState(0);
-  useEffect(() => {
-    let raf: number;
-    const start = performance.now();
-    const step = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setVal(Math.round(target * eased));
-      if (t < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-  return val;
-};
-
 export const LeadPanel = ({ contact, onClose }: Props) => {
-  const tag = tagConfig[contact.tag];
-  const reasons = aiReasons[contact.tag];
-  const verdict = aiVerdict[contact.tag];
-  const VerdictIcon = verdict.icon;
-  const conversionPct = Math.min(contact.score, 99);
-  const animatedScore = useCount(contact.score);
-  const animatedValue = useCount(Math.round(2000 + contact.score * 100));
-
-  const scoreColor = contact.score >= 80 ? "text-hot" : contact.score >= 60 ? "text-warning" : "text-muted-foreground";
-  const scoreBgClass = contact.score >= 80
-    ? "from-hot to-warning"
-    : contact.score >= 60
-      ? "from-warning to-primary"
-      : "from-muted-foreground to-accent";
+  const qc = useQueryClient();
+  const { user } = useAuth();
   const initials = initialsFor(contact.name);
 
-  // Follow-up timer
-  const [followupSeconds, setFollowupSeconds] = useState(600); // 10 min default
-  useEffect(() => {
-    setFollowupSeconds(contact.tag === "hot" ? 120 : contact.tag === "warm" ? 600 : 1800);
-  }, [contact.id, contact.tag]);
-  useEffect(() => {
-    if (followupSeconds <= 0) return;
-    const t = setInterval(() => setFollowupSeconds((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(t);
-  }, [followupSeconds]);
+  // Editable fields — start from server state, persist on save
+  const [tag, setTag] = useState<Contact["tag"]>(contact.tag);
+  const [score, setScore] = useState(contact.score);
+  const [notes, setNotes] = useState(contact.notes ?? "");
+  const [saving, setSaving] = useState(false);
 
-  const fmtTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, "0")}`;
+  // Reset editor state when switching contacts
+  useEffect(() => {
+    setTag(contact.tag);
+    setScore(contact.score);
+    setNotes(contact.notes ?? "");
+  }, [contact.id, contact.tag, contact.score, contact.notes]);
+
+  const dirty = tag !== contact.tag || score !== contact.score || (notes ?? "") !== (contact.notes ?? "");
+
+  // Real deals + tasks for this specific contact
+  const { data: allDeals = [] } = useQuery({
+    queryKey: ["deals", user?.id],
+    enabled: !!user,
+    queryFn: () => api.listDeals() as Promise<Deal[]>,
+  });
+  const { data: allTasks = [] } = useQuery({
+    queryKey: ["tasks", user?.id],
+    enabled: !!user,
+    queryFn: () => api.listTasks() as Promise<(Task & { contact?: Contact | null })[]>,
+  });
+  const contactDeals = allDeals.filter((d) => d.contact_id === contact.id);
+  const contactTasks = allTasks.filter((t) => t.contact_id === contact.id);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.updateContact(contact.id, {
+        tag,
+        score,
+        notes: notes.trim() || null,
+      });
+      toast.success("Lead updated");
+      // Invalidate both contacts (for the inbox list) and conversations (for the joined contact)
+      qc.invalidateQueries({ queryKey: ["contacts-page"] });
+      qc.invalidateQueries({ queryKey: ["contacts-lookup"] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskSaving, setTaskSaving] = useState(false);
+
+  const handleAddTask = () => {
+    setTaskTitle("");
+    setTaskOpen(true);
+  };
+
+  const submitTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const title = taskTitle.trim();
+    if (!title) { toast.error("Task likhna zaroori hai"); return; }
+    setTaskSaving(true);
+    try {
+      await api.createTask({
+        contact_id: contact.id,
+        title,
+        priority: tag === "hot" ? "high" : "medium",
+        status: "pending",
+        due_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+      });
+      toast.success("Follow-up added");
+      qc.invalidateQueries({ queryKey: ["tasks", user?.id] });
+      setTaskOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setTaskSaving(false);
+    }
   };
 
   return (
-    <div className="w-[340px] h-full bg-card border-l border-border flex flex-col flex-shrink-0 overflow-hidden relative">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-accent/5 to-transparent" />
-
+    <div className="w-[340px] h-full bg-white border-l-2 border-[#E8B968] flex flex-col flex-shrink-0 overflow-hidden">
       {/* Header */}
-      <div className="relative h-16 flex items-center justify-between px-4 border-b border-border flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <h3 className="text-[13px] font-bold">Sales Intelligence</h3>
-          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-success-soft">
-            <span className="relative flex w-1.5 h-1.5">
-              <span className="absolute inset-0 rounded-full bg-success animate-ping opacity-75" />
-              <span className="relative inline-flex rounded-full w-1.5 h-1.5 bg-success" />
-            </span>
-            <span className="text-[9px] font-bold text-success uppercase">Live</span>
-          </div>
-        </div>
+      <div className="h-16 flex items-center justify-between px-4 border-b-2 border-[#E8B968] bg-[#FFF6E8] flex-shrink-0">
+        <h3 className="text-[14px] font-black tracking-tight">Lead ki details</h3>
         {onClose && (
-          <button onClick={onClose} className="w-7 h-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors lg:hidden">
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-[#FFE8C7] flex items-center justify-center text-foreground/60 hover:text-foreground transition lg:hidden"
+            aria-label="Close panel"
+          >
             <X className="w-4 h-4" />
           </button>
         )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Profile + quick action icons */}
-        <div className="p-4 pb-3">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="relative">
-              <div className={cn(
-                "w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0",
-                contact.tag === "hot" ? "bg-hot-soft text-hot" : contact.tag === "warm" ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground"
-              )}>
-                {initials}
-              </div>
-              {contact.tag === "hot" && (
-                <span className="absolute inset-0 rounded-full ring-2 ring-hot animate-hot-pulse" />
-              )}
+        {/* Profile + contact info */}
+        <div className="p-4">
+          <div className="flex items-center gap-3 mb-4">
+            <div className={cn(
+              "w-14 h-14 rounded-full flex items-center justify-center text-sm font-extrabold flex-shrink-0 text-white shadow-md",
+              contact.tag === "hot" ? "bg-[#D4308E]" :
+              contact.tag === "warm" ? "bg-[#FF6A1F]" :
+              "bg-[#3C50E0]"
+            )}>
+              {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <h4 className="text-[14px] font-bold truncate">{contact.name}</h4>
-              <p className="text-[11px] text-muted-foreground font-mono truncate">{contact.phone}</p>
-              <span className={cn("inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-1", tag.class)}>
-                {tag.emoji} {tag.label.split(" ")[0]}
-                {contact.tag === "hot" && <span className="w-1 h-1 rounded-full bg-hot-foreground animate-pulse" />}
+              <h4 className="text-[15px] font-black truncate">{contact.name}</h4>
+              <p className="text-[11px] text-foreground/60 font-mono truncate font-medium">{contact.phone}</p>
+              <p className="text-[10px] text-foreground/50 mt-0.5 font-medium">
+                Added {formatRelative(contact.created_at)}
+              </p>
+            </div>
+          </div>
+
+          {/* Editable: temperature tag */}
+          <div className="mb-3">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#B8651A] mb-1.5">Temperature</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(["hot", "warm", "cold"] as const).map((t) => {
+                const active = tag === t;
+                const Icon = t === "hot" ? Flame : t === "warm" ? CircleDot : Snowflake;
+                const colors = {
+                  hot: { active: "bg-[#D4308E] text-white shadow-[0_2px_0_0_#A11A6A]", inactive: "bg-[#FCE5F0] text-[#D4308E] border-[#D4308E]/30" },
+                  warm: { active: "bg-[#FF6A1F] text-white shadow-[0_2px_0_0_#B8420A]", inactive: "bg-[#FFEFE0] text-[#FF6A1F] border-[#FF6A1F]/30" },
+                  cold: { active: "bg-[#3C50E0] text-white shadow-[0_2px_0_0_#2533A8]", inactive: "bg-[#E4E8FF] text-[#3C50E0] border-[#3C50E0]/30" },
+                }[t];
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setTag(t)}
+                    className={cn(
+                      "h-9 rounded-xl flex items-center justify-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider transition-all border-2",
+                      active ? `${colors.active} border-transparent` : `${colors.inactive} hover:scale-105`
+                    )}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Editable: score */}
+          <div className="mb-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Lead score</p>
+              <span className={cn(
+                "text-[12px] font-bold tabular-nums",
+                score >= 80 ? "text-hot" : score >= 50 ? "text-warning" : "text-muted-foreground"
+              )}>
+                {score}/100
               </span>
             </div>
-          </div>
-
-          {/* Quick contact icons */}
-          <div className="grid grid-cols-3 gap-1.5">
-            <button onClick={() => toast.success(`Calling ${contact.name}…`)} className="h-9 rounded-lg bg-muted hover:bg-success hover:text-success-foreground transition-all flex items-center justify-center gap-1.5 text-[11px] font-semibold group">
-              <Phone className="w-3.5 h-3.5 text-success group-hover:text-success-foreground" />
-              Call
-            </button>
-            <button onClick={() => toast(`WhatsApp ${contact.name}`)} className="h-9 rounded-lg bg-muted hover:bg-primary hover:text-primary-foreground transition-all flex items-center justify-center gap-1.5 text-[11px] font-semibold group">
-              <Send className="w-3.5 h-3.5 text-primary group-hover:text-primary-foreground" />
-              WA
-            </button>
-            <button onClick={() => toast(`Email ${contact.email ?? contact.name}`)} className="h-9 rounded-lg bg-muted hover:bg-accent hover:text-accent-foreground transition-all flex items-center justify-center gap-1.5 text-[11px] font-semibold group">
-              <Mail className="w-3.5 h-3.5 text-accent group-hover:text-accent-foreground" />
-              Mail
-            </button>
-          </div>
-        </div>
-
-        {/* Follow-up timer */}
-        {followupSeconds > 0 && (
-          <div className="mx-4 mb-3 rounded-xl border border-border bg-card p-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center",
-                contact.tag === "hot" ? "bg-hot-soft text-hot" : "bg-primary-soft text-primary"
-              )}>
-                <Timer className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Follow-up in</div>
-                <div className={cn(
-                  "text-[15px] font-bold tabular-nums",
-                  contact.tag === "hot" ? "text-hot" : "text-foreground"
-                )}>{fmtTime(followupSeconds)}</div>
-              </div>
-            </div>
-            <button
-              onClick={() => toast.success("Follow-up sent")}
-              className="text-[10px] font-bold uppercase tracking-wider text-primary hover:text-primary-glow"
-            >
-              Send now
-            </button>
-          </div>
-        )}
-
-        {/* Deal value */}
-        <div className="mx-4 mb-3 rounded-xl overflow-hidden gradient-border p-4 relative">
-          <div className="absolute top-2 right-2 text-[9px] font-bold text-primary uppercase tracking-wider bg-primary-soft px-1.5 py-0.5 rounded">
-            Estimated
-          </div>
-          <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Deal Value</p>
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-3xl font-bold tracking-tight text-foreground tabular-nums">{formatCurrency(animatedValue)}</span>
-          </div>
-          <div className="flex items-center justify-between text-[10px] mb-1">
-            <span className="text-muted-foreground">Closing probability</span>
-            <span className="font-bold text-primary tabular-nums">{conversionPct}%</span>
-          </div>
-          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-primary to-success rounded-full transition-all duration-1000" style={{ width: `${conversionPct}%` }} />
-          </div>
-          <div className="flex items-center justify-between text-[10px] mt-2 pt-2 border-t border-border/60">
-            <span className="text-muted-foreground">Expected close</span>
-            <span className="font-semibold text-foreground">
-              {contact.tag === "hot" ? "Today · 6pm" : contact.tag === "warm" ? "This week" : "Next month"}
-            </span>
-          </div>
-        </div>
-
-        {/* AI verdict — Addison AI block */}
-        <div className="mx-4 mb-3">
-          <div className={cn(
-            "rounded-xl p-3.5 bg-gradient-to-br text-white relative overflow-hidden",
-            verdict.class,
-            contact.tag === "hot" && "shadow-lg shadow-hot/30"
-          )}>
-            {/* Urgency alert */}
-            {verdict.alert && (
-              <div className={cn(
-                "absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/20 backdrop-blur",
-                contact.tag === "hot" && "animate-urgency-shake"
-              )}>
-                <AlertTriangle className="w-2.5 h-2.5" />
-                <span className="text-[9px] font-bold uppercase">Urgent</span>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="text-[10px] font-bold uppercase tracking-wider opacity-90">Addison AI says</span>
-            </div>
-            <div className="flex items-center gap-2 mb-2">
-              <VerdictIcon className="w-6 h-6" />
-              <div>
-                <div className="text-xl font-extrabold tracking-tight leading-none">{verdict.label}</div>
-                <div className="text-[11px] opacity-90 mt-0.5">{verdict.sub}</div>
-              </div>
-            </div>
-
-            {verdict.alert && (
-              <div className="bg-white/15 backdrop-blur rounded-md px-2 py-1.5 mt-2 flex items-center gap-1.5">
-                <Zap className="w-3 h-3" />
-                <span className="text-[10px] font-bold">{verdict.alert}</span>
-              </div>
-            )}
-
-            <div className="space-y-1 mt-3 pt-3 border-t border-white/20">
-              {reasons.map((r, i) => (
-                <div key={i} className="flex items-start gap-1.5">
-                  <CheckCircle2 className="w-3 h-3 mt-0.5 flex-shrink-0 opacity-90" />
-                  <p className="text-[11px] opacity-95 leading-relaxed">{r}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* BIG conversion buttons */}
-            <div className="grid grid-cols-3 gap-1.5 mt-3">
-              <button onClick={() => toast.success("Offer sent!")} className="bg-white/20 hover:bg-white text-white hover:text-foreground backdrop-blur rounded-lg py-2 text-[11px] font-bold flex flex-col items-center gap-0.5 transition-all hover:-translate-y-0.5 hover:shadow-lg">
-                <Send className="w-3.5 h-3.5" />
-                Offer
-              </button>
-              <button onClick={() => toast.success("Calling…")} className="bg-white/20 hover:bg-white text-white hover:text-foreground backdrop-blur rounded-lg py-2 text-[11px] font-bold flex flex-col items-center gap-0.5 transition-all hover:-translate-y-0.5 hover:shadow-lg">
-                <Phone className="w-3.5 h-3.5" />
-                Call
-              </button>
-              <button onClick={() => toast.success("Payment link sent!")} className="bg-white/20 hover:bg-white text-white hover:text-foreground backdrop-blur rounded-lg py-2 text-[11px] font-bold flex flex-col items-center gap-0.5 transition-all hover:-translate-y-0.5 hover:shadow-lg">
-                <CreditCard className="w-3.5 h-3.5" />
-                Pay
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Addison AI · Next best action */}
-        <div className="px-4 mb-3">
-          <NextBestAction
-            compact
-            title="Next best action"
-            items={
-              [
-                contact.tag === "hot" && {
-                  id: "nba-close",
-                  title: "Send payment link to close",
-                  hint: "Lead intent ≥ 90% — strike now",
-                  icon: CreditCard,
-                  tone: "danger" as const,
-                  cta: "Send link",
-                  onClick: () => toast.success("Payment link sent!"),
-                },
-                contact.tag !== "cold" && {
-                  id: "nba-offer",
-                  title: contact.tag === "hot" ? "Send a 10% close-today offer" : "Share pricing + benefits",
-                  hint: "Worked on 7 of 9 similar leads this week",
-                  icon: Send,
-                  tone: contact.tag === "warm" ? ("warning" as const) : ("success" as const),
-                  cta: "Send",
-                  onClick: () => toast.success("Offer sent!"),
-                },
-                contact.tag === "cold" && {
-                  id: "nba-reengage",
-                  title: "Try a re-engagement message",
-                  hint: "Cold leads convert 22% with new angle",
-                  icon: Zap,
-                  tone: "info" as const,
-                  cta: "Draft",
-                  onClick: () => toast("Drafting re-engagement…"),
-                },
-              ].filter(Boolean) as NBAItem[]
-            }
-          />
-        </div>
-
-        {/* Activity timeline */}
-        <div className="px-4 py-3 border-t border-border">
-          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">Activity</h4>
-          <ActivityTimeline
-            events={
-              [
-                contact.tag === "hot" && {
-                  id: "ev-1",
-                  kind: "message_in" as const,
-                  title: "Asked about pricing",
-                  detail: "“What's the cost for the Pro plan?”",
-                  time: "2m ago",
-                },
-                {
-                  id: "ev-2",
-                  kind: "message_out" as const,
-                  title: "AI sent qualifying reply",
-                  detail: "Greeting + plan recommendation",
-                  time: "6m ago",
-                },
-                contact.tag !== "cold" && {
-                  id: "ev-3",
-                  kind: "offer" as const,
-                  title: "Offer shared",
-                  detail: "10% close-today incentive",
-                  time: "18m ago",
-                },
-                {
-                  id: "ev-4",
-                  kind: "lead" as const,
-                  title: "Lead captured",
-                  detail: contact.source ? `Via ${contact.source}` : "via website chat",
-                  time: "earlier today",
-                },
-              ].filter(Boolean) as TimelineEvent[]
-            }
-          />
-        </div>
-        <div className="px-4 py-3 border-t border-border">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Lead Score</span>
-            <span className={cn("text-base font-bold tabular-nums", scoreColor)}>{animatedScore}/100</span>
-          </div>
-          <div className="h-2 bg-muted rounded-full overflow-hidden relative">
-            <div
-              className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-1000", scoreBgClass)}
-              style={{ width: `${animatedScore}%` }}
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={score}
+              onChange={(e) => setScore(Number(e.target.value))}
+              className="w-full accent-primary"
+              aria-label="Lead score"
             />
-            <div
-              className="absolute top-0 h-full w-8 bg-gradient-to-r from-transparent via-white/30 to-transparent"
-              style={{ left: `${Math.max(0, animatedScore - 4)}%`, opacity: animatedScore > 0 ? 1 : 0 }}
+            <div className="flex justify-between text-[9px] font-bold text-muted-foreground/70 uppercase tracking-wider mt-0.5">
+              <span>0</span>
+              <span>50</span>
+              <span>100</span>
+            </div>
+          </div>
+
+          {/* Editable: notes */}
+          <div className="mb-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1">
+              <StickyNote className="w-3 h-3" /> Notes
+            </p>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add private notes about this lead — what they care about, last conversation summary, etc."
+              rows={3}
+              className="w-full resize-none rounded-lg bg-muted border border-transparent px-3 py-2 text-[12px] placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 focus:bg-card transition-all"
             />
           </div>
-          <div className="flex justify-between text-[9px] font-bold text-muted-foreground uppercase mt-1">
-            <span>Cold</span>
-            <span>Warm</span>
-            <span>Hot</span>
-          </div>
+
+          {/* Save button — only enabled when something changed */}
+          <button
+            onClick={handleSave}
+            disabled={!dirty || saving}
+            className={cn(
+              "w-full h-9 rounded-lg flex items-center justify-center gap-1.5 text-[12px] font-bold transition-all",
+              dirty
+                ? "bg-primary text-primary-foreground hover:bg-primary-glow shadow-sm shadow-primary/20"
+                : "bg-muted text-muted-foreground cursor-not-allowed"
+            )}
+          >
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            {saving ? "Saving…" : dirty ? "Save changes" : "No changes"}
+          </button>
         </div>
 
-        {/* Info */}
+        {/* Lead info */}
         <div className="px-4 py-3 border-t border-border space-y-2">
-          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Lead Info</h4>
+          <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Contact info</h4>
+          <div className="flex items-center gap-2.5">
+            <Phone className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <a href={`tel:${contact.phone}`} className="text-[12px] font-mono hover:text-primary truncate">
+              {contact.phone}
+            </a>
+          </div>
+          {contact.email && (
+            <div className="flex items-center gap-2.5">
+              <Mail className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+              <a href={`mailto:${contact.email}`} className="text-[12px] hover:text-primary truncate">
+                {contact.email}
+              </a>
+            </div>
+          )}
           {contact.source && (
             <div className="flex items-center gap-2.5">
               <Globe className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
               <span className="text-[12px]">Source: <span className="font-medium">{contact.source}</span></span>
             </div>
           )}
-          {contact.email && (
-            <div className="flex items-center gap-2.5">
-              <Mail className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-              <span className="text-[12px] truncate">{contact.email}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-2.5">
-            <Phone className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-            <span className="text-[12px] font-mono">{contact.phone}</span>
-          </div>
           <div className="flex items-center gap-2.5">
             <Tag className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted font-medium">{tag.label}</span>
+            <span className="text-[12px] capitalize">{contact.tag} lead</span>
           </div>
         </div>
 
-        {/* Secondary actions */}
+        {/* Real deals for this contact */}
         <div className="px-4 py-3 border-t border-border">
-          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">More Actions</h4>
-          <div className="grid grid-cols-2 gap-1.5">
-            <button onClick={() => toast.success("Marked closed")} className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-border text-[11px] font-medium hover:bg-muted hover:border-success/40 transition-all">
-              <CheckCircle2 className="w-3.5 h-3.5 text-success" />
-              Close Deal
-            </button>
-            <button onClick={() => toast("Note added")} className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-border text-[11px] font-medium hover:bg-muted hover:border-primary/30 transition-all">
-              <StickyNote className="w-3.5 h-3.5 text-warning" />
-              Add Note
-            </button>
-            <button onClick={() => toast("Agent assigned")} className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-border text-[11px] font-medium hover:bg-muted hover:border-primary/30 transition-all">
-              <UserPlus className="w-3.5 h-3.5 text-accent" />
-              Assign
-            </button>
-            <button onClick={() => toast("Follow-up scheduled")} className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-border text-[11px] font-medium hover:bg-muted hover:border-primary/30 transition-all">
-              <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-              Schedule
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Trophy className="w-3 h-3" /> Deals ({contactDeals.length})
+            </h4>
+          </div>
+          {contactDeals.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground italic">No deals yet for this contact.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {contactDeals.slice(0, 5).map((d) => (
+                <li key={d.id} className="rounded-lg border border-border bg-card p-2.5">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <p className="text-[12px] font-semibold truncate">{d.title}</p>
+                    <span className="text-[11px] font-bold tabular-nums text-foreground flex-shrink-0">
+                      {formatINR(Number(d.value))}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span className="capitalize font-semibold">{d.stage}</span>
+                    <span>{formatRelative(d.updated_at)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Real tasks for this contact + quick add */}
+        <div className="px-4 py-3 border-t border-border">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Follow-ups ({contactTasks.length})
+            </h4>
+            <button
+              onClick={handleAddTask}
+              className="text-[10px] font-bold text-primary hover:text-primary-glow flex items-center gap-1"
+            >
+              <Plus className="w-3 h-3" /> Add
             </button>
           </div>
+          {contactTasks.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground italic">No follow-ups for this contact yet.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {contactTasks.slice(0, 5).map((t) => {
+                const overdue = t.due_at && new Date(t.due_at).getTime() < Date.now() && t.status === "pending";
+                return (
+                  <li
+                    key={t.id}
+                    className={cn(
+                      "rounded-lg border p-2.5",
+                      overdue ? "border-destructive/30 bg-destructive/5" : "border-border bg-card",
+                      t.status === "completed" && "opacity-60"
+                    )}
+                  >
+                    <p className={cn(
+                      "text-[12px] font-semibold leading-tight",
+                      t.status === "completed" && "line-through"
+                    )}>
+                      {t.title}
+                    </p>
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
+                      <span className="capitalize">{t.status}</span>
+                      <span className={cn(overdue && "text-destructive font-semibold")}>
+                        {t.due_at ? (overdue ? "Overdue · " : "Due ") + formatRelative(t.due_at) : "no due date"}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </div>
+
+      <Dialog open={taskOpen} onOpenChange={setTaskOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#D4308E] to-[#A11A6A] text-white flex items-center justify-center shadow-md">
+                <Bell className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div>
+                <DialogTitle>Naya follow-up</DialogTitle>
+                <DialogDescription className="text-foreground/70 font-medium">
+                  {contact.name} ke liye · default due: kal
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <form onSubmit={submitTask} className="space-y-4 mt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="task-title">Task kya hai?</Label>
+              <Input
+                id="task-title"
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                placeholder="Pricing share karein"
+                autoFocus
+                autoComplete="off"
+              />
+            </div>
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button type="button" variant="outline" onClick={() => setTaskOpen(false)} disabled={taskSaving}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={taskSaving}>
+                {taskSaving ? "Add ho raha hai…" : "Add karein"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

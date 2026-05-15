@@ -14,13 +14,10 @@ type Props = {
 
 const filters = ["All", "Unread", "Hot", "Closed"] as const;
 
-const formatINR = (n: number) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
-
 const statusDot = (tag: string, hasUnread: boolean) => {
   if (tag === "hot") return { color: "bg-hot", pulse: true, label: "Hot lead" };
   if (hasUnread) return { color: "bg-warning", pulse: false, label: "Waiting" };
-  return { color: "bg-success", pulse: false, label: "Online" };
+  return { color: "bg-muted-foreground", pulse: false, label: "Quiet" };
 };
 
 export const ConversationList = ({ conversations, activeId, onSelect, loading, className }: Props) => {
@@ -66,21 +63,20 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
   const hotCount = conversations.filter((c) => c.contact.tag === "hot").length;
 
   return (
-    <div className={cn("w-full md:w-[340px] h-full bg-card border-r border-border flex flex-col flex-shrink-0 relative", className)}>
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-primary/5 to-transparent" />
+    <div className={cn("w-full md:w-[340px] h-full bg-white border-r-2 border-[#E8B968] flex flex-col flex-shrink-0 relative", className)}>
 
       {/* Header */}
-      <div className="relative h-16 flex items-center justify-between px-4 border-b border-border flex-shrink-0">
+      <div className="relative h-16 flex items-center justify-between px-4 border-b-2 border-[#E8B968] bg-[#FFF6E8] flex-shrink-0">
         <div className="min-w-0">
-          <h2 className="text-[16px] font-bold tracking-tight leading-tight">Chats</h2>
-          <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
+          <h2 className="text-[18px] font-black tracking-tight leading-tight">Chats</h2>
+          <p className="text-[10px] text-foreground/60 font-extrabold uppercase tracking-wider flex items-center gap-1.5">
             <span>{conversations.length} total</span>
             <span>·</span>
-            <span className="text-warning">{unreadTotal} unread</span>
+            <span className="text-[#FF6A1F]">{unreadTotal} unread</span>
             <span>·</span>
-            <span className="text-hot flex items-center gap-1">
+            <span className="text-[#D4308E] flex items-center gap-1">
               {hotCount} hot
-              {hotCount > 0 && <span className="w-1 h-1 rounded-full bg-hot animate-pulse" />}
+              {hotCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-[#D4308E] animate-pulse" />}
             </span>
           </p>
         </div>
@@ -90,36 +86,40 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
       {/* Search */}
       <div className="px-3 pt-3 pb-2 flex-shrink-0">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#B8651A]" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search chats…  ↑ ↓ to navigate"
-            className="w-full h-9 pl-9 pr-3 rounded-lg bg-muted border-0 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            placeholder="Chat search… ↑ ↓ navigate"
+            className="w-full h-10 pl-9 pr-3 rounded-xl bg-[#FFF6E8] border-2 border-[#E8B968] text-[13px] font-medium placeholder:text-foreground/40 focus:outline-none focus:border-[#FF6A1F] focus:bg-white transition-all"
           />
         </div>
       </div>
 
       {/* Sticky Filters */}
-      <div className="sticky top-0 z-10 px-3 pb-2 flex gap-1 flex-shrink-0 overflow-x-auto bg-card/95 backdrop-blur">
+      <div className="sticky top-0 z-10 px-3 pb-2 flex gap-1.5 flex-shrink-0 overflow-x-auto bg-white">
         {filters.map((f) => {
           const count = f === "Unread" ? unreadTotal : f === "Hot" ? hotCount : null;
+          const colors = {
+            All: { active: "bg-foreground text-white", inactive: "bg-[#FFF6E8] text-foreground border-[#E8B968]" },
+            Unread: { active: "bg-[#FF6A1F] text-white", inactive: "bg-[#FFEFE0] text-[#FF6A1F] border-[#FF6A1F]/30" },
+            Hot: { active: "bg-[#D4308E] text-white", inactive: "bg-[#FCE5F0] text-[#D4308E] border-[#D4308E]/30" },
+            Closed: { active: "bg-[#3C50E0] text-white", inactive: "bg-[#E4E8FF] text-[#3C50E0] border-[#3C50E0]/30" },
+          }[f];
           return (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={cn(
-                "px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-all flex items-center gap-1",
-                filter === f
-                  ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
+                "px-3 h-8 rounded-full text-[11px] font-extrabold whitespace-nowrap transition-all flex items-center gap-1 border-2",
+                filter === f ? colors.active + " border-transparent shadow-sm" : colors.inactive
               )}
             >
               {f}
               {count !== null && count > 0 && (
                 <span className={cn(
-                  "text-[9px] font-bold px-1 rounded-full min-w-[14px] text-center",
-                  filter === f ? "bg-primary-foreground/20" : "bg-foreground/10"
+                  "text-[9px] font-extrabold px-1.5 rounded-full min-w-[16px] text-center",
+                  filter === f ? "bg-white/25" : "bg-current/15"
                 )}>
                   {count}
                 </span>
@@ -154,7 +154,6 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
           const tag = tagLabel[conv.contact.tag];
           const initials = initialsFor(conv.contact.name);
           const dot = statusDot(conv.contact.tag, conv.unread_count > 0);
-          const potentialValue = Math.round(2000 + conv.contact.score * 100);
           const isHot = conv.contact.tag === "hot";
 
           return (
@@ -164,36 +163,33 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
               onMouseEnter={() => setHoveredId(conv.id)}
               onMouseLeave={() => setHoveredId(null)}
               className={cn(
-                "relative w-full flex items-start gap-3 px-4 py-3 text-left transition-all border-b border-border/40 group",
+                "relative w-full flex items-start gap-3 px-4 py-3 text-left transition-all border-b border-[#E8B968]/40 group",
                 isActive
-                  ? "bg-gradient-to-r from-primary-soft/70 via-primary-soft/30 to-transparent"
+                  ? "bg-[#E6F7EE]"
                   : isHot
-                    ? "hover:bg-hot-soft/40 bg-gradient-to-r from-hot-soft/20 to-transparent"
-                    : "hover:bg-muted/50",
-                isHot && !isActive && "hot-glow"
+                    ? "hover:bg-[#FCE5F0] bg-[#FCE5F0]/40"
+                    : "hover:bg-[#FFF6E8]"
               )}
             >
               {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-10 rounded-r-full bg-gradient-to-b from-primary to-primary-glow shadow-[0_0_12px_hsl(var(--primary)/0.5)]" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-10 rounded-r-full bg-[#0E8A4B]" />
               )}
 
               {/* Avatar */}
               <div className="relative flex-shrink-0">
                 <div className={cn(
-                  "w-11 h-11 rounded-full flex items-center justify-center text-[12px] font-bold ring-2 ring-card transition-transform group-hover:scale-105",
-                  isHot ? "bg-gradient-to-br from-hot-soft to-hot/20 text-hot" :
-                  conv.contact.tag === "warm" ? "bg-gradient-to-br from-warning-soft to-warning/20 text-warning" :
-                  "bg-gradient-to-br from-muted to-muted/60 text-muted-foreground"
+                  "w-11 h-11 rounded-full flex items-center justify-center text-[12px] font-extrabold text-white shadow-md transition-transform group-hover:scale-105",
+                  isHot ? "bg-[#D4308E]" :
+                  conv.contact.tag === "warm" ? "bg-[#FF6A1F]" :
+                  "bg-[#3C50E0]"
                 )}>
                   {initials}
                 </div>
-                {/* Status dot */}
                 <span
                   title={dot.label}
                   className={cn(
-                    "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-card",
-                    dot.color,
-                    dot.pulse && "animate-pulse"
+                    "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-white",
+                    isHot ? "bg-[#D4308E] animate-pulse" : conv.unread_count > 0 ? "bg-[#FF6A1F]" : "bg-[#0E8A4B]"
                   )}
                 />
               </div>
@@ -219,16 +215,6 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
                   </span>
                 </div>
 
-                {/* ₹ potential value */}
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className={cn(
-                    "text-[10px] font-bold tabular-nums",
-                    isHot ? "text-hot" : conv.contact.tag === "warm" ? "text-warning" : "text-muted-foreground"
-                  )}>
-                    {formatINR(potentialValue)} potential
-                  </span>
-                </div>
-
                 <div className="flex items-center justify-between">
                   <p className={cn(
                     "text-[12px] truncate pr-2 transition-all",
@@ -239,8 +225,8 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
                   </p>
                   {conv.unread_count > 0 && (
                     <span className={cn(
-                      "w-5 h-5 rounded-full text-primary-foreground text-[10px] font-bold flex items-center justify-center flex-shrink-0",
-                      isHot ? "bg-hot animate-hot-pulse" : "bg-primary"
+                      "min-w-[20px] h-5 px-1.5 rounded-full text-white text-[10px] font-extrabold flex items-center justify-center flex-shrink-0 shadow-sm",
+                      isHot ? "bg-[#D4308E]" : "bg-[#FF6A1F]"
                     )}>
                       {conv.unread_count}
                     </span>

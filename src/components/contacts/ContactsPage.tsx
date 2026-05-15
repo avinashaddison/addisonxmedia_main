@@ -1,17 +1,51 @@
-import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useMemo, useEffect, useRef } from "react";
+
+// Tiny CSV parser. Handles "quoted fields, with commas" and escaped "" quotes.
+// Good enough for contact lists; not RFC-4180 complete (no multi-line quoted fields).
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  const re = /(?:^|,|\r?\n)(?:"((?:[^"]|"")*)"|([^",\r\n]*))/g;
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim() && rows.length > 0) continue;
+    const row: string[] = [];
+    let last = 0;
+    let inQuotes = false;
+    let cell = "";
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') { cell += '"'; i++; }
+          else inQuotes = false;
+        } else cell += ch;
+      } else {
+        if (ch === '"') inQuotes = true;
+        else if (ch === ",") { row.push(cell); cell = ""; }
+        else cell += ch;
+      }
+      last = i;
+    }
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
+}
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { PageShell } from "@/components/PageShell";
 import { Contact, tagLabel, initialsFor, formatRelative } from "@/lib/inbox-types";
 import {
-  Users, Search, Plus, Download, Flame, Snowflake, CircleDot, Phone, Mail,
+  Users, Search, Plus, Download, Upload, Flame, Snowflake, CircleDot, Phone, Mail,
   TrendingUp, IndianRupee, MessageCircle, CreditCard, Send, Sparkles, Zap,
   Clock, Filter, ChevronDown, X, CheckSquare, Square, MoreHorizontal,
   AlertCircle, ArrowUpRight, UserPlus, Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 const useContacts = () => {
@@ -19,14 +53,7 @@ const useContacts = () => {
   return useQuery({
     queryKey: ["contacts-page", user?.id],
     enabled: !!user,
-    queryFn: async (): Promise<Contact[]> => {
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => api.listContacts() as Promise<Contact[]>,
   });
 };
 
@@ -77,6 +104,7 @@ const potentialValueFor = (c: Contact) => Math.round(2000 + c.score * 100);
 type Segment = "all" | "ready" | "followup" | "cold";
 
 export const ContactsPage = () => {
+  const qc = useQueryClient();
   const { data: contacts = [], isLoading } = useContacts();
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState<"all" | Contact["tag"]>("all");
@@ -85,6 +113,73 @@ export const ContactsPage = () => {
   const [scoreMin, setScoreMin] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [newOpen, setNewOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newSaving, setNewSaving] = useState(false);
+
+  // Parse a CSV file (header row + data rows) and bulk-upsert via /api/contacts/bulk.
+  // Recognized columns (case-insensitive): name, phone, email, source, tag, score.
+  // Phone is auto-prefixed with +91 if it's 10 digits.
+  const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ""; // allow re-uploading same file later
+
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text);
+      if (rows.length < 2) {
+        toast.error("CSV needs a header row + at least one data row");
+        return;
+      }
+      const header = rows[0].map((h) => h.toLowerCase().trim());
+      const idx = {
+        name: header.indexOf("name"),
+        phone: header.indexOf("phone"),
+        email: header.indexOf("email"),
+        source: header.indexOf("source"),
+        tag: header.indexOf("tag"),
+        score: header.indexOf("score"),
+      };
+      if (idx.name === -1 || idx.phone === -1) {
+        toast.error("CSV must have at least 'name' and 'phone' columns");
+        return;
+      }
+      const contacts = rows.slice(1)
+        .filter((r) => r.some((c) => c.trim())) // skip blank lines
+        .map((r) => ({
+          name: r[idx.name]?.trim() ?? "",
+          phone: r[idx.phone]?.trim() ?? "",
+          email: idx.email !== -1 ? r[idx.email]?.trim() : undefined,
+          source: idx.source !== -1 ? r[idx.source]?.trim() : undefined,
+          tag: idx.tag !== -1 ? r[idx.tag]?.trim()?.toLowerCase() : undefined,
+          score: idx.score !== -1 ? Number(r[idx.score]) : undefined,
+        }));
+
+      // Backend caps at 500 rows per request — chunk into batches.
+      let totalImported = 0;
+      let totalSkipped = 0;
+      const allErrors: Array<{ row: number; reason: string }> = [];
+      for (let i = 0; i < contacts.length; i += 500) {
+        const batch = contacts.slice(i, i + 500);
+        const res = await api.bulkContacts(batch);
+        totalImported += res.imported;
+        totalSkipped += res.skipped;
+        if (res.errors?.length) allErrors.push(...res.errors.slice(0, 10));
+      }
+      if (totalImported > 0) {
+        toast.success(`Imported ${totalImported} contact${totalImported !== 1 ? "s" : ""}${totalSkipped > 0 ? ` · ${totalSkipped} skipped` : ""}`);
+        qc.invalidateQueries({ queryKey: ["contacts-page"] });
+        qc.invalidateQueries({ queryKey: ["contacts-lookup"] });
+      } else {
+        toast.error(`No contacts imported · ${totalSkipped} skipped${allErrors[0] ? ` · first error: ${allErrors[0].reason}` : ""}`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to import");
+    }
+  };
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [insightsOpen, setInsightsOpen] = useState(true);
 
@@ -167,15 +262,62 @@ export const ContactsPage = () => {
   return (
     <PageShell
       title="Contacts"
-      subtitle="Sales command center · every row, decision-ready"
-      icon={<Users className="w-4 h-4" />}
+      subtitle="Aapke saare leads · har row decision-ready"
+      icon={<Users className="w-5 h-5" />}
       actions={
         <>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => toast("Export started")}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => {
+              if (filtered.length === 0) { toast.error("No contacts to export"); return; }
+              const headers = ["Name", "Phone", "Email", "Tag", "Score", "Source", "Created"];
+              const rows = filtered.map((c) => [
+                c.name, c.phone, c.email ?? "", c.tag, c.score, c.source ?? "",
+                new Date(c.created_at).toISOString(),
+              ]);
+              const csv = [headers, ...rows]
+                .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+                .join("\n");
+              const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `contacts-${new Date().toISOString().slice(0, 10)}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+              toast.success(`Exported ${filtered.length} contacts`);
+            }}
+          >
             <Download className="w-3.5 h-3.5" />
-            Export
+            Export CSV
           </Button>
-          <Button size="sm" className="gap-2" onClick={() => toast.success("Opening new contact form…")}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => importInputRef.current?.click()}
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Import CSV
+          </Button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleCsvImport}
+          />
+          <Button
+            size="sm"
+            className="gap-2"
+            onClick={() => {
+              setNewName("");
+              setNewPhone("");
+              setNewOpen(true);
+            }}
+          >
             <Plus className="w-3.5 h-3.5" />
             New Contact
           </Button>
@@ -241,7 +383,6 @@ export const ContactsPage = () => {
           <div className="relative flex-1 flex flex-wrap items-center gap-x-4 gap-y-1">
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Addison AI Insights</span>
-              <span className="w-1 h-1 rounded-full bg-success animate-pulse" />
             </div>
             {stats.readyToClose > 0 && (
               <button
@@ -280,37 +421,45 @@ export const ContactsPage = () => {
       </div>
 
       {/* TOOLBAR */}
-      <div className="bg-card border border-border rounded-xl p-3 mb-3 flex flex-wrap items-center gap-2">
+      <div className="bg-white border-2 border-[#E8B968] rounded-2xl p-3 mb-3 flex flex-wrap items-center gap-2 shadow-[0_3px_0_0_#E8B968]">
         <div className="relative flex-1 min-w-[220px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#B8651A]" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, phone, email…"
-            className="w-full h-9 pl-9 pr-3 rounded-lg bg-muted border-0 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/20"
+            placeholder="Name, phone, email se search karein…"
+            className="w-full h-10 pl-9 pr-3 rounded-xl bg-[#FFF6E8] border-2 border-[#E8B968] text-[13px] font-medium focus:outline-none focus:border-[#FF6A1F] focus:bg-white"
           />
         </div>
         <div className="flex gap-1">
-          {(["all", "hot", "warm", "cold"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTagFilter(t)}
-              className={cn(
-                "px-3 h-9 rounded-lg text-[12px] font-semibold capitalize transition-colors",
-                tagFilter === t
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {t}
-            </button>
-          ))}
+          {(["all", "hot", "warm", "cold"] as const).map((t) => {
+            const colors = {
+              all: { active: "bg-foreground text-white", inactive: "bg-[#FFF6E8] text-foreground" },
+              hot: { active: "bg-[#D4308E] text-white", inactive: "bg-[#FCE5F0] text-[#D4308E]" },
+              warm: { active: "bg-[#FFD23F] text-[#7A4A00]", inactive: "bg-[#FFF1D6] text-[#B8651A]" },
+              cold: { active: "bg-[#3C50E0] text-white", inactive: "bg-[#E4E8FF] text-[#3C50E0]" },
+            }[t];
+            return (
+              <button
+                key={t}
+                onClick={() => setTagFilter(t)}
+                className={cn(
+                  "px-3.5 h-10 rounded-xl text-[12px] font-extrabold capitalize transition-all border-2 border-transparent",
+                  tagFilter === t ? colors.active + " shadow-sm" : colors.inactive + " hover:scale-105"
+                )}
+              >
+                {t}
+              </button>
+            );
+          })}
         </div>
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
           className={cn(
-            "h-9 px-3 rounded-lg text-[12px] font-semibold flex items-center gap-1.5 transition-colors",
-            showAdvanced ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
+            "h-10 px-3.5 rounded-xl text-[12px] font-extrabold flex items-center gap-1.5 transition-all border-2",
+            showAdvanced
+              ? "bg-[#FF6A1F] text-white border-[#B8420A] shadow-[0_3px_0_0_#B8420A]"
+              : "bg-white text-foreground border-[#E8B968] hover:bg-[#FFE8C7]"
           )}
         >
           <Filter className="w-3.5 h-3.5" />
@@ -368,10 +517,47 @@ export const ContactsPage = () => {
             <span className="text-[13px] font-bold">{selected.size} selected</span>
           </div>
           <div className="flex items-center gap-1">
-            <BulkBtn icon={Megaphone} label="Broadcast" onClick={() => toast.success(`Broadcast queued for ${selected.size}`)} />
-            <BulkBtn icon={UserPlus} label="Assign" onClick={() => toast.success(`Assigned ${selected.size}`)} />
-            <BulkBtn icon={ArrowUpRight} label="Move stage" onClick={() => toast.success(`${selected.size} moved`)} />
-            <button onClick={() => setSelected(new Set())} className="ml-1 w-7 h-7 rounded-md hover:bg-primary-foreground/20 flex items-center justify-center" title="Clear">
+            <BulkBtn
+              icon={Megaphone}
+              label="Broadcast"
+              onClick={() => {
+                // Real handoff: navigate to broadcasts with the selected segment
+                window.location.href = "/app/broadcasts";
+              }}
+            />
+            <BulkBtn
+              icon={ArrowUpRight}
+              label="Set hot"
+              onClick={async () => {
+                const ids = Array.from(selected);
+                try {
+                  await Promise.all(ids.map((id) => api.updateContact(id, { tag: "hot", score: 85 })));
+                  toast.success(`Marked ${ids.length} as hot`);
+                  setSelected(new Set());
+                  qc.invalidateQueries({ queryKey: ["contacts-page"] });
+                  qc.invalidateQueries({ queryKey: ["contacts-lookup"] });
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Failed");
+                }
+              }}
+            />
+            <BulkBtn
+              icon={UserPlus}
+              label="Set cold"
+              onClick={async () => {
+                const ids = Array.from(selected);
+                try {
+                  await Promise.all(ids.map((id) => api.updateContact(id, { tag: "cold", score: 20 })));
+                  toast.success(`Marked ${ids.length} as cold`);
+                  setSelected(new Set());
+                  qc.invalidateQueries({ queryKey: ["contacts-page"] });
+                  qc.invalidateQueries({ queryKey: ["contacts-lookup"] });
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Failed");
+                }
+              }}
+            />
+            <button onClick={() => setSelected(new Set())} className="ml-1 w-7 h-7 rounded-md hover:bg-primary-foreground/20 flex items-center justify-center" aria-label="Clear selection">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -379,9 +565,9 @@ export const ContactsPage = () => {
       )}
 
       {/* SMART LEAD LIST */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="bg-white border-2 border-[#E8B968] rounded-2xl overflow-hidden shadow-[0_4px_0_0_#E8B968]">
         {/* Sticky header */}
-        <div className="sticky top-0 z-10 grid grid-cols-[36px_1.6fr_120px_1fr_120px_140px_110px_90px_120px] gap-3 px-4 py-3 border-b border-border bg-card/95 backdrop-blur text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+        <div className="sticky top-0 z-10 grid grid-cols-[36px_1.6fr_120px_1fr_120px_140px_110px_90px_120px] gap-3 px-4 py-3 border-b-2 border-[#E8B968] bg-[#FFF1D6] text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">
           <button onClick={toggleSelectAll} className="flex items-center justify-center" title={allSelected ? "Deselect all" : "Select all"}>
             {allSelected ? <CheckSquare className="w-3.5 h-3.5 text-primary" /> : <Square className="w-3.5 h-3.5" />}
           </button>
@@ -452,7 +638,7 @@ export const ContactsPage = () => {
                   )}>
                     {initialsFor(c.name)}
                   </div>
-                  {isHot && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-hot animate-pulse ring-2 ring-card" />}
+                  {isHot && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-hot ring-2 ring-card" />}
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
@@ -553,21 +739,44 @@ export const ContactsPage = () => {
                 <span className={cn(
                   "text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1",
                   tagPill[c.tag],
-                  isHot && "animate-hot-pulse shadow-sm"
+                  isHot && "shadow-sm"
                 )}>
                   {tag.emoji} {tag.label}
                 </span>
               </div>
 
-              {/* Hover Quick Actions */}
+              {/* Hover Quick Actions — chat opens inbox, call uses tel: link.
+                  Offer/Payment require Razorpay integration which isn't wired yet. */}
               <div className={cn(
                 "flex items-center justify-end gap-1 transition-all",
                 isHovered ? "opacity-100" : "opacity-0 pointer-events-none"
               )}>
-                <QuickAction icon={MessageCircle} title="Chat" tone="primary" onClick={() => toast(`Open chat with ${c.name}`)} />
-                <QuickAction icon={Phone} title="Call" tone="success" onClick={() => toast.success(`Calling ${c.name}…`)} />
-                <QuickAction icon={Send} title="Send Offer" tone="warning" onClick={() => toast.success(`Offer sent to ${c.name}`)} />
-                <QuickAction icon={CreditCard} title="Payment Link" tone="success" onClick={() => toast.success(`Payment link sent to ${c.name}`)} />
+                <a
+                  href="/app/inbox"
+                  title={`Chat with ${c.name}`}
+                  className="w-7 h-7 rounded-md bg-primary-soft hover:bg-primary text-primary hover:text-primary-foreground flex items-center justify-center transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                </a>
+                <a
+                  href={`tel:${c.phone}`}
+                  title={`Call ${c.phone}`}
+                  className="w-7 h-7 rounded-md bg-success-soft hover:bg-success text-success hover:text-success-foreground flex items-center justify-center transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                </a>
+                <a
+                  href={`https://wa.me/${c.phone.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`Open in WhatsApp`}
+                  className="w-7 h-7 rounded-md bg-[#25D366]/10 hover:bg-[#25D366] text-[#25D366] hover:text-white flex items-center justify-center transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </a>
               </div>
 
               {/* Static row meta when not hovered */}
@@ -582,6 +791,83 @@ export const ContactsPage = () => {
           );
         })}
       </div>
+
+      {/* New Contact dialog */}
+      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] text-white flex items-center justify-center shadow-md">
+                <UserPlus className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div>
+                <DialogTitle>Naya contact add karein</DialogTitle>
+                <DialogDescription className="text-foreground/70 font-medium">
+                  Name aur phone do · baaki AI khud bharega
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const name = newName.trim();
+              const phone = newPhone.trim();
+              if (!name) { toast.error("Naam zaroori hai"); return; }
+              if (!phone) { toast.error("Phone number zaroori hai"); return; }
+              const phoneNormalized = /^\+/.test(phone) ? phone : (phone.length === 10 ? `+91${phone}` : phone);
+              setNewSaving(true);
+              try {
+                await api.createContact({ name, phone: phoneNormalized, tag: "cold", score: 30 });
+                toast.success(`${name} added!`);
+                qc.invalidateQueries({ queryKey: ["contacts-page"] });
+                qc.invalidateQueries({ queryKey: ["contacts-lookup"] });
+                setNewOpen(false);
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Failed to add");
+              } finally {
+                setNewSaving(false);
+              }
+            }}
+            className="space-y-4 mt-2"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="new-contact-name">Naam</Label>
+              <Input
+                id="new-contact-name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Priya Mehta"
+                autoFocus
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="new-contact-phone">Phone number</Label>
+              <Input
+                id="new-contact-phone"
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                placeholder="9876543210 ya +91 9876543210"
+                inputMode="tel"
+                autoComplete="off"
+              />
+              <p className="text-[11px] text-foreground/60 font-medium">10-digit number par auto +91 lag jaayega</p>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button type="button" variant="outline" onClick={() => setNewOpen(false)} disabled={newSaving}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={newSaving}>
+                {newSaving ? "Add ho raha hai…" : "Add karein"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 };
@@ -605,12 +891,12 @@ const ClickableStat = ({
   pulse?: boolean;
   highlight?: boolean;
 }) => {
-  const accentClass = {
-    primary: "bg-primary-soft text-primary",
-    hot: "bg-hot-soft text-hot",
-    warning: "bg-warning-soft text-warning",
-    accent: "bg-accent-soft text-accent",
-    success: "bg-success-soft text-success",
+  const styles = {
+    primary: { border: "border-[#3C50E0]", shadow: "shadow-[0_4px_0_0_#2533A8]", iconBg: "bg-[#3C50E0]", text: "text-[#3C50E0]" },
+    hot:     { border: "border-[#D4308E]", shadow: "shadow-[0_4px_0_0_#A11A6A]", iconBg: "bg-[#D4308E]", text: "text-[#D4308E]" },
+    warning: { border: "border-[#FFD23F]", shadow: "shadow-[0_4px_0_0_#E8B400]", iconBg: "bg-[#FFD23F] text-[#7A4A00]", text: "text-[#B8651A]" },
+    accent:  { border: "border-[#FF6A1F]", shadow: "shadow-[0_4px_0_0_#B8420A]", iconBg: "bg-[#FF6A1F]", text: "text-[#FF6A1F]" },
+    success: { border: "border-[#0E8A4B]", shadow: "shadow-[0_4px_0_0_#0A6E3C]", iconBg: "bg-[#0E8A4B]", text: "text-[#0E8A4B]" },
   }[accent];
 
   return (
@@ -618,29 +904,30 @@ const ClickableStat = ({
       onClick={onClick}
       disabled={!onClick}
       className={cn(
-        "text-left bg-card border rounded-xl p-4 flex items-start gap-3 transition-all",
-        active ? "border-primary shadow-md shadow-primary/20" : "border-border hover:border-primary/40 hover:shadow-md",
-        onClick && "cursor-pointer hover:-translate-y-0.5",
-        highlight && "gradient-border bg-gradient-to-br from-success-soft/40 via-card to-card"
+        "text-left bg-white border-2 rounded-2xl p-4 flex items-start gap-3 transition-all",
+        styles.border,
+        styles.shadow,
+        active && "ring-2 ring-[#FF6A1F] ring-offset-2 ring-offset-[#FFF6E8]",
+        onClick && "cursor-pointer hover:-translate-y-1"
       )}
     >
       <div className={cn(
-        "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
-        accentClass,
+        "w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 text-white shadow-md",
+        styles.iconBg,
         pulse && "animate-pulse"
       )}>
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</p>
-        <p className="text-xl font-bold tabular-nums leading-tight">
+        <p className="text-[10px] uppercase tracking-[0.15em] text-foreground/60 font-extrabold">{label}</p>
+        <p className={cn("text-2xl font-black tabular-nums leading-tight", highlight && styles.text)}>
           {customValue ?? value}
-          {suffix && <span className="text-[12px] text-muted-foreground font-medium">{suffix}</span>}
+          {suffix && <span className="text-[12px] text-foreground/60 font-medium">{suffix}</span>}
         </p>
         {trend && (
           <p className={cn(
-            "text-[10px] font-semibold mt-0.5 flex items-center gap-0.5",
-            highlight ? "text-success" : "text-muted-foreground"
+            "text-[10px] font-extrabold mt-0.5 flex items-center gap-0.5",
+            highlight ? styles.text : "text-foreground/60"
           )}>
             {highlight && <TrendingUp className="w-2.5 h-2.5" />}
             {trend}
@@ -661,23 +948,22 @@ const SegmentChip = ({
   count?: number;
   accent?: "hot" | "warning" | "accent";
 }) => {
-  const accentRing = accent === "hot" ? "ring-hot/30" : accent === "warning" ? "ring-warning/30" : "ring-accent/30";
   return (
     <button
       onClick={onClick}
       className={cn(
-        "h-8 px-3 rounded-full text-[12px] font-semibold flex items-center gap-1.5 transition-all",
+        "h-9 px-3.5 rounded-full text-[12px] font-extrabold flex items-center gap-1.5 transition-all border-2",
         active
-          ? "bg-foreground text-background shadow-md"
-          : `bg-muted text-foreground hover:bg-card hover:ring-2 ${accentRing}`
+          ? "bg-[#FF6A1F] text-white border-[#B8420A] shadow-[0_3px_0_0_#B8420A]"
+          : "bg-white text-foreground border-[#E8B968] hover:bg-[#FFE8C7]"
       )}
     >
       {Icon && <Icon className="w-3.5 h-3.5" />}
       {label}
       {count !== undefined && count > 0 && (
         <span className={cn(
-          "text-[9px] font-bold px-1.5 rounded-full min-w-[16px] text-center",
-          active ? "bg-background/20" : "bg-foreground/10"
+          "text-[9px] font-extrabold px-1.5 rounded-full min-w-[18px] text-center",
+          active ? "bg-white/25 text-white" : "bg-[#FFD23F] text-[#7A4A00]"
         )}>
           {count}
         </span>

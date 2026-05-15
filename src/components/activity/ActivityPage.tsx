@@ -1,9 +1,13 @@
 import { useMemo, useState } from "react";
 import { UserPlus, MessageSquare, Trophy, IndianRupee, Megaphone, Bell, Filter, Download, Search, Activity as ActivityIcon } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/api";
+import { formatRelative } from "@/lib/inbox-types";
 
 type EventType = "lead" | "message" | "deal" | "payment" | "broadcast" | "task";
 
@@ -27,27 +31,6 @@ const META: Record<EventType, { color: string; icon: typeof UserPlus; label: str
   task: { color: "bg-muted text-muted-foreground border-border", icon: Bell, label: "Task" },
 };
 
-const now = Date.now();
-const min = (m: number) => now - m * 60_000;
-const hr = (h: number) => now - h * 3600_000;
-const day = (d: number) => now - d * 86400_000;
-
-const SEED: Event[] = [
-  { id: "e1", type: "payment", title: "Payment received", detail: "Karan Mehta paid ₹49,000 — Growth Plan", actor: "Razorpay", time: "2m ago", amount: 49000, ts: min(2) },
-  { id: "e2", type: "lead", title: "New lead captured", detail: "Riya Kapoor via Instagram Ads", actor: "AI Auto-capture", time: "8m ago", ts: min(8) },
-  { id: "e3", type: "message", title: "AI replied", detail: "Sent pricing card to Aman Gupta", actor: "Addison AI", time: "14m ago", ts: min(14) },
-  { id: "e4", type: "deal", title: "Deal moved → Closing", detail: "Bansal Group · ₹2.4L", actor: "Priya Sharma", time: "32m ago", amount: 240000, ts: min(32) },
-  { id: "e5", type: "broadcast", title: "Broadcast sent", detail: "Festive Offer · 412 recipients", actor: "Karan Mehta", time: "1h ago", ts: hr(1) },
-  { id: "e6", type: "lead", title: "New lead captured", detail: "Vikas Singh via WhatsApp form", actor: "Webhook", time: "2h ago", ts: hr(2) },
-  { id: "e7", type: "deal", title: "Deal won 🏆", detail: "Sehgal Realty · ₹1.85L", actor: "Ananya Iyer", time: "3h ago", amount: 185000, ts: hr(3) },
-  { id: "e8", type: "task", title: "Follow-up overdue", detail: "Call back Manish Tyagi", actor: "System", time: "4h ago", ts: hr(4) },
-  { id: "e9", type: "message", title: "Inbound message", detail: "Pooja Rao: \"Can you share the demo link?\"", actor: "WhatsApp", time: "5h ago", ts: hr(5) },
-  { id: "e10", type: "payment", title: "Payment received", detail: "Sehgal Realty paid ₹1,85,000", actor: "Razorpay", time: "Yesterday · 6:14 PM", amount: 185000, ts: day(1) },
-  { id: "e11", type: "lead", title: "New lead captured", detail: "Aditya Khanna via Meta Ads", actor: "AI Auto-capture", time: "Yesterday · 4:02 PM", ts: day(1) + 7200_000 },
-  { id: "e12", type: "broadcast", title: "Broadcast sent", detail: "Reactivation campaign · 187 recipients", actor: "Priya Sharma", time: "Yesterday · 11:28 AM", ts: day(1) + 12 * 3600_000 },
-  { id: "e13", type: "deal", title: "Deal moved → Negotiation", detail: "Vikram Holdings · ₹3.2L", actor: "Rahul Verma", time: "2 days ago", amount: 320000, ts: day(2) },
-];
-
 const FILTERS: { id: "all" | EventType; label: string }[] = [
   { id: "all", label: "All" },
   { id: "lead", label: "Leads" },
@@ -59,24 +42,112 @@ const FILTERS: { id: "all" | EventType; label: string }[] = [
 ];
 
 const groupKey = (ts: number) => {
-  const diff = now - ts;
+  const diff = Date.now() - ts;
   if (diff < 86400_000) return "Today";
   if (diff < 2 * 86400_000) return "Yesterday";
   if (diff < 7 * 86400_000) return "This week";
   return "Earlier";
 };
 
+// Derive an activity feed from real workspace tables. We don't have a dedicated
+// "events" table — instead we synthesize events from contacts/messages/deals/tasks/broadcasts
+// timestamps, sorted desc.
+const buildEvents = (data: any): Event[] => {
+  if (!data) return [];
+  const events: Event[] = [];
+
+  for (const c of data.contacts ?? []) {
+    if (!c.created_at) continue;
+    events.push({
+      id: `lead-${c.id}`,
+      type: "lead",
+      title: c.tag === "hot" ? "Hot lead captured 🔥" : "New lead captured",
+      detail: `${c.name} · ${c.phone}`,
+      actor: c.source ?? "Manual",
+      time: formatRelative(c.created_at),
+      ts: new Date(c.created_at).getTime(),
+    });
+  }
+
+  for (const d of data.deals ?? []) {
+    if (d.stage === "won" && d.closed_at) {
+      events.push({
+        id: `won-${d.id}`,
+        type: "payment",
+        title: "Deal closed-won 🏆",
+        detail: `${d.title ?? "Deal"} · ₹${Number(d.value).toLocaleString("en-IN")}`,
+        actor: "You",
+        time: formatRelative(d.closed_at),
+        amount: Number(d.value),
+        ts: new Date(d.closed_at).getTime(),
+      });
+    } else if (d.created_at) {
+      events.push({
+        id: `deal-${d.id}`,
+        type: "deal",
+        title: `Deal in pipeline (${d.stage})`,
+        detail: `${d.title ?? "Deal"} · ₹${Number(d.value).toLocaleString("en-IN")}`,
+        actor: "You",
+        time: formatRelative(d.created_at),
+        amount: Number(d.value),
+        ts: new Date(d.created_at).getTime(),
+      });
+    }
+  }
+
+  for (const t of data.tasks ?? []) {
+    if (!t.created_at) continue;
+    const overdue = t.due_at && new Date(t.due_at).getTime() < Date.now();
+    events.push({
+      id: `task-${t.id}`,
+      type: "task",
+      title: overdue ? "Follow-up overdue" : "Follow-up scheduled",
+      detail: t.title,
+      actor: "System",
+      time: formatRelative(t.created_at),
+      ts: new Date(t.created_at).getTime(),
+    });
+  }
+
+  for (const b of data.campaigns ?? []) {
+    if (b.status !== "draft" && b.created_at) {
+      events.push({
+        id: `campaign-${b.id}`,
+        type: "broadcast",
+        title: `Campaign ${b.status}`,
+        detail: `${b.name} · ${b.sent_count ?? 0} sent`,
+        actor: "You",
+        time: formatRelative(b.created_at),
+        ts: new Date(b.created_at).getTime(),
+      });
+    }
+  }
+
+  // Sort desc by timestamp
+  events.sort((a, b) => b.ts - a.ts);
+  return events;
+};
+
 export const ActivityPage = () => {
+  const { user } = useAuth();
   const [filter, setFilter] = useState<"all" | EventType>("all");
   const [q, setQ] = useState("");
 
+  const { data, isLoading } = useQuery({
+    queryKey: ["dashboard", user?.id],
+    enabled: !!user,
+    queryFn: () => api.getDashboard(),
+  });
+
+  const events = useMemo(() => buildEvents(data), [data]);
+
   const filtered = useMemo(() => {
-    return SEED.filter((e) => (filter === "all" ? true : e.type === filter)).filter((e) => {
+    return events.filter((e) => (filter === "all" ? true : e.type === filter)).filter((e) => {
       if (!q.trim()) return true;
       const s = q.toLowerCase();
       return e.title.toLowerCase().includes(s) || e.detail.toLowerCase().includes(s) || e.actor.toLowerCase().includes(s);
     });
-  }, [filter, q]);
+  }, [events, filter, q]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Event[]>();
@@ -88,20 +159,25 @@ export const ActivityPage = () => {
     return Array.from(map.entries());
   }, [filtered]);
 
-  const todayCount = SEED.filter((e) => groupKey(e.ts) === "Today").length;
-  const revenueToday = SEED.filter((e) => e.type === "payment" && groupKey(e.ts) === "Today").reduce((a, e) => a + (e.amount ?? 0), 0);
-  const leadsToday = SEED.filter((e) => e.type === "lead" && groupKey(e.ts) === "Today").length;
+  const todayCount = events.filter((e) => groupKey(e.ts) === "Today").length;
+  const revenueToday = events.filter((e) => e.type === "payment" && groupKey(e.ts) === "Today").reduce((a, e) => a + (e.amount ?? 0), 0);
+  const leadsToday = events.filter((e) => e.type === "lead" && groupKey(e.ts) === "Today").length;
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto bg-muted/20">
+    <div className="flex-1 min-h-0 overflow-y-auto bg-[#FFF6E8]">
       <div className="max-w-[1100px] mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[26px] font-bold tracking-tight">Activity</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Every event happening across your sales engine — in real time
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] text-white flex items-center justify-center shadow-md">
+              <ActivityIcon className="w-6 h-6" strokeWidth={2.5} />
+            </div>
+            <div>
+              <h1 className="text-[26px] font-black tracking-tight">Activity</h1>
+              <p className="text-[12px] text-foreground/70 mt-0.5 font-medium">
+                Aapke sales engine ki har activity · real time mein
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="gap-2">
@@ -118,9 +194,9 @@ export const ActivityPage = () => {
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatCard label="Events today" value={todayCount.toString()} icon={ActivityIcon} />
-          <StatCard label="New leads" value={leadsToday.toString()} icon={UserPlus} tone="primary" />
-          <StatCard label="Revenue today" value={`₹${(revenueToday / 1000).toFixed(0)}K`} icon={IndianRupee} tone="success" />
-          <StatCard label="System uptime" value="99.98%" icon={Trophy} tone="warning" />
+          <StatCard label="New leads today" value={leadsToday.toString()} icon={UserPlus} tone="primary" />
+          <StatCard label="Revenue today" value={revenueToday > 0 ? `₹${(revenueToday / 1000).toFixed(0)}K` : "₹0"} icon={IndianRupee} tone="success" />
+          <StatCard label="Total events" value={events.length.toString()} icon={Trophy} tone="warning" />
         </div>
 
         {/* Filters */}
@@ -140,13 +216,22 @@ export const ActivityPage = () => {
 
         {/* Timeline */}
         <div className="space-y-6">
-          {grouped.length === 0 ? (
+          {isLoading ? (
+            <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-primary-soft text-primary mx-auto flex items-center justify-center mb-3 animate-pulse">
+                <ActivityIcon className="w-6 h-6" />
+              </div>
+              <p className="font-semibold">Loading activity…</p>
+            </div>
+          ) : grouped.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">
               <div className="w-14 h-14 rounded-2xl bg-primary-soft text-primary mx-auto flex items-center justify-center mb-3">
                 <ActivityIcon className="w-6 h-6" />
               </div>
-              <p className="font-semibold">No activity matches your filter</p>
-              <p className="text-sm text-muted-foreground mt-1">Try a different category or clear the search.</p>
+              <p className="font-semibold">{events.length === 0 ? "No activity yet" : "No activity matches your filter"}</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {events.length === 0 ? "As leads come in, deals close, and tasks get scheduled, you'll see them here." : "Try a different category or clear the search."}
+              </p>
             </div>
           ) : (
             grouped.map(([label, events]) => (

@@ -1,6 +1,8 @@
 import { Menu, RefreshCw, Moon, Sun, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
+import { useQueryClient } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 import { CommandPalette } from "./CommandPalette";
 import { NotificationCenter } from "./NotificationCenter";
 
@@ -8,10 +10,11 @@ type Props = { onNavigate: (page: string) => void; onMenuClick?: () => void };
 
 export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
   const { theme, setTheme } = useTheme();
+  const qc = useQueryClient();
   const isDark = theme === "dark";
   const [syncedAt, setSyncedAt] = useState<number>(Date.now());
   const [now, setNow] = useState<number>(Date.now());
-  const [activeNow] = useState<number>(() => 2 + Math.floor(Math.random() * 4)); // 2–5 active
+  const [refreshing, setRefreshing] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   // Global ⌘K / Ctrl+K to open command palette
@@ -26,17 +29,22 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // Tick every second for "Last sync" label
+  // Tick every second for the "synced X ago" label.
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // "Resync" every ~45s to keep the label feeling alive
-  useEffect(() => {
-    const t = setInterval(() => setSyncedAt(Date.now()), 45_000);
-    return () => clearInterval(t);
-  }, []);
+  const handleResync = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await qc.invalidateQueries();
+      setSyncedAt(Date.now());
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const secsAgo = Math.max(0, Math.floor((now - syncedAt) / 1000));
   const syncLabel = secsAgo < 60 ? `${secsAgo}s ago` : `${Math.floor(secsAgo / 60)}m ago`;
@@ -68,26 +76,21 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
         </button>
       </div>
 
-      {/* Live presence — desktop only */}
+      {/* Resync — actually invalidates queries */}
       <div className="hidden md:flex items-center gap-2 flex-shrink-0">
-        <div className="flex items-center gap-1.5 bg-success-soft border border-success/20 rounded-full pl-1.5 pr-2.5 py-1">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-success opacity-75 animate-ping" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
-          </span>
-          <span className="text-[11px] font-bold text-success leading-none">
-            {activeNow} active now
-          </span>
-        </div>
-
         <button
-          onClick={() => setSyncedAt(Date.now())}
-          title="Resync workspace"
-          className="group flex items-center gap-1.5 bg-muted/60 hover:bg-muted rounded-full px-2.5 py-1 transition-colors"
+          onClick={handleResync}
+          disabled={refreshing}
+          aria-label="Refresh workspace data"
+          title="Refresh workspace data"
+          className="group flex items-center gap-1.5 bg-muted/60 hover:bg-muted disabled:opacity-60 rounded-full px-2.5 py-1 transition-colors"
         >
-          <RefreshCw className="w-3 h-3 text-muted-foreground group-hover:text-foreground group-active:rotate-180 transition-all duration-500" />
+          <RefreshCw className={cn(
+            "w-3 h-3 text-muted-foreground group-hover:text-foreground transition-all",
+            refreshing && "animate-spin"
+          )} />
           <span className="text-[11px] font-semibold text-muted-foreground tabular-nums leading-none">
-            Synced {syncLabel}
+            {refreshing ? "Refreshing…" : `Synced ${syncLabel}`}
           </span>
         </button>
       </div>

@@ -15,12 +15,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { useForm } from "react-hook-form";
-import { Database, Tables } from "@/integrations/supabase/types";
+import type { TaskPriority, Contact } from "@/lib/api-types";
 import { initialsFor } from "@/lib/inbox-types";
 import { toast } from "sonner";
 
-type Priority = Database["public"]["Enums"]["task_priority"];
-type TaskWithContact = Task & { contact?: Tables<"contacts"> | null };
+type Priority = TaskPriority;
+type TaskWithContact = Task & { contact?: Contact | null };
 
 // ---------- helpers ----------
 const priorityStyle: Record<Priority, {
@@ -205,8 +205,8 @@ export const FollowupsPage = () => {
   return (
     <PageShell
       title="Follow-ups"
-      subtitle="Every overdue task is money on the table"
-      icon={<Bell className="w-4 h-4" />}
+      subtitle="Har overdue task matlab table par paisa chhoda hua"
+      icon={<Bell className="w-5 h-5" />}
       actions={
         <div className="flex items-center gap-2">
           <div className="hidden md:flex items-center gap-2 px-3 h-9 rounded-lg border border-border bg-card">
@@ -236,7 +236,7 @@ export const FollowupsPage = () => {
 
       {/* ============ PROGRESS TRACKER ============ */}
       {totalToday > 0 && (
-        <div className="bg-card border border-border rounded-xl p-4 mb-5">
+        <div className="bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] p-4 mb-5">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Target className="w-4 h-4 text-primary" />
@@ -261,9 +261,7 @@ export const FollowupsPage = () => {
                 <Sparkles className="w-3.5 h-3.5" />
               </div>
               <span className="text-[12px] font-bold uppercase tracking-wider">Addison AI Recommendations</span>
-              <span className="ml-auto text-[10px] text-muted-foreground">Live</span>
-              <span className="relative flex w-1.5 h-1.5">
-                <span className="absolute inset-0 rounded-full bg-success animate-ping opacity-75" />
+              <span className="ml-auto text-[10px] text-muted-foreground" /><span className="relative flex w-1.5 h-1.5">
                 <span className="relative inline-flex rounded-full w-1.5 h-1.5 bg-success" />
               </span>
             </div>
@@ -325,7 +323,7 @@ export const FollowupsPage = () => {
       {isLoading && (
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-20 bg-card border border-border rounded-xl animate-pulse" />
+            <div key={i} className="h-20 bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] " />
           ))}
         </div>
       )}
@@ -433,7 +431,7 @@ const TaskRow = ({ task: t }: { task: TaskWithContact & { _value?: number; _due?
     >
       {/* Priority dot indicator */}
       {t.priority === "urgent" && !isDone && (
-        <span className={cn("absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full", style.dot, "animate-pulse shadow-[0_0_8px_2px_hsl(var(--hot)/0.6)]")} />
+        <span className={cn("absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full", style.dot, " shadow-[0_0_8px_2px_hsl(var(--hot)/0.6)]")} />
       )}
 
       <button
@@ -450,7 +448,7 @@ const TaskRow = ({ task: t }: { task: TaskWithContact & { _value?: number; _due?
       <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-muted to-card border border-border text-foreground/80 text-[11px] font-bold flex items-center justify-center flex-shrink-0">
         {initials}
         {due.overdue && !isDone && (
-          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-hot border-2 border-card animate-pulse" />
+          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-hot border-2 border-card " />
         )}
       </div>
 
@@ -504,13 +502,17 @@ const TaskRow = ({ task: t }: { task: TaskWithContact & { _value?: number; _due?
             <Phone className="w-3.5 h-3.5" />
           </a>
         )}
-        <button
-          onClick={() => toast.success(`Offer sent to ${t.contact?.name ?? "lead"}`)}
-          className="w-8 h-8 rounded-lg bg-primary-soft text-primary hover:bg-primary hover:text-primary-foreground transition-colors flex items-center justify-center"
-          title="Send offer"
-        >
-          <Send className="w-3.5 h-3.5" />
-        </button>
+        {t.contact?.phone && (
+          <a
+            href={`https://wa.me/${t.contact.phone.replace(/\D/g, "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-8 h-8 rounded-lg bg-primary-soft text-primary hover:bg-primary hover:text-primary-foreground transition-colors flex items-center justify-center"
+            title="Open in WhatsApp"
+          >
+            <Send className="w-3.5 h-3.5" />
+          </a>
+        )}
         <button
           onClick={reschedule}
           className="w-8 h-8 rounded-lg bg-muted hover:bg-warning hover:text-warning-foreground transition-colors flex items-center justify-center"
@@ -554,7 +556,7 @@ const MetricCard = ({
       : ""
     : "";
   return (
-    <div className={cn("relative bg-card border border-border rounded-xl p-3.5 transition-all hover:-translate-y-0.5 hover:shadow-md", ring)}>
+    <div className={cn("relative bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] p-3.5 transition-all hover:-translate-y-0.5 hover:shadow-md", ring)}>
       <div className="flex items-center justify-between mb-1.5">
         <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center relative", cls)}>
           {icon}

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Search, MessageSquare, Users, Trophy, Loader2, CornerDownLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 
 type Result =
   | { kind: "contact"; id: string; name: string; phone: string; tag: string }
@@ -26,19 +26,17 @@ export const GlobalSearch = ({ onNavigate }: Props) => {
     let cancelled = false;
     setLoading(true);
     const t = setTimeout(async () => {
-      const term = `%${q}%`;
-      const [contacts, convos, deals] = await Promise.all([
-        supabase.from("contacts").select("id,name,phone,tag").or(`name.ilike.${term},phone.ilike.${term}`).limit(4),
-        supabase.from("conversations").select("id,last_message_preview,contact:contacts(name)").ilike("last_message_preview", term).limit(4),
-        supabase.from("deals").select("id,title,value,stage").ilike("title", term).limit(4),
-      ]);
-      if (cancelled) return;
-      const r: Result[] = [];
-      contacts.data?.forEach((c) => r.push({ kind: "contact", id: c.id, name: c.name, phone: c.phone, tag: c.tag }));
-      convos.data?.forEach((c: any) => r.push({ kind: "conversation", id: c.id, name: c.contact?.name ?? "Unknown", preview: c.last_message_preview ?? "" }));
-      deals.data?.forEach((d) => r.push({ kind: "deal", id: d.id, title: d.title, value: Number(d.value), stage: d.stage }));
-      setResults(r);
-      setLoading(false);
+      try {
+        const data = await api.search(q);
+        if (cancelled) return;
+        const r: Result[] = [];
+        data.contacts?.forEach((c: any) => r.push({ kind: "contact", id: c.id, name: c.name, phone: c.phone, tag: c.tag }));
+        data.conversations?.forEach((c: any) => r.push({ kind: "conversation", id: c.id, name: c.contact_name ?? "Unknown", preview: c.last_message_preview ?? "" }));
+        data.deals?.forEach((d: any) => r.push({ kind: "deal", id: d.id, title: d.title, value: Number(d.value), stage: d.stage }));
+        setResults(r);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }, 220);
     return () => { cancelled = true; clearTimeout(t); };
   }, [q, user]);

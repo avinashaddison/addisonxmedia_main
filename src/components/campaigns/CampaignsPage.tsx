@@ -14,12 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
-import { Database } from "@/integrations/supabase/types";
+import type { CampaignChannel, CampaignStatus } from "@/lib/api-types";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { TypingText } from "@/components/dashboard/TypingText";
 
-type Channel = Database["public"]["Enums"]["campaign_channel"];
-type Status = Database["public"]["Enums"]["campaign_status"];
+type Channel = CampaignChannel;
+type Status = CampaignStatus;
 type CampaignType = "broadcast" | "sequence" | "retargeting" | "offer";
 
 const statusStyle: Record<Status, string> = {
@@ -96,8 +95,8 @@ export const CampaignsPage = () => {
   return (
     <PageShell
       title="Campaigns"
-      subtitle="Launch, automate and track revenue-driving campaigns"
-      icon={<Megaphone className="w-4 h-4" />}
+      subtitle="Launch karo, automate karo, revenue track karo"
+      icon={<Megaphone className="w-5 h-5" />}
       actions={
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowAI(true)}>
@@ -118,7 +117,7 @@ export const CampaignsPage = () => {
       {!isEmpty && <AIInsightsPanel campaigns={campaigns} />}
 
       {/* Toolbar */}
-      <div className="bg-card border border-border rounded-xl p-3 mb-4 flex flex-wrap items-center gap-2">
+      <div className="bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] p-3 mb-4 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
@@ -150,7 +149,7 @@ export const CampaignsPage = () => {
       {isLoading && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4 animate-pulse h-44" />
+            <div key={i} className="bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] p-4  h-44" />
           ))}
         </div>
       )}
@@ -197,7 +196,7 @@ const HeroCommandCenter = ({
       {/* Animated aurora bg */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-primary-glow" />
       <div className="absolute inset-0 aurora-bg opacity-60" />
-      <div className="absolute -right-10 -top-10 w-56 h-56 bg-white/10 rounded-full blur-3xl animate-pulse" />
+      <div className="absolute -right-10 -top-10 w-56 h-56 bg-white/10 rounded-full blur-3xl " />
       <div className="absolute right-32 bottom-0 w-32 h-32 bg-accent/30 rounded-full blur-2xl" />
 
       <div className="relative p-6 text-primary-foreground">
@@ -226,16 +225,8 @@ const HeroCommandCenter = ({
                 <h2 className="text-2xl md:text-3xl font-bold mb-1 leading-tight tabular-nums">
                   {active} live · {totals.total} total campaigns
                 </h2>
-                <p className="text-[13px] opacity-90 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <TypingText
-                    phrases={[
-                      "Best send window detected: 6–8 PM today",
-                      "Hot leads are replying 3.2× faster",
-                      "Suggested: re-engage 142 idle warm leads",
-                    ]}
-                    className="font-medium"
-                  />
+                <p className="text-[13px] opacity-90">
+                  {totals.total > 0 ? "Manage and send approved WhatsApp campaigns" : "No campaigns yet — create your first below"}
                 </p>
               </>
             )}
@@ -287,7 +278,7 @@ const HeroMetric = ({
     </div>
     <p className="text-xl font-bold tabular-nums">{value}</p>
     {highlight && (
-      <div className="absolute -top-1 -right-1 w-2 h-2 bg-success rounded-full animate-pulse" />
+      <div className="absolute -top-1 -right-1 w-2 h-2 bg-success rounded-full " />
     )}
   </div>
 );
@@ -348,7 +339,7 @@ const AIInsightsPanel = ({ campaigns }: { campaigns: Campaign[] }) => {
       <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
       <div className="relative">
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-primary-foreground shadow-md shadow-primary/20">
+          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shadow-md shadow-primary/20">
             <Sparkles className="w-3.5 h-3.5" />
           </div>
           <div>
@@ -395,8 +386,8 @@ const PremiumEmptyState = ({ onCreate, onAI }: { onCreate: () => void; onAI: () 
       <div className="absolute inset-0 bg-gradient-to-br from-primary-soft/30 via-transparent to-accent-soft/20" />
       <div className="relative">
         <div className="relative w-20 h-20 mx-auto mb-5">
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary to-primary-glow rotate-6 shadow-xl shadow-primary/30" />
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-primary-foreground -rotate-6">
+          <div className="absolute inset-0 rounded-2xl bg-primary rotate-6 shadow-xl shadow-primary/30" />
+          <div className="absolute inset-0 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground -rotate-6">
             <Rocket className="w-9 h-9" />
           </div>
         </div>
@@ -478,7 +469,7 @@ const CampaignCard = ({ campaign: c }: { campaign: Campaign }) => {
 
   return (
     <>
-      <div className="group relative overflow-hidden bg-card border border-border rounded-xl p-4 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all">
+      <div className="group relative overflow-hidden bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] p-4 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 transition-all">
         {/* gradient hover sheen */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary/0 via-primary/0 to-primary/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
 
@@ -495,7 +486,7 @@ const CampaignCard = ({ campaign: c }: { campaign: Campaign }) => {
                   <span className={cn(
                     "w-1.5 h-1.5 rounded-full",
                     statusDot[c.status],
-                    c.status === "active" && "animate-pulse"
+                    c.status === "active" && ""
                   )} />
                   {c.status}
                 </span>
@@ -721,7 +712,7 @@ const AICampaignBuilder = ({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-primary-foreground">
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
               <Wand2 className="w-3.5 h-3.5" />
             </div>
             Create Campaign with AI
@@ -774,8 +765,8 @@ const AICampaignBuilder = ({
           <div className="py-6 text-center">
             <div className="relative w-16 h-16 mx-auto mb-3">
               <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-              <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-primary-foreground">
-                <Sparkles className="w-7 h-7 animate-pulse" />
+              <div className="relative w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground">
+                <Sparkles className="w-7 h-7 " />
               </div>
             </div>
             <p className="text-[14px] font-bold mb-1">Addison AI is crafting your campaign…</p>

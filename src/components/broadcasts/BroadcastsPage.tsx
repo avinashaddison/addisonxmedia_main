@@ -4,22 +4,29 @@ import {
   Radio, Plus, Send, Users, FileText, CheckCircle2, Sparkles, Trash2, Clock,
   Wand2, Zap, IndianRupee, MessageCircle, Eye, TrendingUp, Target, Filter,
   Smile, Tag as TagIcon, Lightbulb, Activity, Calendar, Rocket, Bot,
-  ShieldCheck, BarChart3, ArrowUpRight, X, AlertTriangle,
+  ShieldCheck, BarChart3, ArrowUpRight, X, AlertTriangle, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useBroadcasts, useCreateBroadcast, useDeleteBroadcast, Broadcast } from "@/hooks/useCrmData";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import {
+  useBroadcasts, useCreateBroadcast, useDeleteBroadcast,
+  useSendBroadcast, useContactsLookup, Broadcast,
+} from "@/hooks/useCrmData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Database } from "@/integrations/supabase/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { LeadTag, BroadcastStatus } from "@/lib/api-types";
 import { formatRelative } from "@/lib/inbox-types";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
-type Tag = Database["public"]["Enums"]["lead_tag"];
-type Status = Database["public"]["Enums"]["broadcast_status"];
+type Tag = LeadTag;
+type Status = BroadcastStatus;
 type Segment = "hot" | "warm" | "cold" | "inactive" | "recent" | "vip";
 type AITone = "sales" | "friendly" | "urgent";
 type AIType = "sales" | "offer" | "followup";
@@ -40,13 +47,16 @@ const statusDot: Record<Status, string> = {
   failed: "bg-hot",
 };
 
-const segmentDefs: Record<Segment, { label: string; emoji: string; reach: number; tag?: Tag }> = {
-  hot:      { label: "Hot leads",         emoji: "🔥", reach: 124, tag: "hot" },
-  warm:     { label: "Warm leads",        emoji: "🟡", reach: 348, tag: "warm" },
-  cold:     { label: "Cold leads",        emoji: "❄️", reach: 612, tag: "cold" },
-  inactive: { label: "Inactive 14d+",     emoji: "💤", reach: 187 },
-  recent:   { label: "Recent signups",    emoji: "🆕", reach: 72 },
-  vip:      { label: "High-value",        emoji: "💎", reach: 41 },
+// Static segment metadata — actual reach numbers are computed from real contacts.
+// Only `hot`, `warm`, `cold` map to a real DB tag. Others are advisory-only labels
+// for the segment picker (the backend audience filter ONLY supports lead_tag).
+const segmentDefs: Record<Segment, { label: string; emoji: string; tag?: Tag }> = {
+  hot:      { label: "Hot leads",         emoji: "🔥", tag: "hot" },
+  warm:     { label: "Warm leads",        emoji: "🟡", tag: "warm" },
+  cold:     { label: "Cold leads",        emoji: "❄️", tag: "cold" },
+  inactive: { label: "Inactive 14d+",     emoji: "💤" },
+  recent:   { label: "Recent signups",    emoji: "🆕" },
+  vip:      { label: "High-value",        emoji: "💎" },
 };
 
 const personalChips = ["{{name}}", "{{city}}", "{{last_purchase}}", "{{offer_code}}"];
@@ -74,10 +84,40 @@ const useCount = (target: number, duration = 900) => {
 export const BroadcastsPage = () => {
   const { data: broadcasts = [], isLoading } = useBroadcasts();
   const create = useCreateBroadcast();
+  const sendBc = useSendBroadcast();
+
+  // Real contact counts by tag (replaces hardcoded segment reach)
+  const { data: contacts = [] } = useContactsLookup();
+  const realCounts = useMemo(() => ({
+    hot: contacts.filter((c: any) => c.tag === "hot").length,
+    warm: contacts.filter((c: any) => c.tag === "warm").length,
+    cold: contacts.filter((c: any) => c.tag === "cold").length,
+    all: contacts.length,
+  }), [contacts]);
+
+  // Meta config — drives whether we can actually send
+  const { data: metaCfg } = useQuery({
+    queryKey: ["meta-config"],
+    queryFn: () => api.getMetaConfig(),
+  });
+  const metaEnabled = !!metaCfg?.enabled;
+
+  // Approved templates from Meta — populates the template picker
+  const { data: templatesResp } = useQuery({
+    queryKey: ["meta-templates", metaCfg?.business_account_id],
+    queryFn: () => api.listMetaTemplates(),
+    enabled: !!metaCfg?.business_account_id,
+  });
+  const approvedTemplates = useMemo(
+    () => ((templatesResp?.data ?? []) as any[]).filter((t) => t.status === "APPROVED"),
+    [templatesResp]
+  );
 
   // Composer state
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("Hi {{name}} 👋 ");
+  const [templateName, setTemplateName] = useState<string>("");
+  const [templateLanguage, setTemplateLanguage] = useState<string>("en");
   const [segment, setSegment] = useState<Segment>("hot");
   const [excludeRecent, setExcludeRecent] = useState(true);
   const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
@@ -86,18 +126,25 @@ export const BroadcastsPage = () => {
   const [aiOpen, setAiOpen] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Aggregate metrics across broadcasts
+  // When user picks a template, prefill body from its body component
+  useEffect(() => {
+    if (!templateName) return;
+    const t = approvedTemplates.find((x) => x.name === templateName);
+    if (!t) return;
+    setTemplateLanguage(t.language ?? "en");
+    const tmplBody = t.components?.find((c: any) => c.type === "BODY")?.text;
+    if (tmplBody) setBody(tmplBody);
+  }, [templateName, approvedTemplates]);
+
+  // Aggregate metrics across broadcasts (real numbers only — no fake estimation)
   const totals = useMemo(() => {
     const sent = broadcasts.reduce((a, b) => a + b.recipient_count, 0);
     const delivered = broadcasts.reduce((a, b) => a + b.delivered_count, 0);
     const read = broadcasts.reduce((a, b) => a + b.read_count, 0);
-    // Reply count proxied from delivered (no field on schema). Use deterministic estimate.
-    const replies = Math.round(delivered * 0.12);
-    const conversions = Math.round(delivered * 0.034);
-    const revenue = conversions * 1500;
-    const replyRate = sent ? Math.round((replies / sent) * 1000) / 10 : 0;
-    const convRate = sent ? Math.round((conversions / sent) * 1000) / 10 : 0;
-    return { sent, delivered, read, replies, conversions, revenue, replyRate, convRate };
+    const failed = broadcasts.reduce((a, b) => a + b.failed_count, 0);
+    const deliveryRate = sent ? Math.round((delivered / sent) * 1000) / 10 : 0;
+    const readRate = delivered ? Math.round((read / delivered) * 1000) / 10 : 0;
+    return { sent, delivered, read, failed, deliveryRate, readRate };
   }, [broadcasts]);
 
   // Message scoring (deterministic, content-aware)
@@ -119,7 +166,10 @@ export const BroadcastsPage = () => {
   }, [body]);
 
   const segDef = segmentDefs[segment];
-  const reach = excludeRecent ? Math.max(0, segDef.reach - 14) : segDef.reach;
+  // Real reach: count contacts in DB matching this segment's tag.
+  // Segments without a tag (inactive/recent/vip) reach 0 until tag-based audience filtering supports those.
+  const baseReach = segDef.tag ? realCounts[segDef.tag] : 0;
+  const reach = excludeRecent && baseReach > 14 ? baseReach - 14 : baseReach;
 
   const insertChip = (chip: string) => {
     const ta = bodyRef.current;
@@ -135,26 +185,55 @@ export const BroadcastsPage = () => {
     });
   };
 
-  const sendBroadcast = (withAutoReply: boolean) => {
+  const sendBroadcast = (_withAutoReply: boolean) => {
     if (!title.trim() || !body.trim()) {
       toast.error("Add a title and a message first");
       return;
     }
+    if (!segDef.tag) {
+      toast.error("Pick Hot / Warm / Cold — other segments aren't wired to send yet");
+      return;
+    }
+    if (reach === 0) {
+      toast.error("Audience is empty. Pick a different segment or add contacts first.");
+      return;
+    }
+
     const scheduled = scheduleMode === "later" && scheduledAt ? new Date(scheduledAt).toISOString() : null;
+    const wantsRealSend = scheduleMode === "now";
+
+    // Validate Meta requirements for real send
+    if (wantsRealSend && !metaEnabled) {
+      toast.error("Connect WhatsApp in Settings before sending live broadcasts");
+      return;
+    }
+    if (wantsRealSend && !templateName) {
+      toast.error("Pick an approved template — Meta requires it for outbound broadcasts");
+      return;
+    }
+
+    // 1) Save the broadcast as draft (so the send endpoint can pick it up by id)
     create.mutate(
       {
         title: title.trim(),
         body: body.trim(),
-        audience_tag: segDef.tag ?? null,
+        audience_tag: segDef.tag,
+        template_name: templateName || null,
+        template_language: templateLanguage || "en",
         scheduled_at: scheduled,
         recipient_count: reach,
-        status: scheduled ? "scheduled" : "sent",
+        status: scheduled ? "scheduled" : "draft",
       },
       {
-        onSuccess: () => {
-          toast.success(withAutoReply ? "Broadcast sent · AI auto-reply enabled" : "Broadcast queued");
+        onSuccess: (created: any) => {
           setTitle("");
           setBody("Hi {{name}} 👋 ");
+          if (!wantsRealSend) {
+            toast.success(`Scheduled for ${new Date(scheduled!).toLocaleString()}`);
+            return;
+          }
+          // 2) Fire actual Meta send via the new endpoint
+          sendBc.mutate(created.id);
         },
       }
     );
@@ -165,8 +244,8 @@ export const BroadcastsPage = () => {
   return (
     <PageShell
       title="Broadcasts"
-      subtitle="High-conversion WhatsApp broadcasts with AI optimization"
-      icon={<Radio className="w-4 h-4" />}
+      subtitle="10,000 customers ko ek click mein · AI optimized"
+      icon={<Radio className="w-5 h-5" />}
       actions={
         <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAiOpen(true)}>
           <Wand2 className="w-3.5 h-3.5 text-primary" /> AI Generate
@@ -183,7 +262,7 @@ export const BroadcastsPage = () => {
           <div className="bg-card border border-border rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-primary-foreground shadow-md shadow-primary/20">
+                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shadow-md shadow-primary/20">
                   <Sparkles className="w-3.5 h-3.5" />
                 </div>
                 <div>
@@ -200,6 +279,48 @@ export const BroadcastsPage = () => {
               <div className="space-y-1.5">
                 <Label htmlFor="qtitle" className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground">Title</Label>
                 <Input id="qtitle" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Diwali Sale Blast" />
+              </div>
+
+              {/* Meta template picker — required for actual outbound send */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3" /> Meta-approved template
+                  </Label>
+                  {metaCfg?.business_account_id && (
+                    <Link to="/app/templates" className="text-[10px] font-bold uppercase tracking-wider text-primary hover:underline flex items-center gap-1">
+                      Manage <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  )}
+                </div>
+                {!metaEnabled ? (
+                  <Link
+                    to="/app/settings"
+                    className="block rounded-lg border border-warning/30 bg-warning-soft/40 px-3 py-2 text-[12px] hover:bg-warning-soft/60 transition-colors"
+                  >
+                    <span className="font-bold">WhatsApp not connected</span> — broadcasts won't actually send. Connect Meta first.
+                  </Link>
+                ) : approvedTemplates.length === 0 ? (
+                  <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-[12px] text-muted-foreground">
+                    No approved templates in your WABA. <Link to="/app/templates" className="text-primary hover:underline">Sync templates</Link> or create one in Meta Business Manager.
+                  </div>
+                ) : (
+                  <Select value={templateName} onValueChange={setTemplateName}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pick an approved template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {approvedTemplates.map((t: any) => (
+                        <SelectItem key={`${t.name}-${t.language}`} value={t.name}>
+                          {t.name} <span className="text-muted-foreground">({t.language})</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className="text-[10px] text-muted-foreground">
+                  Meta requires an approved template for outbound broadcasts. Picking one fills the message body below.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -286,7 +407,9 @@ export const BroadcastsPage = () => {
                       {active && <CheckCircle2 className="w-3.5 h-3.5 text-primary" />}
                     </div>
                     <p className="text-[12px] font-bold leading-tight">{def.label}</p>
-                    <p className="text-[10px] text-muted-foreground tabular-nums">~{def.reach} contacts</p>
+                    <p className="text-[10px] text-muted-foreground tabular-nums">
+                      {def.tag ? `${realCounts[def.tag]} contacts` : "(not yet supported)"}
+                    </p>
                   </button>
                 );
               })}
@@ -300,7 +423,7 @@ export const BroadcastsPage = () => {
               <Switch checked={excludeRecent} onCheckedChange={setExcludeRecent} />
             </div>
 
-            <div className="mt-3 flex items-center justify-between rounded-xl border border-primary/30 bg-gradient-to-r from-primary-soft/60 to-success-soft/40 p-3">
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-primary/30 bg-primary-soft p-3">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-primary" />
                 <p className="text-[12.5px]">
@@ -364,9 +487,9 @@ export const BroadcastsPage = () => {
           </div>
 
           {/* Auto-reply + CTA */}
-          <div className="bg-gradient-to-br from-card via-card to-primary-soft/30 border border-primary/20 rounded-2xl p-5">
+          <div className="bg-card border border-border rounded-2xl p-5">
             <div className="flex items-start gap-3 mb-4">
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/20 shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/20 shrink-0">
                 <Bot className="w-4 h-4" />
               </div>
               <div className="flex-1">
@@ -427,7 +550,7 @@ export const BroadcastsPage = () => {
       {isLoading && (
         <div className="space-y-2">
           {[...Array(2)].map((_, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-4 animate-pulse h-20" />
+            <div key={i} className="bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] p-4 animate-pulse h-20" />
           ))}
         </div>
       )}
@@ -448,34 +571,25 @@ export const BroadcastsPage = () => {
   );
 };
 
-// ---------- Metrics Bar ----------
-const MetricsBar = ({ totals }: { totals: ReturnType<typeof aggregateTypeStub> | any }) => {
+// ---------- Metrics Bar — only real numbers from broadcast rows ----------
+const MetricsBar = ({ totals }: { totals: { sent: number; delivered: number; read: number; failed: number; deliveryRate: number; readRate: number } }) => {
   const sent = useCount(totals.sent);
   const delivered = useCount(totals.delivered);
   const read = useCount(totals.read);
-  const replies = useCount(totals.replies);
-  const conv = useCount(totals.conversions);
-  const rev = useCount(totals.revenue);
-  const replyRate = totals.replyRate;
-  const convRate = totals.convRate;
+  const failed = useCount(totals.failed);
 
   const tiles = [
-    { icon: <Send className="w-3.5 h-3.5" />, label: "Sent",      value: sent.toLocaleString(),      tone: "primary" as const },
-    { icon: <CheckCircle2 className="w-3.5 h-3.5" />, label: "Delivered", value: delivered.toLocaleString(), tone: "primary" as const },
-    { icon: <Eye className="w-3.5 h-3.5" />, label: "Read",       value: read.toLocaleString(),      tone: "primary" as const },
-    { icon: <MessageCircle className="w-3.5 h-3.5" />, label: "Replies", value: replies.toLocaleString(), sub: `${replyRate}% rate`, tone: "warning" as const },
-    { icon: <ShieldCheck className="w-3.5 h-3.5" />, label: "Conversions", value: conv.toLocaleString(), sub: `${convRate}% rate`, tone: "success" as const },
-    { icon: <IndianRupee className="w-3.5 h-3.5" />, label: "Revenue", value: `₹${(rev / 1000).toFixed(1)}k`, tone: "success" as const, highlight: true },
+    { icon: <Send className="w-3.5 h-3.5" />, label: "Sent",      value: sent.toLocaleString("en-IN"),      tone: "primary" as const },
+    { icon: <CheckCircle2 className="w-3.5 h-3.5" />, label: "Delivered", value: delivered.toLocaleString("en-IN"), sub: `${totals.deliveryRate}% rate`, tone: "primary" as const },
+    { icon: <Eye className="w-3.5 h-3.5" />, label: "Read",       value: read.toLocaleString("en-IN"),      sub: `${totals.readRate}% of delivered`, tone: "success" as const },
+    { icon: <AlertTriangle className="w-3.5 h-3.5" />, label: "Failed", value: failed.toLocaleString("en-IN"), tone: "warning" as const },
   ];
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 mb-5">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-5">
       {tiles.map((t) => (
         <div
           key={t.label}
-          className={cn(
-            "relative bg-card border border-border rounded-xl p-3 transition-all hover:-translate-y-0.5 hover:shadow-md",
-            t.highlight && "border-success/40 bg-gradient-to-br from-card to-success-soft/40 shadow-md shadow-success/10"
-          )}
+          className="relative bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] p-3 transition-all hover:-translate-y-0.5 hover:shadow-md"
         >
           <div className={cn(
             "inline-flex items-center justify-center w-7 h-7 rounded-lg mb-1.5",
@@ -486,13 +600,11 @@ const MetricsBar = ({ totals }: { totals: ReturnType<typeof aggregateTypeStub> |
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{t.label}</p>
           <p className="text-lg font-bold tabular-nums leading-tight">{t.value}</p>
           {t.sub && <p className="text-[10px] text-muted-foreground tabular-nums">{t.sub}</p>}
-          {t.highlight && <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-success animate-pulse" />}
         </div>
       ))}
     </div>
   );
 };
-const aggregateTypeStub = () => ({ sent: 0, delivered: 0, read: 0, replies: 0, conversions: 0, revenue: 0, replyRate: 0, convRate: 0 });
 
 // ---------- Message Score ----------
 const MessageScoreBar = ({ score, tone }: { score: number; tone: AITone }) => {
@@ -547,7 +659,7 @@ const PhonePreview = ({
 
   return (
     <div className="sticky top-4">
-      <div className="bg-gradient-to-br from-primary-soft/40 via-card to-success-soft/30 border border-border rounded-2xl p-4">
+      <div className="bg-card border border-border rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Live preview</p>
           <span className="text-[10px] text-muted-foreground">{segmentLabel} · ~{reach}</span>
@@ -590,7 +702,7 @@ const PhonePreview = ({
 
         {autoReply && (
           <div className="mt-3 rounded-lg border border-primary/30 bg-card p-2 flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-primary to-primary-glow text-primary-foreground flex items-center justify-center">
+            <div className="w-6 h-6 rounded-md bg-primary text-primary-foreground flex items-center justify-center">
               <Bot className="w-3 h-3" />
             </div>
             <p className="text-[10.5px] leading-tight">
@@ -613,11 +725,11 @@ const AIInsightsPanel = ({ broadcasts }: { broadcasts: Broadcast[] }) => {
     { icon: <AlertTriangle className="w-3.5 h-3.5" />, text: "Add urgency words to boost conversions by ~22%", tone: "warning" as const },
   ];
   return (
-    <div className="relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-primary-soft/30 via-card to-card mb-5 p-4">
+    <div className="rounded-xl border border-border bg-card mb-5 p-4">
       <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
       <div className="relative">
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-primary-foreground shadow-md shadow-primary/20">
+          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shadow-md shadow-primary/20">
             <Sparkles className="w-3.5 h-3.5" />
           </div>
           <div>
@@ -688,9 +800,9 @@ const BroadcastRow = ({ broadcast: b }: { broadcast: Broadcast }) => {
   }, [b.id]);
 
   return (
-    <div className="group relative bg-card border border-border rounded-xl p-3 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 transition-all">
+    <div className="group relative bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] p-3 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 transition-all">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-soft to-success-soft text-primary flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 rounded-lg bg-primary-soft text-primary flex items-center justify-center flex-shrink-0">
           <Radio className="w-4 h-4" />
         </div>
         <div className="flex-1 min-w-0">
@@ -756,14 +868,10 @@ const PremiumEmptyState = ({ onCreate, onAI }: { onCreate: () => void; onAI: () 
     { icon: <IndianRupee className="w-4 h-4" />, label: "Get replies & ₹", desc: "AI closes the loop" },
   ];
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-8 md:p-10 text-center mb-6">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary-soft/30 via-transparent to-success-soft/20" />
-      <div className="relative">
-        <div className="relative w-20 h-20 mx-auto mb-5">
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary to-primary-glow rotate-6 shadow-xl shadow-primary/30" />
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-primary-foreground -rotate-6">
-            <Radio className="w-9 h-9" />
-          </div>
+    <div className="rounded-2xl border border-dashed border-border bg-card p-8 md:p-10 text-center mb-6">
+      <div>
+        <div className="w-14 h-14 rounded-2xl bg-primary-soft text-primary flex items-center justify-center mx-auto mb-4">
+          <Radio className="w-7 h-7" />
         </div>
         <h3 className="text-xl md:text-2xl font-bold mb-2">Send one message — get customers instantly</h3>
         <p className="text-[13px] text-muted-foreground mb-6 max-w-md mx-auto">
@@ -843,7 +951,7 @@ const AIGeneratorDialog = ({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-primary-foreground">
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-primary-foreground">
               <Wand2 className="w-3.5 h-3.5" />
             </div>
             Generate broadcast with AI
