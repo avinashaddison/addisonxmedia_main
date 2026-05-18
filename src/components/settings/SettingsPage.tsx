@@ -718,9 +718,9 @@ type Member = { id: string; name: string; email: string; role: "Admin" | "Sales 
 
 const TeamSection = () => {
   const [members, setMembers] = useState<Member[]>([
-    { id: "1", name: "You",         email: "you@addisonx.in",   role: "Admin",       status: "active",  assigned: 12 },
-    { id: "2", name: "Karan Mehta", email: "karan@addisonx.in", role: "Sales Agent", status: "active",  assigned: 8  },
-    { id: "3", name: "Priya Singh", email: "priya@addisonx.in", role: "Sales Agent", status: "invited", assigned: 0  },
+    { id: "1", name: "You",         email: "you@addisonxmedia.com",   role: "Admin",       status: "active",  assigned: 12 },
+    { id: "2", name: "Karan Mehta", email: "karan@addisonxmedia.com", role: "Sales Agent", status: "active",  assigned: 8  },
+    { id: "3", name: "Priya Singh", email: "priya@addisonxmedia.com", role: "Sales Agent", status: "invited", assigned: 0  },
   ]);
   const [invite, setInvite] = useState("");
 

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useEffect } from "react";
 import { MessageCircle, ShieldCheck, FileCheck2, Mail, Phone, MapPin, Crown } from "lucide-react";
-import { AddisonLogo } from "@/components/brand/AddisonLogo";
+import { BrandLockup } from "@/components/brand/AddisonLogo";
 
 const LAST_UPDATED = "18 May 2026";
 const EFFECTIVE = "18 May 2026";
@@ -50,9 +50,9 @@ const Privacy = () => {
   return (
     <div className="min-h-screen w-full bg-[#FFF6E8] text-foreground">
       {/* ============ TOP NAV ============ */}
-      <header className="h-16 flex items-center justify-between px-5 sm:px-8 border-b-2 border-[#E8B968] bg-white sticky top-0 z-30">
-        <Link to="/" className="flex items-center hover:opacity-90 transition" aria-label="AddisonX home">
-          <AddisonLogo size={38} />
+      <header className="h-[80px] flex items-center justify-between px-5 sm:px-8 border-b-2 border-[#E8B968] bg-white sticky top-0 z-30 overflow-visible">
+        <Link to="/" className="flex items-center pt-1" aria-label="Addison X Media home">
+          <BrandLockup size={25} />
         </Link>
         <div className="hidden sm:flex items-center gap-5 text-[12px] font-semibold">
           <Link to="/terms" className="text-foreground/70 hover:text-[#FF6A1F] transition">Terms</Link>
@@ -294,7 +294,7 @@ const Privacy = () => {
               <li><strong>Right to data portability</strong> — export your data as CSV/JSON from Settings → Export</li>
             </ul>
             <p className="mt-3">
-              To exercise any right, write to <a href="mailto:privacy@addisonx.in" className="text-[#FF6A1F] font-bold underline underline-offset-2">privacy@addisonx.in</a>.
+              To exercise any right, write to <a href="mailto:Contact@addisonxmedia.com" className="text-[#FF6A1F] font-bold underline underline-offset-2">Contact@addisonxmedia.com</a>.
               We respond within 30 days.
             </p>
           </Section>
@@ -337,10 +337,10 @@ const Privacy = () => {
             <ContactCard
               name="Mr. Ajay Kumar"
               role="Grievance Officer & Data Protection Officer"
-              address="AddisonX Media Pvt. Ltd., Main Road, Lalpur, Ranchi 834001, Jharkhand, India"
-              email="grievance@addisonx.in"
-              phone="+91-80-4567-8910"
-              hours="Mon–Sat, 9:00 AM – 9:00 PM IST"
+              address="Addison X Media Pvt. Ltd., Itki Road, Piska More, 1st Floor, Vaishwakarma Complex, Hehal, Ranchi 834005, Jharkhand, India"
+              email="Contact@addisonxmedia.com"
+              phone="+91-9709707311"
+              hours="Mon–Sat, 9:00 AM – 9:00 PM IST · GST: 20IARPK8159R1ZN"
             />
             <p className="mt-5">
               You may also contact the <strong>Data Protection Board of India</strong> directly if you
@@ -352,14 +352,14 @@ const Privacy = () => {
           <div className="mt-12 p-5 rounded-2xl bg-[#FFF1D6] border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968]">
             <p className="text-[12px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold mb-2">TL;DR</p>
             <p className="text-[13px] font-semibold leading-relaxed">
-              We collect what we need to run AddisonX. We host in Mumbai, encrypt sensitive data, never
+              We collect what we need to run Addison X Media. We host in Mumbai, encrypt sensitive data, never
               sell your information, and let you export or delete everything anytime. Questions? Email{" "}
-              <a href="mailto:privacy@addisonx.in" className="text-[#FF6A1F] font-extrabold underline">privacy@addisonx.in</a>.
+              <a href="mailto:Contact@addisonxmedia.com" className="text-[#FF6A1F] font-extrabold underline">Contact@addisonxmedia.com</a>.
             </p>
           </div>
 
           <p className="text-[11px] text-foreground/50 font-medium pt-4 border-t border-[#E8B968]/40">
-            © {new Date().getFullYear()} AddisonX Media Pvt. Ltd. · Ranchi, Jharkhand · India · CIN under registration
+            © {new Date().getFullYear()} Addison X Media Pvt. Ltd. · Ranchi, Jharkhand · India · GST 20IARPK8159R1ZN
           </p>
         </article>
       </main>

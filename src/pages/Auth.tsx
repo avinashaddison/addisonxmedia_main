@@ -7,7 +7,7 @@ import {
   MessageCircle, Loader2, ArrowRight, Check, Sparkles, Star, Shield,
   IndianRupee, Languages, FileCheck2, Crown, TrendingUp, Bot,
 } from "lucide-react";
-import { AddisonLogo } from "@/components/brand/AddisonLogo";
+import { BrandLockup } from "@/components/brand/AddisonLogo";
 
 const paisleyBg =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'><g fill='none' stroke='%23B8651A' stroke-width='1' opacity='0.18'><circle cx='30' cy='30' r='12'/><path d='M30 18 Q42 30 30 42 Q18 30 30 18Z'/><circle cx='30' cy='30' r='3'/></g></svg>";
@@ -67,9 +67,9 @@ const Auth = () => {
   return (
     <div className="min-h-screen w-full bg-[#FFF6E8] text-foreground flex flex-col">
       {/* Top bar */}
-      <header className="h-16 flex items-center justify-between px-5 sm:px-8 border-b-2 border-[#E8B968] bg-white flex-shrink-0">
-        <Link to="/" className="flex items-center hover:opacity-90 transition" aria-label="AddisonX home">
-          <AddisonLogo size={38} />
+      <header className="h-[80px] flex items-center justify-between px-5 sm:px-8 border-b-2 border-[#E8B968] bg-white flex-shrink-0 overflow-visible">
+        <Link to="/" className="flex items-center pt-1" aria-label="Addison X Media home">
+          <BrandLockup size={25} />
         </Link>
         <Link to="/" className="text-[12px] font-semibold text-foreground/70 hover:text-[#FF6A1F] transition">
           ← Home par wapas

@@ -52,7 +52,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { FAQSection } from "@/components/landing/FAQSection";
-import { AddisonLogo } from "@/components/brand/AddisonLogo";
+import { AddisonLogo, BrandLockup } from "@/components/brand/AddisonLogo";
 
 const HERO_ROTATING = [
   "Bharat ke",
@@ -129,9 +129,9 @@ export default function Landing() {
             : "bg-[#FFF6E8]/60 backdrop-blur-md border-b border-transparent"
         }`}
       >
-        <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center hover:opacity-90 transition" aria-label="AddisonX home">
-            <AddisonLogo size={32} />
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 h-[80px] flex items-center justify-between overflow-visible">
+          <Link to="/" className="flex items-center pt-1" aria-label="Addison X Media home">
+            <BrandLockup size={25} />
           </Link>
 
           <nav className="hidden lg:flex items-center gap-1 text-sm font-semibold">
@@ -220,8 +220,8 @@ export default function Landing() {
               </Link>
             ) : (
               <>
-                <a href="tel:+918045678910" className="text-sm font-semibold text-foreground hover:text-[#FF6A1F] transition px-3 py-2 inline-flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5" /> +91 80-4567-8910
+                <a href="tel:+919709707311" className="text-sm font-semibold text-foreground hover:text-[#FF6A1F] transition px-3 py-2 inline-flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5" /> +91 97097 07311
                 </a>
                 <Link to="/auth" className="text-sm font-semibold text-foreground/70 hover:text-foreground transition px-3 py-2">
                   Sign in
@@ -327,7 +327,7 @@ export default function Landing() {
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
               <a
-                href="https://wa.me/918045678910"
+                href="https://wa.me/916206153116"
                 className="group inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-white border-2 border-[#0E8A4B] text-[#0E8A4B] font-extrabold text-base hover:bg-[#E6F7EE] transition"
               >
                 <MessageCircle className="w-4 h-4" fill="currentColor" strokeWidth={0} />
@@ -957,7 +957,7 @@ export default function Landing() {
               <ArrowRight className="w-5 h-5" />
             </Link>
             <a
-              href="https://wa.me/918045678910"
+              href="https://wa.me/916206153116"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#0E8A4B] text-white font-extrabold text-base hover:bg-[#0A6E3C] transition shadow-[0_5px_0_0_#073D22] hover:shadow-[0_2px_0_0_#073D22] hover:translate-y-[3px]"
             >
               <MessageCircle className="w-5 h-5" fill="currentColor" strokeWidth={0} />
@@ -1030,16 +1030,8 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-5 lg:px-8 py-16 relative grid md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8">
           {/* Brand column */}
           <div className="lg:col-span-4">
-            <Link to="/" className="inline-flex items-center mb-5 group relative" aria-label="AddisonX home">
-              <div className="relative px-3 py-1.5 rounded-2xl bg-gradient-to-br from-white via-[#FFF6E8] to-[#FFF1D6] border-2 border-[#FFD23F] shadow-[0_4px_0_0_#E8B400] group-hover:shadow-[0_2px_0_0_#E8B400] group-hover:translate-y-[2px] transition-all">
-                <AddisonLogo size={24} />
-                {/* Festive sparkle dot */}
-                <span className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-[#FF6A1F] border-2 border-[#0A3D24] animate-pulse" />
-              </div>
-              {/* Small floating sticker */}
-              <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full bg-[#0A3D24] text-[#FFD23F] text-[8px] font-extrabold uppercase tracking-[0.18em] border border-[#FFD23F]/40 whitespace-nowrap shadow-md">
-                Made in भारत
-              </span>
+            <Link to="/" className="inline-flex items-center mb-7 pt-1" aria-label="Addison X Media home">
+              <BrandLockup size={42} dark />
             </Link>
 
             <p className="text-sm text-white/75 leading-relaxed max-w-sm">
@@ -1066,32 +1058,52 @@ export default function Landing() {
 
             {/* Contact */}
             <div className="mt-7 space-y-2.5 text-sm">
-              <a href="tel:+918045678910" className="flex items-center gap-2.5 text-white/85 hover:text-[#FFD23F] transition font-semibold">
+              <a href="tel:+919709707311" className="flex items-center gap-2.5 text-white/85 hover:text-[#FFD23F] transition font-semibold">
                 <span className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
                   <Phone className="w-3.5 h-3.5" />
                 </span>
-                +91 80-4567-8910
-              </a>
-              <a href="mailto:sales@addisonx.in" className="flex items-center gap-2.5 text-white/85 hover:text-[#FFD23F] transition font-semibold">
-                <span className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-                  <Mail className="w-3.5 h-3.5" />
+                <span className="flex flex-col leading-tight">
+                  <span>+91 97097 07311</span>
+                  <span className="text-[10px] opacity-70 font-medium">Call support</span>
                 </span>
-                sales@addisonx.in
               </a>
-              <a href="https://wa.me/918045678910" className="flex items-center gap-2.5 text-white/85 hover:text-[#FFD23F] transition font-semibold">
+              <a href="https://wa.me/916206153116" className="flex items-center gap-2.5 text-white/85 hover:text-[#FFD23F] transition font-semibold">
                 <span className="w-7 h-7 rounded-lg bg-[#16C172] flex items-center justify-center flex-shrink-0">
                   <MessageCircle className="w-3.5 h-3.5 text-white" fill="currentColor" strokeWidth={0} />
                 </span>
-                WhatsApp chat shuru karein
+                <span className="flex flex-col leading-tight">
+                  <span>+91 62061 53116</span>
+                  <span className="text-[10px] opacity-70 font-medium">WhatsApp support</span>
+                </span>
+              </a>
+              <a href="mailto:Contact@addisonxmedia.com" className="flex items-center gap-2.5 text-white/85 hover:text-[#FFD23F] transition font-semibold">
+                <span className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+                  <Mail className="w-3.5 h-3.5" />
+                </span>
+                Contact@addisonxmedia.com
+              </a>
+              <a href="mailto:Sales@addisonxmedia.com" className="flex items-center gap-2.5 text-white/85 hover:text-[#FFD23F] transition font-semibold">
+                <span className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+                  <Mail className="w-3.5 h-3.5" />
+                </span>
+                Sales@addisonxmedia.com
               </a>
               <p className="flex items-start gap-2.5 text-white/65 text-xs pt-1">
                 <span className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
                   <MapPin className="w-3.5 h-3.5" />
                 </span>
                 <span className="leading-relaxed pt-1">
-                  AddisonX Media Pvt. Ltd.<br />
-                  Indiranagar, Bengaluru 560038
+                  Addison X Media Pvt. Ltd.<br />
+                  Itki Road, Piska More, 1st Floor,<br />
+                  Vaishwakarma Complex, Hehal,<br />
+                  Ranchi 834005, Jharkhand
                 </span>
+              </p>
+              <p className="flex items-center gap-2.5 text-white/65 text-xs pt-1">
+                <span className="w-7 h-7 rounded-lg bg-[#FFD23F]/20 text-[#FFD23F] flex items-center justify-center flex-shrink-0 text-[9px] font-extrabold">
+                  GST
+                </span>
+                <span className="font-mono tracking-wider">20IARPK8159R1ZN</span>
               </p>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useEffect } from "react";
 import { MessageCircle, Scale, Mail, MapPin, Crown, Shield } from "lucide-react";
-import { AddisonLogo } from "@/components/brand/AddisonLogo";
+import { BrandLockup } from "@/components/brand/AddisonLogo";
 
 const LAST_UPDATED = "18 May 2026";
 const EFFECTIVE = "18 May 2026";
@@ -57,9 +57,9 @@ const Terms = () => {
   return (
     <div className="min-h-screen w-full bg-[#FFF6E8] text-foreground">
       {/* ============ TOP NAV ============ */}
-      <header className="h-16 flex items-center justify-between px-5 sm:px-8 border-b-2 border-[#E8B968] bg-white sticky top-0 z-30">
-        <Link to="/" className="flex items-center hover:opacity-90 transition" aria-label="AddisonX home">
-          <AddisonLogo size={38} />
+      <header className="h-[80px] flex items-center justify-between px-5 sm:px-8 border-b-2 border-[#E8B968] bg-white sticky top-0 z-30 overflow-visible">
+        <Link to="/" className="flex items-center pt-1" aria-label="Addison X Media home">
+          <BrandLockup size={25} />
         </Link>
         <div className="hidden sm:flex items-center gap-5 text-[12px] font-semibold">
           <Link to="/privacy" className="text-foreground/70 hover:text-[#FF6A1F] transition">Privacy</Link>
@@ -137,9 +137,10 @@ const Terms = () => {
           <Section id="acceptance" n={1} title="Acceptance of these Terms">
             <p>
               These Terms of Service ("Terms") form a binding agreement between you ("Customer", "you")
-              and <strong>AddisonX Media Pvt. Ltd.</strong>, a private limited company incorporated under
-              the Companies Act, 2013 of India, with its registered office at Main Road, Lalpur,
-              Ranchi 834001, Jharkhand, India ("AddisonX", "we", "us", "our").
+              and <strong>Addison X Media Pvt. Ltd.</strong>, a private limited company incorporated under
+              the Companies Act, 2013 of India, with its registered office at Itki Road, Piska More,
+              1st Floor, Vaishwakarma Complex, Hehal, Ranchi 834005, Jharkhand, India · GST 20IARPK8159R1ZN
+              ("Addison X Media", "AddisonX", "we", "us", "our").
             </p>
             <p className="mt-3">
               By creating an account, clicking "Sign up", "Start free trial", or by accessing or using
@@ -162,7 +163,7 @@ const Terms = () => {
             <ul className="list-disc pl-5 space-y-1.5">
               <li>You are responsible for all activity that occurs under your account</li>
               <li>Keep your password and access tokens confidential — share them with no one</li>
-              <li>Notify us at <a href="mailto:security@addisonx.in" className="text-[#FF6A1F] font-bold underline">security@addisonx.in</a> within 24 hours of any unauthorised access</li>
+              <li>Notify us at <a href="mailto:Contact@addisonxmedia.com" className="text-[#FF6A1F] font-bold underline">Contact@addisonxmedia.com</a> within 24 hours of any unauthorised access</li>
               <li>One account per legal entity; team members must be invited under your workspace</li>
             </ul>
           </Section>
@@ -219,7 +220,7 @@ const Terms = () => {
             <ul className="list-disc pl-5 space-y-1.5">
               <li><strong>You own your data.</strong> Your contacts, messages, templates, and configurations are yours.</li>
               <li>You grant AddisonX a limited, non-exclusive, royalty-free licence to host, process, transmit and display your data <strong>solely</strong> to provide the Service.</li>
-              <li>You can export your data anytime as CSV or JSON from Settings → Export, or by writing to <a href="mailto:support@addisonx.in" className="text-[#FF6A1F] font-bold underline">support@addisonx.in</a>.</li>
+              <li>You can export your data anytime as CSV or JSON from Settings → Export, or by writing to <a href="mailto:Contact@addisonxmedia.com" className="text-[#FF6A1F] font-bold underline">Contact@addisonxmedia.com</a>.</li>
               <li>We do not use your messaging data to train shared AI models. Workspace-specific AI training is opt-in and confined to your workspace.</li>
               <li>You represent that you have all necessary rights, consents and authorisations from your contacts to send them WhatsApp messages.</li>
             </ul>
@@ -363,10 +364,10 @@ const Terms = () => {
 
           <Section id="contact" n={21} title="Contact us">
             <ContactCard
-              role="Legal & Contracts"
-              address="AddisonX Media Pvt. Ltd., Main Road, Lalpur, Ranchi 834001, Jharkhand, India"
-              email="legal@addisonx.in"
-              phone="+91-80-4567-8910"
+              role="Legal & Contracts · GST 20IARPK8159R1ZN"
+              address="Addison X Media Pvt. Ltd., Itki Road, Piska More, 1st Floor, Vaishwakarma Complex, Hehal, Ranchi 834005, Jharkhand, India"
+              email="Contact@addisonxmedia.com"
+              phone="+91-9709707311"
             />
           </Section>
 
@@ -376,12 +377,12 @@ const Terms = () => {
             <p className="text-[13px] font-semibold leading-relaxed">
               Don't spam, follow Meta's rules, pay your bills, and we'll keep the lights on. Indian law
               applies, Ranchi courts have jurisdiction. Cancel anytime. Questions? Email{" "}
-              <a href="mailto:legal@addisonx.in" className="text-[#FF6A1F] font-extrabold underline">legal@addisonx.in</a>.
+              <a href="mailto:Contact@addisonxmedia.com" className="text-[#FF6A1F] font-extrabold underline">Contact@addisonxmedia.com</a>.
             </p>
           </div>
 
           <p className="text-[11px] text-foreground/50 font-medium pt-4 border-t border-[#E8B968]/40">
-            © {new Date().getFullYear()} AddisonX Media Pvt. Ltd. · Ranchi, Jharkhand · India
+            © {new Date().getFullYear()} Addison X Media Pvt. Ltd. · Ranchi, Jharkhand · India · GST 20IARPK8159R1ZN
           </p>
         </article>
       </main>

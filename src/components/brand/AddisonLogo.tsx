@@ -142,6 +142,62 @@ export const AddisonLogo = ({
   );
 };
 
+/* ─────────── India flag SVG (renders on every OS — works around Windows
+   not having color regional flag glyphs in Segoe UI Emoji) ─────────── */
+const IndiaFlag = ({ className }: { className?: string }) => {
+  // 24 evenly-spaced spokes for an accurate Ashoka Chakra
+  const spokes = Array.from({ length: 24 }, (_, i) => (i * 360) / 24);
+  return (
+    <svg
+      viewBox="0 0 36 24"
+      width="20"
+      height="14"
+      aria-hidden
+      className={className}
+      style={{ verticalAlign: "-3px", overflow: "visible" }}
+    >
+      <defs>
+        <clipPath id="flagClip">
+          <rect x="0" y="0" width="36" height="24" rx="3.5" ry="3.5" />
+        </clipPath>
+        <filter id="flagShadow" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="0.5" stdDeviation="0.4" floodOpacity="0.35" />
+        </filter>
+      </defs>
+      <g clipPath="url(#flagClip)" filter="url(#flagShadow)">
+        {/* Saffron · White · Green tricolor — official Indian flag colors */}
+        <rect x="0" y="0" width="36" height="8" fill="#FF9933" />
+        <rect x="0" y="8" width="36" height="8" fill="#FFFFFF" />
+        <rect x="0" y="16" width="36" height="8" fill="#138808" />
+
+        {/* Ashoka Chakra centred in the white band */}
+        <g transform="translate(18 12)">
+          {/* Outer ring */}
+          <circle r="3.2" fill="none" stroke="#000080" strokeWidth="0.55" />
+          {/* 24 spokes */}
+          {spokes.map((angle) => (
+            <line
+              key={angle}
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="-3.0"
+              stroke="#000080"
+              strokeWidth="0.35"
+              strokeLinecap="round"
+              transform={`rotate(${angle})`}
+            />
+          ))}
+          {/* Centre hub */}
+          <circle r="0.55" fill="#000080" />
+        </g>
+      </g>
+      {/* Hairline border to lift flag off any background */}
+      <rect x="0" y="0" width="36" height="24" rx="3.5" ry="3.5" fill="none" stroke="rgba(0,0,0,0.18)" strokeWidth="0.5" />
+    </svg>
+  );
+};
+
 /* ─────────── FX glyph fallback ─────────── */
 const FXGlyph = ({ color }: { color: string }) => (
   <g fill={color}>
@@ -149,6 +205,46 @@ const FXGlyph = ({ color }: { color: string }) => (
     <path d="M 44 32 L 56 32 L 70 50 L 84 32 L 96 32 L 76 58 L 96 84 L 84 84 L 70 66 L 56 84 L 44 84 L 64 58 Z" />
     <circle cx="91" cy="84" r="4.5" />
   </g>
+);
+
+/* ─────────── BrandLockup — the styled pill + "Made in भारत" badge ─────────── */
+
+type LockupProps = {
+  /** Height (px) of the inner AddisonLogo */
+  size?: number;
+  /** Show the "Made in भारत" floating sticker below the pill */
+  withBadge?: boolean;
+  /** Use the dark-mode color scheme (yellow text on emerald badge) */
+  dark?: boolean;
+  className?: string;
+};
+
+/**
+ * The full poster-style header lockup:
+ *   creamy gradient pill · thick saffron border · 3D shadow · pulsing dot
+ *   + an optional "Made in भारत" sticker badge underneath
+ *
+ * Use this in every public-page header (landing, auth, legal, password flow).
+ */
+export const BrandLockup = ({ size = 40, withBadge = true, dark = false, className }: LockupProps) => (
+  <span className={cn("relative inline-flex items-center group", className)} aria-label="Addison X Media">
+    <span className="relative inline-flex items-center px-2.5 py-1 rounded-2xl bg-gradient-to-br from-white via-[#FFF6E8] to-[#FFF1D6] border-2 border-[#FFD23F] shadow-[0_4px_0_0_#E8B400] group-hover:shadow-[0_2px_0_0_#E8B400] group-hover:translate-y-[2px] transition-all">
+      <AddisonLogo size={size} />
+      <span className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-[#FF6A1F] ring-2 ring-[#FFD23F] animate-pulse" />
+    </span>
+    {withBadge && (
+      <span
+        className={cn(
+          "absolute -bottom-3.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase tracking-[0.18em] border whitespace-nowrap shadow-md",
+          dark
+            ? "bg-[#0A3D24] text-[#FFD23F] border-[#FFD23F]/40"
+            : "bg-[#FFD23F] text-[#7A1500] border-[#7A1500]/30"
+        )}
+      >
+        Made in भारत <IndiaFlag className="ml-1 inline-block" />
+      </span>
+    )}
+  </span>
 );
 
 export default AddisonLogo;
