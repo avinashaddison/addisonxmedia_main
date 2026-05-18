@@ -1,0 +1,46 @@
+# Render.com blueprint for Addison X Media.
+# Single web service that serves both the Hono API and the built Vite SPA.
+# Database (Neon) is external — DATABASE_URL is supplied as a secret.
+#
+# To deploy: push this branch to GitHub → Render dashboard → "New +" → "Blueprint"
+# → connect repo → Render reads this file and provisions the service.
+# After first deploy, fill the `sync: false` secrets in the Render dashboard.
+
+services:
+  - type: web
+    name: addisonx
+    runtime: node
+    plan: starter
+    region: singapore
+    # `--include=dev` ensures vite + typescript are available for the build step
+    # (they live in devDependencies). tsx (the prod runtime) is in dependencies.
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      # Neon Postgres — paste the full pooler connection string with ?sslmode=require
+      - key: DATABASE_URL
+        sync: false
+      # 32+ char random string. Generate locally: `openssl rand -base64 32`
+      - key: BETTER_AUTH_SECRET
+        sync: false
+      # Set to the full https://… URL of this Render service after first deploy.
+      - key: BETTER_AUTH_URL
+        sync: false
+      # 32-byte hex used to encrypt sensitive columns (Meta tokens, etc.)
+      - key: MASTER_KEY
+        sync: false
+      # Meta WhatsApp webhook verification token (whatever you set in Meta dashboard)
+      - key: META_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      # Optional: only set if you're actually running live Razorpay refunds.
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      # Optional: smtp.dev sandbox key (testing only — does NOT deliver to real inboxes)
+      - key: SMTPDEV_API_KEY
+        sync: false

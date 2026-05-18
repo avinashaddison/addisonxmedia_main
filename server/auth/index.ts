@@ -15,14 +15,41 @@ if (!process.env.BETTER_AUTH_SECRET) {
   );
 }
 
+// Trusted origins: any local Vite dev port plus whatever the prod URL is.
+// In single-origin deploys (Render serving both api + spa) baseURL is enough,
+// but if a separate frontend domain is added later, append it to TRUSTED_ORIGINS
+// (comma-separated) in the env.
+const PROD_URL = process.env.BETTER_AUTH_URL;
+const extraTrusted = (process.env.TRUSTED_ORIGINS ?? "")
+  .split(",").map((s) => s.trim()).filter(Boolean);
+const trustedOrigins = [
+  "http://localhost:4173",
+  "http://localhost:5173",
+  "http://localhost:8080",
+  ...(PROD_URL ? [PROD_URL] : []),
+  ...extraTrusted,
+];
+
+const IS_PROD = process.env.NODE_ENV === "production";
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: { user, session, account, verification, twoFactor: twoFactorTable },
   }),
   secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3001",
-  trustedOrigins: ["http://localhost:4173", "http://localhost:5173", "http://localhost:8080"],
+  baseURL: PROD_URL ?? "http://localhost:3001",
+  trustedOrigins,
+  // In production cookies must be Secure (HTTPS-only) so the session can be set
+  // on Render/any HTTPS host. SameSite=lax works for our single-origin deploy.
+  advanced: {
+    useSecureCookies: IS_PROD,
+    defaultCookieAttributes: {
+      sameSite: "lax",
+      secure: IS_PROD,
+      httpOnly: true,
+    },
+  },
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,

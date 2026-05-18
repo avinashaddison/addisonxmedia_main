@@ -6,6 +6,9 @@ config({ path: ".env" });
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { auth } from "./auth";
 import { warmupDb } from "./db/client";
 import { rateLimit } from "./middleware/rateLimit";
@@ -82,11 +85,44 @@ app.route("/api", metaRoutes);
 app.route("/api", integrationsRoutes);
 app.route("/", adminRoutes);
 
+// In production (Render single-service deploy) the Hono server also serves the
+// built Vite frontend. In dev, Vite serves the frontend on its own port and
+// proxies /api → here, so this block is a no-op locally.
+const SERVE_STATIC = process.env.NODE_ENV === "production" || process.env.SERVE_STATIC === "1";
+if (SERVE_STATIC) {
+  const distDir = resolve(process.cwd(), "dist");
+  // Hashed asset files (long-cache friendly).
+  app.use("/assets/*", serveStatic({ root: "./dist" }));
+  // Top-level static files (favicon, robots.txt, logo, etc).
+  app.use(
+    "/*",
+    serveStatic({
+      root: "./dist",
+      // Don't fall through to SPA shell for paths that obviously want a file
+      // (have an extension) — let the static handler 404 those naturally.
+      precompressed: false,
+    })
+  );
+  // SPA fallback: any GET that isn't /api/*, isn't /health, and didn't match a
+  // file above gets index.html so React Router can take over.
+  let indexHtmlCache: string | null = null;
+  app.get("*", async (c) => {
+    if (c.req.path.startsWith("/api/") || c.req.path === "/health") {
+      return c.json({ error: "Not found" }, 404);
+    }
+    if (!indexHtmlCache) {
+      indexHtmlCache = await readFile(resolve(distDir, "index.html"), "utf-8");
+    }
+    return c.html(indexHtmlCache);
+  });
+}
+
 const port = Number(process.env.PORT ?? 3001);
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`API listening on http://localhost:${info.port}`);
-  // Fire and forget — wakes Neon if it's auto-suspended so the first real
-  // user request doesn't eat a cold-start.
+// Bind on all interfaces in production so the platform (Render, Fly, etc) can
+// reach the port. Locally we still default to all-interfaces — same behavior.
+serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, (info) => {
+  const mode = SERVE_STATIC ? "API + static frontend" : "API only";
+  console.log(`[${mode}] listening on http://0.0.0.0:${info.port}`);
   warmupDb();
 });
 
