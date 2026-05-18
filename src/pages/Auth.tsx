@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { authClient } from "@/lib/auth-client";
+import { authClient, twoFactor as twoFactorClient } from "@/lib/auth-client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
@@ -32,10 +32,29 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  /** When the password step succeeds but the account has 2FA enabled, BetterAuth
+   *  pauses the session and returns { twoFactorRedirect: true }. We switch the
+   *  form into "code" mode for the second-factor challenge. */
+  const [needs2fa, setNeeds2fa] = useState(false);
+  const [code, setCode] = useState("");
+
+  /** After a successful login, ask the server whether this user is staff and
+   *  send them to the right home page. */
+  const completeLogin = async () => {
+    try {
+      const r = await fetch("/api/admin/me", { credentials: "include" });
+      if (r.ok) {
+        navigate("/admin/dashboard", { replace: true });
+        return;
+      }
+    } catch { /* ignore */ }
+    navigate("/app", { replace: true });
+  };
 
   useEffect(() => {
-    if (!sessionLoading && user) navigate("/app", { replace: true });
-  }, [user, sessionLoading, navigate]);
+    if (!sessionLoading && user && !needs2fa) completeLogin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, sessionLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,17 +67,43 @@ const Auth = () => {
           name: displayName || email.split("@")[0],
         });
         if (error) throw new Error(error.message ?? "Sign-up failed");
+        await completeLogin();
       } else {
-        const { error } = await authClient.signIn.email({ email, password });
-        if (error) throw new Error(error.message ?? "Sign-in failed");
+        const r = await authClient.signIn.email({ email, password });
+        if (r.error) throw new Error(r.error.message ?? "Sign-in failed");
+        // BetterAuth twoFactor plugin returns { twoFactorRedirect: true } when
+        // the account has 2FA enabled. Switch to the OTP entry step.
+        const data = (r as { data?: { twoFactorRedirect?: boolean } }).data;
+        if (data?.twoFactorRedirect) {
+          setNeeds2fa(true);
+          toast.message("Enter the 6-digit code from your authenticator");
+          return;
+        }
+        await completeLogin();
       }
-      navigate("/app", { replace: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Authentication failed";
       const lower = msg.toLowerCase();
       if (lower.includes("invalid") || lower.includes("password")) toast.error("Galat email ya password");
       else if (lower.includes("exists") || lower.includes("already")) toast.error("Email pehle se registered hai. Sign in karein.");
       else toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleVerify2fa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code.length !== 6) { toast.error("6-digit code required"); return; }
+    setSubmitting(true);
+    try {
+      const r = await twoFactorClient.verifyTotp({ code });
+      if (r.error) throw new Error(r.error.message ?? "Wrong code");
+      toast.success("Verified");
+      setNeeds2fa(false);
+      await completeLogin();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Verification failed");
     } finally {
       setSubmitting(false);
     }
@@ -196,7 +241,9 @@ const Auth = () => {
             </div>
 
             <h1 className="text-[30px] lg:text-[36px] font-black tracking-tight leading-[1.02]">
-              {mode === "login" ? (
+              {needs2fa ? (
+                <>Two-factor <br /><span className="text-[#0E8A4B]">check</span></>
+              ) : mode === "login" ? (
                 <>
                   Namaste! <br />
                   <span className="text-[#0E8A4B]">Sign in</span> karein
@@ -209,11 +256,50 @@ const Auth = () => {
               )}
             </h1>
             <p className="text-[13px] text-foreground/70 mt-3 font-medium">
-              {mode === "login"
+              {needs2fa
+                ? "Open your authenticator app and enter the 6-digit code."
+                : mode === "login"
                 ? "Email aur password daalein · workspace khul jaayega."
                 : "Free start karein · credit card nahi chahiye · GST invoice included."}
             </p>
 
+            {needs2fa ? (
+              <form onSubmit={handleVerify2fa} className="mt-7 space-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="code" className="text-[11px] font-extrabold uppercase tracking-[0.15em] text-[#B8651A]">6-digit code</label>
+                  <input
+                    id="code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="123456"
+                    inputMode="numeric"
+                    maxLength={6}
+                    autoFocus
+                    className="w-full h-14 px-4 rounded-xl bg-white border-2 border-[#E8B968] text-2xl font-mono font-extrabold tracking-[0.5em] text-center focus:outline-none focus:border-[#FF6A1F] focus:shadow-[0_3px_0_0_#B8420A] transition-all"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting || code.length !== 6}
+                  className="group w-full h-13 mt-3 rounded-xl bg-[#0E8A4B] text-white font-extrabold text-[14px] hover:bg-[#0A6E3C] transition shadow-[0_5px_0_0_#073D22] hover:shadow-[0_2px_0_0_#073D22] hover:translate-y-[3px] disabled:opacity-60 disabled:translate-y-[3px] flex items-center justify-center gap-2 py-3.5"
+                >
+                  {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying…</> : <>Verify & sign in <ArrowRight className="w-4 h-4" /></>}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setNeeds2fa(false); setCode(""); setPassword(""); }}
+                  className="w-full text-[12px] font-extrabold text-foreground/60 hover:text-[#FF6A1F] transition"
+                >
+                  ← Use a different account
+                </button>
+
+                <p className="text-[11px] text-foreground/60 font-medium text-center pt-2">
+                  Lost your authenticator? Use a backup code (paste it in the field above).
+                </p>
+              </form>
+            ) : (
             <form onSubmit={handleSubmit} className="mt-7 space-y-4">
               {mode === "signup" && (
                 <div className="space-y-1.5">
@@ -280,8 +366,9 @@ const Auth = () => {
                 )}
               </button>
             </form>
+            )}
 
-            {mode === "signup" && (
+            {!needs2fa && mode === "signup" && (
               <ul className="mt-5 grid grid-cols-2 gap-2 text-[12px] font-semibold text-foreground/80">
                 <li className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#0E8A4B]" strokeWidth={3.5} /> 7-day free trial</li>
                 <li className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#0E8A4B]" strokeWidth={3.5} /> Credit card nahi</li>
@@ -290,6 +377,7 @@ const Auth = () => {
               </ul>
             )}
 
+            {!needs2fa && (
             <div className="mt-6 p-4 rounded-xl bg-white border-2 border-[#E8B968] text-center text-[13px] font-semibold">
               {mode === "login" ? (
                 <>
@@ -315,6 +403,7 @@ const Auth = () => {
                 </>
               )}
             </div>
+            )}
 
             <p className="text-[11px] text-foreground/60 text-center mt-6 leading-relaxed font-medium">
               Continue karne se aap hamare{" "}
