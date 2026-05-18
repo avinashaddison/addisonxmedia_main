@@ -176,6 +176,28 @@ admin.get("/api/admin/workspaces/:id/preview", async (c) => {
   return c.json({ recentContacts, recentMessages, recentDeals, recentTasks });
 });
 
+/** Admin export — downloads a workspace's contacts as CSV. Used by support
+ *  for data subject access requests (DPDP Act compliance) or when migrating
+ *  a customer out. */
+admin.get("/api/admin/workspaces/:id/export/contacts.csv", async (c) => {
+  const id = c.req.param("id");
+  const rows = await db.select().from(contact).where(eq(contact.ownerId, id)).orderBy(desc(contact.createdAt));
+  await auditLog(c, "export_contacts", id, { count: rows.length });
+
+  const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const header = "name,phone,email,source,tag,score,notes,created_at\n";
+  const body = rows.map((r) =>
+    [r.name, r.phone, r.email, r.source, r.tag, r.score, r.notes, r.createdAt.toISOString()].map(esc).join(",")
+  ).join("\n");
+
+  return new Response(header + body + "\n", {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="workspace-${id}-contacts-${new Date().toISOString().slice(0, 10)}.csv"`,
+    },
+  });
+});
+
 admin.patch("/api/admin/workspaces/:id", requireAdmin(["super_admin", "billing"]), async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json<{ plan?: string; trialEndsAt?: string | null; mrrInr?: number }>();
@@ -400,15 +422,77 @@ admin.get("/api/admin/subscriptions", async (c) => {
 
 admin.post("/api/admin/subscriptions/:id/refund", requireAdmin(["super_admin", "billing"]), async (c) => {
   const id = c.req.param("id");
-  const { amount, reason } = await c.req.json<{ amount: number; reason: string }>();
+  const { amount, reason, paymentId } = await c.req.json<{ amount: number; reason: string; paymentId?: string }>();
   if (!amount || amount <= 0) return c.json({ error: "amount required" }, 400);
   if (!reason || reason.length < 5) return c.json({ error: "reason (min 5 chars) required" }, 400);
-  // Note: actual Razorpay refund call would go here; for now we just audit
-  await auditLog(c, "refund", id, { amount, reason });
-  return c.json({ ok: true, note: "Refund queued in audit log. Wire Razorpay refund webhook to complete." });
+
+  // Check whether Razorpay live mode is on
+  const [liveMode] = await db.select().from(systemSetting).where(eq(systemSetting.key, "razorpay_live_mode")).limit(1);
+  const [keyIdRow] = await db.select().from(systemSetting).where(eq(systemSetting.key, "razorpay_key_id")).limit(1);
+  const keyId = keyIdRow?.value ?? "";
+  const keySecret = process.env.RAZORPAY_KEY_SECRET ?? "";
+  const isLive = liveMode?.value === "true";
+
+  // No payment id, or live mode off, or keys missing — just queue in audit
+  if (!isLive || !paymentId || !keyId || !keySecret) {
+    await auditLog(c, "refund", id, {
+      amount, reason, paymentId: paymentId ?? null,
+      mode: "audit-only",
+      reasonForFallback:
+        !isLive ? "razorpay_live_mode is OFF" :
+        !paymentId ? "no paymentId provided" :
+        !keyId ? "razorpay_key_id not set in /admin/settings" :
+        !keySecret ? "RAZORPAY_KEY_SECRET missing in env" :
+        "unknown",
+    });
+    return c.json({
+      ok: true,
+      mode: "audit-only",
+      note: "Recorded in audit log. Live refund skipped — see audit payload for why.",
+    });
+  }
+
+  // Live Razorpay refund call
+  try {
+    const r = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/refund`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount: Math.round(amount * 100), // paise
+        notes: { reason, addisonx_user_id: id, refunded_by: c.get("adminUserId") },
+      }),
+    });
+
+    const body = await r.json().catch(() => ({}));
+    await auditLog(c, "refund", id, { amount, reason, paymentId, mode: "live", razorpayResponse: body, status: r.status });
+
+    if (!r.ok) {
+      return c.json({ ok: false, error: body.error?.description ?? "Razorpay returned an error", razorpay: body }, 400);
+    }
+    return c.json({ ok: true, mode: "live", refund: body });
+  } catch (e) {
+    await auditLog(c, "refund", id, { amount, reason, paymentId, mode: "live-error", error: String(e) });
+    return c.json({ ok: false, error: "Razorpay call failed: " + String(e) }, 500);
+  }
 });
 
 /* ─────────── System settings (feature flags + mode toggles) ─────────── */
+
+/** Public read-only endpoint — customer app uses this to learn which
+ *  feature flags + system toggles are currently on. Skips requireAdmin.
+ *  Only exposes keys that are safe to share (no secrets like razorpay_key_id). */
+admin.get("/api/system/flags", async (c) => {
+  const rows = await db.select().from(systemSetting);
+  const safe: Record<string, string | null> = {};
+  for (const r of rows) {
+    if (r.key.includes("key_id") || r.key.includes("secret")) continue;  // never expose
+    safe[r.key] = r.value;
+  }
+  return c.json(safe);
+});
 
 admin.get("/api/admin/settings", async (c) => {
   const rows = await db.select().from(systemSetting).orderBy(systemSetting.category, systemSetting.key);

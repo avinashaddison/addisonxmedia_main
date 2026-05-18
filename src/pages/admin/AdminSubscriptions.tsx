@@ -20,6 +20,7 @@ const AdminSubscriptions = () => {
   const [refundId, setRefundId] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
+  const [paymentId, setPaymentId] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const { data: rows = [], isLoading } = useQuery({
@@ -33,11 +34,16 @@ const AdminSubscriptions = () => {
     if (!refundId) return;
     setSubmitting(true);
     try {
-      await adminApi.refund(refundId, Number(amount), reason);
-      toast.success("Refund queued in audit log");
+      const r = await adminApi.refund(refundId, Number(amount), reason, paymentId.trim() || undefined);
+      if (r.mode === "live") {
+        toast.success("Razorpay refund initiated");
+      } else {
+        toast.message(r.note ?? "Audit-only refund logged");
+      }
       setRefundId(null);
       setAmount("");
       setReason("");
+      setPaymentId("");
     } catch (e) { toast.error(String(e)); }
     finally { setSubmitting(false); }
   };
@@ -114,7 +120,10 @@ const AdminSubscriptions = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Issue refund</DialogTitle>
-            <DialogDescription>Logs to audit. Actual Razorpay refund wire-up coming with v1.1.</DialogDescription>
+            <DialogDescription>
+              Provide Razorpay <code className="bg-[#FFF1D6] px-1 rounded">pay_xxx</code> ID to hit live API.
+              Leave blank to log to audit only. Razorpay live-mode toggle: Settings → Billing.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 mt-2">
             <div className="space-y-1.5">
@@ -124,6 +133,18 @@ const AdminSubscriptions = () => {
             <div className="space-y-1.5">
               <Label>Reason (min 5 chars)</Label>
               <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Customer requested cancellation refund" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Razorpay payment ID <span className="text-foreground/50 font-normal">(optional)</span></Label>
+              <Input
+                value={paymentId}
+                onChange={(e) => setPaymentId(e.target.value)}
+                placeholder="pay_NXqWxX2YzWxX2Y"
+                className="font-mono"
+              />
+              <p className="text-[10px] text-foreground/60 font-medium">
+                If provided + live mode is on + keys are configured, this will call Razorpay's refund API.
+              </p>
             </div>
           </div>
           <DialogFooter>

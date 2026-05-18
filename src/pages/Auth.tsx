@@ -8,6 +8,7 @@ import {
   IndianRupee, Languages, FileCheck2, Crown, TrendingUp, Bot,
 } from "lucide-react";
 import { BrandLockup } from "@/components/brand/AddisonLogo";
+import { useFlag } from "@/hooks/useSystemFlags";
 
 const paisleyBg =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'><g fill='none' stroke='%23B8651A' stroke-width='1' opacity='0.18'><circle cx='30' cy='30' r='12'/><path d='M30 18 Q42 30 30 42 Q18 30 30 18Z'/><circle cx='30' cy='30' r='3'/></g></svg>";
@@ -27,7 +28,13 @@ const Auth = () => {
   useForceLight();
   const navigate = useNavigate();
   const { user, loading: sessionLoading } = useAuth();
+  const signupEnabled = useFlag("signup_enabled");
   const [mode, setMode] = useState<"login" | "signup">("login");
+
+  // If signups are disabled and user lands on signup mode, force back to login
+  useEffect(() => {
+    if (!signupEnabled && mode === "signup") setMode("login");
+  }, [signupEnabled, mode]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -380,6 +387,7 @@ const Auth = () => {
             {!needs2fa && (
             <div className="mt-6 p-4 rounded-xl bg-white border-2 border-[#E8B968] text-center text-[13px] font-semibold">
               {mode === "login" ? (
+                signupEnabled ? (
                 <>
                   Account nahi hai?{" "}
                   <button
@@ -390,6 +398,9 @@ const Auth = () => {
                     Sign up karein →
                   </button>
                 </>
+                ) : (
+                  <span className="text-foreground/60">Signups are temporarily disabled.</span>
+                )
               ) : (
                 <>
                   Already account hai?{" "}

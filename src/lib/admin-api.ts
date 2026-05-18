@@ -105,6 +105,7 @@ export const adminApi = {
   me: () => adminRequest<AdminMe>("/me"),
   metrics: () => adminRequest<AdminMetrics>("/metrics"),
   workspacePreview: (id: string) => adminRequest<WorkspacePreview>(`/workspaces/${id}/preview`),
+  workspaceExportContactsUrl: (id: string) => `/api/admin/workspaces/${id}/export/contacts.csv`,
   workspaces: (params?: { q?: string; status?: string; includeStaff?: boolean }) => {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, k === "includeStaff" && v ? "1" : String(v)]))
@@ -147,10 +148,10 @@ export const adminApi = {
     adminRequest<{ ok: true }>(`/staff/${id}`, { method: "PATCH", body: JSON.stringify({ adminRole }) }),
   removeStaff: (id: string) => adminRequest<{ ok: true }>(`/staff/${id}`, { method: "DELETE" }),
   subscriptions: () => adminRequest<AdminWorkspace[]>("/subscriptions"),
-  refund: (id: string, amount: number, reason: string) =>
-    adminRequest<{ ok: true }>(`/subscriptions/${id}/refund`, {
+  refund: (id: string, amount: number, reason: string, paymentId?: string) =>
+    adminRequest<{ ok: true; mode: "live" | "audit-only"; refund?: unknown; note?: string }>(`/subscriptions/${id}/refund`, {
       method: "POST",
-      body: JSON.stringify({ amount, reason }),
+      body: JSON.stringify({ amount, reason, paymentId }),
     }),
   health: () => adminRequest<{ checks: HealthCheck[]; timestamp: string }>("/health"),
   settings: () => adminRequest<SystemSetting[]>("/settings"),

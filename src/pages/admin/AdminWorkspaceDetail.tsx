@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "@/lib/admin-api";
-import { Building2, ArrowLeft, ShieldOff, ShieldCheck, Eye, Edit3, Mail, Phone, Users as UsersIcon, MessageSquare, Inbox, Trophy, IndianRupee, Loader2, CheckCircle2, AlertTriangle, Flame, CheckCheck, Clock, Send } from "lucide-react";
+import { Building2, ArrowLeft, ShieldOff, ShieldCheck, Eye, Edit3, Mail, Phone, Users as UsersIcon, MessageSquare, Inbox, Trophy, IndianRupee, Loader2, CheckCircle2, AlertTriangle, Flame, CheckCheck, Clock, Send, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -138,6 +138,12 @@ const AdminWorkspaceDetail = () => {
             </Button>
             <Button onClick={() => { setReason(""); setImpersOpen(true); }}>
               <Eye className="w-3.5 h-3.5" /> Impersonate
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => { window.location.href = adminApi.workspaceExportContactsUrl(id!); }}
+            >
+              <Download className="w-3.5 h-3.5" /> Export contacts
             </Button>
             {isSuspended ? (
               <Button variant="outline" onClick={doUnsuspend}>

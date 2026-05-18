@@ -52,6 +52,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { FAQSection } from "@/components/landing/FAQSection";
 import { AddisonLogo, BrandLockup } from "@/components/brand/AddisonLogo";
+import { useFlag } from "@/hooks/useSystemFlags";
 
 const HERO_ROTATING = [
   "Bharat ke",
@@ -103,9 +104,11 @@ export default function Landing() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  const showDiwaliBanner = useFlag("feature_diwali_banner");
+
   return (
     <div className="min-h-screen bg-[#FFF6E8] text-foreground antialiased overflow-x-hidden">
-      {/* ============== FESTIVAL OFFER BAR ============== */}
+      {showDiwaliBanner && (
       <div className="bg-gradient-to-r from-[#B8230C] via-[#D63B14] to-[#B8230C] text-white text-[12px] py-2 px-5 text-center font-semibold relative overflow-hidden">
         <div className="absolute inset-0 opacity-20" style={{
           backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
@@ -119,6 +122,7 @@ export default function Landing() {
           </Link>
         </span>
       </div>
+      )}
 
       {/* ============== NAV ============== */}
       <header
