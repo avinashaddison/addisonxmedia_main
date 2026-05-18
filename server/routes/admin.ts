@@ -21,6 +21,10 @@ admin.get("/api/admin/me", async (c) => {
     .select({ id: user.id, email: user.email, name: user.name, isStaff: user.isStaff, adminRole: user.adminRole })
     .from(user).where(eq(user.id, session.user.id)).limit(1);
   if (!u || !u.isStaff || !u.adminRole) return c.json({ error: "Not staff" }, 403);
+  // Track last admin activity (used in Staff page to show "last login" column).
+  // Fire-and-forget — if it fails we don't block the request.
+  db.update(user).set({ adminLastLoginAt: new Date() }).where(eq(user.id, u.id))
+    .catch((e) => console.error("[admin_last_login update]", e));
   return c.json({ id: u.id, email: u.email, name: u.name, adminRole: u.adminRole });
 });
 
@@ -237,6 +241,33 @@ admin.get("/api/admin/audit", async (c) => {
 });
 
 /* ─────────── Staff management ─────────── */
+
+admin.post("/api/admin/staff/promote", requireAdmin(["super_admin"]), async (c) => {
+  const body = await c.req.json<{ email: string; adminRole: string }>();
+  const email = body.email?.trim().toLowerCase();
+  const adminRole = body.adminRole;
+  if (!email) return c.json({ error: "email required" }, 400);
+  if (!["super_admin", "support", "billing", "moderator"].includes(adminRole)) {
+    return c.json({ error: "Invalid role" }, 400);
+  }
+
+  const [target] = await db.select({ id: user.id, email: user.email, isStaff: user.isStaff })
+    .from(user).where(eq(user.email, email)).limit(1);
+  if (!target) {
+    return c.json({
+      error: `No user with email "${email}". They must sign up at /auth first, then come back to promote.`,
+    }, 404);
+  }
+
+  await db.update(user).set({
+    isStaff: true,
+    adminRole,
+    adminInvitedBy: c.get("adminUserId"),
+  }).where(eq(user.id, target.id));
+
+  await auditLog(c, target.isStaff ? "change_staff_role" : "invite_staff", target.id, { email, adminRole });
+  return c.json({ ok: true, id: target.id, email: target.email, adminRole });
+});
 
 admin.get("/api/admin/staff", async (c) => {
   const rows = await db

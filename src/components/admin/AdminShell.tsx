@@ -2,28 +2,60 @@ import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Building2, Users, CreditCard, ScrollText, ShieldCheck,
-  Activity, Settings, LogOut, Lock, ChevronsLeft, ChevronsRight, Loader2,
+  Activity, Settings, LogOut, ChevronsLeft, ChevronsRight, Loader2,
+  Crown, Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { adminApi } from "@/lib/admin-api";
-import { AddisonLogo } from "@/components/brand/AddisonLogo";
+import { AddisonLogo, AddisonMark } from "@/components/brand/AddisonLogo";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
-const NAV = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
-  { icon: Building2, label: "Workspaces", path: "/admin/workspaces" },
-  { icon: Users, label: "Users", path: "/admin/users" },
-  { icon: CreditCard, label: "Subscriptions", path: "/admin/subscriptions" },
-  { icon: ScrollText, label: "Audit log", path: "/admin/audit" },
-  { icon: ShieldCheck, label: "Staff", path: "/admin/staff" },
-  { icon: Activity, label: "System health", path: "/admin/health" },
-  { icon: Settings, label: "Settings", path: "/admin/settings" },
+/* Color-coded sections (mirrors the customer sidebar's group palette) */
+type NavGroup = {
+  label: string;
+  color: string;
+  items: { icon: typeof LayoutDashboard; label: string; path: string }[];
+};
+
+const GROUPS: NavGroup[] = [
+  {
+    label: "Operations",
+    color: "text-[#0E8A4B]",
+    items: [
+      { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
+      { icon: Building2, label: "Workspaces", path: "/admin/workspaces" },
+      { icon: Users, label: "Users", path: "/admin/users" },
+    ],
+  },
+  {
+    label: "Billing",
+    color: "text-[#FF6A1F]",
+    items: [
+      { icon: CreditCard, label: "Subscriptions", path: "/admin/subscriptions" },
+    ],
+  },
+  {
+    label: "Compliance",
+    color: "text-[#D4308E]",
+    items: [
+      { icon: ScrollText, label: "Audit log", path: "/admin/audit" },
+      { icon: ShieldCheck, label: "Staff", path: "/admin/staff" },
+    ],
+  },
+  {
+    label: "System",
+    color: "text-[#B8651A]",
+    items: [
+      { icon: Activity, label: "Health", path: "/admin/health" },
+      { icon: Settings, label: "Settings", path: "/admin/settings" },
+    ],
+  },
 ];
 
 const useForceLight = () => {
@@ -49,7 +81,6 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
     return window.localStorage.getItem("addisonx-admin-sidebar-collapsed") === "1";
   });
 
-  // Client-side gate — fetch real admin profile. If 403, redirect to /app.
   const { data: me, isLoading, isError, error } = useQuery({
     queryKey: ["admin-me"],
     queryFn: () => adminApi.me(),
@@ -74,7 +105,7 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FFF6E8]">
-        <Loader2 className="w-6 h-6 animate-spin text-[#B8230C]" />
+        <Loader2 className="w-6 h-6 animate-spin text-[#FF6A1F]" />
       </div>
     );
   }
@@ -92,32 +123,35 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#FFF6E8]">
+    <div className="flex h-screen w-full overflow-hidden">
       <aside
         className={cn(
-          "bg-[#1F0808] flex flex-col flex-shrink-0 transition-all duration-200 border-r border-[#3D0808]",
-          collapsed ? "w-[68px]" : "w-[232px]"
+          "bg-[#FFF6E8] border-r-2 border-[#E8B968] flex flex-col flex-shrink-0 transition-all duration-200",
+          collapsed ? "w-[72px]" : "w-[244px]"
         )}
       >
-        {/* Header — logo + collapse stacked cleanly */}
-        <div className="relative h-16 flex items-center justify-between px-3 flex-shrink-0 border-b border-[#3D0808]">
+        {/* Logo header */}
+        <div className="relative h-[72px] px-3 border-b-2 border-[#E8B968] bg-white flex items-center gap-2 flex-shrink-0 overflow-hidden">
+          {/* Subtle accent glows */}
+          <div className="absolute -top-8 -left-8 w-32 h-32 bg-[#FFD23F]/20 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-[#FF6A1F]/15 rounded-full blur-2xl pointer-events-none" />
+
           {collapsed ? (
-            <Link to="/admin/dashboard" className="mx-auto" aria-label="Admin home">
-              <span className="w-9 h-9 rounded-lg bg-[#FFD23F] text-[#3D1A00] flex items-center justify-center shadow-sm font-black text-sm">
-                AX
-              </span>
+            <Link to="/admin/dashboard" className="mx-auto hover:scale-105 transition-transform" aria-label="Admin home">
+              <AddisonMark size={42} />
             </Link>
           ) : (
             <>
-              <Link to="/admin/dashboard" className="flex-1 min-w-0 pt-0.5" aria-label="Admin home">
-                <AddisonLogo size={20} />
+              <Link to="/admin/dashboard" className="flex-1 min-w-0 hover:opacity-90 transition relative" aria-label="Admin home">
+                <AddisonLogo size={28} />
               </Link>
               <button
                 onClick={() => setCollapsed(true)}
-                className="w-7 h-7 rounded-md text-[#FFD23F]/70 hover:text-[#FFD23F] hover:bg-[#3D0808] flex items-center justify-center transition flex-shrink-0"
+                className="relative ml-1 w-8 h-8 rounded-lg bg-[#FFF1D6] hover:bg-[#FFE8C7] border border-[#E8B968] text-foreground/70 hover:text-foreground flex items-center justify-center transition flex-shrink-0"
                 aria-label="Collapse sidebar"
+                title="Collapse sidebar"
               >
-                <ChevronsLeft className="w-4 h-4" />
+                <ChevronsLeft className="w-4 h-4" strokeWidth={2.5} />
               </button>
             </>
           )}
@@ -126,73 +160,140 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
         {collapsed && (
           <button
             onClick={() => setCollapsed(false)}
-            className="mt-3 mx-auto w-7 h-7 rounded-md text-[#FFD23F]/70 hover:text-[#FFD23F] hover:bg-[#3D0808] flex items-center justify-center transition flex-shrink-0"
+            className="mt-2 mx-auto w-8 h-8 rounded-lg bg-[#FFF1D6] hover:bg-[#FFE8C7] border border-[#E8B968] text-foreground/70 hover:text-foreground flex items-center justify-center transition flex-shrink-0"
             aria-label="Expand sidebar"
+            title="Expand sidebar"
           >
-            <ChevronsRight className="w-4 h-4" />
+            <ChevronsRight className="w-4 h-4" strokeWidth={2.5} />
           </button>
         )}
 
-        {/* ADMIN MODE pill — compact */}
+        {/* Admin role badge — saffron sticker so admin mode is unmistakable */}
         {!collapsed && (
-          <div className="mx-3 mt-3 mb-1 px-2.5 py-2 rounded-lg bg-[#3D0808] border border-[#7A1500] flex items-center gap-2">
-            <Lock className="w-3 h-3 text-[#FFD23F] flex-shrink-0" strokeWidth={2.5} />
-            <div className="flex flex-col leading-none min-w-0">
-              <span className="text-[9px] uppercase tracking-[0.15em] font-bold text-[#FFD23F]/70">Admin mode</span>
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-white mt-0.5 truncate">{formatRole(role)}</span>
+          <div className="mx-2.5 mt-3 mb-1 p-2.5 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] shadow-[0_3px_0_0_#B8420A] relative overflow-hidden">
+            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "10px 10px" }} />
+            <div className="relative flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
+                <Crown className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+              </div>
+              <div className="flex flex-col leading-none min-w-0 flex-1">
+                <span className="text-[9px] uppercase tracking-[0.16em] font-extrabold text-white/85">Admin panel</span>
+                <span className="text-[11px] font-black uppercase tracking-[0.1em] text-white mt-0.5 truncate">{formatRole(role)}</span>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Nav — tighter spacing, simpler active state */}
-        <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-          {NAV.map((it) => {
-            const isActive = location.pathname === it.path
-              || (it.path !== "/admin/dashboard" && location.pathname.startsWith(it.path));
-            return (
-              <Link
-                key={it.path}
-                to={it.path}
-                title={collapsed ? it.label : undefined}
-                className={cn(
-                  "relative w-full h-9 rounded-md flex items-center gap-3 px-2.5 transition-colors text-[13px] font-semibold",
-                  isActive
-                    ? "bg-[#FF6A1F] text-white"
-                    : "text-white/65 hover:bg-[#3D0808] hover:text-white",
-                  collapsed && "justify-center px-0"
-                )}
-              >
-                <it.icon className={cn("flex-shrink-0", collapsed ? "w-[17px] h-[17px]" : "w-[16px] h-[16px]")} strokeWidth={isActive ? 2.4 : 2} />
-                {!collapsed && <span className="flex-1 text-left truncate">{it.label}</span>}
-              </Link>
-            );
-          })}
+        {/* Nav — grouped, color-coded labels, emerald-fill active state, yellow diamond, 3D shadow */}
+        <nav className="relative flex-1 overflow-y-auto py-3 px-2.5 space-y-5">
+          {GROUPS.map((group) => (
+            <div key={group.label} className="space-y-1">
+              {!collapsed && (
+                <p className={cn("text-[10px] font-extrabold uppercase tracking-[0.2em] px-2.5 mb-2", group.color)}>
+                  {group.label}
+                </p>
+              )}
+              {group.items.map((item) => {
+                const isActive = location.pathname === item.path
+                  || (item.path !== "/admin/dashboard" && location.pathname.startsWith(item.path));
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    title={collapsed ? item.label : undefined}
+                    className={cn(
+                      "relative w-full h-11 rounded-xl flex items-center gap-3 px-2.5 transition-all group overflow-hidden",
+                      isActive
+                        ? "bg-[#0E8A4B] text-white font-extrabold shadow-[0_3px_0_0_#073D22]"
+                        : "text-foreground/70 hover:bg-[#FFE8C7] hover:text-foreground font-semibold",
+                      collapsed && "justify-center px-0"
+                    )}
+                  >
+                    {isActive && (
+                      <span className="absolute -right-1 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rotate-45 bg-[#FFD23F] shadow" />
+                    )}
+                    <item.icon
+                      className={cn("flex-shrink-0 transition-transform group-hover:scale-110", collapsed ? "w-[19px] h-[19px]" : "w-[18px] h-[18px]")}
+                      strokeWidth={isActive ? 2.5 : 2.2}
+                    />
+                    {!collapsed && <span className="flex-1 text-left text-[13px] truncate">{item.label}</span>}
+                    {collapsed && (
+                      <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
+                        {item.label}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
-        {/* User card — compact */}
-        <div className="p-2 border-t border-[#3D0808]">
+        {/* Open-customer-app card (mirrors Addison-AI card in customer sidebar) */}
+        {!collapsed ? (
+          <div className="mx-2.5 mb-2">
+            <Link
+              to="/app/dashboard"
+              className="block p-3 rounded-xl bg-gradient-to-br from-[#0A3D24] to-[#0D4E2E] border-2 border-[#FFD23F] shadow-[0_3px_0_0_#072917] relative overflow-hidden hover:shadow-[0_1px_0_0_#072917] hover:translate-y-[2px] transition-all"
+            >
+              <div className="absolute -top-4 -right-4 w-12 h-12 bg-[#FFD23F]/20 rounded-full blur-xl" />
+              <div className="relative flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-[#FFD23F] flex items-center justify-center text-[#7A4A00] shadow-md flex-shrink-0">
+                  <LayoutDashboard className="w-4 h-4" strokeWidth={2.5} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-extrabold leading-tight text-white">Customer app</p>
+                  <p className="text-[9px] text-[#FFD23F]/90 font-extrabold uppercase tracking-wider mt-0.5">Switch over →</p>
+                </div>
+              </div>
+            </Link>
+          </div>
+        ) : (
+          <div className="mb-2 mx-auto">
+            <Link
+              to="/app/dashboard"
+              className="block w-9 h-9 rounded-xl bg-[#0A3D24] border-2 border-[#FFD23F] flex items-center justify-center shadow-md hover:scale-105 transition"
+              title="Open customer app"
+            >
+              <LayoutDashboard className="w-4 h-4 text-[#FFD23F]" />
+            </Link>
+          </div>
+        )}
+
+        {/* User menu */}
+        <div className="p-2.5 border-t-2 border-[#E8B968] bg-white">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className={cn("w-full rounded-md hover:bg-[#3D0808] transition flex items-center gap-2.5 p-1.5", collapsed && "justify-center")}>
+              <button
+                className={cn(
+                  "w-full rounded-xl hover:bg-[#FFE8C7] transition-all flex items-center gap-2.5 p-1.5",
+                  collapsed && "justify-center"
+                )}
+              >
                 <div className="relative flex-shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-[#FFD23F] text-[#3D1A00] text-[11px] font-extrabold flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FF6A1F] to-[#D4308E] text-white text-[12px] font-extrabold flex items-center justify-center shadow-md">
                     {initials}
                   </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-[#16C172] rounded-full border-2 border-[#1F0808]" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#16C172] rounded-full border-2 border-white" />
                 </div>
                 {!collapsed && (
-                  <div className="flex-1 min-w-0 text-left leading-tight">
-                    <p className="text-[12px] font-bold text-white truncate">{displayName}</p>
-                    <p className="text-[9px] text-[#FFD23F]/80 truncate font-extrabold uppercase tracking-[0.1em]">{formatRole(role)}</p>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-[12px] font-extrabold truncate leading-tight">{displayName}</p>
+                    <p className="text-[10px] text-[#B8651A] truncate font-extrabold uppercase tracking-wider mt-0.5">{formatRole(role)}</p>
                   </div>
                 )}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="right" align="end" className="w-60">
               <DropdownMenuLabel>
-                <div className="flex flex-col">
-                  <span className="text-[13px] font-semibold truncate">{displayName}</span>
-                  <span className="text-[11px] text-muted-foreground truncate font-normal">{user?.email}</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FF6A1F] to-[#D4308E] text-white text-[12px] font-extrabold flex items-center justify-center">
+                    {initials}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[13px] font-semibold truncate">{displayName}</span>
+                    <span className="text-[11px] text-muted-foreground truncate font-normal">{user?.email}</span>
+                  </div>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -214,12 +315,6 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Slimmer ADMIN strip */}
-        <div className="h-7 bg-[#7A1500] text-[#FFD23F] flex items-center justify-center text-[10px] font-extrabold uppercase tracking-[0.22em] flex-shrink-0">
-          <span className="inline-flex items-center gap-2">
-            <Lock className="w-3 h-3" strokeWidth={3} /> Admin panel · Addison X Media internal
-          </span>
-        </div>
         <main className="flex-1 overflow-y-auto bg-[#FFF6E8]">
           {children ?? <Outlet />}
         </main>

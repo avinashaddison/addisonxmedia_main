@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "@/lib/admin-api";
-import { ShieldCheck, Crown, Loader2, Trash2 } from "lucide-react";
+import { ShieldCheck, Crown, Loader2, Trash2, UserPlus, Mail } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,10 +21,30 @@ const ROLES: Record<string, { label: string; color: string }> = {
 const AdminStaff = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("support");
+  const [inviting, setInviting] = useState(false);
+
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["admin-staff"],
     queryFn: () => adminApi.staff(),
   });
+
+  const handleInvite = async () => {
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email || !email.includes("@")) { toast.error("Valid email required"); return; }
+    setInviting(true);
+    try {
+      const r = await adminApi.promoteStaff(email, inviteRole);
+      toast.success(`Promoted ${r.email} to ${r.adminRole.replace("_", " ")}`);
+      qc.invalidateQueries({ queryKey: ["admin-staff"] });
+      setInviteOpen(false);
+      setInviteEmail("");
+      setInviteRole("support");
+    } catch (e) { toast.error(String(e)); }
+    finally { setInviting(false); }
+  };
 
   const changeRole = async (id: string, role: string) => {
     try {
@@ -41,14 +64,19 @@ const AdminStaff = () => {
 
   return (
     <div className="px-6 lg:px-10 py-6">
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white flex items-center justify-center shadow-md">
-          <ShieldCheck className="w-6 h-6" strokeWidth={2.5} />
+      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white flex items-center justify-center shadow-md">
+            <ShieldCheck className="w-6 h-6" strokeWidth={2.5} />
+          </div>
+          <div>
+            <h1 className="text-[26px] font-black tracking-tight">Staff management</h1>
+            <p className="text-[12px] text-foreground/70 font-medium">{rows.length} staff members · only super_admin can promote/demote</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-[26px] font-black tracking-tight">Staff management</h1>
-          <p className="text-[12px] text-foreground/70 font-medium">{rows.length} staff members · only super_admin can promote/demote</p>
-        </div>
+        <Button onClick={() => setInviteOpen(true)}>
+          <UserPlus className="w-3.5 h-3.5" /> Promote user to staff
+        </Button>
       </div>
 
       <div className="bg-white border-2 border-[#E8B968] rounded-2xl overflow-hidden shadow-[0_4px_0_0_#E8B968]">
@@ -117,10 +145,64 @@ const AdminStaff = () => {
       </div>
 
       <p className="mt-4 text-[11px] text-foreground/60 font-medium">
-        <Crown className="w-3 h-3 inline text-[#FFD23F]" /> To invite a new admin: create their AddisonX user account first, then run{" "}
-        <code className="bg-[#FFF1D6] px-1.5 py-0.5 rounded font-mono">UPDATE "user" SET is_staff=true, admin_role='support' WHERE email=…</code>{" "}
-        — invite-by-email flow coming in v1.1.
+        <Crown className="w-3 h-3 inline text-[#FFD23F]" /> To promote a user to staff: they must sign up at <code className="bg-[#FFF1D6] px-1.5 py-0.5 rounded font-mono">/auth</code> first, then use the "Promote user to staff" button above.
       </p>
+
+      {/* Promote dialog */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] text-white flex items-center justify-center shadow-md">
+                <UserPlus className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div>
+                <DialogTitle>Promote user to staff</DialogTitle>
+                <DialogDescription className="text-foreground/70 font-medium">
+                  Enter their email and pick a role. They must have signed up at /auth already.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="invite-email">User email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B8651A]" />
+                <Input
+                  id="invite-email"
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="teammate@addisonxmedia.com"
+                  className="pl-9"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Role</Label>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="support">Support — read-only customer data, can impersonate</SelectItem>
+                  <SelectItem value="billing">Billing — view/edit subscriptions, refunds</SelectItem>
+                  <SelectItem value="moderator">Moderator — suspend abusive accounts</SelectItem>
+                  <SelectItem value="super_admin">Super Admin — full access (use carefully)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
+            <Button onClick={handleInvite} disabled={inviting}>
+              {inviting ? "Promoting…" : "Promote to staff"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

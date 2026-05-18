@@ -119,6 +119,11 @@ export const adminApi = {
     return adminRequest<AdminAuditEntry[]>(`/audit${qs ? `?${qs}` : ""}`);
   },
   staff: () => adminRequest<AdminStaff[]>("/staff"),
+  promoteStaff: (email: string, adminRole: string) =>
+    adminRequest<{ ok: true; id: string; email: string; adminRole: string }>(`/staff/promote`, {
+      method: "POST",
+      body: JSON.stringify({ email, adminRole }),
+    }),
   updateStaffRole: (id: string, adminRole: string) =>
     adminRequest<{ ok: true }>(`/staff/${id}`, { method: "PATCH", body: JSON.stringify({ adminRole }) }),
   removeStaff: (id: string) => adminRequest<{ ok: true }>(`/staff/${id}`, { method: "DELETE" }),
