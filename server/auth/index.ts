@@ -1,5 +1,6 @@
 import { config } from "dotenv";
 import { betterAuth } from "better-auth";
+import { twoFactor } from "better-auth/plugins";
 
 config({ path: ".env.local" });
 config({ path: ".env" });
@@ -36,6 +37,12 @@ export const auth = betterAuth({
       );
     },
   },
+  plugins: [
+    twoFactor({
+      issuer: "Addison X Media",
+      totpOptions: { period: 30, digits: 6 },
+    }),
+  ],
   databaseHooks: {
     user: {
       create: {

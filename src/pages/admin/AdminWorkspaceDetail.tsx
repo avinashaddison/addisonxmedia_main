@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "@/lib/admin-api";
-import { Building2, ArrowLeft, ShieldOff, ShieldCheck, Eye, Edit3, Mail, Phone, Users as UsersIcon, MessageSquare, Inbox, Trophy, IndianRupee, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Building2, ArrowLeft, ShieldOff, ShieldCheck, Eye, Edit3, Mail, Phone, Users as UsersIcon, MessageSquare, Inbox, Trophy, IndianRupee, Loader2, CheckCircle2, AlertTriangle, Flame, CheckCheck, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -200,6 +200,9 @@ const AdminWorkspaceDetail = () => {
         )}
       </div>
 
+      {/* Preview cards — read-only peek at customer data to reduce impersonation churn */}
+      <WorkspacePreview userId={id!} />
+
       {/* Edit plan dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
@@ -289,5 +292,200 @@ const StatCard = ({ label, value, icon: Icon, color }: { label: string; value: s
     </div>
   );
 };
+
+/* ─────────── Workspace preview cards ─────────── */
+
+const TAG_PILL: Record<string, string> = {
+  hot: "bg-[#FCE5F0] text-[#D4308E] border-[#D4308E]/30",
+  warm: "bg-[#FFEFE0] text-[#FF6A1F] border-[#FF6A1F]/30",
+  cold: "bg-[#E4E8FF] text-[#3C50E0] border-[#3C50E0]/30",
+};
+
+const STAGE_PILL: Record<string, string> = {
+  new: "bg-[#E4E8FF] text-[#3C50E0]",
+  qualification: "bg-[#FFF1D6] text-[#B8651A]",
+  proposal: "bg-[#FFEFE0] text-[#FF6A1F]",
+  closing: "bg-[#FFD23F]/30 text-[#7A4A00]",
+  won: "bg-[#E6F7EE] text-[#0E8A4B]",
+  lost: "bg-[#FCE5F0] text-[#D4308E]",
+};
+
+const PRIORITY_DOT: Record<string, string> = {
+  low: "bg-foreground/40",
+  medium: "bg-[#FFD23F]",
+  high: "bg-[#FF6A1F]",
+  urgent: "bg-[#D4308E] animate-pulse",
+};
+
+const fmtRelative = (s: string) => {
+  const ms = Date.now() - new Date(s).getTime();
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1440) return `${Math.round(mins / 60)}h ago`;
+  return `${Math.round(mins / 1440)}d ago`;
+};
+
+const WorkspacePreview = ({ userId }: { userId: string }) => {
+  const { data: p, isLoading } = useQuery({
+    queryKey: ["admin-ws-preview", userId],
+    queryFn: () => adminApi.workspacePreview(userId),
+    staleTime: 60_000,
+  });
+
+  if (isLoading || !p) {
+    return (
+      <div className="mt-4 grid lg:grid-cols-2 gap-3">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="bg-white border-2 border-[#E8B968] rounded-2xl p-5 shadow-[0_3px_0_0_#E8B968] min-h-[200px] flex items-center justify-center">
+            <Loader2 className="w-4 h-4 animate-spin text-[#FF6A1F]" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 grid lg:grid-cols-2 gap-3">
+      {/* Recent contacts */}
+      <PreviewCard title="Recent contacts" icon={UsersIcon} color="indigo" count={p.recentContacts.length}>
+        {p.recentContacts.length === 0 ? (
+          <Empty label="No contacts yet" />
+        ) : (
+          p.recentContacts.map((c) => (
+            <div key={c.id} className="flex items-center gap-3 py-2 border-b border-[#E8B968]/30 last:border-b-0">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#3C50E0] to-[#1E40AF] text-white flex items-center justify-center text-[11px] font-extrabold flex-shrink-0">
+                {c.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-extrabold truncate flex items-center gap-1.5">
+                  {c.name}
+                  {c.tag === "hot" && <Flame className="w-3 h-3 text-[#D4308E]" />}
+                </p>
+                <p className="text-[10px] text-foreground/60 font-mono truncate">{c.phone}</p>
+              </div>
+              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase border ${TAG_PILL[c.tag] ?? TAG_PILL.cold}`}>
+                {c.tag}
+              </span>
+            </div>
+          ))
+        )}
+      </PreviewCard>
+
+      {/* Recent messages */}
+      <PreviewCard title="Recent messages" icon={MessageSquare} color="magenta" count={p.recentMessages.length}>
+        {p.recentMessages.length === 0 ? (
+          <Empty label="No messages yet" />
+        ) : (
+          p.recentMessages.map((m) => (
+            <div key={m.id} className="flex items-start gap-2 py-2 border-b border-[#E8B968]/30 last:border-b-0">
+              <span
+                className={`flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center mt-0.5 ${
+                  m.direction === "outbound" ? "bg-[#E6F7EE] text-[#0E8A4B]" : "bg-[#FFF1D6] text-[#B8651A]"
+                }`}
+              >
+                {m.direction === "outbound" ? <Send className="w-3 h-3" /> : <Inbox className="w-3 h-3" />}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-semibold truncate" title={m.body}>{m.body}</p>
+                <p className="text-[10px] text-foreground/60 font-medium flex items-center gap-1.5">
+                  <span>{m.direction}</span>
+                  <span>·</span>
+                  <span className="capitalize">{m.status}</span>
+                  <span>·</span>
+                  <span>{fmtRelative(m.createdAt)}</span>
+                </p>
+              </div>
+            </div>
+          ))
+        )}
+      </PreviewCard>
+
+      {/* Recent deals */}
+      <PreviewCard title="Recent deals" icon={Trophy} color="orange" count={p.recentDeals.length}>
+        {p.recentDeals.length === 0 ? (
+          <Empty label="No deals yet" />
+        ) : (
+          p.recentDeals.map((d) => (
+            <div key={d.id} className="flex items-center gap-3 py-2 border-b border-[#E8B968]/30 last:border-b-0">
+              <Trophy className="w-3.5 h-3.5 text-[#FF6A1F] flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-extrabold truncate">{d.title}</p>
+                <p className="text-[10px] text-foreground/60 font-medium">
+                  <IndianRupee className="w-2.5 h-2.5 inline" />
+                  {Number(d.value).toLocaleString("en-IN")} · {d.probability}% prob
+                </p>
+              </div>
+              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase ${STAGE_PILL[d.stage] ?? STAGE_PILL.new}`}>
+                {d.stage}
+              </span>
+            </div>
+          ))
+        )}
+      </PreviewCard>
+
+      {/* Recent tasks */}
+      <PreviewCard title="Open tasks" icon={Clock} color="yellow" count={p.recentTasks.length}>
+        {p.recentTasks.length === 0 ? (
+          <Empty label="No tasks yet" />
+        ) : (
+          p.recentTasks.map((t) => {
+            const overdue = t.dueAt && new Date(t.dueAt).getTime() < Date.now() && t.status !== "completed";
+            return (
+              <div key={t.id} className="flex items-center gap-3 py-2 border-b border-[#E8B968]/30 last:border-b-0">
+                <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${PRIORITY_DOT[t.priority] ?? PRIORITY_DOT.medium}`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-extrabold truncate flex items-center gap-1.5">
+                    {t.title}
+                    {t.status === "completed" && <CheckCheck className="w-3 h-3 text-[#0E8A4B]" />}
+                  </p>
+                  <p className={`text-[10px] font-medium ${overdue ? "text-[#D4308E]" : "text-foreground/60"}`}>
+                    {overdue ? "Overdue · " : ""}
+                    {t.dueAt ? new Date(t.dueAt).toLocaleDateString("en-IN") : "no due date"}
+                  </p>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </PreviewCard>
+    </div>
+  );
+};
+
+const PreviewCard = ({
+  title, icon: Icon, color, count, children,
+}: {
+  title: string;
+  icon: typeof Building2;
+  color: string;
+  count: number;
+  children: React.ReactNode;
+}) => {
+  const styles: Record<string, { border: string; shadow: string; iconBg: string }> = {
+    indigo:  { border: "border-[#3C50E0]", shadow: "shadow-[0_3px_0_0_#2533A8]", iconBg: "bg-[#3C50E0]" },
+    magenta: { border: "border-[#D4308E]", shadow: "shadow-[0_3px_0_0_#A11A6A]", iconBg: "bg-[#D4308E]" },
+    orange:  { border: "border-[#FF6A1F]", shadow: "shadow-[0_3px_0_0_#B8420A]", iconBg: "bg-[#FF6A1F]" },
+    yellow:  { border: "border-[#FFD23F]", shadow: "shadow-[0_3px_0_0_#E8B400]", iconBg: "bg-[#FFD23F] text-[#3D1A00]" },
+  };
+  const s = styles[color] ?? styles.indigo;
+  return (
+    <div className={`bg-white border-2 ${s.border} ${s.shadow} rounded-2xl p-4`}>
+      <div className="flex items-center gap-2.5 mb-3">
+        <div className={`w-9 h-9 rounded-xl ${s.iconBg} text-white flex items-center justify-center shadow-md`}>
+          <Icon className="w-4 h-4" strokeWidth={2.5} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[14px] font-black truncate">{title}</p>
+          <p className="text-[10px] uppercase tracking-wider text-foreground/60 font-extrabold">{count} shown</p>
+        </div>
+      </div>
+      <div>{children}</div>
+    </div>
+  );
+};
+
+const Empty = ({ label }: { label: string }) => (
+  <p className="text-[11px] text-foreground/50 italic font-medium py-6 text-center">{label}</p>
+);
 
 export default AdminWorkspaceDetail;

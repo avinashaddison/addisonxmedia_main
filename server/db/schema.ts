@@ -8,6 +8,8 @@ import {
   pgTable,
   text,
   timestamp,
+
+  
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -354,3 +356,15 @@ export type Deal = typeof deal.$inferSelect;
 export type Campaign = typeof campaign.$inferSelect;
 export type Broadcast = typeof broadcast.$inferSelect;
 export type Task = typeof task.$inferSelect;
+
+// Key-value system settings (feature flags, mode toggles)
+export const systemSetting = pgTable("system_setting", {
+  key: text("key").primaryKey(),
+  value: text("value"),
+  category: text("category").notNull().default("general"),
+  description: text("description"),
+  updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type SystemSetting = typeof systemSetting.$inferSelect;

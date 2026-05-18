@@ -46,6 +46,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { icon: ScrollText, label: "Audit log", path: "/admin/audit" },
       { icon: ShieldCheck, label: "Staff", path: "/admin/staff" },
+      { icon: Lock, label: "Security (2FA)", path: "/admin/security" },
     ],
   },
   {
@@ -315,6 +316,21 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* 2FA warning banner — only shown to staff without 2FA enabled */}
+        {me.twoFactorEnabled === false && location.pathname !== "/admin/security" && (
+          <div className="bg-[#FFD23F] border-b-2 border-[#E8B400] px-4 py-2.5 flex items-center justify-center gap-3 flex-wrap">
+            <span className="inline-flex items-center gap-2 text-[12px] font-extrabold text-[#3D1A00]">
+              <Lock className="w-3.5 h-3.5" strokeWidth={3} />
+              Two-factor authentication is required for staff. Please enable it.
+            </span>
+            <Link
+              to="/admin/security"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#3D1A00] text-[#FFD23F] text-[11px] font-extrabold uppercase tracking-wider hover:bg-[#7A4A00] transition"
+            >
+              Enable now →
+            </Link>
+          </div>
+        )}
         <main className="flex-1 overflow-y-auto bg-[#FFF6E8]">
           {children ?? <Outlet />}
         </main>

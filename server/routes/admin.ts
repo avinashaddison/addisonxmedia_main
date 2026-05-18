@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { db } from "../db/client";
 import {
   user, contact, conversation, message, deal, campaign, broadcast, task,
-  adminAuditLog, impersonationSession, metaConfig,
+  adminAuditLog, impersonationSession, metaConfig, systemSetting,
 } from "../db/schema";
 import { eq, desc, sql, and, gt, isNull, or, ilike, count } from "drizzle-orm";
 import { requireAdmin, auditLog, type AdminVariables } from "../middleware/admin";
@@ -17,15 +17,20 @@ admin.get("/api/admin/me", async (c) => {
   const { auth } = await import("../auth");
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session?.user) return c.json({ error: "Unauthorized" }, 401);
+  // BetterAuth's twoFactor plugin adds twoFactorEnabled to the user row
   const [u] = await db
-    .select({ id: user.id, email: user.email, name: user.name, isStaff: user.isStaff, adminRole: user.adminRole })
+    .select()
     .from(user).where(eq(user.id, session.user.id)).limit(1);
   if (!u || !u.isStaff || !u.adminRole) return c.json({ error: "Not staff" }, 403);
-  // Track last admin activity (used in Staff page to show "last login" column).
-  // Fire-and-forget — if it fails we don't block the request.
   db.update(user).set({ adminLastLoginAt: new Date() }).where(eq(user.id, u.id))
     .catch((e) => console.error("[admin_last_login update]", e));
-  return c.json({ id: u.id, email: u.email, name: u.name, adminRole: u.adminRole });
+  return c.json({
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    adminRole: u.adminRole,
+    twoFactorEnabled: (u as Record<string, unknown>).twoFactorEnabled ?? false,
+  });
 });
 
 // All other admin routes require staff auth + audit logging
@@ -131,6 +136,46 @@ admin.get("/api/admin/workspaces/:id", async (c) => {
   });
 });
 
+/* Read-only preview cards: last 5 contacts, last 5 messages, last 5 deals.
+   Cuts down on impersonation usage for simple support reads. */
+admin.get("/api/admin/workspaces/:id/preview", async (c) => {
+  const id = c.req.param("id");
+
+  const recentContacts = await db
+    .select({
+      id: contact.id, name: contact.name, phone: contact.phone, email: contact.email,
+      tag: contact.tag, score: contact.score, createdAt: contact.createdAt,
+    })
+    .from(contact).where(eq(contact.ownerId, id))
+    .orderBy(desc(contact.createdAt)).limit(5);
+
+  const recentMessages = await db
+    .select({
+      id: message.id, body: message.body, direction: message.direction,
+      status: message.status, createdAt: message.createdAt, conversationId: message.conversationId,
+    })
+    .from(message).where(eq(message.ownerId, id))
+    .orderBy(desc(message.createdAt)).limit(8);
+
+  const recentDeals = await db
+    .select({
+      id: deal.id, title: deal.title, value: deal.value, stage: deal.stage,
+      probability: deal.probability, closedAt: deal.closedAt, createdAt: deal.createdAt,
+    })
+    .from(deal).where(eq(deal.ownerId, id))
+    .orderBy(desc(deal.updatedAt)).limit(5);
+
+  const recentTasks = await db
+    .select({
+      id: task.id, title: task.title, priority: task.priority, status: task.status,
+      dueAt: task.dueAt, createdAt: task.createdAt,
+    })
+    .from(task).where(eq(task.ownerId, id))
+    .orderBy(desc(task.createdAt)).limit(5);
+
+  return c.json({ recentContacts, recentMessages, recentDeals, recentTasks });
+});
+
 admin.patch("/api/admin/workspaces/:id", requireAdmin(["super_admin", "billing"]), async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json<{ plan?: string; trialEndsAt?: string | null; mrrInr?: number }>();
@@ -211,13 +256,17 @@ admin.post("/api/admin/impersonate/end", async (c) => {
 /* ─────────── Audit log ─────────── */
 
 admin.get("/api/admin/audit", async (c) => {
-  const limit = Math.min(Number(c.req.query("limit") ?? 100), 500);
+  const limit = Math.min(Number(c.req.query("limit") ?? 100), 1000);
   const action = c.req.query("action");
   const actor = c.req.query("actor");
+  const since = c.req.query("since"); // ISO date
+  const until = c.req.query("until"); // ISO date
 
   const conds = [];
   if (action) conds.push(eq(adminAuditLog.action, action));
   if (actor) conds.push(eq(adminAuditLog.actorUserId, actor));
+  if (since) conds.push(gt(adminAuditLog.createdAt, new Date(since)));
+  if (until) conds.push(sql`${adminAuditLog.createdAt} < ${new Date(until)}`);
 
   const rows = await db
     .select({
@@ -229,6 +278,7 @@ admin.get("/api/admin/audit", async (c) => {
       targetUserId: adminAuditLog.targetUserId,
       payload: adminAuditLog.payload,
       ipAddress: adminAuditLog.ipAddress,
+      userAgent: adminAuditLog.userAgent,
       createdAt: adminAuditLog.createdAt,
     })
     .from(adminAuditLog)
@@ -236,6 +286,29 @@ admin.get("/api/admin/audit", async (c) => {
     .where(conds.length > 0 ? and(...conds) : undefined)
     .orderBy(desc(adminAuditLog.createdAt))
     .limit(limit);
+
+  // CSV export
+  if (c.req.query("format") === "csv") {
+    const header = "timestamp,action,actor_email,actor_id,target_user_id,ip_address,payload\n";
+    const lines = rows.map((r) => {
+      const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      return [
+        r.createdAt.toISOString(),
+        r.action,
+        r.actorEmail ?? "",
+        r.actorUserId,
+        r.targetUserId ?? "",
+        r.ipAddress ?? "",
+        r.payload ?? "",
+      ].map(esc).join(",");
+    }).join("\n");
+    return new Response(header + lines + "\n", {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="audit-log-${new Date().toISOString().slice(0, 10)}.csv"`,
+      },
+    });
+  }
 
   return c.json(rows);
 });
@@ -333,6 +406,28 @@ admin.post("/api/admin/subscriptions/:id/refund", requireAdmin(["super_admin", "
   // Note: actual Razorpay refund call would go here; for now we just audit
   await auditLog(c, "refund", id, { amount, reason });
   return c.json({ ok: true, note: "Refund queued in audit log. Wire Razorpay refund webhook to complete." });
+});
+
+/* ─────────── System settings (feature flags + mode toggles) ─────────── */
+
+admin.get("/api/admin/settings", async (c) => {
+  const rows = await db.select().from(systemSetting).orderBy(systemSetting.category, systemSetting.key);
+  return c.json(rows);
+});
+
+admin.patch("/api/admin/settings/:key", requireAdmin(["super_admin"]), async (c) => {
+  const key = c.req.param("key");
+  const { value } = await c.req.json<{ value: string }>();
+  if (value === undefined || value === null) return c.json({ error: "value required" }, 400);
+
+  const [existing] = await db.select().from(systemSetting).where(eq(systemSetting.key, key)).limit(1);
+  if (!existing) return c.json({ error: "Unknown setting" }, 404);
+
+  await db.update(systemSetting)
+    .set({ value: String(value), updatedBy: c.get("adminUserId"), updatedAt: new Date() })
+    .where(eq(systemSetting.key, key));
+  await auditLog(c, "change_setting", null, { key, value });
+  return c.json({ ok: true });
 });
 
 /* ─────────── System health ─────────── */
