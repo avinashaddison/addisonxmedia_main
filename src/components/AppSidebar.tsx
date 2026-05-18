@@ -1,4 +1,4 @@
-import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X, Bot, Workflow } from "lucide-react";
+import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X, Bot, Workflow, Target, Shield, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AddisonMark, AddisonLogo } from "@/components/brand/AddisonLogo";
@@ -50,6 +50,7 @@ const groups: { label: string; items: NavItem[] }[] = [
   {
     label: "Marketing",
     items: [
+      { icon: Target, label: "Ads Marketing", id: "ads", hint: "Meta + Google ads", smart: true },
       { icon: Megaphone, label: "Campaigns", id: "campaigns", hint: "Multi-channel" },
       { icon: Radio, label: "Broadcasts", id: "broadcasts", hint: "Mass messages" },
       { icon: FileText, label: "Templates", id: "templates", hint: "Reusable messages" },
@@ -139,40 +140,57 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
       >
 
         {/* Logo header */}
-        <div className="relative h-16 px-3 border-b-2 border-[#E8B968] bg-white flex items-center gap-2.5 flex-shrink-0">
+        <div className="relative h-[72px] px-3 border-b-2 border-[#E8B968] bg-white flex items-center gap-2 flex-shrink-0 overflow-hidden">
+          {/* Subtle saffron glow behind logo */}
+          <div className="absolute -top-8 -left-8 w-32 h-32 bg-[#FFD23F]/20 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-[#FF6A1F]/15 rounded-full blur-2xl pointer-events-none" />
+
           {collapsed ? (
-            <AddisonMark size={40} className="mx-auto hidden lg:block" />
+            // Collapsed (desktop only): just the FX mark, centered
+            <Link
+              to="/app/dashboard"
+              className="mx-auto hidden lg:block hover:scale-105 transition-transform"
+              aria-label="AddisonX home"
+            >
+              <AddisonMark size={42} />
+            </Link>
           ) : (
             <>
-              <AddisonLogo size={40} />
+              {/* Expanded full lockup */}
+              <Link to="/app/dashboard" className="flex-1 min-w-0 hover:opacity-90 transition relative" aria-label="AddisonX home">
+                <AddisonLogo size={28} />
+              </Link>
               {/* Desktop collapse */}
               <button
                 onClick={() => setCollapsed(true)}
-                className="ml-auto w-7 h-7 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground hidden lg:flex items-center justify-center transition-colors flex-shrink-0"
+                className="relative ml-1 w-8 h-8 rounded-lg bg-[#FFF1D6] hover:bg-[#FFE8C7] border border-[#E8B968] text-foreground/70 hover:text-foreground hidden lg:flex items-center justify-center transition flex-shrink-0"
                 aria-label="Collapse sidebar"
+                title="Collapse sidebar"
               >
-                <ChevronsLeft className="w-4 h-4" />
+                <ChevronsLeft className="w-4 h-4" strokeWidth={2.5} />
               </button>
               {/* Mobile close */}
               <button
                 onClick={onMobileClose}
-                className="ml-auto w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground lg:hidden flex items-center justify-center transition-colors flex-shrink-0"
+                className="relative ml-1 w-9 h-9 rounded-lg bg-[#FFF1D6] hover:bg-[#FFE8C7] border border-[#E8B968] text-foreground/70 hover:text-foreground lg:hidden flex items-center justify-center transition flex-shrink-0"
                 aria-label="Close menu"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" strokeWidth={2.5} />
               </button>
             </>
           )}
-          {/* Show mobile-only logo + close even when desktop is collapsed */}
+          {/* Mobile sees the full lockup even when desktop is collapsed */}
           {collapsed && (
-            <div className="flex items-center gap-2 lg:hidden flex-1">
-              <AddisonLogo size={40} />
+            <div className="flex items-center gap-2 lg:hidden flex-1 min-w-0">
+              <Link to="/app/dashboard" className="flex-1 min-w-0" aria-label="AddisonX home">
+                <AddisonLogo size={28} />
+              </Link>
               <button
                 onClick={onMobileClose}
-                className="ml-auto w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors"
+                className="ml-auto w-9 h-9 rounded-lg bg-[#FFF1D6] hover:bg-[#FFE8C7] border border-[#E8B968] flex items-center justify-center transition flex-shrink-0"
                 aria-label="Close menu"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" strokeWidth={2.5} />
               </button>
             </div>
           )}
@@ -181,10 +199,11 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
         {collapsed && (
           <button
             onClick={() => setCollapsed(false)}
-            className="mt-2 mx-auto w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground hidden lg:flex items-center justify-center transition-colors flex-shrink-0"
+            className="mt-2 mx-auto w-8 h-8 rounded-lg bg-[#FFF1D6] hover:bg-[#FFE8C7] border border-[#E8B968] text-foreground/70 hover:text-foreground hidden lg:flex items-center justify-center transition flex-shrink-0"
             aria-label="Expand sidebar"
+            title="Expand sidebar"
           >
-            <ChevronsRight className="w-4 h-4" />
+            <ChevronsRight className="w-4 h-4" strokeWidth={2.5} />
           </button>
         )}
 
@@ -350,6 +369,19 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
               <Link to="/">
                 <Globe className="w-4 h-4 mr-2" />
                 View landing page
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link to="/privacy" target="_blank" rel="noopener noreferrer">
+                <Shield className="w-4 h-4 mr-2" />
+                Privacy Policy
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/terms" target="_blank" rel="noopener noreferrer">
+                <ScrollText className="w-4 h-4 mr-2" />
+                Terms of Service
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

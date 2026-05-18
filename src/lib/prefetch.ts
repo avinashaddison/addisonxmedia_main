@@ -12,6 +12,8 @@ const PREFETCHERS: Record<string, () => Promise<unknown>> = {
   contacts: () => import("@/components/contacts/ContactsPage"),
   deals: () => import("@/components/deals/DealsPage"),
   analytics: () => import("@/components/analytics/AnalyticsPage"),
+  ads: () => import("@/components/ads/AdsMarketingPage"),
+  // ads: marketing module
   campaigns: () => import("@/components/campaigns/CampaignsPage"),
   broadcasts: () => import("@/components/broadcasts/BroadcastsPage"),
   templates: () => import("@/components/templates/TemplatesPage"),

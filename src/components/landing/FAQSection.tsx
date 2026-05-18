@@ -4,28 +4,32 @@ import { Reveal } from "./Reveal";
 
 const faqs = [
   {
-    q: "How fast can I go live?",
-    a: "Most teams are sending their first AI-powered reply within 2 minutes. Connect WhatsApp, import contacts (or skip), and you're live. No engineering required.",
+    q: "What is AddisonX and how does it help Ranchi businesses?",
+    a: "AddisonX is India's #1 AI-powered WhatsApp Business platform, built for Indian SMBs. Ranchi-based coaching centres, D2C brands, real-estate teams and clinics use AddisonX to handle WhatsApp leads through a shared inbox, reply in Hindi 24/7 with an AI agent, send broadcasts to thousands of customers, and collect UPI payments inside chat — all from one workspace.",
   },
   {
-    q: "Will the AI sound like a robot?",
-    a: "No. Addison learns from your top-performing replies, your tone, your offers, and even your emojis. It can reply in Hindi, English, or Hinglish — and you approve every send (until you trust it).",
+    q: "Does AddisonX support Hindi and other Indian languages?",
+    a: "Haan. Addison AI Hindi mein natively fluent hai (Hinglish included), aur Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia, Urdu aur Assamese bhi support karta hai — total 12 Indian languages including English.",
   },
   {
-    q: "What does it integrate with?",
-    a: "WhatsApp (Twilio + Meta Cloud API), Razorpay, Stripe, Shopify, Calendly, Google Sheets, Zapier, and 30+ more. Custom webhooks too.",
+    q: "Is AddisonX DPDP Act 2023 compliant and where is data hosted?",
+    a: "Yes. AddisonX is fully DPDP Act 2023 compliant. Aapka customer data Mumbai ke Indian servers par hosted hai with sub-100ms latency from Ranchi, Bengaluru and Delhi. Consent flows and audit logs built-in hain.",
   },
   {
-    q: "Is my data safe?",
-    a: "End-to-end encrypted. Row-level isolated tenants. SOC 2 ready. Hosted on AWS Mumbai. We never train shared models on your data.",
+    q: "Can I collect UPI payments inside WhatsApp chat?",
+    a: "Haan. AddisonX Razorpay, UPI, PhonePe, Paytm aur Cashfree ke saath integrate hota hai. Customer chat ke andar payment link tap kare aur UPI pe pay kar de — deal auto-reconcile ho jaata hai aur GST invoice automatic generate hota hai.",
   },
   {
-    q: "What if I cancel?",
-    a: "Cancel anytime, no questions asked. Export everything (chats, contacts, deals) as CSV/JSON. We don't lock you in.",
+    q: "How much does AddisonX cost in India?",
+    a: "AddisonX ₹499/month se start hota hai solo founders aur kirana stores ke liye. Growth plan ₹1,999/month mein Addison AI, unlimited team members, broadcasts aur 11 Indian language support included hain. Enterprise plans dedicated CSM ke saath custom pricing par. Har plan ke saath GST invoice har mahine.",
   },
   {
-    q: "Do you offer a free trial?",
-    a: "Yes — 14 days, full Growth plan, no credit card required. After that, pay only if you grew.",
+    q: "Is there a free trial and do I need a credit card?",
+    a: "Yes — 7-day free trial, koi credit card nahi chahiye. Setup 5 minutes mein ho jaata hai. Aapka WhatsApp Business account official Meta API ke through connect hota hai aur onboarding 24 ghante mein complete.",
+  },
+  {
+    q: "Can I migrate from WATI, Interakt or AiSensy?",
+    a: "Yes. AddisonX free migration deta hai WATI, Interakt, AiSensy aur doosre WhatsApp Business platforms se. Hum aapke templates, contacts aur broadcast history bilkul free move karte hain. Migration call website se book karein.",
   },
 ];
 

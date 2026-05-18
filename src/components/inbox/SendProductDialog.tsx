@@ -247,7 +247,7 @@ export const SendProductDialog = ({ open, onOpenChange, contactName, onDeliver }
                   <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1 block flex items-center gap-1.5">
                     <LinkIcon className="w-3 h-3" /> Login URL <span className="text-muted-foreground/60 normal-case tracking-normal text-[10px]">(optional)</span>
                   </label>
-                  <Input value={url} onChange={(e) => setUrl(e.target.value)} type="url" placeholder="https://app.addisonx.com/login" />
+                  <Input value={url} onChange={(e) => setUrl(e.target.value)} type="url" placeholder="https://app.addisonx.in/login" />
                 </div>
               </>
             )}

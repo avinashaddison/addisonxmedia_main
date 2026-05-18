@@ -52,9 +52,12 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { FAQSection } from "@/components/landing/FAQSection";
+import { AddisonLogo } from "@/components/brand/AddisonLogo";
 
 const HERO_ROTATING = [
   "Bharat ke",
+  "Ranchi ke",
+  "Jharkhand ke",
   "tuition centers ke",
   "D2C brands ke",
   "kirana stores ke",
@@ -127,15 +130,8 @@ export default function Landing() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-[#0E8A4B] to-[#16C172] flex items-center justify-center shadow-md shadow-[#0E8A4B]/30 group-hover:shadow-[#0E8A4B]/50 transition-shadow">
-              <MessageCircle className="w-5 h-5 text-white" fill="currentColor" strokeWidth={0} />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#FF6A1F] rounded-full border-2 border-[#FFF6E8]" />
-            </div>
-            <div className="leading-tight">
-              <span className="font-extrabold text-[18px] tracking-tight block">AddisonX</span>
-              <span className="text-[9px] uppercase tracking-[0.18em] text-[#B8651A] font-bold">WhatsApp Suite · भारत</span>
-            </div>
+          <Link to="/" className="flex items-center hover:opacity-90 transition" aria-label="AddisonX home">
+            <AddisonLogo size={32} />
           </Link>
 
           <nav className="hidden lg:flex items-center gap-1 text-sm font-semibold">
@@ -318,7 +314,7 @@ export default function Landing() {
 
             <p className="mt-7 text-lg lg:text-xl text-foreground/75 leading-relaxed max-w-xl font-medium">
               Ek shared inbox · AI jo Hindi mein reply kare · 10,000 customers ko broadcast · UPI payment chat mein.
-              Sab kuch ek hi tool mein. <span className="font-bold text-foreground">12,000+ Indian businesses</span> ne switch kiya hai.
+              Sab kuch ek hi tool mein. <span className="font-bold text-foreground">Ranchi se Bengaluru tak 12,000+ businesses</span> ne switch kiya hai.
             </p>
 
             {/* CTA row */}
@@ -469,7 +465,7 @@ export default function Landing() {
             ))}
           </div>
           <p className="text-center text-[11px] uppercase tracking-[0.18em] font-bold text-muted-foreground mt-7 px-3">
-            Mumbai · Bengaluru · Delhi NCR · Pune · Hyderabad · Chennai · Ahmedabad · Indore · Jaipur · Kochi
+            Ranchi · Jamshedpur · Dhanbad · Mumbai · Bengaluru · Delhi NCR · Pune · Hyderabad · Chennai · Ahmedabad · Indore · Jaipur · Kochi
           </p>
         </div>
       </section>
@@ -811,7 +807,7 @@ export default function Landing() {
               Real founders, real ₹
             </span>
             <h2 className="text-3xl lg:text-5xl font-black tracking-tight leading-[1.05]">
-              Indore se Bengaluru tak — <span className="text-[#FF6A1F]">asli kahaaniyan</span>
+              Ranchi se Bengaluru tak — <span className="text-[#FF6A1F]">asli kahaaniyan</span>
             </h2>
           </div>
 
@@ -1034,15 +1030,16 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-5 lg:px-8 py-16 relative grid md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8">
           {/* Brand column */}
           <div className="lg:col-span-4">
-            <Link to="/" className="inline-flex items-center gap-2.5 mb-5 group">
-              <div className="relative w-11 h-11 rounded-xl bg-gradient-to-br from-[#16C172] to-[#0E8A4B] flex items-center justify-center shadow-lg">
-                <MessageCircle className="w-5 h-5 text-white" fill="currentColor" strokeWidth={0} />
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#FF6A1F] rounded-full border-2 border-[#0A3D24]" />
+            <Link to="/" className="inline-flex items-center mb-5 group relative" aria-label="AddisonX home">
+              <div className="relative px-3 py-1.5 rounded-2xl bg-gradient-to-br from-white via-[#FFF6E8] to-[#FFF1D6] border-2 border-[#FFD23F] shadow-[0_4px_0_0_#E8B400] group-hover:shadow-[0_2px_0_0_#E8B400] group-hover:translate-y-[2px] transition-all">
+                <AddisonLogo size={24} />
+                {/* Festive sparkle dot */}
+                <span className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-[#FF6A1F] border-2 border-[#0A3D24] animate-pulse" />
               </div>
-              <div className="leading-tight">
-                <span className="font-extrabold text-xl tracking-tight block">AddisonX</span>
-                <span className="text-[10px] uppercase tracking-[0.18em] text-[#FFD23F] font-bold">WhatsApp Suite · भारत</span>
-              </div>
+              {/* Small floating sticker */}
+              <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full bg-[#0A3D24] text-[#FFD23F] text-[8px] font-extrabold uppercase tracking-[0.18em] border border-[#FFD23F]/40 whitespace-nowrap shadow-md">
+                Made in भारत
+              </span>
             </Link>
 
             <p className="text-sm text-white/75 leading-relaxed max-w-sm">
@@ -1164,7 +1161,7 @@ export default function Landing() {
           <div className="max-w-7xl mx-auto px-5 lg:px-8 py-5 text-center">
             <p className="text-[10px] uppercase tracking-[0.22em] font-extrabold text-white/50 mb-2">Trusted across India</p>
             <p className="text-xs text-white/75 font-semibold leading-relaxed">
-              Mumbai · Bengaluru · Delhi NCR · Pune · Hyderabad · Chennai · Ahmedabad · Indore · Jaipur · Kochi · Surat · Lucknow · Kolkata · Coimbatore · Chandigarh
+              Ranchi · Jamshedpur · Dhanbad · Bokaro · Mumbai · Bengaluru · Delhi NCR · Pune · Hyderabad · Chennai · Ahmedabad · Indore · Jaipur · Kochi · Surat · Lucknow · Kolkata · Coimbatore · Chandigarh · Patna
             </p>
           </div>
         </div>
@@ -1175,7 +1172,7 @@ export default function Landing() {
             <p className="text-white/60 flex items-center gap-1.5 font-medium">
               © 2025 AddisonX Media Pvt. Ltd. · Made with
               <Heart className="w-3.5 h-3.5 inline text-[#FF6A1F]" fill="currentColor" strokeWidth={0} />
-              in Bengaluru, India
+              in Ranchi & Bengaluru, India
             </p>
 
             {/* Social */}
@@ -1378,10 +1375,10 @@ const FEATURES = [
 ];
 
 const USE_CASES = [
-  { icon: GraduationCap, title: "Coaching & tuition", desc: "Batches onboard karo, fee reminders bhejo, UPI se ₹ collect karo. IIT/NEET prep, schools, vocational." },
-  { icon: ShoppingBag, title: "D2C & e-commerce", desc: "Abandoned carts recover, Hindi/English order updates, festive sales — Diwali, Rakhi, Holi." },
+  { icon: GraduationCap, title: "Coaching & tuition", desc: "Ranchi, Jamshedpur aur Patna ke coaching centres ka favourite. Batches onboard karo, fee reminders bhejo, UPI se ₹ collect karo. IIT/NEET prep, schools, vocational." },
+  { icon: ShoppingBag, title: "D2C & e-commerce", desc: "Abandoned carts recover, Hindi/English order updates, festive sales — Diwali, Rakhi, Holi. Pan-India shipping wale brands ke liye." },
   { icon: Stethoscope, title: "Clinics & wellness", desc: "Appointment booking, prescription refills, salon & spa reminders. Consent flows built in." },
-  { icon: Building2, title: "Real estate", desc: "Tier-2 & tier-3 cities ke site-visit leads qualify karo, floor plans share, visits schedule." },
+  { icon: Building2, title: "Real estate", desc: "Ranchi, Dhanbad, Jamshedpur jaise tier-2 cities ke site-visit leads qualify karo, floor plans share, visits schedule." },
 ];
 
 const COMPARISON: { cap: string; us: boolean; others: boolean; personal: boolean }[] = [
@@ -1411,11 +1408,11 @@ const TESTIMONIALS = [
     result: "₹14L Diwali in one weekend",
   },
   {
-    initials: "VG",
-    name: "Vikram Gupta",
-    role: "Director, Reddy Realty · Hyderabad",
-    quote: "Tier-2 site-visit leads Excel sheet se gayab ho rahe the. AddisonX Telugu mein qualify karta hai, 6 builders ke saath visits book karta hai, hot leads sales team ko push karta hai.",
-    result: "3× site-visit conversion",
+    initials: "SS",
+    name: "Sunita Sahu",
+    role: "Founder, Jharkhand Tutorials · Ranchi",
+    quote: "Ranchi mein 8 coaching centres chalate hain. Class 10 aur JEE batches ke admissions WhatsApp se aate the par track nahi ho rahe the. AddisonX ne Hindi mein parents se baat ki, fees UPI pe collect ki, aur poora Jharkhand ek inbox mein. Admissions 2.5x ho gaye.",
+    result: "2.5× admissions in Jharkhand",
   },
 ];
 

@@ -19,11 +19,12 @@ const AnalyticsPage = lazy(() => import("@/components/analytics/AnalyticsPage").
 const TemplatesPage = lazy(() => import("@/components/templates/TemplatesPage").then((m) => ({ default: m.TemplatesPage })));
 const ActivityPage = lazy(() => import("@/components/activity/ActivityPage").then((m) => ({ default: m.ActivityPage })));
 const IntegrationsPage = lazy(() => import("@/components/integrations/IntegrationsPage").then((m) => ({ default: m.IntegrationsPage })));
+const AdsMarketingPage = lazy(() => import("@/components/ads/AdsMarketingPage").then((m) => ({ default: m.AdsMarketingPage })));
 
 const VALID_PAGES = new Set([
   "dashboard", "inbox", "contacts", "deals", "analytics",
   "campaigns", "broadcasts", "templates", "followups",
-  "activity", "integrations", "settings",
+  "ads", "activity", "integrations", "settings",
 ]);
 
 const PageFallback = () => (
@@ -82,6 +83,7 @@ const Index = () => {
             {page === "contacts" && <ContactsPage />}
             {page === "deals" && <DealsPage />}
             {page === "analytics" && <AnalyticsPage />}
+            {page === "ads" && <AdsMarketingPage />}
             {page === "campaigns" && <CampaignsPage />}
             {page === "broadcasts" && <BroadcastsPage />}
             {page === "templates" && <TemplatesPage />}
