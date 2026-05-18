@@ -14,6 +14,7 @@ import inboxRoutes from "./routes/inbox";
 import metaRoutes from "./routes/meta";
 import integrationsRoutes from "./routes/integrations";
 import webhookRoutes from "./routes/webhooks";
+import adminRoutes from "./routes/admin";
 
 const app = new Hono();
 
@@ -62,6 +63,7 @@ app.route("/api", crmRoutes);
 app.route("/api", inboxRoutes);
 app.route("/api", metaRoutes);
 app.route("/api", integrationsRoutes);
+app.route("/", adminRoutes);
 
 const port = Number(process.env.PORT ?? 3001);
 serve({ fetch: app.fetch, port }, (info) => {

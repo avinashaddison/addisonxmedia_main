@@ -21,6 +21,18 @@ const Privacy = lazy(() => import("./pages/Privacy.tsx"));
 const Terms = lazy(() => import("./pages/Terms.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
+// Admin panel — only loads if user has is_staff = true
+const AdminShell = lazy(() => import("./components/admin/AdminShell").then((m) => ({ default: m.AdminShell })));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
+const AdminWorkspaces = lazy(() => import("./pages/admin/AdminWorkspaces.tsx"));
+const AdminWorkspaceDetail = lazy(() => import("./pages/admin/AdminWorkspaceDetail.tsx"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers.tsx"));
+const AdminSubscriptions = lazy(() => import("./pages/admin/AdminSubscriptions.tsx"));
+const AdminAudit = lazy(() => import("./pages/admin/AdminAudit.tsx"));
+const AdminStaff = lazy(() => import("./pages/admin/AdminStaff.tsx"));
+const AdminHealth = lazy(() => import("./pages/admin/AdminHealth.tsx"));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings.tsx"));
+
 // Sensible global defaults — was using vanilla `new QueryClient()` which means
 // staleTime: 0 (refetch on every mount) + refetchOnWindowFocus: true (refetch
 // every tab focus). Both wreck perceived perf on the India→us-east-1 round trip.
@@ -75,6 +87,28 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+
+              {/* ── Admin panel (gated by is_staff in server middleware) ── */}
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute>
+                    <AdminShell />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<AdminDashboard />} />
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="workspaces" element={<AdminWorkspaces />} />
+                <Route path="workspaces/:id" element={<AdminWorkspaceDetail />} />
+                <Route path="users" element={<AdminUsers />} />
+                <Route path="subscriptions" element={<AdminSubscriptions />} />
+                <Route path="audit" element={<AdminAudit />} />
+                <Route path="staff" element={<AdminStaff />} />
+                <Route path="health" element={<AdminHealth />} />
+                <Route path="settings" element={<AdminSettings />} />
+              </Route>
+
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

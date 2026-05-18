@@ -21,6 +21,7 @@ const PREFETCHERS: Record<string, () => Promise<unknown>> = {
   activity: () => import("@/components/activity/ActivityPage"),
   integrations: () => import("@/components/integrations/IntegrationsPage"),
   settings: () => import("@/components/settings/SettingsPage"),
+  admin: () => import("@/components/admin/AdminShell"),
 };
 
 const prefetched = new Set<string>();

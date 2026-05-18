@@ -4,6 +4,7 @@ import { Loader2, Menu } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { GlobalTopbar } from "@/components/global/GlobalTopbar";
 import { AddisonLogo } from "@/components/brand/AddisonLogo";
+import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 
 // Each sub-page becomes its own bundle. The user's first /app/dashboard
 // load only ships dashboard + sidebar code; other pages load on demand.
@@ -55,7 +56,9 @@ const Index = () => {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
+    <div className="flex flex-col h-screen w-full overflow-hidden">
+      <ImpersonationBanner />
+      <div className="flex flex-1 overflow-hidden">
       <AppSidebar
         active={page}
         onNavigate={handleNavigate}
@@ -93,6 +96,7 @@ const Index = () => {
             {page === "settings" && <SettingsPage />}
           </Suspense>
         </div>
+      </div>
       </div>
     </div>
   );

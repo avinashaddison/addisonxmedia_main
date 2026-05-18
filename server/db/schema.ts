@@ -23,9 +23,58 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  // ── Admin / staff fields (AddisonX Media operators) ──
+  isStaff: boolean("is_staff").notNull().default(false),
+  adminRole: text("admin_role"),                              // 'super_admin' | 'support' | 'billing' | 'moderator'
+  adminInvitedBy: text("admin_invited_by"),
+  adminLastLoginAt: timestamp("admin_last_login_at", { withTimezone: true }),
+  // ── Customer account state ──
+  accountStatus: text("account_status").notNull().default("active"),  // 'active' | 'suspended' | 'cancelled' | 'trial'
+  plan: text("plan").notNull().default("starter"),                    // 'starter' | 'growth' | 'enterprise'
+  trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+  mrrInr: numeric("mrr_inr", { precision: 12, scale: 2 }).notNull().default("0"),
+  suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+  suspendedReason: text("suspended_reason"),
+  suspendedBy: text("suspended_by"),
+  // ──
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ============================================================
+// ADMIN — staff actions, audit, impersonation
+// ============================================================
+
+export const adminAuditLog = pgTable("admin_audit_log", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  actorUserId: text("actor_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  action: text("action").notNull(),                       // 'impersonate' | 'change_plan' | 'suspend' | 'refund' | 'invite_staff' | etc.
+  targetUserId: text("target_user_id"),                   // who was affected
+  payload: text("payload"),                               // JSON stringified context
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  actorIdx: index("admin_audit_actor_idx").on(t.actorUserId, t.createdAt),
+  actionIdx: index("admin_audit_action_idx").on(t.action, t.createdAt),
+}));
+
+export const impersonationSession = pgTable("impersonation_session", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  adminUserId: text("admin_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  targetUserId: text("target_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  reason: text("reason").notNull(),                       // required — minimum 10 chars
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  ipAddress: text("ip_address"),
+}, (t) => ({
+  adminIdx: index("impersonation_admin_idx").on(t.adminUserId),
+  targetIdx: index("impersonation_target_idx").on(t.targetUserId),
+}));
+
+export type AdminAuditEntry = typeof adminAuditLog.$inferSelect;
+export type ImpersonationSession = typeof impersonationSession.$inferSelect;
 
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
