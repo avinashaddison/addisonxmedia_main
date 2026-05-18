@@ -78,12 +78,17 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 // sub-apps doesn't bleed into webhook paths.
 app.route("/api", webhookRoutes);
 
+// Admin + public system endpoints BEFORE the per-resource sub-apps. crm/inbox/
+// meta/integrations each register `app.use("*", requireAuth)` which would
+// otherwise eat unrelated paths like /api/system/flags (public) or /api/admin/me
+// (its own auth path) and return 401 before adminRoutes gets a turn.
+app.route("/", adminRoutes);
+
 // App API surface (each sub-app applies requireAuth on its own routes)
 app.route("/api", crmRoutes);
 app.route("/api", inboxRoutes);
 app.route("/api", metaRoutes);
 app.route("/api", integrationsRoutes);
-app.route("/", adminRoutes);
 
 // In production (Render single-service deploy) the Hono server also serves the
 // built Vite frontend. In dev, Vite serves the frontend on its own port and
