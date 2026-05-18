@@ -9,7 +9,22 @@ import { requireAdmin, auditLog, type AdminVariables } from "../middleware/admin
 
 const admin = new Hono<{ Variables: AdminVariables }>();
 
-// All admin routes require staff auth by default
+/* Public — client-side gate uses this to decide whether to render /admin
+   without showing a flash of admin UI to non-staff users. Returns 200 with
+   role or 403 with reason. Doesn't go through requireAdmin so we don't
+   spam the audit log on every page load. */
+admin.get("/api/admin/me", async (c) => {
+  const { auth } = await import("../auth");
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session?.user) return c.json({ error: "Unauthorized" }, 401);
+  const [u] = await db
+    .select({ id: user.id, email: user.email, name: user.name, isStaff: user.isStaff, adminRole: user.adminRole })
+    .from(user).where(eq(user.id, session.user.id)).limit(1);
+  if (!u || !u.isStaff || !u.adminRole) return c.json({ error: "Not staff" }, 403);
+  return c.json({ id: u.id, email: u.email, name: u.name, adminRole: u.adminRole });
+});
+
+// All other admin routes require staff auth + audit logging
 admin.use("/api/admin/*", requireAdmin());
 
 const DAY = 24 * 3600 * 1000;
@@ -56,9 +71,11 @@ admin.get("/api/admin/metrics", async (c) => {
 admin.get("/api/admin/workspaces", async (c) => {
   const q = c.req.query("q")?.trim();
   const status = c.req.query("status");
+  const includeStaff = c.req.query("includeStaff") === "1";
   const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
 
-  const conds = [eq(user.isStaff, false)];
+  const conds = [];
+  if (!includeStaff) conds.push(eq(user.isStaff, false));
   if (q) conds.push(or(ilike(user.email, `%${q}%`), ilike(user.name, `%${q}%`))!);
   if (status && status !== "all") conds.push(eq(user.accountStatus, status));
 
@@ -70,11 +87,13 @@ admin.get("/api/admin/workspaces", async (c) => {
       plan: user.plan,
       status: user.accountStatus,
       mrrInr: user.mrrInr,
+      isStaff: user.isStaff,
+      adminRole: user.adminRole,
       createdAt: user.createdAt,
       trialEndsAt: user.trialEndsAt,
     })
     .from(user)
-    .where(and(...conds))
+    .where(conds.length > 0 ? and(...conds) : undefined)
     .orderBy(desc(user.createdAt))
     .limit(limit);
 

@@ -74,9 +74,18 @@ const AdminWorkspaces = () => {
         )}
 
         {!isLoading && rows.length === 0 && (
-          <div className="px-4 py-16 text-center">
-            <p className="text-[13px] font-extrabold">No accounts found</p>
-            <p className="text-[12px] text-foreground/60 mt-1">Try a different filter</p>
+          <div className="px-6 py-16 text-center">
+            <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-[#FFF1D6] border-2 border-[#E8B968] flex items-center justify-center">
+              <Building2 className="w-7 h-7 text-[#B8651A]" strokeWidth={2.5} />
+            </div>
+            <p className="text-[14px] font-extrabold">
+              {q || status !== "all" ? "No matches" : "No customer accounts yet"}
+            </p>
+            <p className="text-[12px] text-foreground/60 mt-1 max-w-md mx-auto">
+              {q || status !== "all"
+                ? "Try a different filter or search."
+                : "When customers sign up at /auth, they appear here automatically."}
+            </p>
           </div>
         )}
 

@@ -36,6 +36,8 @@ export type AdminWorkspace = {
   plan: string;
   status: string;
   mrrInr: string | number;
+  isStaff?: boolean;
+  adminRole?: string | null;
   createdAt: string;
   trialEndsAt: string | null;
 };
@@ -83,10 +85,20 @@ export type HealthCheck = {
   detail?: string;
 };
 
+export type AdminMe = {
+  id: string;
+  email: string;
+  name: string;
+  adminRole: string;
+};
+
 export const adminApi = {
+  me: () => adminRequest<AdminMe>("/me"),
   metrics: () => adminRequest<AdminMetrics>("/metrics"),
-  workspaces: (params?: { q?: string; status?: string }) => {
-    const qs = new URLSearchParams(params as Record<string, string>).toString();
+  workspaces: (params?: { q?: string; status?: string; includeStaff?: boolean }) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, k === "includeStaff" && v ? "1" : String(v)]))
+    ).toString();
     return adminRequest<AdminWorkspace[]>(`/workspaces${qs ? `?${qs}` : ""}`);
   },
   workspaceDetail: (id: string) => adminRequest<AdminWorkspaceDetail>(`/workspaces/${id}`),
