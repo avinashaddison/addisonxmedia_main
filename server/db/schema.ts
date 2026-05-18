@@ -25,6 +25,8 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  // ── Better Auth twoFactor plugin field ──
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
   // ── Admin / staff fields (AddisonX Media operators) ──
   isStaff: boolean("is_staff").notNull().default(false),
   adminRole: text("admin_role"),                              // 'super_admin' | 'support' | 'billing' | 'moderator'
@@ -356,6 +358,14 @@ export type Deal = typeof deal.$inferSelect;
 export type Campaign = typeof campaign.$inferSelect;
 export type Broadcast = typeof broadcast.$inferSelect;
 export type Task = typeof task.$inferSelect;
+
+// Better Auth twoFactor plugin storage
+export const twoFactor = pgTable("two_factor", {
+  id: text("id").primaryKey(),
+  secret: text("secret").notNull(),
+  backupCodes: text("backup_codes").notNull(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+});
 
 // Key-value system settings (feature flags, mode toggles)
 export const systemSetting = pgTable("system_setting", {

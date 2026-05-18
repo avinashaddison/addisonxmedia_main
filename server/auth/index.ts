@@ -6,7 +6,7 @@ config({ path: ".env.local" });
 config({ path: ".env" });
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../db/client";
-import { account, session, user, userRole, verification, profile } from "../db/schema";
+import { account, session, user, userRole, verification, profile, twoFactor as twoFactorTable } from "../db/schema";
 
 if (!process.env.BETTER_AUTH_SECRET) {
   throw new Error(
@@ -18,7 +18,7 @@ if (!process.env.BETTER_AUTH_SECRET) {
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
-    schema: { user, session, account, verification },
+    schema: { user, session, account, verification, twoFactor: twoFactorTable },
   }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3001",

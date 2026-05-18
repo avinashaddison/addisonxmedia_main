@@ -45,10 +45,27 @@ app.onError((err, c) => {
 
 app.get("/health", (c) => c.json({ ok: true, ts: new Date().toISOString() }));
 
-// Rate limits — strict on auth (brute-force protection), generous on data API.
-// Auth: 20 sign-in/sign-up attempts per IP per 5 minutes.
-app.use("/api/auth/*", rateLimit({ scope: "auth", windowMs: 5 * 60_000, max: 20 }));
-// General API: 600 requests per IP per minute (10 rps avg). Exceeding likely means a runaway client.
+// Rate limits — strict on auth MUTATIONS (brute-force protection), generous on data API.
+// We only rate-limit endpoints that change state. Read-only routes like
+// /api/auth/get-session are excluded — the customer app polls these every
+// ~30s across multiple tabs, which used to exhaust the auth budget and
+// erroneously block legitimate sign-up attempts.
+const authMutationLimiter = rateLimit({ scope: "auth-mutate", windowMs: 5 * 60_000, max: 40 });
+const AUTH_MUTATION_PATHS = [
+  "/api/auth/sign-up/email",
+  "/api/auth/sign-in/email",
+  "/api/auth/forget-password",
+  "/api/auth/reset-password",
+  "/api/auth/two-factor/verify-totp",
+  "/api/auth/two-factor/verify-backup-code",
+];
+app.use("/api/auth/*", async (c, next) => {
+  if (AUTH_MUTATION_PATHS.includes(c.req.path)) {
+    return authMutationLimiter(c, next);
+  }
+  return next();
+});
+// General API: 600 requests per IP per minute (10 rps avg).
 app.use("/api/*", rateLimit({ scope: "api", windowMs: 60_000, max: 600 }));
 
 // Mount Better Auth — handles /api/auth/sign-up, /sign-in, /sign-out, /session, etc.
