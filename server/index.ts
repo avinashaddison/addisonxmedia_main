@@ -18,6 +18,7 @@ import metaRoutes from "./routes/meta";
 import integrationsRoutes from "./routes/integrations";
 import webhookRoutes from "./routes/webhooks";
 import adminRoutes from "./routes/admin";
+import { getSeoSettings, injectSeo, buildSitemapXml, buildRobotsTxt } from "./lib/seo";
 
 const app = new Hono();
 
@@ -57,6 +58,7 @@ const authMutationLimiter = rateLimit({ scope: "auth-mutate", windowMs: 5 * 60_0
 const AUTH_MUTATION_PATHS = [
   "/api/auth/sign-up/email",
   "/api/auth/sign-in/email",
+  "/api/auth/request-password-reset",
   "/api/auth/forget-password",
   "/api/auth/reset-password",
   "/api/auth/two-factor/verify-totp",
@@ -90,6 +92,19 @@ app.route("/api", inboxRoutes);
 app.route("/api", metaRoutes);
 app.route("/api", integrationsRoutes);
 
+// /sitemap.xml + /robots.txt are dynamic — driven by admin settings, available
+// in both dev and prod so SEO checks work the same locally.
+app.get("/sitemap.xml", async (c) => {
+  const seo = await getSeoSettings();
+  const xml = buildSitemapXml(seo);
+  return new Response(xml, { headers: { "Content-Type": "application/xml; charset=utf-8" } });
+});
+app.get("/robots.txt", async (c) => {
+  const seo = await getSeoSettings();
+  const txt = buildRobotsTxt(seo);
+  return new Response(txt, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+});
+
 // In production (Render single-service deploy) the Hono server also serves the
 // built Vite frontend. In dev, Vite serves the frontend on its own port and
 // proxies /api → here, so this block is a no-op locally.
@@ -109,16 +124,18 @@ if (SERVE_STATIC) {
     })
   );
   // SPA fallback: any GET that isn't /api/*, isn't /health, and didn't match a
-  // file above gets index.html so React Router can take over.
-  let indexHtmlCache: string | null = null;
+  // file above gets index.html so React Router can take over. SEO meta tags
+  // are injected per-request from the system_setting table (60s cache).
+  let indexHtmlTemplate: string | null = null;
   app.get("*", async (c) => {
     if (c.req.path.startsWith("/api/") || c.req.path === "/health") {
       return c.json({ error: "Not found" }, 404);
     }
-    if (!indexHtmlCache) {
-      indexHtmlCache = await readFile(resolve(distDir, "index.html"), "utf-8");
+    if (!indexHtmlTemplate) {
+      indexHtmlTemplate = await readFile(resolve(distDir, "index.html"), "utf-8");
     }
-    return c.html(indexHtmlCache);
+    const seo = await getSeoSettings();
+    return c.html(injectSeo(indexHtmlTemplate, seo));
   });
 }
 

@@ -8,6 +8,7 @@ import { eq, desc, sql, and, gt, isNull, or, ilike, count } from "drizzle-orm";
 import { requireAdmin, auditLog, type AdminVariables } from "../middleware/admin";
 import { sendMail } from "../lib/mailer";
 import { staffInviteTemplate, suspensionTemplate, refundTemplate } from "../lib/email-templates";
+import { invalidateSeoCache } from "../lib/seo";
 
 const admin = new Hono<{ Variables: AdminVariables }>();
 
@@ -538,6 +539,11 @@ admin.patch("/api/admin/settings/:key", requireAdmin(["super_admin"]), async (c)
     .set({ value: String(value), updatedBy: c.get("adminUserId"), updatedAt: new Date() })
     .where(eq(systemSetting.key, key));
   await auditLog(c, "change_setting", null, { key, value });
+  // SEO + branding changes drive the served HTML — bust the cache so the next
+  // page load reflects the new value immediately.
+  if (existing.category === "seo" || existing.category === "branding") {
+    invalidateSeoCache();
+  }
   return c.json({ ok: true });
 });
 

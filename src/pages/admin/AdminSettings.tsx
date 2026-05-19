@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminApi, SystemSetting } from "@/lib/admin-api";
 import {
   Settings, Loader2, Sparkles, CreditCard, Zap, AlertTriangle,
-  CheckCircle2, KeyRound, Server,
+  CheckCircle2, KeyRound, Server, Search, Building2,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 const CATEGORY_META: Record<string, { label: string; icon: typeof Settings; color: string }> = {
+  seo:      { label: "SEO & meta tags", icon: Search, color: "#D4308E" },
+  branding: { label: "Brand & contact", icon: Building2, color: "#FF6A1F" },
   features: { label: "Feature flags", icon: Sparkles, color: "#FF6A1F" },
   billing:  { label: "Billing & payments", icon: CreditCard, color: "#0E8A4B" },
   system:   { label: "System", icon: Server, color: "#3C50E0" },
