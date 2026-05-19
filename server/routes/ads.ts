@@ -53,7 +53,29 @@ async function getCreds(userId: string): Promise<AdsCredentials | null> {
 
 const onApiError = (e: unknown) => {
   if (e instanceof AdsApiError) {
-    return { error: e.message, status: e.status, meta: e.meta };
+    // Meta returns errors like:
+    //   { error: { message, type, code, error_subcode, error_user_title,
+    //              error_user_msg, fbtrace_id } }
+    // The top-level `message` is often a useless "Permissions error" — the
+    // actionable detail is in `error_user_msg`. Surface the best one we have.
+    const meta = e.meta as { error?: {
+      message?: string;
+      error_subcode?: number;
+      error_user_title?: string;
+      error_user_msg?: string;
+      fbtrace_id?: string;
+    } } | undefined;
+    const userMsg = meta?.error?.error_user_msg;
+    const userTitle = meta?.error?.error_user_title;
+    const trace = meta?.error?.fbtrace_id;
+    const composed = userMsg
+      ? (userTitle ? `${userTitle}: ${userMsg}` : userMsg)
+      : e.message;
+    return {
+      error: composed + (trace ? ` (Meta trace: ${trace})` : ""),
+      status: e.status,
+      meta: e.meta,
+    };
   }
   return { error: e instanceof Error ? e.message : String(e), status: 500 };
 };
@@ -215,9 +237,11 @@ app.post("/ads/campaigns", async (c) => {
   const paise = Math.round(body.daily_budget_inr * 100);
   let campaignId: string | undefined;
   let adSetId: string | undefined;
+  let lastStep = "init";
 
   try {
     // Step 1: Campaign
+    lastStep = "campaign";
     const campaign = await createCampaign(creds, {
       name: body.name,
       objective: body.objective,
@@ -257,6 +281,7 @@ app.post("/ads/campaigns", async (c) => {
       "LINK_CLICKS";
 
     // Step 2: Ad Set
+    lastStep = "ad_set";
     const adSet = await createAdSet(creds, {
       name: `${body.name} · Ad Set`,
       campaignId: campaign.id,
@@ -271,6 +296,7 @@ app.post("/ads/campaigns", async (c) => {
     adSetId = adSet.id;
 
     // Step 3: Ad Creative
+    lastStep = "creative";
     const ctaType = body.creative.cta_type ?? (isCTW ? "WHATSAPP_MESSAGE" : "LEARN_MORE");
     const creative = await createAdCreative(creds, {
       name: `${body.name} · Creative`,
@@ -283,6 +309,7 @@ app.post("/ads/campaigns", async (c) => {
     });
 
     // Step 4: Ad (links creative to ad set)
+    lastStep = "ad";
     const ad = await createAd(creds, {
       name: `${body.name} · Ad`,
       adSetId: adSet.id,
@@ -307,7 +334,15 @@ app.post("/ads/campaigns", async (c) => {
       await deleteCampaign(creds, campaignId).catch((err) => console.error("[ads rollback campaign]", err));
     }
     const err = onApiError(e);
-    return c.json({ error: err.error, meta: err.meta }, 400);
+    // Prefix which step failed so the user knows WHICH Meta call was rejected.
+    const stepLabel = {
+      campaign:  "Campaign creation",
+      ad_set:    "Ad Set creation",
+      creative:  "Ad Creative (image/text + Page link)",
+      ad:        "Ad publish",
+      init:      "Setup",
+    }[lastStep as "campaign" | "ad_set" | "creative" | "ad" | "init"] ?? lastStep;
+    return c.json({ error: `${stepLabel} failed — ${err.error}`, step: lastStep, meta: err.meta }, 400);
   }
 });
 
