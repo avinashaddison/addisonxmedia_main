@@ -212,23 +212,31 @@ export const CreateCampaignPage = () => {
 
   const stepValid = (s: number) => {
     if (s === 1) return !!objective;
-    if (s === 2) return name.trim().length >= 3 && adHeadline.trim().length >= 3 && adBody.trim().length >= 5 && (!isCTW || adLinkUrl.trim().length > 0);
+    if (s === 2) {
+      return name.trim().length >= 3
+        && adHeadline.trim().length >= 5
+        && adBody.trim().length >= 10
+        && (!isCTW || adLinkUrl.trim().length > 0);
+    }
     if (s === 3) return Number(budget) >= 100;
     return false;
   };
 
   const goNext = () => {
     if (!stepValid(step)) {
-      const hints = {
-        1: "Pehle ek objective select karein",
-        2: !name.trim() ? "Campaign name chahiye" :
-           !adHeadline.trim() ? "Ad headline chahiye (40 char max)" :
-           !adBody.trim() ? "Ad body text chahiye" :
-           isCTW && !adLinkUrl.trim() ? "WhatsApp number ya wa.me link chahiye" :
-           "Form complete karein",
-        3: "Daily budget ₹100 ya zyada hona chahiye",
-      };
-      toast.error(hints[step as 1 | 2 | 3]);
+      let msg = "";
+      if (step === 1) {
+        msg = "Pehle ek objective select karein";
+      } else if (step === 2) {
+        if (name.trim().length < 3) msg = "Campaign name kam se kam 3 letters ka chahiye";
+        else if (adHeadline.trim().length < 5) msg = `Headline kam se kam 5 letters chahiye (abhi ${adHeadline.trim().length})`;
+        else if (adBody.trim().length < 10) msg = `Body text kam se kam 10 letters chahiye (abhi ${adBody.trim().length})`;
+        else if (isCTW && !adLinkUrl.trim()) msg = "WhatsApp link chahiye (wa.me/91xxxxxxxxxx)";
+        else msg = "Form pura karein";
+      } else if (step === 3) {
+        msg = "Daily budget ₹100 ya zyada hona chahiye";
+      }
+      toast.error(msg);
       return;
     }
     if (step < 3) setStep(step + 1);
