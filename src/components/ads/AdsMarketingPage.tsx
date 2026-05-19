@@ -219,7 +219,7 @@ export const AdsMarketingPage = () => {
         <AdKPI
           label="Total spend (7 din)"
           value={compactINR(stats.spent)}
-          sub={`${CAMPAIGNS.filter((c) => c.status === "active").length} active campaigns`}
+          sub={`${campaigns.filter((c) => c.status === "active").length} active campaigns`}
           icon={IndianRupee}
           color="accent"
           trend="+18% vs last week"
