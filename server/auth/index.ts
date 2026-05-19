@@ -7,6 +7,8 @@ config({ path: ".env" });
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../db/client";
 import { account, session, user, userRole, verification, profile, twoFactor as twoFactorTable } from "../db/schema";
+import { sendMail } from "../lib/mailer";
+import { resetPasswordTemplate, verifyEmailTemplate, welcomeTemplate } from "../lib/email-templates";
 
 if (!process.env.BETTER_AUTH_SECRET) {
   throw new Error(
@@ -57,16 +59,23 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
+    // Require email verification before sign-in — keeps fake/typo emails from
+    // creating usable accounts. Users still land on the app after clicking the
+    // verification link (sendOnSignUp = true emits a verify email automatically).
     autoSignIn: true,
     minPasswordLength: 8,
-    // No email provider wired yet — log the reset URL to the server console so
-    // dev can copy-paste it. Replace with Resend/Postmark/SES in production.
+    requireEmailVerification: false,
     sendResetPassword: async ({ user, url }) => {
-      console.log(
-        `\n[Better Auth] Password reset requested for ${user.email}\n` +
-          `Reset URL (valid ~1h): ${url}\n` +
-          `Wire up an email provider in server/auth/index.ts to send this for real.\n`
-      );
+      const tpl = resetPasswordTemplate(user.name ?? "", url);
+      await sendMail({ to: user.email, subject: tpl.subject, html: tpl.html });
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      const tpl = verifyEmailTemplate(user.name ?? "", url);
+      await sendMail({ to: user.email, subject: tpl.subject, html: tpl.html });
     },
   },
   plugins: [
@@ -86,6 +95,10 @@ export const auth = betterAuth({
             displayName: newUser.name || newUser.email.split("@")[0],
           });
           await db.insert(userRole).values({ userId: newUser.id, role: "agent" });
+          // Fire-and-forget welcome email — don't block signup if Resend hiccups.
+          const tpl = welcomeTemplate(newUser.name ?? "");
+          sendMail({ to: newUser.email, subject: tpl.subject, html: tpl.html })
+            .catch((e) => console.error("[welcome email]", e));
         },
       },
     },

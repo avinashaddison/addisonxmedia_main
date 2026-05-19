@@ -6,6 +6,8 @@ import {
 } from "../db/schema";
 import { eq, desc, sql, and, gt, isNull, or, ilike, count } from "drizzle-orm";
 import { requireAdmin, auditLog, type AdminVariables } from "../middleware/admin";
+import { sendMail } from "../lib/mailer";
+import { staffInviteTemplate, suspensionTemplate, refundTemplate } from "../lib/email-templates";
 
 const admin = new Hono<{ Variables: AdminVariables }>();
 
@@ -224,6 +226,14 @@ admin.post("/api/admin/workspaces/:id/suspend", requireAdmin(["super_admin", "mo
     suspendedBy: c.get("adminUserId"),
   }).where(eq(user.id, id));
   await auditLog(c, "suspend", id, { reason });
+
+  // Notify the user. Fire-and-forget so the API stays snappy.
+  const [target] = await db.select().from(user).where(eq(user.id, id)).limit(1);
+  if (target) {
+    const tpl = suspensionTemplate(target.name ?? "", reason.trim(), "Contact@addisonxmedia.com");
+    sendMail({ to: target.email, subject: tpl.subject, html: tpl.html })
+      .catch((e) => console.error("[suspension email]", e));
+  }
   return c.json({ ok: true });
 });
 
@@ -361,6 +371,16 @@ admin.post("/api/admin/staff/promote", requireAdmin(["super_admin"]), async (c) 
   }).where(eq(user.id, target.id));
 
   await auditLog(c, target.isStaff ? "change_staff_role" : "invite_staff", target.id, { email, adminRole });
+
+  // Email the new staff member. Only send on first promotion — re-roling an
+  // existing staff member doesn't need a "welcome to the team" email.
+  if (!target.isStaff) {
+    const adminEmail = c.get("adminEmail");
+    const baseUrl = process.env.BETTER_AUTH_URL ?? "https://addisonxmedia.com";
+    const tpl = staffInviteTemplate(adminEmail ?? "An admin", adminRole, `${baseUrl}/admin`);
+    sendMail({ to: target.email, subject: tpl.subject, html: tpl.html })
+      .catch((e) => console.error("[staff invite email]", e));
+  }
   return c.json({ ok: true, id: target.id, email: target.email, adminRole });
 });
 
@@ -471,6 +491,13 @@ admin.post("/api/admin/subscriptions/:id/refund", requireAdmin(["super_admin", "
 
     if (!r.ok) {
       return c.json({ ok: false, error: body.error?.description ?? "Razorpay returned an error", razorpay: body }, 400);
+    }
+    // Notify the customer that a refund is on the way.
+    const [target] = await db.select().from(user).where(eq(user.id, id)).limit(1);
+    if (target) {
+      const tpl = refundTemplate(target.name ?? "", amount, reason);
+      sendMail({ to: target.email, subject: tpl.subject, html: tpl.html })
+        .catch((e) => console.error("[refund email]", e));
     }
     return c.json({ ok: true, mode: "live", refund: body });
   } catch (e) {

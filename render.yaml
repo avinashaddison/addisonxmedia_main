@@ -44,3 +44,10 @@ services:
       # Optional: smtp.dev sandbox key (testing only — does NOT deliver to real inboxes)
       - key: SMTPDEV_API_KEY
         sync: false
+      # Resend — real transactional email delivery. Get key at resend.com.
+      # Without these, emails silently log to server stdout instead of sending.
+      - key: RESEND_API_KEY
+        sync: false
+      # Verified sender, e.g. "Addison X Media <noreply@addisonxmedia.com>"
+      - key: RESEND_FROM
+        sync: false
