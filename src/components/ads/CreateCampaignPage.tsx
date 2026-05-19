@@ -164,6 +164,14 @@ export const CreateCampaignPage = () => {
   const [igEnabled, setIgEnabled]       = useState(true);
   const [fbPlacements, setFbPlacements] = useState<string[]>(PLACEMENTS.facebook.map((p) => p.id));
   const [igPlacements, setIgPlacements] = useState<string[]>(PLACEMENTS.instagram.map((p) => p.id));
+  // Advanced targeting
+  type InterestChip = { id: string; name: string; size?: number };
+  const [interestChips, setInterestChips]       = useState<InterestChip[]>([]);
+  const [excludedInterests, setExcludedInterests] = useState<InterestChip[]>([]);
+  const [interestQuery, setInterestQuery]       = useState("");
+  const [excludedInterestQuery, setExcludedInterestQuery] = useState("");
+  const [excludedAudienceId, setExcludedAudienceId] = useState<string>("");
+  const [targetingExpansion, setTargetingExpansion] = useState(true);
   // Ad creative
   const [adImageUrl, setAdImageUrl]     = useState("");
   const [adHeadline, setAdHeadline]     = useState("");
@@ -203,6 +211,20 @@ export const CreateCampaignPage = () => {
     queryKey: ["ads", "geo-search", debouncedQuery],
     queryFn: () => api.searchAdTargeting(debouncedQuery),
     enabled: locationMode === "custom" && debouncedQuery.trim().length >= 2,
+  });
+
+  /* ─── Interest typeahead ─── */
+  const debouncedInterestQ = useDebounced(interestQuery, 350);
+  const interestSearchQ = useQuery({
+    queryKey: ["ads", "interest-search", debouncedInterestQ],
+    queryFn: () => api.searchAdInterests(debouncedInterestQ),
+    enabled: debouncedInterestQ.trim().length >= 2,
+  });
+  const debouncedExclInterestQ = useDebounced(excludedInterestQuery, 350);
+  const excludedInterestSearchQ = useQuery({
+    queryKey: ["ads", "interest-search-excl", debouncedExclInterestQ],
+    queryFn: () => api.searchAdInterests(debouncedExclInterestQ),
+    enabled: debouncedExclInterestQ.trim().length >= 2,
   });
 
   /* ─── Build targeting payload (used by estimate + create) ─── */
@@ -259,6 +281,10 @@ export const CreateCampaignPage = () => {
           publisher_platforms: publisherPlatforms.length > 0 && publisherPlatforms.length < 2 ? publisherPlatforms : undefined,
           facebook_positions: fbEnabled && fbPlacements.length < PLACEMENTS.facebook.length ? fbPlacements : undefined,
           instagram_positions: igEnabled && igPlacements.length < PLACEMENTS.instagram.length ? igPlacements : undefined,
+          interest_ids: interestChips.length ? interestChips.map(({ id, name }) => ({ id, name })) : undefined,
+          excluded_interest_ids: excludedInterests.length ? excludedInterests.map(({ id, name }) => ({ id, name })) : undefined,
+          excluded_audience_id: excludedAudienceId || undefined,
+          targeting_expansion: targetingExpansion,
         },
         creative: pageId ? {
           page_id: pageId,
@@ -420,6 +446,16 @@ export const CreateCampaignPage = () => {
                 igEnabled={igEnabled} setIgEnabled={setIgEnabled}
                 fbPlacements={fbPlacements} setFbPlacements={setFbPlacements}
                 igPlacements={igPlacements} setIgPlacements={setIgPlacements}
+                interestChips={interestChips} setInterestChips={setInterestChips}
+                interestQuery={interestQuery} setInterestQuery={setInterestQuery}
+                interestResults={interestSearchQ.data?.interests ?? []}
+                interestLoading={interestSearchQ.isFetching}
+                excludedInterests={excludedInterests} setExcludedInterests={setExcludedInterests}
+                excludedInterestQuery={excludedInterestQuery} setExcludedInterestQuery={setExcludedInterestQuery}
+                excludedInterestResults={excludedInterestSearchQ.data?.interests ?? []}
+                excludedInterestLoading={excludedInterestSearchQ.isFetching}
+                excludedAudienceId={excludedAudienceId} setExcludedAudienceId={setExcludedAudienceId}
+                targetingExpansion={targetingExpansion} setTargetingExpansion={setTargetingExpansion}
                 adImageUrl={adImageUrl} setAdImageUrl={setAdImageUrl}
                 adHeadline={adHeadline} setAdHeadline={setAdHeadline}
                 adBody={adBody} setAdBody={setAdBody}
@@ -590,6 +626,16 @@ type StepAudienceCreativeProps = {
   igEnabled: boolean; setIgEnabled: (v: boolean) => void;
   fbPlacements: string[]; setFbPlacements: (v: string[]) => void;
   igPlacements: string[]; setIgPlacements: (v: string[]) => void;
+  interestChips: Array<{ id: string; name: string; size?: number }>; setInterestChips: (v: Array<{ id: string; name: string; size?: number }>) => void;
+  interestQuery: string; setInterestQuery: (v: string) => void;
+  interestResults: Array<{ id: string; name: string; audience_size_lower_bound?: number; audience_size_upper_bound?: number; topic?: string }>;
+  interestLoading: boolean;
+  excludedInterests: Array<{ id: string; name: string; size?: number }>; setExcludedInterests: (v: Array<{ id: string; name: string; size?: number }>) => void;
+  excludedInterestQuery: string; setExcludedInterestQuery: (v: string) => void;
+  excludedInterestResults: Array<{ id: string; name: string; audience_size_lower_bound?: number; audience_size_upper_bound?: number; topic?: string }>;
+  excludedInterestLoading: boolean;
+  excludedAudienceId: string; setExcludedAudienceId: (v: string) => void;
+  targetingExpansion: boolean; setTargetingExpansion: (v: boolean) => void;
   adImageUrl: string; setAdImageUrl: (v: string) => void;
   adHeadline: string; setAdHeadline: (v: string) => void;
   adBody: string; setAdBody: (v: string) => void;
@@ -893,6 +939,165 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
         onPlacements={p.setIgPlacements}
         options={PLACEMENTS.instagram}
       />
+    </Card>
+
+    {/* Advanced targeting — interests, exclusions, expansion */}
+    <SectionHeader
+      icon={Zap}
+      iconBg="bg-[#7A1500]"
+      title="Advanced targeting"
+      subtitle="Interest aur behavior se audience tightly target karein · optional"
+    />
+
+    {/* Interests */}
+    <Card>
+      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
+        <Sparkles className="w-3.5 h-3.5" /> Detailed targeting · interests
+      </Label>
+      <p className="text-[11px] text-foreground/60 font-medium mt-1 mb-2">
+        Meta ke 200k+ interests me se choose karein (Cricket, Bollywood, Online shopping, Diwali, etc.). Type karte hi Meta se real interest IDs aayenge.
+      </p>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/40" />
+        <Input
+          value={p.interestQuery}
+          onChange={(e) => p.setInterestQuery(e.target.value)}
+          placeholder="Type interest (e.g. Cricket, Bollywood, Yoga, Diwali)…"
+          className="pl-9"
+        />
+      </div>
+      {p.interestLoading && (
+        <p className="text-[11px] text-foreground/60 mt-2 flex items-center gap-1.5">
+          <Loader2 className="w-3 h-3 animate-spin" /> Searching Meta…
+        </p>
+      )}
+      {p.interestResults.length > 0 && (
+        <div className="mt-2 border-2 border-[#E8B968] rounded-xl divide-y divide-[#E8B968]/40 bg-white max-h-60 overflow-y-auto">
+          {p.interestResults.map((r) => {
+            const sizeLow = r.audience_size_lower_bound ?? 0;
+            const sizeHigh = r.audience_size_upper_bound ?? 0;
+            const sizeLabel = sizeHigh > 0 ? `${compactNum(sizeLow)}–${compactNum(sizeHigh)}` : "—";
+            const already = p.interestChips.find((c) => c.id === r.id);
+            return (
+              <button
+                key={r.id}
+                disabled={!!already}
+                onClick={() => {
+                  if (!already) p.setInterestChips([...p.interestChips, { id: r.id, name: r.name, size: sizeLow }]);
+                  p.setInterestQuery("");
+                }}
+                className="w-full px-3 py-2 text-left hover:bg-[#FFF6E8] transition flex items-center gap-2 disabled:opacity-40"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#7A1500] flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-bold truncate">{r.name}</p>
+                  {r.topic && <p className="text-[10px] text-foreground/50">{r.topic}</p>}
+                </div>
+                <span className="text-[10px] font-extrabold tabular-nums text-foreground/60">{sizeLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {p.interestChips.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {p.interestChips.map((c) => (
+            <span key={c.id} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-[#FFF1D6] border border-[#7A1500]/30 text-[#7A1500] text-[11px] font-extrabold">
+              <Sparkles className="w-3 h-3" />
+              {c.name}
+              <button onClick={() => p.setInterestChips(p.interestChips.filter((x) => x.id !== c.id))} className="hover:text-[#D4308E]">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </Card>
+
+    {/* Excluded interests */}
+    <Card>
+      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
+        <X className="w-3.5 h-3.5" /> Exclude interests <span className="text-foreground/40 normal-case ml-1">(optional)</span>
+      </Label>
+      <p className="text-[11px] text-foreground/60 font-medium mt-1 mb-2">
+        Yeh interests waale logon ko ad NAHI dikhega. Useful for filtering competitors or wrong-fit audiences.
+      </p>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/40" />
+        <Input
+          value={p.excludedInterestQuery}
+          onChange={(e) => p.setExcludedInterestQuery(e.target.value)}
+          placeholder="Type interest to exclude…"
+          className="pl-9"
+        />
+      </div>
+      {p.excludedInterestResults.length > 0 && (
+        <div className="mt-2 border-2 border-[#D4308E]/40 rounded-xl divide-y divide-[#D4308E]/15 bg-white max-h-60 overflow-y-auto">
+          {p.excludedInterestResults.map((r) => {
+            const already = p.excludedInterests.find((c) => c.id === r.id);
+            return (
+              <button
+                key={r.id}
+                disabled={!!already}
+                onClick={() => {
+                  if (!already) p.setExcludedInterests([...p.excludedInterests, { id: r.id, name: r.name }]);
+                  p.setExcludedInterestQuery("");
+                }}
+                className="w-full px-3 py-2 text-left hover:bg-[#FCE5F0]/40 transition flex items-center gap-2 disabled:opacity-40"
+              >
+                <X className="w-3.5 h-3.5 text-[#D4308E] flex-shrink-0" strokeWidth={3} />
+                <span className="text-[12px] font-bold flex-1 truncate">{r.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {p.excludedInterests.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {p.excludedInterests.map((c) => (
+            <span key={c.id} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-[#FCE5F0] border border-[#D4308E]/40 text-[#A11A6A] text-[11px] font-extrabold line-through">
+              {c.name}
+              <button onClick={() => p.setExcludedInterests(p.excludedInterests.filter((x) => x.id !== c.id))} className="no-underline hover:text-foreground">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </Card>
+
+    {/* Exclude audience + Targeting expansion */}
+    <Card>
+      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
+        <X className="w-3.5 h-3.5" /> Exclude custom audience
+      </Label>
+      <p className="text-[11px] text-foreground/60 font-medium mt-1 mb-2">
+        Yeh audience ke logon ko ad nahi dikhega (e.g. apne existing customers ko exclude karein to sirf naye log target hon).
+      </p>
+      <Select value={p.excludedAudienceId || "none"} onValueChange={(v) => p.setExcludedAudienceId(v === "none" ? "" : v)}>
+        <SelectTrigger>
+          <SelectValue placeholder="None — sab dikhayega" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">None</SelectItem>
+          {p.audiences.map((a) => (
+            <SelectItem key={a.id} value={a.id}>
+              {a.name} <span className="text-foreground/60 ml-1">· {compactNum(a.size)}</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="mt-4 flex items-center gap-3 p-3 rounded-xl bg-[#FFF1D6] border border-[#E8B968]">
+        <Switch checked={p.targetingExpansion} onCheckedChange={p.setTargetingExpansion} />
+        <div className="flex-1">
+          <p className="text-[13px] font-extrabold flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-[#FF6A1F]" /> Meta Advantage detailed targeting expansion
+          </p>
+          <p className="text-[11px] text-foreground/70 font-medium mt-0.5">
+            Meta ko allow karein audience beyond exact interests me expand karne ki, agar wahan results bahar mile. Cheaper conversions typically.
+          </p>
+        </div>
+      </div>
     </Card>
 
     {/* Ad Creative */}

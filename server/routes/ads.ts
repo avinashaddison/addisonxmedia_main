@@ -25,6 +25,8 @@ import {
   campaignInsights,
   listCustomAudiences,
   targetingSearch,
+  interestSearch,
+  browseTargetingCategories,
   deliveryEstimate,
   listPages,
   createAdSet,
@@ -225,6 +227,10 @@ app.post("/ads/campaigns", async (c) => {
       publisher_platforms?: string[];
       facebook_positions?: string[];
       instagram_positions?: string[];
+      interest_ids?: Array<{ id: string; name?: string }>;
+      excluded_interest_ids?: Array<{ id: string; name?: string }>;
+      excluded_audience_id?: string;
+      targeting_expansion?: boolean;
     };
     creative?: {
       page_id: string;
@@ -302,6 +308,24 @@ app.post("/ads/campaigns", async (c) => {
     }
     if (body.targeting?.instagram_positions?.length) {
       targetingSpec.instagram_positions = body.targeting.instagram_positions;
+    }
+    // Interest targeting — wraps in flexible_spec (Meta requires this shape)
+    if (body.targeting?.interest_ids?.length) {
+      targetingSpec.flexible_spec = [{ interests: body.targeting.interest_ids }];
+    }
+    // Exclusions
+    const exclusions: NonNullable<TargetingSpec["exclusions"]> = {};
+    if (body.targeting?.excluded_interest_ids?.length) {
+      exclusions.interests = body.targeting.excluded_interest_ids;
+    }
+    if (body.targeting?.excluded_audience_id) {
+      exclusions.custom_audiences = [{ id: body.targeting.excluded_audience_id }];
+    }
+    if (exclusions.interests || exclusions.custom_audiences) {
+      targetingSpec.exclusions = exclusions;
+    }
+    if (body.targeting?.targeting_expansion) {
+      targetingSpec.targeting_optimization = "expansion_all";
     }
 
     // Pick optimization goal per objective. CTW campaigns now ride on
@@ -396,6 +420,38 @@ app.get("/ads/targeting/search", async (c) => {
   } catch (e) {
     const err = onApiError(e);
     return c.json({ error: err.error, results: [] }, 200);
+  }
+});
+
+/** Search Meta interests (advanced targeting). Returns interest IDs with
+ *  audience size estimates so users pick segments large enough to deliver. */
+app.get("/ads/targeting/interests", async (c) => {
+  const creds = await getCreds(c.var.userId);
+  const q = c.req.query("q") ?? "";
+
+  if (!creds) {
+    // Demo fallback list — popular Indian SMB interests with realistic
+    // audience-size buckets. Lets the UI render before connection.
+    const DEMO: Array<{ id: string; name: string; audience_size_lower_bound?: number; audience_size_upper_bound?: number; topic?: string }> = [
+      { id: "demo_1", name: "Cricket (sport)", audience_size_lower_bound: 380_000_000, audience_size_upper_bound: 450_000_000, topic: "Sports" },
+      { id: "demo_2", name: "Bollywood", audience_size_lower_bound: 220_000_000, audience_size_upper_bound: 260_000_000, topic: "Entertainment" },
+      { id: "demo_3", name: "Online shopping", audience_size_lower_bound: 180_000_000, audience_size_upper_bound: 220_000_000, topic: "Shopping" },
+      { id: "demo_4", name: "Diwali", audience_size_lower_bound: 95_000_000, audience_size_upper_bound: 120_000_000, topic: "Festivals" },
+      { id: "demo_5", name: "Small business owners", audience_size_lower_bound: 12_000_000, audience_size_upper_bound: 18_000_000, topic: "Business" },
+      { id: "demo_6", name: "WhatsApp Business", audience_size_lower_bound: 8_000_000, audience_size_upper_bound: 14_000_000, topic: "Apps" },
+    ];
+    const filtered = q ? DEMO.filter((i) => i.name.toLowerCase().includes(q.toLowerCase())) : DEMO;
+    return c.json({ interests: filtered, demo: true });
+  }
+
+  try {
+    const interests = q.trim()
+      ? await interestSearch(creds, q)
+      : await browseTargetingCategories(creds, ["interests"]);
+    return c.json({ interests, demo: false });
+  } catch (e) {
+    const err = onApiError(e);
+    return c.json({ error: err.error, interests: [] }, 200);
   }
 });
 

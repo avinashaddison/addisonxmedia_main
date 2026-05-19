@@ -175,6 +175,10 @@ export const api = {
       publisher_platforms?: string[];
       facebook_positions?: string[];
       instagram_positions?: string[];
+      interest_ids?: Array<{ id: string; name?: string }>;
+      excluded_interest_ids?: Array<{ id: string; name?: string }>;
+      excluded_audience_id?: string;
+      targeting_expansion?: boolean;
     };
     creative?: {
       page_id: string;
@@ -188,6 +192,11 @@ export const api = {
     post<{ ok: true; id?: string; mode?: "campaign_only" | "full_launch"; campaign_id?: string; ad_set_id?: string; creative_id?: string; ad_id?: string }>("/ads/campaigns", data),
   searchAdTargeting: (q: string) =>
     get<{ results: Array<{ key: string; name: string; type: string; country_code?: string; country_name?: string; region?: string }>; demo?: boolean }>(`/ads/targeting/search?q=${encodeURIComponent(q)}`),
+  searchAdInterests: (q: string) =>
+    get<{
+      interests: Array<{ id: string; name: string; audience_size_lower_bound?: number; audience_size_upper_bound?: number; topic?: string; path?: string[] }>;
+      demo?: boolean;
+    }>(`/ads/targeting/interests${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   estimateAdDelivery: (data: {
     objective: string;
     destination_type?: "WHATSAPP" | "MESSENGER" | "WEBSITE" | "ON_AD";

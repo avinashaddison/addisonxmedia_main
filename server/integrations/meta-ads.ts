@@ -195,8 +195,8 @@ export type MetaGeoResult = {
   supports_region?: boolean;
 };
 
-/** Search Meta's targeting taxonomy. The "key" returned is what we feed into
- *  ad set targeting_spec.geo_locations.cities/regions/countries. */
+/** Search Meta's targeting taxonomy. For geo: returns {key, name, type}.
+ *  For interest / adTargetingCategory: returns {id, name, audience_size, path}. */
 export async function targetingSearch(
   creds: AdsCredentials,
   q: string,
@@ -209,6 +209,45 @@ export async function targetingSearch(
     limit: "20",
   });
   const res = await adsFetch<{ data: MetaGeoResult[] }>(
+    `/search?${params}`,
+    { method: "GET", token: creds.accessToken }
+  );
+  return res.data ?? [];
+}
+
+/** Search Meta's interest catalog. Returns interests with audience size
+ *  estimates so the user can pick big-enough segments to be useful. */
+export type MetaInterest = {
+  id: string;
+  name: string;
+  audience_size_lower_bound?: number;
+  audience_size_upper_bound?: number;
+  path?: string[];
+  topic?: string;
+};
+
+export async function interestSearch(creds: AdsCredentials, q: string): Promise<MetaInterest[]> {
+  const params = new URLSearchParams({
+    type: "adinterest",
+    q,
+    limit: "25",
+  });
+  const res = await adsFetch<{ data: MetaInterest[] }>(
+    `/search?${params}`,
+    { method: "GET", token: creds.accessToken }
+  );
+  return res.data ?? [];
+}
+
+/** Browse Meta's targeting categories (behaviors, demographics, interests
+ *  organized hierarchically). Used for "Suggested" tab when no query. */
+export async function browseTargetingCategories(creds: AdsCredentials, classNames: string[] = ["interests", "behaviors"]): Promise<MetaInterest[]> {
+  const params = new URLSearchParams({
+    type: "adTargetingCategory",
+    class: JSON.stringify(classNames),
+    limit: "50",
+  });
+  const res = await adsFetch<{ data: MetaInterest[] }>(
     `/search?${params}`,
     { method: "GET", token: creds.accessToken }
   );
@@ -239,6 +278,26 @@ export type TargetingSpec = {
   publisher_platforms?: string[]; // ["facebook", "instagram", "audience_network", "messenger"]
   facebook_positions?: string[];
   instagram_positions?: string[];
+  /** Flexible_spec for interest/behavior targeting. Each inner object is
+   *  an AND group — multiple groups are OR'd together.
+   *  e.g. flexible_spec: [{ interests: [{id, name}], behaviors: [{id, name}] }] */
+  flexible_spec?: Array<{
+    interests?: Array<{ id: string; name?: string }>;
+    behaviors?: Array<{ id: string; name?: string }>;
+    work_employers?: Array<{ id: string; name?: string }>;
+    work_positions?: Array<{ id: string; name?: string }>;
+    education_statuses?: number[];
+    relationship_statuses?: number[];
+  }>;
+  /** Excluded interests / audiences. */
+  exclusions?: {
+    interests?: Array<{ id: string; name?: string }>;
+    behaviors?: Array<{ id: string; name?: string }>;
+    custom_audiences?: Array<{ id: string }>;
+  };
+  /** When set to {"targeting_optimization":"expansion_all"}, lets Meta
+   *  expand interests/lookalikes for better performance. */
+  targeting_optimization?: string;
 };
 
 /** Real reach + impressions estimate from Meta. Updates as the user changes
