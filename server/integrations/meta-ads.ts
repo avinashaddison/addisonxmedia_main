@@ -101,6 +101,10 @@ export async function createCampaign(
     objective: body.objective,
     status: body.status ?? "PAUSED",
     special_ad_categories: body.special_ad_categories ?? [],
+    // CBO: budget + bid_strategy live at the Campaign level so the Ad Set
+    // doesn't need to specify them. LOWEST_COST_WITHOUT_CAP is the auto-bid
+    // strategy — Meta optimizes for the most results at the lowest cost.
+    bid_strategy: "LOWEST_COST_WITHOUT_CAP",
   };
   if (body.daily_budget) payload.daily_budget = body.daily_budget;
   return adsFetch(`/${actId(creds.adAccountId)}/campaigns`, {
@@ -299,15 +303,18 @@ export type AdSetCreate = {
 };
 
 export async function createAdSet(creds: AdsCredentials, body: AdSetCreate): Promise<{ id: string }> {
+  // Note: daily_budget + bid_strategy are NOT set here on purpose. With CBO
+  // (Campaign Budget Optimization — the ODAX default), both live on the
+  // Campaign and the Ad Set inherits. Setting them at the Ad Set level when
+  // the Campaign already has them triggers Meta error
+  // "Bid amount required for bid strategy provided".
   const payload: Record<string, unknown> = {
     name: body.name,
     campaign_id: body.campaignId,
-    daily_budget: body.dailyBudgetPaise,
     billing_event: body.billingEvent,
     optimization_goal: body.optimizationGoal,
     targeting: body.targetingSpec,
     status: body.status ?? "PAUSED",
-    bid_strategy: "LOWEST_COST_WITHOUT_CAP",
   };
   if (body.destinationType) payload.destination_type = body.destinationType;
   if (body.pageId) payload.promoted_object = { page_id: body.pageId };
