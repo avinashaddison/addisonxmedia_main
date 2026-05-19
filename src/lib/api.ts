@@ -132,6 +132,43 @@ export const api = {
   testMetaConfig: () => post<{ ok: boolean; display_phone_number?: string; verified_name?: string; quality_rating?: string; error?: string }>("/integrations/meta/test"),
   deleteMetaConfig: () => del("/integrations/meta"),
   listMetaTemplates: () => get<{ data: Array<{ name: string; language: string; status: string; category: string; components: any[] }> }>("/integrations/meta/templates"),
+
+  // ── Ads Marketing (Meta Marketing API) ────────────────────────────────
+  // GETs return `demo: true` when no credentials are connected so the UI can
+  // show a banner without blowing up on an empty state.
+  getAdsConnection: () => get<{
+    connected: boolean; platform: "meta";
+    ad_account_id?: string; ad_account_name?: string; ad_account_currency?: string;
+    connected_at?: string; last_verified_at?: string;
+  }>("/ads/connection"),
+  connectAds: (data: { adAccountId: string; accessToken: string }) =>
+    post<{ ok: true; ad_account_id: string; ad_account_name: string; ad_account_currency: string }>("/ads/connection", data),
+  disconnectAds: () => del("/ads/connection"),
+  listAdCampaigns: () => get<{
+    campaigns: Array<{
+      id: string; name: string; platform: "meta" | "google"; objective: string;
+      status: "active" | "paused" | "review";
+      daily_budget_inr: number; spent_inr: number;
+      impressions: number; clicks: number; results: number; result_type: string;
+      cpc_inr: number; ctr: number; roas: number; audience: string;
+    }>;
+    demo: boolean;
+    error?: string;
+  }>("/ads/campaigns"),
+  createAdCampaign: (data: { name: string; objective: string; daily_budget_inr: number; status?: "ACTIVE" | "PAUSED" }) =>
+    post<{ ok: true; id: string }>("/ads/campaigns", data),
+  updateAdCampaign: (id: string, data: { status?: "ACTIVE" | "PAUSED"; daily_budget_inr?: number; name?: string }) =>
+    patch<{ ok: true }>(`/ads/campaigns/${id}`, data),
+  getAdInsights: (range?: "today" | "yesterday" | "last_7d" | "last_14d" | "last_30d") =>
+    get<{
+      spend_inr: number; impressions: number; clicks: number; ctr_pct: number; cpc_inr: number;
+      reach: number; whatsapp_chats: number; purchases: number; demo: boolean; error?: string;
+    }>(`/ads/insights${range ? `?range=${range}` : ""}`),
+  listAdAudiences: () => get<{
+    audiences: Array<{ id: string; name: string; type: "custom" | "lookalike" | "saved"; size: number; source: string; status: "ready" | "building" }>;
+    demo: boolean;
+    error?: string;
+  }>("/ads/audiences"),
 };
 
 export { ApiError };

@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Target, IndianRupee, MousePointerClick, Eye, TrendingUp, Sparkles, Plus,
   Play, Pause, Copy, MoreHorizontal, Crown, Flame, ArrowRight, ArrowUpRight,
   ShoppingBag, Users, MessageCircle, CheckCircle2, AlertTriangle, Search,
   ChevronDown, Image as ImageIcon, Megaphone, Zap, Globe, BarChart3, Heart,
-  Tag, Wallet, Brain,
+  Tag, Wallet, Brain, Plug, Loader2,
 } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
@@ -20,10 +21,12 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 /* ============================================================
-   MOCK DATA — replace with /api/ads/* once server routes ship.
-   Shapes mirror Meta Marketing API + Google Ads API responses.
+   Types mirror the /api/ads/* response shapes (which in turn mirror
+   Meta Marketing API). When no credentials are connected, the server
+   returns the same shape with demo data so the page never breaks.
 ============================================================ */
 
 type Platform = "meta" | "google";
@@ -46,42 +49,7 @@ type AdCampaign = {
   audience: string;
 };
 
-const CAMPAIGNS: AdCampaign[] = [
-  {
-    id: "c1", name: "Diwali Sale · CTW Ads", platform: "meta", objective: "Click-to-WhatsApp",
-    status: "active", daily_budget_inr: 2500, spent_inr: 18420, impressions: 248910, clicks: 8412,
-    results: 612, result_type: "WhatsApp chats", cpc_inr: 2.19, ctr: 3.38, roas: 4.7, audience: "FabBox lookalike 1%",
-  },
-  {
-    id: "c2", name: "Class 10 Admissions · Tier-2", platform: "meta", objective: "Lead generation",
-    status: "active", daily_budget_inr: 1200, spent_inr: 9240, impressions: 142500, clicks: 4280,
-    results: 318, result_type: "Form fills", cpc_inr: 2.16, ctr: 3.00, roas: 6.2, audience: "Indore + Bhopal parents",
-  },
-  {
-    id: "c3", name: "Festive UPI Offer · Search", platform: "google", objective: "Sales",
-    status: "active", daily_budget_inr: 1800, spent_inr: 12080, impressions: 89230, clicks: 3120,
-    results: 184, result_type: "Conversions", cpc_inr: 3.87, ctr: 3.50, roas: 5.4, audience: "High intent buyers",
-  },
-  {
-    id: "c4", name: "Salon Bookings · PMax", platform: "google", objective: "Performance Max",
-    status: "paused", daily_budget_inr: 800, spent_inr: 4120, impressions: 38500, clicks: 1108,
-    results: 47, result_type: "Bookings", cpc_inr: 3.72, ctr: 2.88, roas: 3.2, audience: "Mumbai 5km radius",
-  },
-  {
-    id: "c5", name: "Catalogue · Dynamic Retarget", platform: "meta", objective: "Catalog sales",
-    status: "review", daily_budget_inr: 1500, spent_inr: 0, impressions: 0, clicks: 0,
-    results: 0, result_type: "Purchases", cpc_inr: 0, ctr: 0, roas: 0, audience: "Cart abandoners 14d",
-  },
-];
-
 type Audience = { id: string; name: string; type: "custom" | "lookalike" | "saved"; size: number; source: string; status: "ready" | "building" };
-const AUDIENCES: Audience[] = [
-  { id: "a1", name: "WhatsApp openers (30d)", type: "custom", size: 12450, source: "WhatsApp events", status: "ready" },
-  { id: "a2", name: "FabBox buyers lookalike 1%", type: "lookalike", size: 2_100_000, source: "Pixel events", status: "ready" },
-  { id: "a3", name: "Cart abandoners 14d", type: "custom", size: 4280, source: "Add-to-cart pixel", status: "ready" },
-  { id: "a4", name: "Indore parents · Class 10", type: "saved", size: 480_000, source: "Manual targeting", status: "ready" },
-  { id: "a5", name: "Diwali engagement 7d", type: "custom", size: 0, source: "Page engagement", status: "building" },
-];
 
 const fmtINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
@@ -110,15 +78,62 @@ const objectives = [
 /* ============================================================ */
 
 export const AdsMarketingPage = () => {
+  const qc = useQueryClient();
   const [tab, setTab] = useState("campaigns");
   const [search, setSearch] = useState("");
   const [platformFilter, setPlatformFilter] = useState<"all" | Platform>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused" | "review">("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [boostOpen, setBoostOpen] = useState(false);
+  const [connectOpen, setConnectOpen] = useState(false);
+
+  const connectionQ = useQuery({ queryKey: ["ads", "connection"], queryFn: () => api.getAdsConnection() });
+  const campaignsQ = useQuery({ queryKey: ["ads", "campaigns"], queryFn: () => api.listAdCampaigns() });
+  const insightsQ = useQuery({ queryKey: ["ads", "insights", "last_7d"], queryFn: () => api.getAdInsights("last_7d") });
+  const audiencesQ = useQuery({ queryKey: ["ads", "audiences"], queryFn: () => api.listAdAudiences() });
+
+  const isConnected = connectionQ.data?.connected ?? false;
+  const isDemo = campaignsQ.data?.demo ?? true;
+
+  const toggleCampaign = useMutation({
+    mutationFn: (vars: { id: string; status: "ACTIVE" | "PAUSED" }) =>
+      api.updateAdCampaign(vars.id, { status: vars.status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ads", "campaigns"] });
+      toast.success("Campaign updated");
+    },
+    onError: (e) => toast.error(String(e)),
+  });
+
+  const disconnect = useMutation({
+    mutationFn: () => api.disconnectAds(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ads"] });
+      toast.success("Meta Ads disconnected");
+    },
+  });
+
+  const campaigns: AdCampaign[] = campaignsQ.data?.campaigns ?? [];
+  const audiences: Audience[] = audiencesQ.data?.audiences ?? [];
+  const ins = insightsQ.data;
 
   const stats = useMemo(() => {
-    const active = CAMPAIGNS.filter((c) => c.status === "active");
+    // Prefer account-level insights when available; otherwise aggregate active campaigns.
+    if (ins) {
+      const revenue = (ins.purchases ?? 0) * 1500; // placeholder AOV until pixel events expose value
+      const roas = ins.spend_inr > 0 ? revenue / ins.spend_inr : 0;
+      return {
+        spent: ins.spend_inr ?? 0,
+        impressions: ins.impressions ?? 0,
+        clicks: ins.clicks ?? 0,
+        results: (ins.whatsapp_chats ?? 0) + (ins.purchases ?? 0),
+        ctr: ins.ctr_pct ?? 0,
+        cpr: ins.clicks > 0 ? ins.spend_inr / ins.clicks : 0,
+        revenue,
+        roas,
+      };
+    }
+    const active = campaigns.filter((c) => c.status === "active");
     const spent = active.reduce((a, c) => a + c.spent_inr, 0);
     const impressions = active.reduce((a, c) => a + c.impressions, 0);
     const clicks = active.reduce((a, c) => a + c.clicks, 0);
@@ -128,16 +143,16 @@ export const AdsMarketingPage = () => {
     const revenue = active.reduce((a, c) => a + c.spent_inr * c.roas, 0);
     const roas = spent > 0 ? revenue / spent : 0;
     return { spent, impressions, clicks, results, ctr, cpr, revenue, roas };
-  }, []);
+  }, [ins, campaigns]);
 
   const filtered = useMemo(() => {
-    return CAMPAIGNS.filter((c) => {
+    return campaigns.filter((c) => {
       if (platformFilter !== "all" && c.platform !== platformFilter) return false;
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
       if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [platformFilter, statusFilter, search]);
+  }, [campaigns, platformFilter, statusFilter, search]);
 
   return (
     <PageShell
@@ -157,20 +172,45 @@ export const AdsMarketingPage = () => {
         </div>
       }
     >
+      {/* ============ DEMO BANNER (when no connection yet) ============ */}
+      {!isConnected && !connectionQ.isPending && (
+        <div className="bg-[#FFF1D6] border-2 border-[#E8B968] rounded-2xl px-4 py-3 mb-3 flex items-center gap-3 shadow-[0_3px_0_0_#E8B968]">
+          <div className="w-9 h-9 rounded-xl bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center shadow-md flex-shrink-0">
+            <AlertTriangle className="w-4 h-4" strokeWidth={2.5} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-extrabold">Demo mode</p>
+            <p className="text-[11px] text-foreground/70 font-medium">
+              Yeh sab demo data hai. Connect Meta Ads to see your real campaigns + insights.
+            </p>
+          </div>
+          <Button size="sm" onClick={() => setConnectOpen(true)}>
+            <Plug className="w-3.5 h-3.5" /> Connect now
+          </Button>
+        </div>
+      )}
+
       {/* ============ CONNECTION STATUS ============ */}
       <div className="grid md:grid-cols-2 gap-3 mb-4">
         <ConnectionCard
           platform="meta"
           name="Meta Ads"
           subtitle="Facebook · Instagram · WhatsApp"
-          accountName="AddisonX Media · #84720"
-          connected
+          accountName={
+            isConnected
+              ? `${connectionQ.data?.ad_account_name ?? "—"} · #${connectionQ.data?.ad_account_id ?? ""}`
+              : "Connect to see your campaigns"
+          }
+          connected={isConnected}
+          loading={connectionQ.isPending}
+          onConnect={() => setConnectOpen(true)}
+          onDisconnect={() => disconnect.mutate()}
         />
         <ConnectionCard
           platform="google"
           name="Google Ads"
           subtitle="Search · YouTube · Display · PMax"
-          accountName="Connect to start"
+          accountName="Coming soon"
         />
       </div>
 
@@ -331,7 +371,17 @@ export const AdsMarketingPage = () => {
               )}
 
               {filtered.map((c) => (
-                <CampaignRow key={c.id} c={c} />
+                <CampaignRow
+                  key={c.id}
+                  c={c}
+                  onToggle={() => {
+                    if (c.id.startsWith("demo_")) {
+                      toast.info("Connect Meta Ads to control real campaigns");
+                      return;
+                    }
+                    toggleCampaign.mutate({ id: c.id, status: c.status === "active" ? "PAUSED" : "ACTIVE" });
+                  }}
+                />
               ))}
             </div>
           </div>
@@ -359,7 +409,12 @@ export const AdsMarketingPage = () => {
             </div>
 
             <div className="divide-y divide-[#E8B968]/40">
-              {AUDIENCES.map((a) => {
+              {audiences.length === 0 && audiencesQ.isPending && (
+                <div className="px-4 py-12 text-center">
+                  <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#B8230C]" />
+                </div>
+              )}
+              {audiences.map((a) => {
                 const typeColors = {
                   custom: { bg: "bg-[#E4E8FF]", text: "text-[#3C50E0]" },
                   lookalike: { bg: "bg-[#FCE5F0]", text: "text-[#D4308E]" },
@@ -453,10 +508,13 @@ export const AdsMarketingPage = () => {
       )}
 
       {/* ============ CREATE CAMPAIGN DIALOG ============ */}
-      <CreateCampaignDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <CreateCampaignDialog open={createOpen} onOpenChange={setCreateOpen} audiences={audiences} isConnected={isConnected} />
 
       {/* ============ BOOST WHATSAPP DIALOG ============ */}
-      <BoostWhatsAppDialog open={boostOpen} onOpenChange={setBoostOpen} />
+      <BoostWhatsAppDialog open={boostOpen} onOpenChange={setBoostOpen} isConnected={isConnected} />
+
+      {/* ============ CONNECT META ADS DIALOG ============ */}
+      <ConnectMetaAdsDialog open={connectOpen} onOpenChange={setConnectOpen} />
     </PageShell>
   );
 };
@@ -472,13 +530,16 @@ const Loader2Sm = () => (
 );
 
 const ConnectionCard = ({
-  platform, name, subtitle, accountName, connected,
+  platform, name, subtitle, accountName, connected, loading, onConnect, onDisconnect,
 }: {
   platform: Platform;
   name: string;
   subtitle: string;
   accountName: string;
   connected?: boolean;
+  loading?: boolean;
+  onConnect?: () => void;
+  onDisconnect?: () => void;
 }) => {
   const styles = platform === "meta"
     ? { iconBg: "bg-[#0866FF]", border: "border-[#0866FF]", shadow: "shadow-[0_4px_0_0_#0050D6]", logo: "f" }
@@ -506,11 +567,17 @@ const ConnectionCard = ({
         <p className="text-[11px] text-foreground/60 font-medium">{subtitle}</p>
         <p className="text-[11px] text-foreground/80 mt-0.5 font-extrabold">{accountName}</p>
       </div>
-      {connected ? (
-        <Button variant="outline" size="sm">Manage</Button>
-      ) : (
-        <Button size="sm" onClick={() => toast.info("OAuth flow not wired yet — coming in v1.1")}>
+      {loading ? (
+        <Loader2 className="w-4 h-4 animate-spin text-foreground/40" />
+      ) : connected ? (
+        <Button variant="outline" size="sm" onClick={onDisconnect}>Disconnect</Button>
+      ) : platform === "meta" ? (
+        <Button size="sm" onClick={onConnect}>
           Connect <ArrowRight className="w-3.5 h-3.5" />
+        </Button>
+      ) : (
+        <Button size="sm" variant="outline" onClick={() => toast.info("Google Ads integration is on the v1.2 roadmap")}>
+          Coming soon
         </Button>
       )}
     </div>
@@ -572,7 +639,7 @@ const PlatformBadge = ({ p }: { p: Platform }) => {
   );
 };
 
-const CampaignRow = ({ c }: { c: AdCampaign }) => {
+const CampaignRow = ({ c, onToggle }: { c: AdCampaign; onToggle?: () => void }) => {
   const statusStyles = {
     active:  { dot: "bg-[#0E8A4B]", text: "text-[#0E8A4B]", bg: "bg-[#E6F7EE]", label: "Active" },
     paused:  { dot: "bg-[#B8651A]", text: "text-[#B8651A]", bg: "bg-[#FFF1D6]", label: "Paused" },
@@ -583,7 +650,7 @@ const CampaignRow = ({ c }: { c: AdCampaign }) => {
 
   return (
     <div className="grid grid-cols-[36px_1.6fr_110px_1fr_120px_120px_110px_110px_90px_60px] gap-3 px-4 py-3 border-b border-[#E8B968]/40 last:border-b-0 items-center hover:bg-[#FFF6E8] transition min-w-[1100px]">
-      <button className="w-7 h-7 rounded-lg bg-[#FFF1D6] border border-[#E8B968] flex items-center justify-center hover:bg-[#FFE8C7] transition">
+      <button onClick={onToggle} className="w-7 h-7 rounded-lg bg-[#FFF1D6] border border-[#E8B968] flex items-center justify-center hover:bg-[#FFE8C7] transition">
         {c.status === "active" ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
       </button>
       <div className="min-w-0">
@@ -679,16 +746,45 @@ const EmptyState = ({ icon: Icon, title, desc }: { icon: typeof Target; title: s
    CREATE CAMPAIGN DIALOG
 ============================================================ */
 
-const CreateCampaignDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) => {
+const OBJECTIVE_TO_META: Record<string, string> = {
+  ctw: "MESSAGES",
+  leads: "OUTCOME_LEADS",
+  sales: "OUTCOME_SALES",
+  traffic: "OUTCOME_TRAFFIC",
+  engagement: "OUTCOME_ENGAGEMENT",
+  catalog: "OUTCOME_SALES",
+};
+
+const CreateCampaignDialog = ({
+  open, onOpenChange, audiences, isConnected,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  audiences: Audience[];
+  isConnected: boolean;
+}) => {
+  const qc = useQueryClient();
   const [step, setStep] = useState(1);
   const [objective, setObjective] = useState("ctw");
   const [platform, setPlatform] = useState<Platform>("meta");
   const [name, setName] = useState("");
   const [budget, setBudget] = useState("1000");
-  const [audience, setAudience] = useState("a1");
+  const [audience, setAudience] = useState<string>(audiences[0]?.id ?? "");
   const [optimizeAI, setOptimizeAI] = useState(true);
 
-  const reset = () => { setStep(1); setObjective("ctw"); setName(""); setBudget("1000"); setAudience("a1"); };
+  const create = useMutation({
+    mutationFn: (vars: { name: string; objective: string; daily_budget_inr: number }) =>
+      api.createAdCampaign({ ...vars, status: "PAUSED" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ads", "campaigns"] });
+      toast.success(`Campaign "${name}" created (paused — review in Meta Ads Manager before going live)`);
+      onOpenChange(false);
+      reset();
+    },
+    onError: (e) => toast.error(String(e)),
+  });
+
+  const reset = () => { setStep(1); setObjective("ctw"); setName(""); setBudget("1000"); setAudience(audiences[0]?.id ?? ""); };
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
@@ -818,7 +914,7 @@ const CreateCampaignDialog = ({ open, onOpenChange }: { open: boolean; onOpenCha
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {AUDIENCES.filter((a) => a.status === "ready").map((a) => (
+                  {audiences.filter((a) => a.status === "ready").map((a) => (
                     <SelectItem key={a.id} value={a.id}>
                       {a.name} <span className="text-foreground/60">· {compactNum(a.size)}</span>
                     </SelectItem>
@@ -878,7 +974,7 @@ const CreateCampaignDialog = ({ open, onOpenChange }: { open: boolean; onOpenCha
             <ReviewRow label="Objective" value={objectives.find((o) => o.id === objective)?.label || objective} />
             <ReviewRow label="Platform" value={platform === "meta" ? "Meta (FB · IG · WhatsApp)" : "Google Ads"} />
             <ReviewRow label="Name" value={name || "(no name)"} />
-            <ReviewRow label="Audience" value={AUDIENCES.find((a) => a.id === audience)?.name || ""} />
+            <ReviewRow label="Audience" value={audiences.find((a) => a.id === audience)?.name || "—"} />
             <ReviewRow label="Daily budget" value={`₹${Number(budget).toLocaleString("en-IN")}/day · ₹${(Number(budget) * 7).toLocaleString("en-IN")}/week`} />
             <ReviewRow label="AI optimization" value={optimizeAI ? "On" : "Off"} />
 
@@ -906,13 +1002,25 @@ const CreateCampaignDialog = ({ open, onOpenChange }: { open: boolean; onOpenCha
             </Button>
           ) : (
             <Button
+              disabled={create.isPending}
               onClick={() => {
-                toast.success(`Campaign "${name}" submitted for review!`);
-                onOpenChange(false);
-                reset();
+                if (!isConnected) {
+                  toast.error("Connect Meta Ads first (the Connect button on top of the page)");
+                  return;
+                }
+                if (platform === "google") {
+                  toast.info("Google Ads is on the v1.2 roadmap. For now, create your campaign in Meta.");
+                  return;
+                }
+                create.mutate({
+                  name,
+                  objective: OBJECTIVE_TO_META[objective] ?? "MESSAGES",
+                  daily_budget_inr: Number(budget),
+                });
               }}
             >
-              <Sparkles className="w-3.5 h-3.5" /> Launch karein
+              {create.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              Launch karein
             </Button>
           )}
         </DialogFooter>
@@ -932,9 +1040,28 @@ const ReviewRow = ({ label, value }: { label: string; value: string }) => (
    BOOST WHATSAPP DIALOG (1-click)
 ============================================================ */
 
-const BoostWhatsAppDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) => {
+const BoostWhatsAppDialog = ({
+  open, onOpenChange, isConnected,
+}: { open: boolean; onOpenChange: (v: boolean) => void; isConnected: boolean }) => {
+  const qc = useQueryClient();
   const [budget, setBudget] = useState("500");
   const [days, setDays] = useState("7");
+
+  const boost = useMutation({
+    mutationFn: () =>
+      api.createAdCampaign({
+        name: `WhatsApp Boost · ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`,
+        objective: "MESSAGES",
+        daily_budget_inr: Number(budget),
+        status: "PAUSED",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ads", "campaigns"] });
+      toast.success(`Boost campaign created (paused — review in Meta Ads Manager to launch)`);
+      onOpenChange(false);
+    },
+    onError: (e) => toast.error(String(e)),
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -991,12 +1118,108 @@ const BoostWhatsAppDialog = ({ open, onOpenChange }: { open: boolean; onOpenChan
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
+            disabled={boost.isPending}
             onClick={() => {
-              toast.success(`Boost launched! ₹${budget}/day for ${days} days`);
-              onOpenChange(false);
+              if (!isConnected) {
+                toast.error("Connect Meta Ads first");
+                return;
+              }
+              boost.mutate();
             }}
           >
-            <Sparkles className="w-3.5 h-3.5" /> Boost shuru karein
+            {boost.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            Boost shuru karein
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+/* ============================================================
+   CONNECT META ADS DIALOG (manual System User token paste)
+============================================================ */
+
+const ConnectMetaAdsDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) => {
+  const qc = useQueryClient();
+  const [adAccountId, setAdAccountId] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+
+  const connect = useMutation({
+    mutationFn: () => api.connectAds({ adAccountId: adAccountId.trim(), accessToken: accessToken.trim() }),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["ads"] });
+      toast.success(`Connected to ${r.ad_account_name} (${r.ad_account_currency})`);
+      onOpenChange(false);
+      setAdAccountId("");
+      setAccessToken("");
+    },
+    onError: (e) => toast.error(String(e)),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-11 h-11 rounded-xl bg-[#0866FF] text-white flex items-center justify-center shadow-md text-xl font-black">f</div>
+            <div>
+              <DialogTitle>Connect Meta Ads</DialogTitle>
+              <DialogDescription className="text-foreground/70 font-medium">
+                Paste your Business Manager System User token + Ad Account ID
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="bg-[#FFF1D6] border border-[#E8B968] rounded-xl p-3 my-1 text-[12px] leading-relaxed">
+          <p className="font-extrabold mb-1.5 flex items-center gap-1.5">
+            <Plug className="w-3.5 h-3.5 text-[#B8651A]" /> Yeh kahan se laaye?
+          </p>
+          <ol className="space-y-0.5 pl-4 list-decimal text-foreground/80">
+            <li>Open <span className="font-mono bg-white px-1 rounded">business.facebook.com</span> → Settings → Users → System Users</li>
+            <li>Create or pick a system user → "Generate New Token" with <strong>ads_management</strong>, <strong>ads_read</strong>, <strong>business_management</strong> scopes</li>
+            <li>Copy that token (starts with <span className="font-mono">EAA…</span>) here</li>
+            <li>Ad Account ID is the number after <span className="font-mono">act_</span> in your Ads Manager URL (e.g. <span className="font-mono">act_84720</span> → paste <span className="font-mono">84720</span>)</li>
+          </ol>
+        </div>
+
+        <div className="space-y-3 mt-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="ad-account-id">Ad Account ID</Label>
+            <Input
+              id="ad-account-id"
+              value={adAccountId}
+              onChange={(e) => setAdAccountId(e.target.value)}
+              placeholder="e.g. 84720"
+              className="font-mono"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ad-token">System User Access Token</Label>
+            <Input
+              id="ad-token"
+              type="password"
+              value={accessToken}
+              onChange={(e) => setAccessToken(e.target.value)}
+              placeholder="EAA…"
+              className="font-mono text-[12px]"
+            />
+            <p className="text-[10px] text-foreground/60 font-medium">
+              Encrypted at rest. Can be revoked any time in Business Manager.
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-2 mt-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            disabled={connect.isPending || !adAccountId.trim() || !accessToken.trim()}
+            onClick={() => connect.mutate()}
+          >
+            {connect.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plug className="w-3.5 h-3.5" />}
+            Verify & connect
           </Button>
         </DialogFooter>
       </DialogContent>

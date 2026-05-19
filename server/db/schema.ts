@@ -309,6 +309,15 @@ export const metaConfig = pgTable("meta_config", {
   displayPhoneNumber: text("display_phone_number"),
   enabled: boolean("enabled").notNull().default(false),
   lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+  // ── Marketing API credentials (ads_management scope token + ad account) ──
+  // Stored encrypted at rest via server/crypto.ts. Routes encrypt on write,
+  // decrypt on read — never put plaintext in this column.
+  adAccountId: text("ad_account_id"),
+  adAccessToken: text("ad_access_token"),
+  adAccountName: text("ad_account_name"),
+  adAccountCurrency: text("ad_account_currency"),
+  adsConnectedAt: timestamp("ads_connected_at", { withTimezone: true }),
+  adsLastVerifiedAt: timestamp("ads_last_verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
