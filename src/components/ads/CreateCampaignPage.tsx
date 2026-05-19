@@ -54,10 +54,15 @@ const LOCATION_PRESETS = [
   { id: "tier2",       label: "Tier-2 cities (Indore, Ranchi, Jaipur, Lucknow, Pune…)",       region_keys: ["1957", "1958", "1968", "1965", "1963"] },
 ];
 
+// Meta locale IDs aren't public-documented and the user-facing language
+// filter usually HURTS delivery (it tightens the audience). Geo targeting
+// India + Meta's auto-language delivery (it serves the ad in the viewer's
+// display language) already covers the intent. Keep the UI for clarity,
+// but don't actually send a locales filter.
 const LANGUAGE_PRESETS = [
-  { id: "hi",        label: "Hindi",                       locales: [98] },
-  { id: "en-IN",     label: "English (India)",             locales: [24] },
-  { id: "all-india", label: "All Indian languages",        locales: [] }, // empty = no language filter = all
+  { id: "hi",        label: "Hindi",                       locales: [] },
+  { id: "en-IN",     label: "English (India)",             locales: [] },
+  { id: "all-india", label: "All Indian languages",        locales: [] },
 ];
 
 type GeoChip = { key: string; name: string; type: string; country_code?: string };
