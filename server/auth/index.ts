@@ -19,9 +19,14 @@ if (!process.env.BETTER_AUTH_SECRET) {
 // In single-origin deploys (Render serving both api + spa) baseURL is enough,
 // but if a separate frontend domain is added later, append it to TRUSTED_ORIGINS
 // (comma-separated) in the env.
-const PROD_URL = process.env.BETTER_AUTH_URL;
+//
+// BetterAuth compares against request Origin headers which never carry a
+// trailing slash, so strip any the operator pasted in by mistake — otherwise
+// every session call gets rejected and the SPA hangs on a blank screen.
+const stripSlash = (s: string) => s.replace(/\/+$/, "");
+const PROD_URL = process.env.BETTER_AUTH_URL ? stripSlash(process.env.BETTER_AUTH_URL) : undefined;
 const extraTrusted = (process.env.TRUSTED_ORIGINS ?? "")
-  .split(",").map((s) => s.trim()).filter(Boolean);
+  .split(",").map((s) => stripSlash(s.trim())).filter(Boolean);
 const trustedOrigins = [
   "http://localhost:4173",
   "http://localhost:5173",
