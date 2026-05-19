@@ -31,13 +31,18 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 
+// Meta's ODAX taxonomy (Oct 2023+). The standalone MESSAGES / LINK_CLICKS /
+// CONVERSIONS objectives were removed — everything is now OUTCOME_* and the
+// click-destination is encoded on the Ad Set via destination_type.
+//
+// Click-to-WhatsApp = OUTCOME_ENGAGEMENT + destination_type:"WHATSAPP" on adset.
 const OBJECTIVES = [
-  { id: "ctw",        meta: "MESSAGES",            label: "Click-to-WhatsApp",  desc: "Lead chats start in your inbox · best for Indian SMBs",  icon: MessageCircle,  badge: "AI pick",  est: "₹2-3 per chat",          cta: "WHATSAPP_MESSAGE" },
-  { id: "leads",      meta: "OUTCOME_LEADS",       label: "Lead form",          desc: "Native form, low friction",                              icon: Users,          est: "₹5-8 per lead",          cta: "SIGN_UP" },
-  { id: "sales",      meta: "OUTCOME_SALES",       label: "Sales / Purchases",  desc: "Conversion-optimised — pixel events required",           icon: ShoppingBag,    est: "Depends on AOV",         cta: "SHOP_NOW" },
-  { id: "traffic",    meta: "OUTCOME_TRAFFIC",     label: "Traffic",            desc: "Send to landing page",                                   icon: ArrowUpRight,   est: "₹0.50-2 per click",      cta: "LEARN_MORE" },
-  { id: "engagement", meta: "OUTCOME_ENGAGEMENT", label: "Engagement",         desc: "Reactions, comments, follows",                           icon: Heart,          est: "₹0.30-1 per engagement", cta: "LIKE_PAGE" },
-  { id: "catalog",    meta: "OUTCOME_SALES",       label: "Catalog retarget",   desc: "Dynamic product ads — needs catalog feed",               icon: Tag,            est: "8-12x ROAS typical",     cta: "SHOP_NOW" },
+  { id: "ctw",        meta: "OUTCOME_ENGAGEMENT", destinationType: "WHATSAPP" as const, label: "Click-to-WhatsApp",  desc: "Lead chats start in your inbox · best for Indian SMBs",  icon: MessageCircle,  badge: "AI pick",  est: "₹2-3 per chat",          cta: "WHATSAPP_MESSAGE" },
+  { id: "leads",      meta: "OUTCOME_LEADS",      destinationType: undefined,           label: "Lead form",          desc: "Native form, low friction",                              icon: Users,          est: "₹5-8 per lead",          cta: "SIGN_UP" },
+  { id: "sales",      meta: "OUTCOME_SALES",      destinationType: undefined,           label: "Sales / Purchases",  desc: "Conversion-optimised — pixel events required",           icon: ShoppingBag,    est: "Depends on AOV",         cta: "SHOP_NOW" },
+  { id: "traffic",    meta: "OUTCOME_TRAFFIC",    destinationType: "WEBSITE" as const,  label: "Traffic",            desc: "Send to landing page",                                   icon: ArrowUpRight,   est: "₹0.50-2 per click",      cta: "LEARN_MORE" },
+  { id: "engagement", meta: "OUTCOME_ENGAGEMENT", destinationType: undefined,           label: "Engagement",         desc: "Reactions, comments, follows",                           icon: Heart,          est: "₹0.30-1 per engagement", cta: "LIKE_PAGE" },
+  { id: "catalog",    meta: "OUTCOME_SALES",      destinationType: undefined,           label: "Catalog retarget",   desc: "Dynamic product ads — needs catalog feed",               icon: Tag,            est: "8-12x ROAS typical",     cta: "SHOP_NOW" },
 ] as const;
 type ObjectiveId = typeof OBJECTIVES[number]["id"];
 
@@ -152,10 +157,11 @@ export const CreateCampaignPage = () => {
   const debouncedBudget = useDebounced(budget, 500);
   const debouncedTargeting = useDebounced(targetingPayload, 500);
   const estimateQ = useQuery({
-    queryKey: ["ads", "estimate", objectiveObj.meta, debouncedBudget, debouncedTargeting],
+    queryKey: ["ads", "estimate", objectiveObj.meta, objectiveObj.destinationType, debouncedBudget, debouncedTargeting],
     queryFn: () =>
       api.estimateAdDelivery({
         objective: objectiveObj.meta,
+        destination_type: objectiveObj.destinationType,
         daily_budget_inr: Number(debouncedBudget) || 1000,
         targeting: debouncedTargeting,
       }),
@@ -169,6 +175,7 @@ export const CreateCampaignPage = () => {
       return api.createAdCampaign({
         name: name.trim(),
         objective: objectiveObj.meta,
+        destination_type: objectiveObj.destinationType,
         daily_budget_inr: Number(budget),
         status: launchPaused ? "PAUSED" : "ACTIVE",
         targeting: {

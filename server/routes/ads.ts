@@ -208,6 +208,7 @@ app.post("/ads/campaigns", async (c) => {
   const body = await c.req.json<{
     name: string;
     objective: string;
+    destination_type?: "WHATSAPP" | "MESSENGER" | "WEBSITE" | "ON_AD";
     daily_budget_inr: number;
     status?: "ACTIVE" | "PAUSED";
     targeting?: {
@@ -272,12 +273,17 @@ app.post("/ads/campaigns", async (c) => {
       targetingSpec.locales = body.targeting.locales;
     }
 
-    // Pick a sensible optimization goal per objective
-    const isCTW = /MESSAGES/i.test(body.objective);
+    // ODAX taxonomy: the campaign objective is just OUTCOME_* — Meta infers
+    // the actual click destination from the Ad Set's destination_type. We
+    // accept destination_type explicitly from the client so CTW vs Engagement
+    // (both OUTCOME_ENGAGEMENT) can be distinguished.
+    const isCTW = body.destination_type === "WHATSAPP";
     const optimizationGoal =
       isCTW ? "CONVERSATIONS" :
       /OUTCOME_LEADS/i.test(body.objective) ? "LEAD_GENERATION" :
       /OUTCOME_SALES/i.test(body.objective) ? "OFFSITE_CONVERSIONS" :
+      /OUTCOME_AWARENESS/i.test(body.objective) ? "REACH" :
+      /OUTCOME_TRAFFIC/i.test(body.objective) ? "LINK_CLICKS" :
       "LINK_CLICKS";
 
     // Step 2: Ad Set
@@ -289,7 +295,7 @@ app.post("/ads/campaigns", async (c) => {
       billingEvent: "IMPRESSIONS",
       optimizationGoal,
       targetingSpec,
-      destinationType: isCTW ? "WHATSAPP" : undefined,
+      destinationType: body.destination_type,
       pageId: body.creative.page_id,
       status: "PAUSED",
     });
@@ -369,6 +375,7 @@ app.post("/ads/estimate", async (c) => {
   const creds = await getCreds(c.var.userId);
   const body = await c.req.json<{
     objective: string;
+    destination_type?: "WHATSAPP" | "MESSENGER" | "WEBSITE" | "ON_AD";
     daily_budget_inr: number;
     targeting?: {
       country_codes?: string[];
@@ -406,7 +413,7 @@ app.post("/ads/estimate", async (c) => {
     };
     if (body.targeting?.audience_id) targetingSpec.custom_audiences = [{ id: body.targeting.audience_id }];
 
-    const isCTW = /MESSAGES/i.test(body.objective);
+    const isCTW = body.destination_type === "WHATSAPP";
     const optimizationGoal =
       isCTW ? "CONVERSATIONS" :
       /OUTCOME_LEADS/i.test(body.objective) ? "LEAD_GENERATION" :

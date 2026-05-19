@@ -158,6 +158,7 @@ export const api = {
   createAdCampaign: (data: {
     name: string;
     objective: string;
+    destination_type?: "WHATSAPP" | "MESSENGER" | "WEBSITE" | "ON_AD";
     daily_budget_inr: number;
     status?: "ACTIVE" | "PAUSED";
     targeting?: {
@@ -183,6 +184,7 @@ export const api = {
     get<{ results: Array<{ key: string; name: string; type: string; country_code?: string; country_name?: string; region?: string }>; demo?: boolean }>(`/ads/targeting/search?q=${encodeURIComponent(q)}`),
   estimateAdDelivery: (data: {
     objective: string;
+    destination_type?: "WHATSAPP" | "MESSENGER" | "WEBSITE" | "ON_AD";
     daily_budget_inr: number;
     targeting?: { country_codes?: string[]; city_keys?: string[]; region_keys?: string[]; age_min?: number; age_max?: number; audience_id?: string };
   }) =>
