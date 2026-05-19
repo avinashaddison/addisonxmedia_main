@@ -91,9 +91,22 @@ const Auth = () => {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Authentication failed";
       const lower = msg.toLowerCase();
-      if (lower.includes("invalid") || lower.includes("password")) toast.error("Galat email ya password");
-      else if (lower.includes("exists") || lower.includes("already")) toast.error("Email pehle se registered hai. Sign in karein.");
-      else toast.error(msg);
+      // Order matters — match specific cases before the broad "invalid email or password"
+      // fallback, otherwise "password too short" gets misreported as bad credentials.
+      if (lower.includes("already exists") || lower.includes("user_already_exists")) {
+        toast.error("Email pehle se registered hai. Sign in karein.");
+      } else if (lower.includes("password too short") || lower.includes("password_too_short")) {
+        toast.error("Password kam se kam 8 characters ka hona chahiye");
+      } else if (lower.includes("invalid email or password") || lower === "invalid email or password" || lower.includes("invalid_email_or_password")) {
+        toast.error("Galat email ya password");
+      } else if (lower.includes("invalid email") || lower.includes("invalid_email")) {
+        toast.error("Email format galat hai");
+      } else if (lower.includes("too many") || lower.includes("rate limit")) {
+        toast.error("Bahut zyada attempts — thodi der baad try karein");
+      } else {
+        // Fall back to the raw message so the real failure is visible.
+        toast.error(msg);
+      }
     } finally {
       setSubmitting(false);
     }
