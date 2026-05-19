@@ -178,4 +178,210 @@ export async function listCustomAudiences(creds: AdsCredentials): Promise<MetaCu
   return res.data ?? [];
 }
 
+/* ─────────── Targeting search (real geo / interest IDs) ─────────── */
+
+export type MetaGeoResult = {
+  key: string;
+  name: string;
+  type: string; // country | region | city | zip | etc.
+  country_code?: string;
+  country_name?: string;
+  region?: string;
+  region_id?: number;
+  supports_region?: boolean;
+};
+
+/** Search Meta's targeting taxonomy. The "key" returned is what we feed into
+ *  ad set targeting_spec.geo_locations.cities/regions/countries. */
+export async function targetingSearch(
+  creds: AdsCredentials,
+  q: string,
+  locationTypes: string[] = ["country", "region", "city"]
+): Promise<MetaGeoResult[]> {
+  const params = new URLSearchParams({
+    type: "adgeolocation",
+    q,
+    location_types: JSON.stringify(locationTypes),
+    limit: "20",
+  });
+  const res = await adsFetch<{ data: MetaGeoResult[] }>(
+    `/search?${params}`,
+    { method: "GET", token: creds.accessToken }
+  );
+  return res.data ?? [];
+}
+
+/* ─────────── Delivery estimate (real reach numbers) ─────────── */
+
+export type DeliveryEstimate = {
+  daily_outcomes_curve: Array<{ spend: number; reach: number; impressions: number; actions: number }>;
+  estimate_dau: number;
+  estimate_mau_lower_bound: number;
+  estimate_mau_upper_bound: number;
+  estimate_ready: boolean;
+};
+
+export type TargetingSpec = {
+  geo_locations?: {
+    countries?: string[];
+    cities?: Array<{ key: string; radius?: number; distance_unit?: "kilometer" | "mile" }>;
+    regions?: Array<{ key: string }>;
+  };
+  age_min?: number;
+  age_max?: number;
+  genders?: number[]; // 1 = male, 2 = female; omit for all
+  locales?: number[]; // Meta locale IDs
+  custom_audiences?: Array<{ id: string }>;
+};
+
+/** Real reach + impressions estimate from Meta. Updates as the user changes
+ *  budget / audience / location in the wizard preview. */
+export async function deliveryEstimate(
+  creds: AdsCredentials,
+  params: {
+    targetingSpec: TargetingSpec;
+    optimizationGoal: string;
+    dailyBudgetPaise?: number;
+    currency?: string;
+  }
+): Promise<DeliveryEstimate> {
+  const qs = new URLSearchParams({
+    targeting_spec: JSON.stringify(params.targetingSpec),
+    optimization_goal: params.optimizationGoal,
+  });
+  if (params.dailyBudgetPaise) qs.set("daily_budget", String(params.dailyBudgetPaise));
+  if (params.currency) qs.set("currency", params.currency);
+  const res = await adsFetch<{ data: DeliveryEstimate[] }>(
+    `/${actId(creds.adAccountId)}/delivery_estimate?${qs}`,
+    { method: "GET", token: creds.accessToken }
+  );
+  return res.data?.[0] ?? {
+    daily_outcomes_curve: [],
+    estimate_dau: 0,
+    estimate_mau_lower_bound: 0,
+    estimate_mau_upper_bound: 0,
+    estimate_ready: false,
+  };
+}
+
+/* ─────────── Pages (needed for Ad creative — ads run from a Page) ─────────── */
+
+export type MetaPage = {
+  id: string;
+  name: string;
+  category?: string;
+  access_token?: string;
+  tasks?: string[];
+};
+
+/** Pages the authenticated user/system user can act on. */
+export async function listPages(creds: AdsCredentials): Promise<MetaPage[]> {
+  const res = await adsFetch<{ data: MetaPage[] }>(
+    `/me/accounts?fields=id,name,category,tasks&limit=100`,
+    { method: "GET", token: creds.accessToken }
+  );
+  return res.data ?? [];
+}
+
+/* ─────────── Ad Set (targeting + budget + schedule) ─────────── */
+
+export type AdSetCreate = {
+  name: string;
+  campaignId: string;
+  dailyBudgetPaise: number;
+  billingEvent: "IMPRESSIONS" | "LINK_CLICKS";
+  optimizationGoal: string;
+  targetingSpec: TargetingSpec;
+  destinationType?: "WHATSAPP" | "MESSENGER" | "WEBSITE" | "ON_AD";
+  pageId?: string;
+  startTime?: string; // ISO
+  status?: "ACTIVE" | "PAUSED";
+};
+
+export async function createAdSet(creds: AdsCredentials, body: AdSetCreate): Promise<{ id: string }> {
+  const payload: Record<string, unknown> = {
+    name: body.name,
+    campaign_id: body.campaignId,
+    daily_budget: body.dailyBudgetPaise,
+    billing_event: body.billingEvent,
+    optimization_goal: body.optimizationGoal,
+    targeting: body.targetingSpec,
+    status: body.status ?? "PAUSED",
+    bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+  };
+  if (body.destinationType) payload.destination_type = body.destinationType;
+  if (body.pageId) payload.promoted_object = { page_id: body.pageId };
+  if (body.startTime) payload.start_time = body.startTime;
+
+  return adsFetch(`/${actId(creds.adAccountId)}/adsets`, {
+    method: "POST",
+    token: creds.accessToken,
+    body: JSON.stringify(payload),
+  });
+}
+
+/* ─────────── Ad Creative (image + headline + body + CTA) ─────────── */
+
+export type AdCreativeCreate = {
+  name: string;
+  pageId: string;
+  imageUrl?: string;
+  imageHash?: string;
+  headline: string;
+  body: string;
+  linkUrl: string;
+  ctaType?: string; // e.g. WHATSAPP_MESSAGE, LEARN_MORE, SHOP_NOW, SIGN_UP
+};
+
+export async function createAdCreative(creds: AdsCredentials, body: AdCreativeCreate): Promise<{ id: string }> {
+  const linkData: Record<string, unknown> = {
+    message: body.body,
+    link: body.linkUrl,
+    name: body.headline,
+  };
+  if (body.imageUrl) linkData.picture = body.imageUrl;
+  if (body.imageHash) linkData.image_hash = body.imageHash;
+  if (body.ctaType) linkData.call_to_action = { type: body.ctaType, value: { link: body.linkUrl } };
+
+  return adsFetch(`/${actId(creds.adAccountId)}/adcreatives`, {
+    method: "POST",
+    token: creds.accessToken,
+    body: JSON.stringify({
+      name: body.name,
+      object_story_spec: {
+        page_id: body.pageId,
+        link_data: linkData,
+      },
+    }),
+  });
+}
+
+/* ─────────── Ad (links a creative to an ad set) ─────────── */
+
+export async function createAd(
+  creds: AdsCredentials,
+  body: { name: string; adSetId: string; creativeId: string; status?: "ACTIVE" | "PAUSED" }
+): Promise<{ id: string }> {
+  return adsFetch(`/${actId(creds.adAccountId)}/ads`, {
+    method: "POST",
+    token: creds.accessToken,
+    body: JSON.stringify({
+      name: body.name,
+      adset_id: body.adSetId,
+      creative: { creative_id: body.creativeId },
+      status: body.status ?? "PAUSED",
+    }),
+  });
+}
+
+/* ─────────── Cleanup (for rollback when a multi-step launch fails) ─────────── */
+
+export async function deleteCampaign(creds: AdsCredentials, campaignId: string): Promise<void> {
+  await adsFetch(`/${campaignId}`, { method: "DELETE", token: creds.accessToken });
+}
+
+export async function deleteAdSet(creds: AdsCredentials, adSetId: string): Promise<void> {
+  await adsFetch(`/${adSetId}`, { method: "DELETE", token: creds.accessToken });
+}
+
 export { AdsApiError };

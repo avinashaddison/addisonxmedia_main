@@ -1,23 +1,30 @@
 /**
- * Full-page campaign creation flow — replaces the cramped dialog with a
- * 3-step wizard + live preview, modeled after Meta Ads Manager and Google
- * Ads' new-campaign experience.
+ * Full-page campaign creation flow — wired end-to-end against Meta Marketing API.
  *
  * Route: /app/ads/new
- * On success → POST /api/ads/campaigns → navigate back to /app/ads
+ *
+ * What's "real" (not dummy) here:
+ *  - Location picker hits POST /api/ads/targeting/search → Meta's geo taxonomy
+ *  - Reach + results estimate hits POST /api/ads/estimate → Meta delivery_estimate
+ *  - Audience dropdown reads /api/ads/audiences → Meta custom audiences
+ *  - Page picker reads /api/ads/pages → Meta /me/accounts
+ *  - WhatsApp number for CTW autofills from meta_config
+ *  - Submit creates Campaign → AdSet → AdCreative → Ad atomically (with rollback)
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, ArrowRight, Sparkles, MessageCircle, Users, ShoppingBag, ArrowUpRight,
   Heart, Tag, IndianRupee, Loader2, CheckCircle2, Target, Megaphone, Brain,
-  Eye, Clock, MapPin, Languages, ChevronRight, Info, Zap, Globe,
+  Eye, MapPin, Languages, ChevronRight, Info, Zap, X, Image as ImageIcon,
+  Search, FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -25,101 +32,203 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 
 const OBJECTIVES = [
-  { id: "ctw", meta: "MESSAGES", label: "Click-to-WhatsApp", desc: "Lead chats start in your inbox · best for Indian SMBs", icon: MessageCircle, badge: "AI pick", est: "₹2-3 per chat" },
-  { id: "leads", meta: "OUTCOME_LEADS", label: "Lead form", desc: "Native form, low friction", icon: Users, est: "₹5-8 per lead" },
-  { id: "sales", meta: "OUTCOME_SALES", label: "Sales / Purchases", desc: "Conversion-optimised — pixel events required", icon: ShoppingBag, est: "Depends on AOV" },
-  { id: "traffic", meta: "OUTCOME_TRAFFIC", label: "Traffic", desc: "Send to landing page", icon: ArrowUpRight, est: "₹0.50-2 per click" },
-  { id: "engagement", meta: "OUTCOME_ENGAGEMENT", label: "Engagement", desc: "Reactions, comments, follows", icon: Heart, est: "₹0.30-1 per engagement" },
-  { id: "catalog", meta: "OUTCOME_SALES", label: "Catalog retarget", desc: "Dynamic product ads — needs catalog feed", icon: Tag, est: "8-12x ROAS typical" },
+  { id: "ctw",        meta: "MESSAGES",            label: "Click-to-WhatsApp",  desc: "Lead chats start in your inbox · best for Indian SMBs",  icon: MessageCircle,  badge: "AI pick",  est: "₹2-3 per chat",          cta: "WHATSAPP_MESSAGE" },
+  { id: "leads",      meta: "OUTCOME_LEADS",       label: "Lead form",          desc: "Native form, low friction",                              icon: Users,          est: "₹5-8 per lead",          cta: "SIGN_UP" },
+  { id: "sales",      meta: "OUTCOME_SALES",       label: "Sales / Purchases",  desc: "Conversion-optimised — pixel events required",           icon: ShoppingBag,    est: "Depends on AOV",         cta: "SHOP_NOW" },
+  { id: "traffic",    meta: "OUTCOME_TRAFFIC",     label: "Traffic",            desc: "Send to landing page",                                   icon: ArrowUpRight,   est: "₹0.50-2 per click",      cta: "LEARN_MORE" },
+  { id: "engagement", meta: "OUTCOME_ENGAGEMENT", label: "Engagement",         desc: "Reactions, comments, follows",                           icon: Heart,          est: "₹0.30-1 per engagement", cta: "LIKE_PAGE" },
+  { id: "catalog",    meta: "OUTCOME_SALES",       label: "Catalog retarget",   desc: "Dynamic product ads — needs catalog feed",               icon: Tag,            est: "8-12x ROAS typical",     cta: "SHOP_NOW" },
 ] as const;
+type ObjectiveId = typeof OBJECTIVES[number]["id"];
 
 const BUDGET_PRESETS = ["500", "1000", "2500", "5000", "10000"] as const;
 
-const LOCATIONS = [
-  { id: "all-india", label: "All India · 1.4B reach" },
-  { id: "tier1", label: "Tier-1 cities (Bombay, Delhi, Bangalore, Chennai, Hyderabad)" },
-  { id: "tier2", label: "Tier-2 cities (Indore, Ranchi, Jaipur, Lucknow, Pune…)" },
-  { id: "ranchi", label: "Ranchi + 50km radius" },
-  { id: "custom", label: "Custom — pick states/cities" },
+const LOCATION_PRESETS = [
+  { id: "all-india",   label: "All India · 1.4B reach",                                       country_codes: ["IN"] },
+  { id: "tier1",       label: "Tier-1 cities (Bombay, Delhi, Bangalore, Chennai, Hyderabad)", region_keys: ["1956", "1969", "1959", "1966", "1962"] },
+  { id: "tier2",       label: "Tier-2 cities (Indore, Ranchi, Jaipur, Lucknow, Pune…)",       region_keys: ["1957", "1958", "1968", "1965", "1963"] },
 ];
 
-const LANGUAGES = [
-  { id: "hi", label: "Hindi" },
-  { id: "en-IN", label: "English (India)" },
-  { id: "all-india", label: "All Indian languages (Hi, En, Bn, Te, Ta, Mr, Gu, Kn, Ml, Pa, Or)" },
+const LANGUAGE_PRESETS = [
+  { id: "hi",        label: "Hindi",                       locales: [98] },
+  { id: "en-IN",     label: "English (India)",             locales: [24] },
+  { id: "all-india", label: "All Indian languages",        locales: [] }, // empty = no language filter = all
 ];
+
+type GeoChip = { key: string; name: string; type: string; country_code?: string };
 
 const compactNum = (n: number) => {
   if (n >= 1_00_00_000) return `${(n / 1_00_00_000).toFixed(1)} Cr`;
-  if (n >= 1_00_000) return `${(n / 1_00_000).toFixed(1)} L`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  if (n >= 1_00_000)    return `${(n / 1_00_000).toFixed(1)} L`;
+  if (n >= 1_000)       return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+};
+
+const useDebounced = <T,>(value: T, delay = 400) => {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return v;
 };
 
 export const CreateCampaignPage = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const connectionQ = useQuery({ queryKey: ["ads", "connection"], queryFn: () => api.getAdsConnection() });
-  const audiencesQ = useQuery({ queryKey: ["ads", "audiences"], queryFn: () => api.listAdAudiences() });
-  const audiences = audiencesQ.data?.audiences ?? [];
 
-  const [step, setStep] = useState(1);
-  const [objective, setObjective] = useState<typeof OBJECTIVES[number]["id"]>("ctw");
-  const [name, setName] = useState("");
-  const [audience, setAudience] = useState<string>("");
-  const [location, setLocation] = useState("tier2");
-  const [language, setLanguage] = useState("hi");
-  const [budget, setBudget] = useState("1000");
-  const [optimizeAI, setOptimizeAI] = useState(true);
-  const [launchPaused, setLaunchPaused] = useState(true);
+  const connectionQ = useQuery({ queryKey: ["ads", "connection"], queryFn: () => api.getAdsConnection() });
+  const audiencesQ  = useQuery({ queryKey: ["ads", "audiences"], queryFn: () => api.listAdAudiences() });
+  const pagesQ      = useQuery({ queryKey: ["ads", "pages"], queryFn: () => api.listAdPages() });
+  const metaQ       = useQuery({ queryKey: ["meta-config"], queryFn: () => api.getMetaConfig() });
 
   const isConnected = connectionQ.data?.connected ?? false;
+  const audiences   = audiencesQ.data?.audiences ?? [];
+  const pages       = pagesQ.data?.pages ?? [];
 
-  const create = useMutation({
+  const [step, setStep]                 = useState(1);
+  const [objective, setObjective]       = useState<ObjectiveId>("ctw");
+  const [name, setName]                 = useState("");
+  const [audience, setAudience]         = useState<string>("");
+  const [pageId, setPageId]             = useState<string>("");
+  const [locationMode, setLocationMode] = useState<"preset" | "custom">("preset");
+  const [locationPreset, setLocationPreset] = useState<string>("tier2");
+  const [customGeos, setCustomGeos]     = useState<GeoChip[]>([]);
+  const [geoQuery, setGeoQuery]         = useState("");
+  const [language, setLanguage]         = useState("hi");
+  const [budget, setBudget]             = useState("1000");
+  const [optimizeAI, setOptimizeAI]     = useState(true);
+  const [launchPaused, setLaunchPaused] = useState(true);
+  // Ad creative
+  const [adImageUrl, setAdImageUrl]     = useState("");
+  const [adHeadline, setAdHeadline]     = useState("");
+  const [adBody, setAdBody]             = useState("");
+  const [adLinkUrl, setAdLinkUrl]       = useState("");
+
+  const objectiveObj = OBJECTIVES.find((o) => o.id === objective)!;
+  const isCTW = objective === "ctw";
+
+  // Auto-fill page when only one available, and auto-fill WhatsApp destination for CTW
+  useEffect(() => {
+    if (!pageId && pages.length === 1) setPageId(pages[0].id);
+  }, [pages, pageId]);
+
+  useEffect(() => {
+    if (isCTW && !adLinkUrl && metaQ.data?.display_phone_number) {
+      const digits = metaQ.data.display_phone_number.replace(/\D/g, "");
+      if (digits) setAdLinkUrl(`https://wa.me/${digits}`);
+    }
+  }, [isCTW, metaQ.data, adLinkUrl]);
+
+  /* ─── Location typeahead (Meta targeting/search) ─── */
+  const debouncedQuery = useDebounced(geoQuery, 350);
+  const geoSearchQ = useQuery({
+    queryKey: ["ads", "geo-search", debouncedQuery],
+    queryFn: () => api.searchAdTargeting(debouncedQuery),
+    enabled: locationMode === "custom" && debouncedQuery.trim().length >= 2,
+  });
+
+  /* ─── Build targeting payload (used by estimate + create) ─── */
+  const targetingPayload = useMemo(() => {
+    const preset = LOCATION_PRESETS.find((l) => l.id === locationPreset);
+    const langPreset = LANGUAGE_PRESETS.find((l) => l.id === language);
+    const t: NonNullable<Parameters<typeof api.estimateAdDelivery>[0]["targeting"]> = {
+      age_min: 18,
+      age_max: 65,
+    };
+    if (locationMode === "preset") {
+      if (preset?.country_codes) t.country_codes = preset.country_codes;
+      if (preset?.region_keys)   t.region_keys = preset.region_keys;
+    } else {
+      t.country_codes = ["IN"];
+      t.city_keys = customGeos.filter((g) => g.type === "city").map((g) => g.key);
+      t.region_keys = customGeos.filter((g) => g.type === "region").map((g) => g.key);
+    }
+    if (audience) t.audience_id = audience;
+    return t;
+  }, [locationMode, locationPreset, customGeos, audience, language]);
+
+  /* ─── Live estimate (debounced, hits Meta delivery_estimate) ─── */
+  const debouncedBudget = useDebounced(budget, 500);
+  const debouncedTargeting = useDebounced(targetingPayload, 500);
+  const estimateQ = useQuery({
+    queryKey: ["ads", "estimate", objectiveObj.meta, debouncedBudget, debouncedTargeting],
+    queryFn: () =>
+      api.estimateAdDelivery({
+        objective: objectiveObj.meta,
+        daily_budget_inr: Number(debouncedBudget) || 1000,
+        targeting: debouncedTargeting,
+      }),
+  });
+
+  /* ─── Launch mutation ─── */
+  const launch = useMutation({
     mutationFn: () => {
-      const objMeta = OBJECTIVES.find((o) => o.id === objective)?.meta ?? "MESSAGES";
+      const preset = LOCATION_PRESETS.find((l) => l.id === locationPreset);
+      const langPreset = LANGUAGE_PRESETS.find((l) => l.id === language);
       return api.createAdCampaign({
         name: name.trim(),
-        objective: objMeta,
+        objective: objectiveObj.meta,
         daily_budget_inr: Number(budget),
         status: launchPaused ? "PAUSED" : "ACTIVE",
+        targeting: {
+          ...targetingPayload,
+          locales: langPreset?.locales,
+        },
+        creative: pageId ? {
+          page_id: pageId,
+          image_url: adImageUrl || undefined,
+          headline: adHeadline,
+          body: adBody,
+          link_url: adLinkUrl,
+          cta_type: objectiveObj.cta,
+        } : undefined,
       });
     },
-    onSuccess: () => {
+    onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["ads", "campaigns"] });
-      toast.success(`Campaign "${name}" created${launchPaused ? " (paused — review in Meta Ads Manager)" : " and launched"}`);
+      const msg = r.mode === "full_launch"
+        ? launchPaused
+          ? `Campaign created end-to-end (paused — turn on in Meta Ads Manager)`
+          : `Campaign launched · live on Meta`
+        : `Campaign created (skeleton only — add Ad Set + Ad in Meta Ads Manager)`;
+      toast.success(msg);
       navigate("/app/ads");
     },
     onError: (e) => toast.error(String(e)),
   });
 
-  const objectiveObj = OBJECTIVES.find((o) => o.id === objective)!;
-  const dailySpend = Number(budget) || 0;
-  const weeklySpend = dailySpend * 7;
-  const monthlySpend = dailySpend * 30;
-  const estReachLow = Math.round(dailySpend * 12);
-  const estReachHigh = Math.round(dailySpend * 28);
-  const estResultsLow = Math.round(dailySpend / 3.5);
-  const estResultsHigh = Math.round(dailySpend / 1.8);
-
   const stepValid = (s: number) => {
     if (s === 1) return !!objective;
-    if (s === 2) return name.trim().length >= 3;
+    if (s === 2) return name.trim().length >= 3 && adHeadline.trim().length >= 3 && adBody.trim().length >= 5 && (!isCTW || adLinkUrl.trim().length > 0);
     if (s === 3) return Number(budget) >= 100;
     return false;
   };
 
   const goNext = () => {
     if (!stepValid(step)) {
-      toast.error(
-        step === 1 ? "Pehle ek objective select karein" :
-        step === 2 ? "Campaign ka naam kam se kam 3 letters ka hona chahiye" :
-        "Daily budget ₹100 ya zyada hona chahiye"
-      );
+      const hints = {
+        1: "Pehle ek objective select karein",
+        2: !name.trim() ? "Campaign name chahiye" :
+           !adHeadline.trim() ? "Ad headline chahiye (40 char max)" :
+           !adBody.trim() ? "Ad body text chahiye" :
+           isCTW && !adLinkUrl.trim() ? "WhatsApp number ya wa.me link chahiye" :
+           "Form complete karein",
+        3: "Daily budget ₹100 ya zyada hona chahiye",
+      };
+      toast.error(hints[step as 1 | 2 | 3]);
       return;
     }
     if (step < 3) setStep(step + 1);
   };
+
+  const dailySpend   = Number(budget) || 0;
+  const ins          = estimateQ.data;
+  const reachLow     = ins?.reach_low   ?? 0;
+  const reachHigh    = ins?.reach_high  ?? 0;
+  const resultsLow   = ins?.results_low ?? 0;
+  const resultsHigh  = ins?.results_high?? 0;
+  const estimateMode = ins?.demo ? "demo" : ins?.estimate_ready ? "live" : "warming";
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#FFF6E8]">
@@ -137,7 +246,7 @@ export const CreateCampaignPage = () => {
         </div>
         <div className="flex-1 min-w-0">
           <h1 className="text-[18px] font-black tracking-tight leading-tight">Naya campaign banaiye</h1>
-          <p className="text-[11px] text-foreground/60 font-medium">Meta Marketing API · campaign defaults to paused so you can review</p>
+          <p className="text-[11px] text-foreground/60 font-medium">Meta Marketing API · creates Campaign + Ad Set + Ad atomically</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => navigate("/app/ads")}>Cancel</Button>
       </div>
@@ -147,7 +256,7 @@ export const CreateCampaignPage = () => {
         {[
           { n: 1, label: "Objective" },
           { n: 2, label: "Audience & creative" },
-          { n: 3, label: "Budget & review" },
+          { n: 3, label: "Budget & launch" },
         ].map((s, i) => (
           <div key={s.n} className="flex items-center gap-2 flex-1">
             <button
@@ -155,15 +264,15 @@ export const CreateCampaignPage = () => {
               className={cn(
                 "flex items-center gap-2 flex-1 px-3 py-2 rounded-xl border-2 transition-all text-left",
                 step === s.n && "border-[#FF6A1F] bg-[#FFEFE0] shadow-[0_2px_0_0_#B8420A]",
-                step > s.n && "border-[#0E8A4B]/40 bg-[#E6F7EE] cursor-pointer hover:bg-[#D2F1DF]",
-                step < s.n && "border-[#E8B968]/60 bg-white opacity-60",
+                step >  s.n && "border-[#0E8A4B]/40 bg-[#E6F7EE] cursor-pointer hover:bg-[#D2F1DF]",
+                step <  s.n && "border-[#E8B968]/60 bg-white opacity-60",
               )}
             >
               <span className={cn(
                 "w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-extrabold flex-shrink-0",
                 step === s.n && "bg-[#FF6A1F] text-white",
-                step > s.n && "bg-[#0E8A4B] text-white",
-                step < s.n && "bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968]",
+                step >  s.n && "bg-[#0E8A4B] text-white",
+                step <  s.n && "bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968]",
               )}>
                 {step > s.n ? <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={3} /> : s.n}
               </span>
@@ -174,67 +283,85 @@ export const CreateCampaignPage = () => {
         ))}
       </div>
 
-      {/* ─────── Connection / demo warning ─────── */}
+      {/* ─────── Demo / connection warning ─────── */}
       {!connectionQ.isPending && !isConnected && (
         <div className="bg-[#FFF1D6] border-b-2 border-[#E8B968] px-6 lg:px-10 py-2.5 flex items-center gap-3 text-[12px]">
           <Info className="w-4 h-4 text-[#B8651A] flex-shrink-0" />
           <p className="font-medium text-foreground/80">
-            Meta Ads connected nahi hai — yeh form draft ki tarah kaam karega. Connect karne ke baad campaign Meta pe create hoga.
+            Meta Ads connected nahi hai. Estimate aur creation dono dummy mode mein chal rahe hain. Connect karne ke baad real launch hoga.
           </p>
         </div>
       )}
 
-      {/* ─────── Body: form (left) + preview (right) ─────── */}
+      {/* ─────── Body: form + preview ─────── */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-6 grid lg:grid-cols-[1fr_360px] gap-6">
-          {/* ─── FORM COLUMN ─── */}
+          {/* ─── FORM ─── */}
           <div className="space-y-4 min-w-0">
             {step === 1 && <StepObjective objective={objective} setObjective={setObjective} />}
+
             {step === 2 && (
-              <StepAudience
-                name={name}
-                setName={setName}
-                audience={audience}
-                setAudience={setAudience}
-                location={location}
-                setLocation={setLocation}
-                language={language}
-                setLanguage={setLanguage}
+              <StepAudienceCreative
+                name={name} setName={setName}
+                audience={audience} setAudience={setAudience}
                 audiences={audiences}
                 audiencesLoading={audiencesQ.isPending}
+                locationMode={locationMode} setLocationMode={setLocationMode}
+                locationPreset={locationPreset} setLocationPreset={setLocationPreset}
+                customGeos={customGeos} setCustomGeos={setCustomGeos}
+                geoQuery={geoQuery} setGeoQuery={setGeoQuery}
+                geoResults={geoSearchQ.data?.results ?? []}
+                geoLoading={geoSearchQ.isFetching}
+                language={language} setLanguage={setLanguage}
+                pageId={pageId} setPageId={setPageId}
+                pages={pages}
+                pagesLoading={pagesQ.isPending}
+                adImageUrl={adImageUrl} setAdImageUrl={setAdImageUrl}
+                adHeadline={adHeadline} setAdHeadline={setAdHeadline}
+                adBody={adBody} setAdBody={setAdBody}
+                adLinkUrl={adLinkUrl} setAdLinkUrl={setAdLinkUrl}
                 objectiveObj={objectiveObj}
+                isCTW={isCTW}
+                whatsappNumber={metaQ.data?.display_phone_number ?? null}
               />
             )}
+
             {step === 3 && (
               <StepBudget
-                budget={budget}
-                setBudget={setBudget}
-                optimizeAI={optimizeAI}
-                setOptimizeAI={setOptimizeAI}
-                launchPaused={launchPaused}
-                setLaunchPaused={setLaunchPaused}
+                budget={budget} setBudget={setBudget}
+                optimizeAI={optimizeAI} setOptimizeAI={setOptimizeAI}
+                launchPaused={launchPaused} setLaunchPaused={setLaunchPaused}
                 name={name}
                 objectiveObj={objectiveObj}
-                audienceName={audiences.find((a) => a.id === audience)?.name ?? "Auto-targeted"}
-                location={LOCATIONS.find((l) => l.id === location)?.label ?? ""}
-                language={LANGUAGES.find((l) => l.id === language)?.label ?? ""}
+                audienceName={audiences.find((a) => a.id === audience)?.name ?? "Auto (no custom audience)"}
+                locationLabel={
+                  locationMode === "preset"
+                    ? LOCATION_PRESETS.find((l) => l.id === locationPreset)?.label ?? ""
+                    : `${customGeos.length} custom location${customGeos.length === 1 ? "" : "s"}`
+                }
+                languageLabel={LANGUAGE_PRESETS.find((l) => l.id === language)?.label ?? ""}
+                pageName={pages.find((p) => p.id === pageId)?.name ?? "—"}
+                adHeadline={adHeadline}
+                adBody={adBody}
+                adImageUrl={adImageUrl}
               />
             )}
           </div>
 
-          {/* ─── PREVIEW COLUMN (sticky) ─── */}
+          {/* ─── PREVIEW (sticky) ─── */}
           <div className="lg:sticky lg:top-[140px] lg:self-start space-y-4">
-            <PreviewCard
-              objectiveObj={objectiveObj}
+            <LivePreviewCard
               name={name}
-              budget={budget}
+              objectiveObj={objectiveObj}
               dailySpend={dailySpend}
-              weeklySpend={weeklySpend}
-              monthlySpend={monthlySpend}
-              estReachLow={estReachLow}
-              estReachHigh={estReachHigh}
-              estResultsLow={estResultsLow}
-              estResultsHigh={estResultsHigh}
+              reachLow={reachLow}
+              reachHigh={reachHigh}
+              resultsLow={resultsLow}
+              resultsHigh={resultsHigh}
+              audienceSizeLow={ins?.audience_size_low}
+              audienceSizeHigh={ins?.audience_size_high}
+              mode={estimateMode}
+              loading={estimateQ.isFetching}
               optimizeAI={optimizeAI}
             />
             {step === 3 && optimizeAI && <AISuggestionsCard objective={objective} budget={budget} />}
@@ -242,10 +369,10 @@ export const CreateCampaignPage = () => {
         </div>
       </div>
 
-      {/* ─────── Sticky bottom action bar ─────── */}
+      {/* ─────── Bottom action bar ─────── */}
       <div className="border-t-2 border-[#E8B968] bg-white px-6 lg:px-10 py-3 flex items-center gap-3 flex-wrap sticky bottom-0 z-20">
         <div className="text-[11px] text-foreground/60 font-medium flex-1 min-w-0 truncate">
-          Step {step} of 3 · {step === 1 ? "Pick what you want to optimise for" : step === 2 ? "Tell Meta who should see this" : "Set spend + go live"}
+          Step {step} of 3 · {step === 1 ? "Pick what you want to optimise for" : step === 2 ? "Audience + ad creative" : "Set spend + go live"}
         </div>
         {step > 1 && (
           <Button variant="outline" onClick={() => setStep(step - 1)}>
@@ -253,16 +380,14 @@ export const CreateCampaignPage = () => {
           </Button>
         )}
         {step < 3 ? (
-          <Button onClick={goNext}>
-            Continue <ArrowRight className="w-3.5 h-3.5" />
-          </Button>
+          <Button onClick={goNext}>Continue <ArrowRight className="w-3.5 h-3.5" /></Button>
         ) : (
           <Button
-            disabled={create.isPending || !isConnected || !stepValid(3) || !stepValid(2)}
-            onClick={() => create.mutate()}
+            disabled={launch.isPending || !isConnected || !stepValid(2) || !stepValid(3)}
+            onClick={() => launch.mutate()}
           >
-            {create.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-            {launchPaused ? "Create campaign (paused)" : "Launch now"}
+            {launch.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            {launchPaused ? "Create ad (paused)" : "Launch live now"}
           </Button>
         )}
       </div>
@@ -270,11 +395,11 @@ export const CreateCampaignPage = () => {
   );
 };
 
-/* ─────────────────────────── STEP 1: Objective ─────────────────────────── */
+/* ─────────────────────────── STEP 1 ─────────────────────────── */
 
 const StepObjective = ({
   objective, setObjective,
-}: { objective: string; setObjective: (v: typeof OBJECTIVES[number]["id"]) => void }) => (
+}: { objective: ObjectiveId; setObjective: (v: ObjectiveId) => void }) => (
   <>
     <SectionHeader
       icon={Target}
@@ -321,30 +446,39 @@ const StepObjective = ({
   </>
 );
 
-/* ─────────────────────────── STEP 2: Audience ─────────────────────────── */
+/* ─────────────────────────── STEP 2 ─────────────────────────── */
 
-const StepAudience = ({
-  name, setName, audience, setAudience, location, setLocation, language, setLanguage,
-  audiences, audiencesLoading, objectiveObj,
-}: {
-  name: string;
-  setName: (v: string) => void;
-  audience: string;
-  setAudience: (v: string) => void;
-  location: string;
-  setLocation: (v: string) => void;
-  language: string;
-  setLanguage: (v: string) => void;
+type StepAudienceCreativeProps = {
+  name: string; setName: (v: string) => void;
+  audience: string; setAudience: (v: string) => void;
   audiences: Array<{ id: string; name: string; size: number; type: string }>;
   audiencesLoading: boolean;
+  locationMode: "preset" | "custom"; setLocationMode: (v: "preset" | "custom") => void;
+  locationPreset: string; setLocationPreset: (v: string) => void;
+  customGeos: GeoChip[]; setCustomGeos: (v: GeoChip[]) => void;
+  geoQuery: string; setGeoQuery: (v: string) => void;
+  geoResults: Array<{ key: string; name: string; type: string; country_name?: string; region?: string }>;
+  geoLoading: boolean;
+  language: string; setLanguage: (v: string) => void;
+  pageId: string; setPageId: (v: string) => void;
+  pages: Array<{ id: string; name: string; category: string | null }>;
+  pagesLoading: boolean;
+  adImageUrl: string; setAdImageUrl: (v: string) => void;
+  adHeadline: string; setAdHeadline: (v: string) => void;
+  adBody: string; setAdBody: (v: string) => void;
+  adLinkUrl: string; setAdLinkUrl: (v: string) => void;
   objectiveObj: typeof OBJECTIVES[number];
-}) => (
+  isCTW: boolean;
+  whatsappNumber: string | null;
+};
+
+const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
   <>
     <SectionHeader
       icon={Users}
       iconBg="bg-[#3C50E0]"
-      title="Audience aur creative"
-      subtitle={`${objectiveObj.label} campaign — yahi audience ko ad dikhega`}
+      title="Audience aur ad creative"
+      subtitle={`${p.objectiveObj.label} — kisko dikhega aur kya dikhega`}
     />
 
     {/* Campaign name */}
@@ -352,33 +486,51 @@ const StepAudience = ({
       <Label htmlFor="cc-name" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">
         Campaign ka naam
       </Label>
-      <Input
-        id="cc-name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="e.g. Diwali Sale · CTW Ads · Ranchi"
-        className="mt-1.5"
-        autoFocus
-      />
+      <Input id="cc-name" value={p.name} onChange={(e) => p.setName(e.target.value)} placeholder="e.g. Diwali Sale · CTW · Ranchi" className="mt-1.5" autoFocus />
       <p className="text-[11px] text-foreground/60 font-medium mt-1.5">
-        Sirf aapko dikhega — customers ko nahi. Internal tracking ke liye hai.
+        Internal naam · customers ko nahi dikhega.
       </p>
     </Card>
 
-    {/* Audience */}
+    {/* Facebook Page (required for Ad creative) */}
     <Card>
       <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">
-        Audience (Custom / Lookalike / Saved)
+        Facebook Page (ad isi se chalegi)
       </Label>
-      <p className="text-[11px] text-foreground/60 font-medium mt-1 mb-2.5">
-        Existing audiences Meta se aate hain. Empty hai? Pehle Audiences tab pe banao.
+      <p className="text-[11px] text-foreground/60 font-medium mt-1 mb-2">
+        Ad apke Page ke naam se publish hoga · {p.isCTW ? "WhatsApp number bhi isi page se linked hai" : "users isi page ka naam dekhenge"}
       </p>
-      <Select value={audience} onValueChange={setAudience}>
+      <Select value={p.pageId} onValueChange={p.setPageId}>
         <SelectTrigger>
-          <SelectValue placeholder={audiencesLoading ? "Loading…" : audiences.length === 0 ? "Koi audience nahi — pehle banao" : "Audience select karein"} />
+          <SelectValue placeholder={p.pagesLoading ? "Loading pages…" : p.pages.length === 0 ? "Koi page nahi mila — Meta Business par page banao" : "Page select karein"} />
         </SelectTrigger>
         <SelectContent>
-          {audiences.map((a) => (
+          {p.pages.map((pg) => (
+            <SelectItem key={pg.id} value={pg.id}>
+              <span className="flex items-center gap-2">
+                <span className="font-bold">{pg.name}</span>
+                {pg.category && <span className="text-foreground/60 text-[11px]">· {pg.category}</span>}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Card>
+
+    {/* Custom Audience */}
+    <Card>
+      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">
+        Custom audience (optional)
+      </Label>
+      <p className="text-[11px] text-foreground/60 font-medium mt-1 mb-2">
+        Meta se aate hain · empty hai? Pehle Audiences tab pe banao. Skip karne pe Meta auto-target karega.
+      </p>
+      <Select value={p.audience} onValueChange={p.setAudience}>
+        <SelectTrigger>
+          <SelectValue placeholder={p.audiencesLoading ? "Loading…" : p.audiences.length === 0 ? "(no custom audiences — auto-targeting)" : "Audience select karein"} />
+        </SelectTrigger>
+        <SelectContent>
+          {p.audiences.map((a) => (
             <SelectItem key={a.id} value={a.id}>
               <span className="flex items-center gap-2">
                 <span className="font-bold">{a.name}</span>
@@ -395,22 +547,81 @@ const StepAudience = ({
       <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
         <MapPin className="w-3.5 h-3.5" /> Location
       </Label>
-      <div className="grid grid-cols-1 gap-2 mt-2">
-        {LOCATIONS.map((l) => (
-          <button
-            key={l.id}
-            onClick={() => setLocation(l.id)}
-            className={cn(
-              "px-3 py-2.5 rounded-xl border-2 text-left transition-all text-[12px] font-bold",
-              location === l.id
-                ? "border-[#3C50E0] bg-[#E4E8FF] text-[#2533A8]"
-                : "border-[#E8B968] bg-white hover:bg-[#FFF6E8]"
-            )}
-          >
-            {l.label}
-          </button>
-        ))}
+      <div className="flex gap-2 mt-2 mb-3">
+        <button
+          onClick={() => p.setLocationMode("preset")}
+          className={cn(
+            "flex-1 px-3 py-1.5 rounded-lg text-[12px] font-extrabold border-2 transition-all",
+            p.locationMode === "preset" ? "bg-[#FF6A1F] text-white border-[#B8420A]" : "bg-white text-foreground/70 border-[#E8B968]"
+          )}
+        >Quick presets</button>
+        <button
+          onClick={() => p.setLocationMode("custom")}
+          className={cn(
+            "flex-1 px-3 py-1.5 rounded-lg text-[12px] font-extrabold border-2 transition-all",
+            p.locationMode === "custom" ? "bg-[#FF6A1F] text-white border-[#B8420A]" : "bg-white text-foreground/70 border-[#E8B968]"
+          )}
+        >Search cities</button>
       </div>
+
+      {p.locationMode === "preset" ? (
+        <div className="grid grid-cols-1 gap-2">
+          {LOCATION_PRESETS.map((l) => (
+            <button
+              key={l.id}
+              onClick={() => p.setLocationPreset(l.id)}
+              className={cn(
+                "px-3 py-2.5 rounded-xl border-2 text-left transition-all text-[12px] font-bold",
+                p.locationPreset === l.id ? "border-[#3C50E0] bg-[#E4E8FF] text-[#2533A8]" : "border-[#E8B968] bg-white hover:bg-[#FFF6E8]"
+              )}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/40" />
+            <Input value={p.geoQuery} onChange={(e) => p.setGeoQuery(e.target.value)} placeholder="Type city or state name (e.g. Ranchi, Jharkhand)…" className="pl-9" />
+          </div>
+          {p.geoLoading && <p className="text-[11px] text-foreground/60 mt-2 flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin" /> Searching Meta…</p>}
+          {p.geoResults.length > 0 && (
+            <div className="mt-2 border-2 border-[#E8B968] rounded-xl divide-y divide-[#E8B968]/40 bg-white max-h-52 overflow-y-auto">
+              {p.geoResults.map((r) => (
+                <button
+                  key={r.key + r.type}
+                  onClick={() => {
+                    if (!p.customGeos.find((g) => g.key === r.key)) {
+                      p.setCustomGeos([...p.customGeos, { key: r.key, name: r.name, type: r.type, country_code: r.country_name }]);
+                    }
+                    p.setGeoQuery("");
+                  }}
+                  className="w-full px-3 py-2 text-left hover:bg-[#FFF6E8] transition flex items-center gap-2"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-[#B8651A] flex-shrink-0" />
+                  <span className="text-[12px] font-bold">{r.name}</span>
+                  <span className="text-[10px] text-foreground/50 uppercase tracking-wider">{r.type}</span>
+                  {r.region && <span className="text-[10px] text-foreground/40">· {r.region}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          {p.customGeos.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {p.customGeos.map((g) => (
+                <span key={g.key + g.type} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-[#E4E8FF] border border-[#3C50E0]/30 text-[#2533A8] text-[11px] font-extrabold">
+                  <MapPin className="w-3 h-3" />
+                  {g.name}
+                  <button onClick={() => p.setCustomGeos(p.customGeos.filter((x) => x.key !== g.key))} className="hover:text-[#D4308E]">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </Card>
 
     {/* Language */}
@@ -419,42 +630,121 @@ const StepAudience = ({
         <Languages className="w-3.5 h-3.5" /> Language
       </Label>
       <div className="flex gap-2 flex-wrap mt-2">
-        {LANGUAGES.map((l) => (
+        {LANGUAGE_PRESETS.map((l) => (
           <button
             key={l.id}
-            onClick={() => setLanguage(l.id)}
+            onClick={() => p.setLanguage(l.id)}
             className={cn(
               "px-3 py-2 rounded-xl border-2 text-[12px] font-extrabold transition-all",
-              language === l.id
-                ? "border-[#0E8A4B] bg-[#E6F7EE] text-[#0A6E3C]"
-                : "border-[#E8B968] bg-white hover:bg-[#FFF6E8]"
+              p.language === l.id ? "border-[#0E8A4B] bg-[#E6F7EE] text-[#0A6E3C]" : "border-[#E8B968] bg-white hover:bg-[#FFF6E8]"
             )}
-          >
-            {l.label}
-          </button>
+          >{l.label}</button>
         ))}
+      </div>
+    </Card>
+
+    {/* Ad Creative */}
+    <SectionHeader
+      icon={ImageIcon}
+      iconBg="bg-[#D4308E]"
+      title="Ad creative · yeh actually dikhega"
+      subtitle="Image + heading + body + CTA button — yahi ad customer ko dikhega"
+    />
+
+    <Card>
+      <Label htmlFor="cc-image" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
+        <ImageIcon className="w-3.5 h-3.5" /> Image URL
+      </Label>
+      <Input
+        id="cc-image"
+        value={p.adImageUrl}
+        onChange={(e) => p.setAdImageUrl(e.target.value)}
+        placeholder="https://yourwebsite.com/diwali-poster.jpg"
+        className="mt-1.5"
+      />
+      <p className="text-[11px] text-foreground/60 font-medium mt-1.5">
+        1200×628px recommended · public URL chahiye (Meta khud download karega)
+      </p>
+      {p.adImageUrl && (
+        <img
+          src={p.adImageUrl}
+          alt="preview"
+          className="mt-2 w-full max-w-xs rounded-xl border-2 border-[#E8B968] object-cover aspect-[1.91/1]"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+        />
+      )}
+    </Card>
+
+    <Card>
+      <Label htmlFor="cc-headline" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
+        <FileText className="w-3.5 h-3.5" /> Headline <span className="text-foreground/40 ml-1">({p.adHeadline.length}/40)</span>
+      </Label>
+      <Input
+        id="cc-headline"
+        value={p.adHeadline}
+        onChange={(e) => p.setAdHeadline(e.target.value.slice(0, 40))}
+        placeholder="50% off · only 48 hours"
+        className="mt-1.5 font-extrabold"
+        maxLength={40}
+      />
+    </Card>
+
+    <Card>
+      <Label htmlFor="cc-body" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
+        <FileText className="w-3.5 h-3.5" /> Body text <span className="text-foreground/40 ml-1">({p.adBody.length}/125)</span>
+      </Label>
+      <Textarea
+        id="cc-body"
+        value={p.adBody}
+        onChange={(e) => p.setAdBody(e.target.value.slice(0, 125))}
+        placeholder="Diwali special — Hindi WhatsApp pe chat karein aur extra 15% discount paayein."
+        className="mt-1.5"
+        rows={3}
+        maxLength={125}
+      />
+    </Card>
+
+    <Card>
+      <Label htmlFor="cc-link" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">
+        Destination URL
+      </Label>
+      <Input
+        id="cc-link"
+        value={p.adLinkUrl}
+        onChange={(e) => p.setAdLinkUrl(e.target.value)}
+        placeholder={p.isCTW ? "https://wa.me/919709707311" : "https://yoursite.com/landing"}
+        className="mt-1.5 font-mono text-[12px]"
+      />
+      {p.isCTW && p.whatsappNumber && (
+        <p className="text-[11px] text-[#0A6E3C] font-medium mt-1.5 flex items-center gap-1.5">
+          <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={3} /> Auto-filled from connected WhatsApp number: {p.whatsappNumber}
+        </p>
+      )}
+      {!p.isCTW && (
+        <p className="text-[11px] text-foreground/60 font-medium mt-1.5">
+          Jahan customer click karke jayega · landing page, product page, ya wa.me link.
+        </p>
+      )}
+      <div className="mt-3 px-3 py-2 rounded-lg bg-[#FFF1D6] border border-[#E8B968] text-[11px] font-bold text-[#7A4A00]">
+        CTA button: <span className="font-mono">{p.objectiveObj.cta}</span> ({p.objectiveObj.label} ke liye recommended)
       </div>
     </Card>
   </>
 );
 
-/* ─────────────────────────── STEP 3: Budget & Review ─────────────────────────── */
+/* ─────────────────────────── STEP 3 ─────────────────────────── */
 
 const StepBudget = ({
   budget, setBudget, optimizeAI, setOptimizeAI, launchPaused, setLaunchPaused,
-  name, objectiveObj, audienceName, location, language,
+  name, objectiveObj, audienceName, locationLabel, languageLabel,
+  pageName, adHeadline, adBody, adImageUrl,
 }: {
-  budget: string;
-  setBudget: (v: string) => void;
-  optimizeAI: boolean;
-  setOptimizeAI: (v: boolean) => void;
-  launchPaused: boolean;
-  setLaunchPaused: (v: boolean) => void;
-  name: string;
-  objectiveObj: typeof OBJECTIVES[number];
-  audienceName: string;
-  location: string;
-  language: string;
+  budget: string; setBudget: (v: string) => void;
+  optimizeAI: boolean; setOptimizeAI: (v: boolean) => void;
+  launchPaused: boolean; setLaunchPaused: (v: boolean) => void;
+  name: string; objectiveObj: typeof OBJECTIVES[number];
+  audienceName: string; locationLabel: string; languageLabel: string;
+  pageName: string; adHeadline: string; adBody: string; adImageUrl: string;
 }) => (
   <>
     <SectionHeader
@@ -464,22 +754,13 @@ const StepBudget = ({
       subtitle="Daily budget set karo, AI optimization on rakho, aur campaign launch karo"
     />
 
-    {/* Budget */}
     <Card>
       <Label htmlFor="cc-budget" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">
         Daily budget (₹)
       </Label>
       <div className="relative mt-2">
         <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#FF6A1F]" />
-        <Input
-          id="cc-budget"
-          type="number"
-          value={budget}
-          onChange={(e) => setBudget(e.target.value)}
-          min={100}
-          step={100}
-          className="pl-9 text-lg font-extrabold tabular-nums"
-        />
+        <Input id="cc-budget" type="number" value={budget} onChange={(e) => setBudget(e.target.value)} min={100} step={100} className="pl-9 text-lg font-extrabold tabular-nums" />
       </div>
       <div className="flex gap-1.5 mt-2 flex-wrap">
         {BUDGET_PRESETS.map((p) => (
@@ -488,73 +769,65 @@ const StepBudget = ({
             onClick={() => setBudget(p)}
             className={cn(
               "px-3 py-1.5 rounded-full text-[12px] font-extrabold border-2 transition-all tabular-nums",
-              budget === p
-                ? "bg-[#FF6A1F] text-white border-[#B8420A]"
-                : "bg-white text-foreground/70 border-[#E8B968] hover:bg-[#FFF1D6]"
+              budget === p ? "bg-[#FF6A1F] text-white border-[#B8420A]" : "bg-white text-foreground/70 border-[#E8B968] hover:bg-[#FFF1D6]"
             )}
-          >
-            ₹{Number(p).toLocaleString("en-IN")}
-          </button>
+          >₹{Number(p).toLocaleString("en-IN")}</button>
         ))}
       </div>
       <p className="text-[11px] text-foreground/60 font-medium mt-2">
-        Minimum ₹100/day. Meta is amount tak hi spend karega — over-spending nahi hogi.
+        Minimum ₹100/day. Meta is amount tak hi spend karega.
       </p>
     </Card>
 
-    {/* AI optimization */}
     <Card className="bg-[#FFF1D6] border-[#E8B968]">
       <div className="flex items-center gap-3">
         <Switch checked={optimizeAI} onCheckedChange={setOptimizeAI} />
         <div className="flex-1">
           <p className="text-[13px] font-extrabold flex items-center gap-1.5">
-            <Brain className="w-3.5 h-3.5 text-[#FF6A1F]" />
-            Addison AI ko optimize karne dein
+            <Brain className="w-3.5 h-3.5 text-[#FF6A1F]" /> Addison AI ko optimize karne dein
           </p>
           <p className="text-[11px] text-foreground/70 font-medium mt-0.5">
-            Budget, bid, creatives auto-adjust honge har 6 ghante mein, performance ke base pe
+            Budget, bid, creatives auto-adjust honge har 6 ghante mein
           </p>
         </div>
       </div>
     </Card>
 
-    {/* Launch mode */}
     <Card className={launchPaused ? "bg-white" : "bg-[#E6F7EE] border-[#0E8A4B]"}>
       <div className="flex items-center gap-3">
         <Switch checked={!launchPaused} onCheckedChange={(v) => setLaunchPaused(!v)} />
         <div className="flex-1">
-          <p className="text-[13px] font-extrabold">
-            {launchPaused ? "Create as paused (recommended)" : "Launch immediately"}
-          </p>
+          <p className="text-[13px] font-extrabold">{launchPaused ? "Create as paused (recommended)" : "Launch immediately"}</p>
           <p className="text-[11px] text-foreground/70 font-medium mt-0.5">
             {launchPaused
-              ? "Campaign create ho jayega lekin chalega nahi · Meta Ads Manager me review karke ON karein"
+              ? "Ad create ho jayega but chalega nahi · Meta Ads Manager me review karke ON karein"
               : "⚠️ Ad turant chalu ho jaayegi aur paise spend hone shuru ho jayenge"}
           </p>
         </div>
       </div>
     </Card>
 
-    {/* Final review summary */}
     <Card>
       <p className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold mb-3">Review summary</p>
       <div className="space-y-2">
-        <ReviewRow label="Objective" value={objectiveObj.label} icon={objectiveObj.icon} />
+        <ReviewRow label="Objective"     value={objectiveObj.label} icon={objectiveObj.icon} />
         <ReviewRow label="Campaign name" value={name || "—"} />
-        <ReviewRow label="Audience" value={audienceName} />
-        <ReviewRow label="Location" value={location} />
-        <ReviewRow label="Language" value={language} />
-        <ReviewRow label="Daily budget" value={`₹${Number(budget).toLocaleString("en-IN")}`} />
+        <ReviewRow label="Facebook Page" value={pageName} />
+        <ReviewRow label="Audience"      value={audienceName} />
+        <ReviewRow label="Location"      value={locationLabel} />
+        <ReviewRow label="Language"      value={languageLabel} />
+        <ReviewRow label="Headline"      value={adHeadline || "—"} />
+        <ReviewRow label="Body"          value={adBody ? (adBody.length > 50 ? adBody.slice(0, 50) + "…" : adBody) : "—"} />
+        <ReviewRow label="Image"         value={adImageUrl ? "✓ attached" : "(none — text only ad)"} />
+        <ReviewRow label="Daily budget"  value={`₹${Number(budget).toLocaleString("en-IN")}`} />
       </div>
     </Card>
   </>
 );
 
-/* ─────────────────────────── Building blocks ─────────────────────────── */
+/* ─────────────────────────── Shared blocks ─────────────────────────── */
 
-const SectionHeader = ({
-  icon: Icon, iconBg, title, subtitle,
-}: { icon: typeof Target; iconBg: string; title: string; subtitle: string }) => (
+const SectionHeader = ({ icon: Icon, iconBg, title, subtitle }: { icon: typeof Target; iconBg: string; title: string; subtitle: string }) => (
   <div className="flex items-start gap-3 mb-1">
     <div className={cn("w-12 h-12 rounded-2xl text-white flex items-center justify-center shadow-md flex-shrink-0", iconBg)}>
       <Icon className="w-6 h-6" strokeWidth={2.5} />
@@ -575,62 +848,67 @@ const Card = ({ children, className }: { children: React.ReactNode; className?: 
 const ReviewRow = ({ label, value, icon: Icon }: { label: string; value: string; icon?: typeof Target }) => (
   <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-[#FFF6E8] border border-[#E8B968]/40">
     <span className="text-[10px] uppercase tracking-[0.12em] text-[#B8651A] font-extrabold flex items-center gap-1.5 flex-shrink-0">
-      {Icon && <Icon className="w-3 h-3" />}
-      {label}
+      {Icon && <Icon className="w-3 h-3" />} {label}
     </span>
     <span className="text-[13px] font-extrabold text-right truncate">{value}</span>
   </div>
 );
 
-const PreviewCard = ({
-  objectiveObj, name, budget, dailySpend, weeklySpend, monthlySpend,
-  estReachLow, estReachHigh, estResultsLow, estResultsHigh, optimizeAI,
+const LivePreviewCard = ({
+  name, objectiveObj, dailySpend, reachLow, reachHigh, resultsLow, resultsHigh,
+  audienceSizeLow, audienceSizeHigh, mode, loading, optimizeAI,
 }: {
-  objectiveObj: typeof OBJECTIVES[number];
   name: string;
-  budget: string;
+  objectiveObj: typeof OBJECTIVES[number];
   dailySpend: number;
-  weeklySpend: number;
-  monthlySpend: number;
-  estReachLow: number;
-  estReachHigh: number;
-  estResultsLow: number;
-  estResultsHigh: number;
+  reachLow: number; reachHigh: number;
+  resultsLow: number; resultsHigh: number;
+  audienceSizeLow?: number; audienceSizeHigh?: number;
+  mode: "live" | "warming" | "demo";
+  loading: boolean;
   optimizeAI: boolean;
 }) => (
   <div className="bg-gradient-to-br from-[#0A3D24] to-[#0D4E2E] text-white rounded-2xl border-2 border-[#0A3D24] shadow-[0_4px_0_0_#072917] p-5 relative overflow-hidden">
-    <div
-      className="absolute inset-0 opacity-10 pointer-events-none"
-      style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "20px 20px" }}
-    />
+    <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "20px 20px" }} />
     <div className="relative">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-9 h-9 rounded-lg bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center">
           <Eye className="w-4 h-4" strokeWidth={2.5} />
         </div>
         <div>
-          <p className="text-[10px] uppercase tracking-[0.18em] text-[#FFD23F] font-extrabold">Live estimate</p>
-          <p className="text-[13px] font-extrabold">{name || "Naya campaign"}</p>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-[#FFD23F] font-extrabold flex items-center gap-1.5">
+            {mode === "live" ? "Live estimate · Meta" : mode === "warming" ? "Estimate warming up" : "Demo estimate"}
+            {loading && <Loader2 className="w-3 h-3 animate-spin" />}
+          </p>
+          <p className="text-[13px] font-extrabold truncate max-w-[240px]">{name || "Naya campaign"}</p>
         </div>
       </div>
 
-      <PreviewStat label="Per day" value={`₹${dailySpend.toLocaleString("en-IN")}`} />
-      <PreviewStat label="Per week" value={`₹${weeklySpend.toLocaleString("en-IN")}`} />
-      <PreviewStat label="Per month" value={`₹${monthlySpend.toLocaleString("en-IN")}`} />
+      <PreviewStat label="Per day"   value={`₹${dailySpend.toLocaleString("en-IN")}`} />
+      <PreviewStat label="Per week"  value={`₹${(dailySpend * 7).toLocaleString("en-IN")}`} />
+      <PreviewStat label="Per month" value={`₹${(dailySpend * 30).toLocaleString("en-IN")}`} />
 
       <div className="border-t border-white/15 my-3" />
 
-      <div>
-        <p className="text-[10px] uppercase tracking-[0.15em] text-[#FFD23F] font-extrabold mb-1.5">Expected reach</p>
-        <p className="text-2xl font-black tracking-tight">
-          {compactNum(estReachLow)}<span className="opacity-60 mx-1">–</span>{compactNum(estReachHigh)}
-          <span className="text-[11px] opacity-70 font-medium ml-1">people</span>
-        </p>
-      </div>
+      {audienceSizeLow !== undefined && audienceSizeHigh !== undefined && audienceSizeHigh > 0 && (
+        <div className="mb-3">
+          <p className="text-[10px] uppercase tracking-[0.15em] text-[#FFD23F] font-extrabold mb-1">Audience size</p>
+          <p className="text-[14px] font-extrabold">
+            {compactNum(audienceSizeLow)}<span className="opacity-60 mx-1">–</span>{compactNum(audienceSizeHigh)} people
+          </p>
+        </div>
+      )}
+
+      <p className="text-[10px] uppercase tracking-[0.15em] text-[#FFD23F] font-extrabold mb-1.5">Expected daily reach</p>
+      <p className="text-2xl font-black tracking-tight">
+        {compactNum(reachLow)}<span className="opacity-60 mx-1">–</span>{compactNum(reachHigh)}
+        <span className="text-[11px] opacity-70 font-medium ml-1">people</span>
+      </p>
+
       <div className="mt-3">
-        <p className="text-[10px] uppercase tracking-[0.15em] text-[#FFD23F] font-extrabold mb-1.5">Expected {objectiveObj.label.toLowerCase()} results</p>
+        <p className="text-[10px] uppercase tracking-[0.15em] text-[#FFD23F] font-extrabold mb-1.5">Expected {objectiveObj.label.toLowerCase()}</p>
         <p className="text-2xl font-black tracking-tight tabular-nums">
-          {estResultsLow}<span className="opacity-60 mx-1">–</span>{estResultsHigh}
+          {resultsLow}<span className="opacity-60 mx-1">–</span>{resultsHigh}
           <span className="text-[11px] opacity-70 font-medium ml-1">/ day</span>
         </p>
       </div>
@@ -655,10 +933,10 @@ const PreviewStat = ({ label, value }: { label: string; value: string }) => (
 const AISuggestionsCard = ({ objective, budget }: { objective: string; budget: string }) => {
   const suggestions = useMemo(() => {
     const out: string[] = [];
-    if (Number(budget) < 1000) out.push("Budget ₹1,000+ rakho — Meta ko learn karne ke liye chahiye");
-    if (objective === "ctw") out.push("WhatsApp template approve karwa lo — pehli reply isi se jaayegi");
+    if (Number(budget) < 1000) out.push("Budget ₹1,000+ rakho — Meta ko learning ke liye chahiye");
+    if (objective === "ctw") out.push("WhatsApp greeting template approve karwa lo — pehli reply isi se jaayegi");
     if (objective === "leads") out.push("Form ke 2-3 fields hi rakho — har extra field 15% drop-off karta hai");
-    out.push("Pehle 3 din ko 'learning phase' samjho — results din 4 se settle hote hain");
+    out.push("Pehle 3 din 'learning phase' — results din 4 se settle hote hain");
     return out;
   }, [objective, budget]);
 

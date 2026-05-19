@@ -155,8 +155,50 @@ export const api = {
     demo: boolean;
     error?: string;
   }>("/ads/campaigns"),
-  createAdCampaign: (data: { name: string; objective: string; daily_budget_inr: number; status?: "ACTIVE" | "PAUSED" }) =>
-    post<{ ok: true; id: string }>("/ads/campaigns", data),
+  createAdCampaign: (data: {
+    name: string;
+    objective: string;
+    daily_budget_inr: number;
+    status?: "ACTIVE" | "PAUSED";
+    targeting?: {
+      country_codes?: string[];
+      city_keys?: string[];
+      region_keys?: string[];
+      age_min?: number;
+      age_max?: number;
+      audience_id?: string;
+      locales?: number[];
+    };
+    creative?: {
+      page_id: string;
+      image_url?: string;
+      headline: string;
+      body: string;
+      link_url: string;
+      cta_type?: string;
+    };
+  }) =>
+    post<{ ok: true; id?: string; mode?: "campaign_only" | "full_launch"; campaign_id?: string; ad_set_id?: string; creative_id?: string; ad_id?: string }>("/ads/campaigns", data),
+  searchAdTargeting: (q: string) =>
+    get<{ results: Array<{ key: string; name: string; type: string; country_code?: string; country_name?: string; region?: string }>; demo?: boolean }>(`/ads/targeting/search?q=${encodeURIComponent(q)}`),
+  estimateAdDelivery: (data: {
+    objective: string;
+    daily_budget_inr: number;
+    targeting?: { country_codes?: string[]; city_keys?: string[]; region_keys?: string[]; age_min?: number; age_max?: number; audience_id?: string };
+  }) =>
+    post<{
+      estimate_ready: boolean;
+      audience_size_low?: number;
+      audience_size_high?: number;
+      reach_low: number;
+      reach_high: number;
+      results_low: number;
+      results_high: number;
+      demo: boolean;
+      error?: string;
+    }>("/ads/estimate", data),
+  listAdPages: () =>
+    get<{ pages: Array<{ id: string; name: string; category: string | null }>; demo?: boolean }>("/ads/pages"),
   updateAdCampaign: (id: string, data: { status?: "ACTIVE" | "PAUSED"; daily_budget_inr?: number; name?: string }) =>
     patch<{ ok: true }>(`/ads/campaigns/${id}`, data),
   getAdInsights: (range?: "today" | "yesterday" | "last_7d" | "last_14d" | "last_30d") =>

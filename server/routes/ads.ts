@@ -24,9 +24,18 @@ import {
   accountInsights,
   campaignInsights,
   listCustomAudiences,
+  targetingSearch,
+  deliveryEstimate,
+  listPages,
+  createAdSet,
+  createAdCreative,
+  createAd,
+  deleteCampaign,
+  deleteAdSet,
   AdsApiError,
   type AdsCredentials,
   type MetaCampaign,
+  type TargetingSpec,
 } from "../integrations/meta-ads";
 
 const app = new Hono<{ Variables: AuthVariables }>();
@@ -157,6 +166,19 @@ app.get("/ads/campaigns", async (c) => {
   }
 });
 
+/**
+ * Create a campaign — with optional full launch (AdSet + Ad).
+ *
+ * Two modes:
+ *   - "campaign_only": just creates the Meta Campaign object. User finishes
+ *     the AdSet + Ad inside Meta Ads Manager. Used as a fallback when the
+ *     wizard doesn't have a creative ready.
+ *   - "full_launch":  Campaign → AdSet → Ad creative → Ad, all in one
+ *     transaction. If any step fails, the partially-created objects are
+ *     deleted so the user's ad account doesn't fill up with orphans.
+ *
+ * Mode is inferred from whether `creative` is in the payload.
+ */
 app.post("/ads/campaigns", async (c) => {
   const creds = await getCreds(c.var.userId);
   if (!creds) return c.json({ error: "Connect Meta Ads first" }, 400);
@@ -166,6 +188,23 @@ app.post("/ads/campaigns", async (c) => {
     objective: string;
     daily_budget_inr: number;
     status?: "ACTIVE" | "PAUSED";
+    targeting?: {
+      country_codes?: string[];
+      city_keys?: string[];
+      region_keys?: string[];
+      age_min?: number;
+      age_max?: number;
+      audience_id?: string;
+      locales?: number[];
+    };
+    creative?: {
+      page_id: string;
+      image_url?: string;
+      headline: string;
+      body: string;
+      link_url: string;
+      cta_type?: string;
+    };
   }>();
   if (!body.name?.trim()) return c.json({ error: "name required" }, 400);
   if (!body.objective) return c.json({ error: "objective required" }, 400);
@@ -173,17 +212,228 @@ app.post("/ads/campaigns", async (c) => {
     return c.json({ error: "daily_budget_inr must be ≥ 100" }, 400);
   }
 
+  const paise = Math.round(body.daily_budget_inr * 100);
+  let campaignId: string | undefined;
+  let adSetId: string | undefined;
+
   try {
-    const created = await createCampaign(creds, {
+    // Step 1: Campaign
+    const campaign = await createCampaign(creds, {
       name: body.name,
       objective: body.objective,
-      status: body.status ?? "PAUSED",
-      daily_budget: Math.round(body.daily_budget_inr * 100), // paise
+      status: "PAUSED", // always start paused at the campaign level; status of the Ad controls running
+      daily_budget: paise,
     });
-    return c.json({ ok: true, id: created.id });
+    campaignId = campaign.id;
+
+    // Campaign-only mode → return now
+    if (!body.creative) {
+      return c.json({ ok: true, id: campaign.id, mode: "campaign_only" });
+    }
+
+    // Build targeting_spec
+    const targetingSpec: TargetingSpec = {
+      geo_locations: {
+        countries: body.targeting?.country_codes ?? ["IN"],
+        cities: body.targeting?.city_keys?.map((k) => ({ key: k, radius: 40, distance_unit: "kilometer" })),
+        regions: body.targeting?.region_keys?.map((k) => ({ key: k })),
+      },
+      age_min: body.targeting?.age_min ?? 18,
+      age_max: body.targeting?.age_max ?? 65,
+    };
+    if (body.targeting?.audience_id) {
+      targetingSpec.custom_audiences = [{ id: body.targeting.audience_id }];
+    }
+    if (body.targeting?.locales?.length) {
+      targetingSpec.locales = body.targeting.locales;
+    }
+
+    // Pick a sensible optimization goal per objective
+    const isCTW = /MESSAGES/i.test(body.objective);
+    const optimizationGoal =
+      isCTW ? "CONVERSATIONS" :
+      /OUTCOME_LEADS/i.test(body.objective) ? "LEAD_GENERATION" :
+      /OUTCOME_SALES/i.test(body.objective) ? "OFFSITE_CONVERSIONS" :
+      "LINK_CLICKS";
+
+    // Step 2: Ad Set
+    const adSet = await createAdSet(creds, {
+      name: `${body.name} · Ad Set`,
+      campaignId: campaign.id,
+      dailyBudgetPaise: paise,
+      billingEvent: "IMPRESSIONS",
+      optimizationGoal,
+      targetingSpec,
+      destinationType: isCTW ? "WHATSAPP" : undefined,
+      pageId: body.creative.page_id,
+      status: "PAUSED",
+    });
+    adSetId = adSet.id;
+
+    // Step 3: Ad Creative
+    const ctaType = body.creative.cta_type ?? (isCTW ? "WHATSAPP_MESSAGE" : "LEARN_MORE");
+    const creative = await createAdCreative(creds, {
+      name: `${body.name} · Creative`,
+      pageId: body.creative.page_id,
+      imageUrl: body.creative.image_url,
+      headline: body.creative.headline,
+      body: body.creative.body,
+      linkUrl: body.creative.link_url,
+      ctaType,
+    });
+
+    // Step 4: Ad (links creative to ad set)
+    const ad = await createAd(creds, {
+      name: `${body.name} · Ad`,
+      adSetId: adSet.id,
+      creativeId: creative.id,
+      status: body.status ?? "PAUSED",
+    });
+
+    return c.json({
+      ok: true,
+      mode: "full_launch",
+      campaign_id: campaign.id,
+      ad_set_id: adSet.id,
+      creative_id: creative.id,
+      ad_id: ad.id,
+    });
+  } catch (e) {
+    // Rollback partial creates so Meta isn't left with orphan campaign/ad-set rows.
+    if (adSetId) {
+      await deleteAdSet(creds, adSetId).catch((err) => console.error("[ads rollback adset]", err));
+    }
+    if (campaignId) {
+      await deleteCampaign(creds, campaignId).catch((err) => console.error("[ads rollback campaign]", err));
+    }
+    const err = onApiError(e);
+    return c.json({ error: err.error, meta: err.meta }, 400);
+  }
+});
+
+/* ─────────── Real-data helpers for the create wizard ─────────── */
+
+/** Search Meta targeting (locations etc) — typeahead for the create wizard. */
+app.get("/ads/targeting/search", async (c) => {
+  const creds = await getCreds(c.var.userId);
+  if (!creds) return c.json({ results: [], demo: true });
+  const q = c.req.query("q") ?? "";
+  if (!q.trim()) return c.json({ results: [] });
+  try {
+    const results = await targetingSearch(creds, q);
+    return c.json({ results, demo: false });
   } catch (e) {
     const err = onApiError(e);
-    return c.json({ error: err.error }, 400);
+    return c.json({ error: err.error, results: [] }, 200);
+  }
+});
+
+/** Real reach/results estimate from Meta — called as the user changes
+ *  budget / targeting in the wizard preview. */
+app.post("/ads/estimate", async (c) => {
+  const creds = await getCreds(c.var.userId);
+  const body = await c.req.json<{
+    objective: string;
+    daily_budget_inr: number;
+    targeting?: {
+      country_codes?: string[];
+      city_keys?: string[];
+      region_keys?: string[];
+      age_min?: number;
+      age_max?: number;
+      audience_id?: string;
+    };
+  }>();
+
+  if (!creds) {
+    // Demo fallback — same shape as the live response so the UI can render the
+    // estimate card before the workspace connects Meta.
+    const b = body.daily_budget_inr || 1000;
+    return c.json({
+      estimate_ready: false,
+      reach_low: Math.round(b * 12),
+      reach_high: Math.round(b * 28),
+      results_low: Math.round(b / 3.5),
+      results_high: Math.round(b / 1.8),
+      demo: true,
+    });
+  }
+
+  try {
+    const targetingSpec: TargetingSpec = {
+      geo_locations: {
+        countries: body.targeting?.country_codes ?? ["IN"],
+        cities: body.targeting?.city_keys?.map((k) => ({ key: k, radius: 40, distance_unit: "kilometer" })),
+        regions: body.targeting?.region_keys?.map((k) => ({ key: k })),
+      },
+      age_min: body.targeting?.age_min ?? 18,
+      age_max: body.targeting?.age_max ?? 65,
+    };
+    if (body.targeting?.audience_id) targetingSpec.custom_audiences = [{ id: body.targeting.audience_id }];
+
+    const isCTW = /MESSAGES/i.test(body.objective);
+    const optimizationGoal =
+      isCTW ? "CONVERSATIONS" :
+      /OUTCOME_LEADS/i.test(body.objective) ? "LEAD_GENERATION" :
+      "LINK_CLICKS";
+
+    const est = await deliveryEstimate(creds, {
+      targetingSpec,
+      optimizationGoal,
+      dailyBudgetPaise: body.daily_budget_inr ? Math.round(body.daily_budget_inr * 100) : undefined,
+      currency: "INR",
+    });
+
+    // Find the curve point closest to the user's budget
+    const targetSpend = body.daily_budget_inr ? Math.round(body.daily_budget_inr * 100) : null;
+    const closest =
+      targetSpend !== null
+        ? est.daily_outcomes_curve.reduce<typeof est.daily_outcomes_curve[number] | null>((best, p) => {
+            if (!best) return p;
+            return Math.abs(p.spend - targetSpend) < Math.abs(best.spend - targetSpend) ? p : best;
+          }, null)
+        : est.daily_outcomes_curve[Math.floor(est.daily_outcomes_curve.length / 2)] ?? null;
+
+    return c.json({
+      estimate_ready: est.estimate_ready,
+      audience_size_low: est.estimate_mau_lower_bound,
+      audience_size_high: est.estimate_mau_upper_bound,
+      reach_low: closest ? Math.round(closest.reach * 0.85) : 0,
+      reach_high: closest ? Math.round(closest.reach * 1.15) : 0,
+      results_low: closest ? Math.round(closest.actions * 0.7) : 0,
+      results_high: closest ? Math.round(closest.actions * 1.3) : 0,
+      demo: false,
+    });
+  } catch (e) {
+    const err = onApiError(e);
+    // On Meta error, still return demo numbers so the wizard preview stays functional
+    const b = body.daily_budget_inr || 1000;
+    return c.json({
+      estimate_ready: false,
+      reach_low: Math.round(b * 12),
+      reach_high: Math.round(b * 28),
+      results_low: Math.round(b / 3.5),
+      results_high: Math.round(b / 1.8),
+      error: err.error,
+      demo: true,
+    });
+  }
+});
+
+/** List Facebook Pages this workspace can run ads from. CTW/lead ads must
+ *  attach to a Page. */
+app.get("/ads/pages", async (c) => {
+  const creds = await getCreds(c.var.userId);
+  if (!creds) return c.json({ pages: [], demo: true });
+  try {
+    const pages = await listPages(creds);
+    return c.json({
+      pages: pages.map((p) => ({ id: p.id, name: p.name, category: p.category ?? null })),
+      demo: false,
+    });
+  } catch (e) {
+    const err = onApiError(e);
+    return c.json({ error: err.error, pages: [] }, 200);
   }
 });
 
