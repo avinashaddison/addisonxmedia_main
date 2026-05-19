@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Target, IndianRupee, MousePointerClick, Eye, TrendingUp, Sparkles, Plus,
@@ -78,12 +79,12 @@ const objectives = [
 /* ============================================================ */
 
 export const AdsMarketingPage = () => {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [tab, setTab] = useState("campaigns");
   const [search, setSearch] = useState("");
   const [platformFilter, setPlatformFilter] = useState<"all" | Platform>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused" | "review">("all");
-  const [createOpen, setCreateOpen] = useState(false);
   const [boostOpen, setBoostOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
 
@@ -165,7 +166,7 @@ export const AdsMarketingPage = () => {
             <Sparkles className="w-3.5 h-3.5" />
             Boost WhatsApp
           </Button>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <Button size="sm" onClick={() => navigate("/app/ads/new")}>
             <Plus className="w-3.5 h-3.5" />
             Naya campaign
           </Button>
@@ -507,9 +508,6 @@ export const AdsMarketingPage = () => {
         </div>
       )}
 
-      {/* ============ CREATE CAMPAIGN DIALOG ============ */}
-      <CreateCampaignDialog open={createOpen} onOpenChange={setCreateOpen} audiences={audiences} isConnected={isConnected} />
-
       {/* ============ BOOST WHATSAPP DIALOG ============ */}
       <BoostWhatsAppDialog open={boostOpen} onOpenChange={setBoostOpen} isConnected={isConnected} />
 
@@ -742,299 +740,6 @@ const EmptyState = ({ icon: Icon, title, desc }: { icon: typeof Target; title: s
   </div>
 );
 
-/* ============================================================
-   CREATE CAMPAIGN DIALOG
-============================================================ */
-
-const OBJECTIVE_TO_META: Record<string, string> = {
-  ctw: "MESSAGES",
-  leads: "OUTCOME_LEADS",
-  sales: "OUTCOME_SALES",
-  traffic: "OUTCOME_TRAFFIC",
-  engagement: "OUTCOME_ENGAGEMENT",
-  catalog: "OUTCOME_SALES",
-};
-
-const CreateCampaignDialog = ({
-  open, onOpenChange, audiences, isConnected,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  audiences: Audience[];
-  isConnected: boolean;
-}) => {
-  const qc = useQueryClient();
-  const [step, setStep] = useState(1);
-  const [objective, setObjective] = useState("ctw");
-  const [platform, setPlatform] = useState<Platform>("meta");
-  const [name, setName] = useState("");
-  const [budget, setBudget] = useState("1000");
-  const [audience, setAudience] = useState<string>(audiences[0]?.id ?? "");
-  const [optimizeAI, setOptimizeAI] = useState(true);
-
-  const create = useMutation({
-    mutationFn: (vars: { name: string; objective: string; daily_budget_inr: number }) =>
-      api.createAdCampaign({ ...vars, status: "PAUSED" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ads", "campaigns"] });
-      toast.success(`Campaign "${name}" created (paused — review in Meta Ads Manager before going live)`);
-      onOpenChange(false);
-      reset();
-    },
-    onError: (e) => toast.error(String(e)),
-  });
-
-  const reset = () => { setStep(1); setObjective("ctw"); setName(""); setBudget("1000"); setAudience(audiences[0]?.id ?? ""); };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] text-white flex items-center justify-center shadow-md">
-              <Megaphone className="w-5 h-5" strokeWidth={2.5} />
-            </div>
-            <div>
-              <DialogTitle>Naya campaign banaiye</DialogTitle>
-              <DialogDescription className="text-foreground/70 font-medium">
-                Step {step} of 3 · {step === 1 ? "Objective" : step === 2 ? "Audience & Budget" : "Review"}
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        {/* Step indicator */}
-        <div className="flex items-center gap-2 my-2">
-          {[1, 2, 3].map((s) => (
-            <div
-              key={s}
-              className={cn(
-                "flex-1 h-2 rounded-full transition-all",
-                s <= step ? "bg-[#FF6A1F]" : "bg-[#FFF1D6] border border-[#E8B968]"
-              )}
-            />
-          ))}
-        </div>
-
-        {/* Step 1: Objective + Platform */}
-        {step === 1 && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Objective kya hai?</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {objectives.map((o) => (
-                  <button
-                    key={o.id}
-                    onClick={() => setObjective(o.id)}
-                    className={cn(
-                      "relative p-3 rounded-xl border-2 text-left transition-all",
-                      objective === o.id
-                        ? "border-[#FF6A1F] bg-[#FFEFE0] shadow-[0_2px_0_0_#B8420A]"
-                        : "border-[#E8B968] bg-white hover:bg-[#FFF6E8]"
-                    )}
-                  >
-                    {o.recommended && (
-                      <span className="absolute -top-2 right-2 px-1.5 py-0.5 rounded-full bg-[#FFD23F] text-[#7A4A00] text-[9px] font-extrabold uppercase tracking-wider">
-                        AI pick
-                      </span>
-                    )}
-                    <div className="flex items-center gap-2.5">
-                      <div className={cn(
-                        "w-9 h-9 rounded-lg flex items-center justify-center",
-                        objective === o.id ? "bg-[#FF6A1F] text-white" : "bg-[#FFF1D6] text-[#B8651A]"
-                      )}>
-                        <o.icon className="w-4 h-4" strokeWidth={2.5} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-extrabold">{o.label}</p>
-                        <p className="text-[10px] text-foreground/60 font-medium">{o.desc}</p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Platform</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setPlatform("meta")}
-                  className={cn(
-                    "p-3 rounded-xl border-2 flex items-center gap-2.5 transition-all",
-                    platform === "meta"
-                      ? "border-[#0866FF] bg-[#E6EEFF] shadow-[0_2px_0_0_#0050D6]"
-                      : "border-[#E8B968] bg-white hover:bg-[#FFF6E8]"
-                  )}
-                >
-                  <div className="w-9 h-9 rounded-lg bg-[#0866FF] text-white flex items-center justify-center text-base font-black">f</div>
-                  <div className="text-left">
-                    <p className="text-[13px] font-extrabold">Meta</p>
-                    <p className="text-[10px] text-foreground/60 font-medium">FB · IG · WhatsApp</p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setPlatform("google")}
-                  className={cn(
-                    "p-3 rounded-xl border-2 flex items-center gap-2.5 transition-all",
-                    platform === "google"
-                      ? "border-[#34A853] bg-[#E6F4EA] shadow-[0_2px_0_0_#1E7E34]"
-                      : "border-[#E8B968] bg-white hover:bg-[#FFF6E8]"
-                  )}
-                >
-                  <div className="w-9 h-9 rounded-lg bg-[#34A853] text-white flex items-center justify-center text-base font-black">G</div>
-                  <div className="text-left">
-                    <p className="text-[13px] font-extrabold">Google</p>
-                    <p className="text-[10px] text-foreground/60 font-medium">Search · YT · PMax</p>
-                  </div>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Name + Audience + Budget */}
-        {step === 2 && (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="ad-campaign-name">Campaign ka naam</Label>
-              <Input
-                id="ad-campaign-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Diwali Sale · CTW Ads"
-                autoFocus
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Audience</Label>
-              <Select value={audience} onValueChange={setAudience}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {audiences.filter((a) => a.status === "ready").map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name} <span className="text-foreground/60">· {compactNum(a.size)}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="ad-budget">Daily budget (₹)</Label>
-              <div className="relative">
-                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#FF6A1F]" />
-                <Input
-                  id="ad-budget"
-                  type="number"
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                  min={100}
-                  step={100}
-                  className="pl-9"
-                />
-              </div>
-              <div className="flex gap-1.5 mt-1">
-                {["500", "1000", "2500", "5000"].map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setBudget(p)}
-                    className={cn(
-                      "px-2.5 py-1 rounded-full text-[11px] font-extrabold border-2 transition-all",
-                      budget === p
-                        ? "bg-[#FF6A1F] text-white border-[#B8420A]"
-                        : "bg-white text-foreground/70 border-[#E8B968] hover:bg-[#FFF1D6]"
-                    )}
-                  >
-                    ₹{p}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-[#FFF1D6] border-2 border-[#E8B968]">
-              <Switch checked={optimizeAI} onCheckedChange={setOptimizeAI} />
-              <div className="flex-1">
-                <p className="text-[13px] font-extrabold flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#FF6A1F]" />
-                  Addison AI ko optimize karne dein
-                </p>
-                <p className="text-[11px] text-foreground/70 font-medium">Budget, bid aur creatives auto-adjust honge</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Review */}
-        {step === 3 && (
-          <div className="space-y-3">
-            <ReviewRow label="Objective" value={objectives.find((o) => o.id === objective)?.label || objective} />
-            <ReviewRow label="Platform" value={platform === "meta" ? "Meta (FB · IG · WhatsApp)" : "Google Ads"} />
-            <ReviewRow label="Name" value={name || "(no name)"} />
-            <ReviewRow label="Audience" value={audiences.find((a) => a.id === audience)?.name || "—"} />
-            <ReviewRow label="Daily budget" value={`₹${Number(budget).toLocaleString("en-IN")}/day · ₹${(Number(budget) * 7).toLocaleString("en-IN")}/week`} />
-            <ReviewRow label="AI optimization" value={optimizeAI ? "On" : "Off"} />
-
-            <div className="mt-4 p-3 rounded-xl bg-[#E6F7EE] border-2 border-[#0E8A4B]">
-              <p className="text-[12px] font-extrabold text-[#0E8A4B] flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" />
-                Estimated reach: 18,000–42,000 logon tak
-              </p>
-              <p className="text-[11px] text-foreground/70 mt-1 font-medium">
-                Expected: ~{Math.round(Number(budget) / 3)} clicks per din at avg ₹3 CPC
-              </p>
-            </div>
-          </div>
-        )}
-
-        <DialogFooter className="gap-2 sm:gap-2 mt-2">
-          {step > 1 && (
-            <Button variant="outline" onClick={() => setStep(step - 1)}>
-              Back
-            </Button>
-          )}
-          {step < 3 ? (
-            <Button onClick={() => setStep(step + 1)} disabled={step === 2 && !name.trim()}>
-              Continue <ArrowRight className="w-3.5 h-3.5" />
-            </Button>
-          ) : (
-            <Button
-              disabled={create.isPending}
-              onClick={() => {
-                if (!isConnected) {
-                  toast.error("Connect Meta Ads first (the Connect button on top of the page)");
-                  return;
-                }
-                if (platform === "google") {
-                  toast.info("Google Ads is on the v1.2 roadmap. For now, create your campaign in Meta.");
-                  return;
-                }
-                create.mutate({
-                  name,
-                  objective: OBJECTIVE_TO_META[objective] ?? "MESSAGES",
-                  daily_budget_inr: Number(budget),
-                });
-              }}
-            >
-              {create.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              Launch karein
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-const ReviewRow = ({ label, value }: { label: string; value: string }) => (
-  <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#FFF6E8] border border-[#E8B968]">
-    <span className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">{label}</span>
-    <span className="text-[13px] font-extrabold text-foreground text-right">{value}</span>
-  </div>
-);
 
 /* ============================================================
    BOOST WHATSAPP DIALOG (1-click)

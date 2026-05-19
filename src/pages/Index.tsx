@@ -21,6 +21,7 @@ const TemplatesPage = lazy(() => import("@/components/templates/TemplatesPage").
 const ActivityPage = lazy(() => import("@/components/activity/ActivityPage").then((m) => ({ default: m.ActivityPage })));
 const IntegrationsPage = lazy(() => import("@/components/integrations/IntegrationsPage").then((m) => ({ default: m.IntegrationsPage })));
 const AdsMarketingPage = lazy(() => import("@/components/ads/AdsMarketingPage").then((m) => ({ default: m.AdsMarketingPage })));
+const CreateCampaignPage = lazy(() => import("@/components/ads/CreateCampaignPage").then((m) => ({ default: m.CreateCampaignPage })));
 
 const VALID_PAGES = new Set([
   "dashboard", "inbox", "contacts", "deals", "analytics",
@@ -39,8 +40,11 @@ const Index = () => {
   const navigate = useNavigate();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  const segment = location.pathname.replace(/^\/app\/?/, "").split("/")[0] || "dashboard";
+  const rest = location.pathname.replace(/^\/app\/?/, "");
+  const segment = rest.split("/")[0] || "dashboard";
+  const subSegment = rest.split("/")[1] ?? "";
   const page = VALID_PAGES.has(segment) ? segment : "dashboard";
+  const isAdsCreate = page === "ads" && subSegment === "new";
 
   useEffect(() => {
     if (location.pathname === "/app" || location.pathname === "/app/") {
@@ -86,7 +90,8 @@ const Index = () => {
             {page === "contacts" && <ContactsPage />}
             {page === "deals" && <DealsPage />}
             {page === "analytics" && <AnalyticsPage />}
-            {page === "ads" && <AdsMarketingPage />}
+            {page === "ads" && !isAdsCreate && <AdsMarketingPage />}
+            {page === "ads" && isAdsCreate && <CreateCampaignPage />}
             {page === "campaigns" && <CampaignsPage />}
             {page === "broadcasts" && <BroadcastsPage />}
             {page === "templates" && <TemplatesPage />}
