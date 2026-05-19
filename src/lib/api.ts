@@ -201,6 +201,11 @@ export const api = {
     }>("/ads/estimate", data),
   listAdPages: () =>
     get<{ pages: Array<{ id: string; name: string; category: string | null }>; demo?: boolean }>("/ads/pages"),
+  adsPreflight: () =>
+    get<{
+      ok: boolean;
+      checks: Array<{ id: string; status: "pass" | "warn" | "fail"; label: string; message: string; fix_url?: string }>;
+    }>("/ads/preflight"),
   updateAdCampaign: (id: string, data: { status?: "ACTIVE" | "PAUSED"; daily_budget_inr?: number; name?: string }) =>
     patch<{ ok: true }>(`/ads/campaigns/${id}`, data),
   getAdInsights: (range?: "today" | "yesterday" | "last_7d" | "last_14d" | "last_30d") =>

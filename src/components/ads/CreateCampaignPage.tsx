@@ -31,18 +31,24 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 
-// Meta's ODAX taxonomy (Oct 2023+). The standalone MESSAGES / LINK_CLICKS /
-// CONVERSIONS objectives were removed — everything is now OUTCOME_* and the
-// click-destination is encoded on the Ad Set via destination_type.
+// Meta's ODAX taxonomy (Oct 2023+).
 //
-// Click-to-WhatsApp = OUTCOME_ENGAGEMENT + destination_type:"WHATSAPP" on adset.
+// "Click-to-WhatsApp" mode in this app uses OUTCOME_TRAFFIC + wa.me link
+// instead of OUTCOME_ENGAGEMENT + destination_type:"WHATSAPP". Why:
+// the native CTW path requires a WhatsApp Business Account to be linked to
+// your FB Page AND owned by the same Business Manager — a 5-step setup
+// inside business.facebook.com that most SMBs haven't completed. The
+// traffic-to-wa.me approach has identical end-user UX (clicking the ad
+// opens WhatsApp with your number pre-filled) but bypasses every WABA-Page
+// linkage validation. Slightly worse tracking on Meta's side; identical
+// for the business owner reading conversations in our inbox.
 const OBJECTIVES = [
-  { id: "ctw",        meta: "OUTCOME_ENGAGEMENT", destinationType: "WHATSAPP" as const, label: "Click-to-WhatsApp",  desc: "Lead chats start in your inbox · best for Indian SMBs",  icon: MessageCircle,  badge: "AI pick",  est: "₹2-3 per chat",          cta: "WHATSAPP_MESSAGE" },
-  { id: "leads",      meta: "OUTCOME_LEADS",      destinationType: undefined,           label: "Lead form",          desc: "Native form, low friction",                              icon: Users,          est: "₹5-8 per lead",          cta: "SIGN_UP" },
-  { id: "sales",      meta: "OUTCOME_SALES",      destinationType: undefined,           label: "Sales / Purchases",  desc: "Conversion-optimised — pixel events required",           icon: ShoppingBag,    est: "Depends on AOV",         cta: "SHOP_NOW" },
-  { id: "traffic",    meta: "OUTCOME_TRAFFIC",    destinationType: "WEBSITE" as const,  label: "Traffic",            desc: "Send to landing page",                                   icon: ArrowUpRight,   est: "₹0.50-2 per click",      cta: "LEARN_MORE" },
-  { id: "engagement", meta: "OUTCOME_ENGAGEMENT", destinationType: undefined,           label: "Engagement",         desc: "Reactions, comments, follows",                           icon: Heart,          est: "₹0.30-1 per engagement", cta: "LIKE_PAGE" },
-  { id: "catalog",    meta: "OUTCOME_SALES",      destinationType: undefined,           label: "Catalog retarget",   desc: "Dynamic product ads — needs catalog feed",               icon: Tag,            est: "8-12x ROAS typical",     cta: "SHOP_NOW" },
+  { id: "ctw",        meta: "OUTCOME_TRAFFIC",    destinationType: undefined, label: "Click-to-WhatsApp",  desc: "Ad click opens WhatsApp · works with any FB Page",       icon: MessageCircle,  badge: "AI pick",  est: "₹2-3 per chat",          cta: "LEARN_MORE" },
+  { id: "leads",      meta: "OUTCOME_LEADS",      destinationType: undefined, label: "Lead form",          desc: "Native form, low friction",                              icon: Users,          est: "₹5-8 per lead",          cta: "SIGN_UP" },
+  { id: "sales",      meta: "OUTCOME_SALES",      destinationType: undefined, label: "Sales / Purchases",  desc: "Conversion-optimised — pixel events required",           icon: ShoppingBag,    est: "Depends on AOV",         cta: "SHOP_NOW" },
+  { id: "traffic",    meta: "OUTCOME_TRAFFIC",    destinationType: undefined, label: "Traffic",            desc: "Send to landing page",                                   icon: ArrowUpRight,   est: "₹0.50-2 per click",      cta: "LEARN_MORE" },
+  { id: "engagement", meta: "OUTCOME_ENGAGEMENT", destinationType: undefined, label: "Engagement",         desc: "Reactions, comments, follows",                           icon: Heart,          est: "₹0.30-1 per engagement", cta: "LIKE_PAGE" },
+  { id: "catalog",    meta: "OUTCOME_SALES",      destinationType: undefined, label: "Catalog retarget",   desc: "Dynamic product ads — needs catalog feed",               icon: Tag,            est: "8-12x ROAS typical",     cta: "SHOP_NOW" },
 ] as const;
 type ObjectiveId = typeof OBJECTIVES[number]["id"];
 
@@ -91,6 +97,7 @@ export const CreateCampaignPage = () => {
   const audiencesQ  = useQuery({ queryKey: ["ads", "audiences"], queryFn: () => api.listAdAudiences() });
   const pagesQ      = useQuery({ queryKey: ["ads", "pages"], queryFn: () => api.listAdPages() });
   const metaQ       = useQuery({ queryKey: ["meta-config"], queryFn: () => api.getMetaConfig() });
+  const preflightQ  = useQuery({ queryKey: ["ads", "preflight"], queryFn: () => api.adsPreflight(), staleTime: 60_000 });
 
   const isConnected = connectionQ.data?.connected ?? false;
   const audiences   = audiencesQ.data?.audiences ?? [];
@@ -386,6 +393,7 @@ export const CreateCampaignPage = () => {
               optimizeAI={optimizeAI}
             />
             {step === 3 && optimizeAI && <AISuggestionsCard objective={objective} budget={budget} />}
+            {step === 3 && isConnected && preflightQ.data && <PreflightCard data={preflightQ.data} />}
           </div>
         </div>
       </div>
@@ -1030,6 +1038,41 @@ const PreviewStat = ({ label, value }: { label: string; value: string }) => (
   <div className="flex items-center justify-between py-1">
     <span className="text-[11px] uppercase tracking-[0.12em] text-white/60 font-extrabold">{label}</span>
     <span className="text-[14px] font-black tabular-nums">{value}</span>
+  </div>
+);
+
+const PreflightCard = ({
+  data,
+}: {
+  data: { ok: boolean; checks: Array<{ id: string; status: "pass" | "warn" | "fail"; label: string; message: string; fix_url?: string }> };
+}) => (
+  <div className={cn("border-2 rounded-2xl p-4 shadow-[0_3px_0_0_currentColor]", data.ok ? "bg-[#E6F7EE] border-[#0E8A4B] text-[#0A6E3C]" : "bg-[#FCE5F0] border-[#D4308E] text-[#A11A6A]")}>
+    <div className="flex items-center gap-2 mb-2.5">
+      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-white", data.ok ? "bg-[#0E8A4B]" : "bg-[#D4308E]")}>
+        {data.ok ? <CheckCircle2 className="w-4 h-4" strokeWidth={3} /> : <Info className="w-4 h-4" strokeWidth={2.5} />}
+      </div>
+      <p className="text-[11px] uppercase tracking-[0.15em] font-extrabold">
+        {data.ok ? "Pre-launch · all checks passed" : "Pre-launch · fix these first"}
+      </p>
+    </div>
+    <ul className="space-y-1.5">
+      {data.checks.map((c) => (
+        <li key={c.id} className="flex items-start gap-1.5 text-[12px] text-foreground">
+          {c.status === "pass" && <CheckCircle2 className="w-3.5 h-3.5 text-[#0E8A4B] flex-shrink-0 mt-0.5" strokeWidth={3} />}
+          {c.status === "warn" && <Info className="w-3.5 h-3.5 text-[#B8651A] flex-shrink-0 mt-0.5" strokeWidth={3} />}
+          {c.status === "fail" && <X className="w-3.5 h-3.5 text-[#D4308E] flex-shrink-0 mt-0.5" strokeWidth={3} />}
+          <div className="min-w-0 flex-1">
+            <p className="font-extrabold">{c.label}</p>
+            <p className="text-foreground/70 font-medium">{c.message}</p>
+            {c.fix_url && (
+              <a href={c.fix_url} target="_blank" rel="noopener noreferrer" className="text-[11px] font-extrabold underline text-[#3C50E0]">
+                Open fix page →
+              </a>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
   </div>
 );
 

@@ -286,18 +286,15 @@ app.post("/ads/campaigns", async (c) => {
       targetingSpec.locales = body.targeting.locales;
     }
 
-    // ODAX taxonomy: the campaign objective is just OUTCOME_* — Meta infers
-    // the actual click destination from the Ad Set's destination_type. We
-    // accept destination_type explicitly from the client so CTW vs Engagement
-    // (both OUTCOME_ENGAGEMENT) can be distinguished.
-    const isCTW = body.destination_type === "WHATSAPP";
+    // Pick optimization goal per objective. CTW campaigns now ride on
+    // OUTCOME_TRAFFIC + wa.me link (no destination_type=WHATSAPP, no
+    // WABA-Page linkage requirement), so LINK_CLICKS is the right goal.
     const optimizationGoal =
-      isCTW ? "CONVERSATIONS" :
       /OUTCOME_LEADS/i.test(body.objective) ? "LEAD_GENERATION" :
       /OUTCOME_SALES/i.test(body.objective) ? "OFFSITE_CONVERSIONS" :
       /OUTCOME_AWARENESS/i.test(body.objective) ? "REACH" :
-      /OUTCOME_TRAFFIC/i.test(body.objective) ? "LINK_CLICKS" :
-      "LINK_CLICKS";
+      /OUTCOME_ENGAGEMENT/i.test(body.objective) ? "POST_ENGAGEMENT" :
+      "LINK_CLICKS"; // default for OUTCOME_TRAFFIC
 
     // Step 2: Ad Set
     lastStep = "ad_set";
@@ -434,10 +431,9 @@ app.post("/ads/estimate", async (c) => {
     };
     if (body.targeting?.audience_id) targetingSpec.custom_audiences = [{ id: body.targeting.audience_id }];
 
-    const isCTW = body.destination_type === "WHATSAPP";
     const optimizationGoal =
-      isCTW ? "CONVERSATIONS" :
       /OUTCOME_LEADS/i.test(body.objective) ? "LEAD_GENERATION" :
+      /OUTCOME_ENGAGEMENT/i.test(body.objective) ? "POST_ENGAGEMENT" :
       "LINK_CLICKS";
 
     const est = await deliveryEstimate(creds, {
@@ -481,6 +477,88 @@ app.post("/ads/estimate", async (c) => {
       demo: true,
     });
   }
+});
+
+/** Pre-launch diagnostic — runs every check we know about in parallel so the
+ *  user sees a single checklist of what's missing instead of hitting each
+ *  validation error one-by-one when they click Launch. */
+app.get("/ads/preflight", async (c) => {
+  const creds = await getCreds(c.var.userId);
+  if (!creds) {
+    return c.json({
+      ok: false,
+      checks: [{ id: "connection", status: "fail", label: "Meta Ads connection", message: "Connect Meta Ads first (the Connect button on /app/ads)" }],
+    });
+  }
+
+  type Check = { id: string; status: "pass" | "warn" | "fail"; label: string; message: string; fixUrl?: string };
+  const checks: Check[] = [];
+
+  // 1) Ad account is valid + has currency
+  try {
+    const acc = await verifyAdAccount(creds);
+    if (acc.account_status === 1) {
+      checks.push({ id: "ad_account", status: "pass", label: "Ad account active", message: `${acc.name} (${acc.currency})` });
+    } else {
+      checks.push({ id: "ad_account", status: "fail", label: "Ad account disabled", message: `Status code ${acc.account_status} — visit Ads Manager to resolve`, fixUrl: "https://adsmanager.facebook.com" });
+    }
+  } catch (e) {
+    const err = onApiError(e);
+    checks.push({ id: "ad_account", status: "fail", label: "Ad account check failed", message: err.error });
+  }
+
+  // 2) At least one Page available (and ideally with WhatsApp business linked)
+  try {
+    const pages = await listPages(creds);
+    if (pages.length === 0) {
+      checks.push({
+        id: "pages",
+        status: "fail",
+        label: "Facebook Page",
+        message: "No Pages found. Create a Page and assign it to your System User with 'Manage Page' permission.",
+        fixUrl: "https://www.facebook.com/pages/create",
+      });
+    } else {
+      checks.push({
+        id: "pages",
+        status: "pass",
+        label: "Facebook Pages",
+        message: `${pages.length} page${pages.length === 1 ? "" : "s"} available: ${pages.slice(0, 3).map((p) => p.name).join(", ")}${pages.length > 3 ? "…" : ""}`,
+      });
+    }
+  } catch (e) {
+    const err = onApiError(e);
+    checks.push({ id: "pages", status: "fail", label: "Pages check failed", message: err.error + " — token probably missing 'pages_show_list' scope" });
+  }
+
+  // 3) Token scopes — best-effort via /me/permissions
+  try {
+    const r = await fetch(`https://graph.facebook.com/v21.0/me/permissions`, {
+      headers: { Authorization: `Bearer ${creds.accessToken}` },
+    });
+    const body = await r.json().catch(() => ({}));
+    const granted = new Set<string>((body.data ?? [])
+      .filter((p: { status: string }) => p.status === "granted")
+      .map((p: { permission: string }) => p.permission));
+    const required = ["ads_management", "ads_read", "business_management", "pages_show_list", "pages_manage_ads"];
+    const missing = required.filter((x) => !granted.has(x));
+    if (missing.length === 0) {
+      checks.push({ id: "scopes", status: "pass", label: "Token scopes", message: "All required permissions granted" });
+    } else {
+      checks.push({
+        id: "scopes",
+        status: "fail",
+        label: "Token scopes incomplete",
+        message: `Missing: ${missing.join(", ")} — regenerate the System User token with these scopes ticked`,
+        fixUrl: "https://business.facebook.com/settings/system-users",
+      });
+    }
+  } catch {
+    checks.push({ id: "scopes", status: "warn", label: "Token scopes", message: "Couldn't verify scopes (Meta API blip) — try again" });
+  }
+
+  const ok = checks.every((c) => c.status === "pass");
+  return c.json({ ok, checks });
 });
 
 /** List Facebook Pages this workspace can run ads from. CTW/lead ads must
