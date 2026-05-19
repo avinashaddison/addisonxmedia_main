@@ -43,12 +43,16 @@ export default defineConfig(({ mode }) => ({
           // Editor / picker libs only on a few pages.
           if (id.includes("react-day-picker") || id.includes("date-fns")) return "vendor-date";
           if (id.includes("embla-carousel") || id.includes("vaul")) return "vendor-ui-extras";
-          // shadcn/Radix primitives — used app-wide, get their own.
-          if (id.includes("@radix-ui")) return "vendor-radix";
-          // The big platform deps.
+          // The big platform deps. Radix MUST live in the same chunk as React
+          // because every Radix primitive calls React.forwardRef at module-init
+          // time — splitting it into vendor-radix made the radix bundle execute
+          // before React was bound in production, throwing
+          // "Cannot read properties of undefined (reading 'forwardRef')".
           if (id.includes("react-router")) return "vendor-router";
           if (id.includes("@tanstack")) return "vendor-query";
-          if (id.includes("react-dom") || id.match(/[\\/]react[\\/]/)) return "vendor-react";
+          if (id.includes("@radix-ui") || id.includes("react-dom") || id.match(/[\\/]react[\\/]/)) {
+            return "vendor-react";
+          }
           // Everything else (small libs) lumps into one vendor chunk.
           return "vendor";
         },
