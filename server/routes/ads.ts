@@ -256,13 +256,26 @@ app.post("/ads/campaigns", async (c) => {
       return c.json({ ok: true, id: campaign.id, mode: "campaign_only" });
     }
 
-    // Build targeting_spec
+    // Build targeting_spec. Meta rejects geo_locations that overlap: if you
+    // pass countries:["IN"] AND regions/cities inside India, it errors with
+    // "Some of your locations overlap". Resolve hierarchically: most specific
+    // wins (cities > regions > countries).
+    const geo: NonNullable<TargetingSpec["geo_locations"]> = {};
+    const cities = body.targeting?.city_keys?.length
+      ? body.targeting.city_keys.map((k) => ({ key: k, radius: 40, distance_unit: "kilometer" as const }))
+      : null;
+    const regions = body.targeting?.region_keys?.length
+      ? body.targeting.region_keys.map((k) => ({ key: k }))
+      : null;
+    if (cities) geo.cities = cities;
+    if (regions) geo.regions = regions;
+    if (!cities && !regions) {
+      // No specific geo — fall back to country-level targeting.
+      geo.countries = body.targeting?.country_codes ?? ["IN"];
+    }
+
     const targetingSpec: TargetingSpec = {
-      geo_locations: {
-        countries: body.targeting?.country_codes ?? ["IN"],
-        cities: body.targeting?.city_keys?.map((k) => ({ key: k, radius: 40, distance_unit: "kilometer" })),
-        regions: body.targeting?.region_keys?.map((k) => ({ key: k })),
-      },
+      geo_locations: geo,
       age_min: body.targeting?.age_min ?? 18,
       age_max: body.targeting?.age_max ?? 65,
     };
@@ -402,12 +415,20 @@ app.post("/ads/estimate", async (c) => {
   }
 
   try {
+    // Same hierarchy rule as the create flow — Meta rejects overlapping geos.
+    const geo: NonNullable<TargetingSpec["geo_locations"]> = {};
+    const cities = body.targeting?.city_keys?.length
+      ? body.targeting.city_keys.map((k) => ({ key: k, radius: 40, distance_unit: "kilometer" as const }))
+      : null;
+    const regions = body.targeting?.region_keys?.length
+      ? body.targeting.region_keys.map((k) => ({ key: k }))
+      : null;
+    if (cities) geo.cities = cities;
+    if (regions) geo.regions = regions;
+    if (!cities && !regions) geo.countries = body.targeting?.country_codes ?? ["IN"];
+
     const targetingSpec: TargetingSpec = {
-      geo_locations: {
-        countries: body.targeting?.country_codes ?? ["IN"],
-        cities: body.targeting?.city_keys?.map((k) => ({ key: k, radius: 40, distance_unit: "kilometer" })),
-        regions: body.targeting?.region_keys?.map((k) => ({ key: k })),
-      },
+      geo_locations: geo,
       age_min: body.targeting?.age_min ?? 18,
       age_max: body.targeting?.age_max ?? 65,
     };
