@@ -236,6 +236,9 @@ export type TargetingSpec = {
   genders?: number[]; // 1 = male, 2 = female; omit for all
   locales?: number[]; // Meta locale IDs
   custom_audiences?: Array<{ id: string }>;
+  publisher_platforms?: string[]; // ["facebook", "instagram", "audience_network", "messenger"]
+  facebook_positions?: string[];
+  instagram_positions?: string[];
 };
 
 /** Real reach + impressions estimate from Meta. Updates as the user changes
@@ -299,6 +302,7 @@ export type AdSetCreate = {
   destinationType?: "WHATSAPP" | "MESSENGER" | "WEBSITE" | "ON_AD";
   pageId?: string;
   startTime?: string; // ISO
+  endTime?: string;   // ISO
   status?: "ACTIVE" | "PAUSED";
 };
 
@@ -319,6 +323,7 @@ export async function createAdSet(creds: AdsCredentials, body: AdSetCreate): Pro
   if (body.destinationType) payload.destination_type = body.destinationType;
   if (body.pageId) payload.promoted_object = { page_id: body.pageId };
   if (body.startTime) payload.start_time = body.startTime;
+  if (body.endTime) payload.end_time = body.endTime;
 
   return adsFetch(`/${actId(creds.adAccountId)}/adsets`, {
     method: "POST",

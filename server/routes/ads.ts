@@ -211,6 +211,8 @@ app.post("/ads/campaigns", async (c) => {
     destination_type?: "WHATSAPP" | "MESSENGER" | "WEBSITE" | "ON_AD";
     daily_budget_inr: number;
     status?: "ACTIVE" | "PAUSED";
+    start_time?: string;
+    end_time?: string;
     targeting?: {
       country_codes?: string[];
       city_keys?: string[];
@@ -219,6 +221,10 @@ app.post("/ads/campaigns", async (c) => {
       age_max?: number;
       audience_id?: string;
       locales?: number[];
+      genders?: number[];
+      publisher_platforms?: string[];
+      facebook_positions?: string[];
+      instagram_positions?: string[];
     };
     creative?: {
       page_id: string;
@@ -285,6 +291,18 @@ app.post("/ads/campaigns", async (c) => {
     if (body.targeting?.locales?.length) {
       targetingSpec.locales = body.targeting.locales;
     }
+    if (body.targeting?.genders?.length) {
+      targetingSpec.genders = body.targeting.genders;
+    }
+    if (body.targeting?.publisher_platforms?.length) {
+      targetingSpec.publisher_platforms = body.targeting.publisher_platforms;
+    }
+    if (body.targeting?.facebook_positions?.length) {
+      targetingSpec.facebook_positions = body.targeting.facebook_positions;
+    }
+    if (body.targeting?.instagram_positions?.length) {
+      targetingSpec.instagram_positions = body.targeting.instagram_positions;
+    }
 
     // Pick optimization goal per objective. CTW campaigns now ride on
     // OUTCOME_TRAFFIC + wa.me link (no destination_type=WHATSAPP, no
@@ -307,6 +325,8 @@ app.post("/ads/campaigns", async (c) => {
       targetingSpec,
       destinationType: body.destination_type,
       pageId: body.creative.page_id,
+      startTime: body.start_time,
+      endTime: body.end_time,
       status: "PAUSED",
     });
     adSetId = adSet.id;

@@ -19,7 +19,8 @@ import {
   ArrowLeft, ArrowRight, Sparkles, MessageCircle, Users, ShoppingBag, ArrowUpRight,
   Heart, Tag, IndianRupee, Loader2, CheckCircle2, Target, Megaphone, Brain,
   Eye, MapPin, Languages, ChevronRight, Info, Zap, X, Image as ImageIcon,
-  Search, FileText,
+  Search, FileText, Clock, ThumbsUp, MessageSquare, Share2, MoreHorizontal,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +77,37 @@ const LANGUAGE_PRESETS = [
 
 type GeoChip = { key: string; name: string; type: string; country_code?: string };
 
+const PLACEMENTS = {
+  facebook: [
+    { id: "feed", label: "Feed" },
+    { id: "marketplace", label: "Marketplace" },
+    { id: "video_feeds", label: "Video Feeds" },
+    { id: "story", label: "Stories" },
+    { id: "search", label: "Search" },
+    { id: "instream_video", label: "In-Stream Video" },
+    { id: "facebook_reels", label: "Reels" },
+    { id: "facebook_reels_overlay", label: "Reels Overlay" },
+    { id: "right_hand_column", label: "Right Column" },
+  ],
+  instagram: [
+    { id: "stream", label: "Feed" },
+    { id: "story", label: "Stories" },
+    { id: "explore", label: "Explore" },
+    { id: "explore_home", label: "Explore Home" },
+    { id: "reels", label: "Reels" },
+    { id: "profile_feed", label: "Profile Feed" },
+    { id: "ig_search", label: "Search" },
+    { id: "profile_reels", label: "Profile Reels" },
+  ],
+} as const;
+
+const today = () => new Date().toISOString().slice(0, 10);
+const plusDays = (d: string, n: number) => {
+  const dt = new Date(d);
+  dt.setDate(dt.getDate() + n);
+  return dt.toISOString().slice(0, 10);
+};
+
 const compactNum = (n: number) => {
   if (n >= 1_00_00_000) return `${(n / 1_00_00_000).toFixed(1)} Cr`;
   if (n >= 1_00_000)    return `${(n / 1_00_000).toFixed(1)} L`;
@@ -119,11 +151,25 @@ export const CreateCampaignPage = () => {
   const [budget, setBudget]             = useState("1000");
   const [optimizeAI, setOptimizeAI]     = useState(true);
   const [launchPaused, setLaunchPaused] = useState(true);
+  // Demographics
+  const [ageMin, setAgeMin]             = useState(18);
+  const [ageMax, setAgeMax]             = useState(65);
+  const [gender, setGender]             = useState<"all" | "male" | "female">("all");
+  // Schedule
+  const [startDate, setStartDate]       = useState(today());
+  const [hasEndDate, setHasEndDate]     = useState(false);
+  const [endDate, setEndDate]           = useState(plusDays(today(), 7));
+  // Placements
+  const [fbEnabled, setFbEnabled]       = useState(true);
+  const [igEnabled, setIgEnabled]       = useState(true);
+  const [fbPlacements, setFbPlacements] = useState<string[]>(PLACEMENTS.facebook.map((p) => p.id));
+  const [igPlacements, setIgPlacements] = useState<string[]>(PLACEMENTS.instagram.map((p) => p.id));
   // Ad creative
   const [adImageUrl, setAdImageUrl]     = useState("");
   const [adHeadline, setAdHeadline]     = useState("");
   const [adBody, setAdBody]             = useState("");
   const [adLinkUrl, setAdLinkUrl]       = useState("");
+  const [icebreaker, setIcebreaker]     = useState("");
 
   const objectiveObj = OBJECTIVES.find((o) => o.id === objective)!;
   const isCTW = objective === "ctw";
@@ -134,11 +180,22 @@ export const CreateCampaignPage = () => {
   }, [pages, pageId]);
 
   useEffect(() => {
-    if (isCTW && !adLinkUrl && metaQ.data?.display_phone_number) {
+    if (isCTW && metaQ.data?.display_phone_number) {
       const digits = metaQ.data.display_phone_number.replace(/\D/g, "");
-      if (digits) setAdLinkUrl(`https://wa.me/${digits}`);
+      if (!digits) return;
+      const baseLink = `https://wa.me/${digits}`;
+      // Auto-fill the base link if empty
+      if (!adLinkUrl) setAdLinkUrl(baseLink);
     }
   }, [isCTW, metaQ.data, adLinkUrl]);
+
+  // The actual link sent to Meta — appends the icebreaker as a pre-filled
+  // WhatsApp greeting via the standard ?text= query parameter.
+  const resolvedLinkUrl = useMemo(() => {
+    if (!isCTW || !adLinkUrl || !icebreaker.trim()) return adLinkUrl;
+    const sep = adLinkUrl.includes("?") ? "&" : "?";
+    return `${adLinkUrl}${sep}text=${encodeURIComponent(icebreaker.trim())}`;
+  }, [isCTW, adLinkUrl, icebreaker]);
 
   /* ─── Location typeahead (Meta targeting/search) ─── */
   const debouncedQuery = useDebounced(geoQuery, 350);
@@ -151,22 +208,22 @@ export const CreateCampaignPage = () => {
   /* ─── Build targeting payload (used by estimate + create) ─── */
   const targetingPayload = useMemo(() => {
     const preset = LOCATION_PRESETS.find((l) => l.id === locationPreset);
-    const langPreset = LANGUAGE_PRESETS.find((l) => l.id === language);
     const t: NonNullable<Parameters<typeof api.estimateAdDelivery>[0]["targeting"]> = {
-      age_min: 18,
-      age_max: 65,
+      age_min: ageMin,
+      age_max: ageMax,
     };
     if (locationMode === "preset") {
       if (preset?.country_codes) t.country_codes = preset.country_codes;
-      if (preset?.region_keys)   t.region_keys = preset.region_keys;
     } else {
       t.country_codes = ["IN"];
-      t.city_keys = customGeos.filter((g) => g.type === "city").map((g) => g.key);
-      t.region_keys = customGeos.filter((g) => g.type === "region").map((g) => g.key);
+      const cityKeys = customGeos.filter((g) => g.type === "city").map((g) => g.key);
+      const regionKeys = customGeos.filter((g) => g.type === "region").map((g) => g.key);
+      if (cityKeys.length) t.city_keys = cityKeys;
+      if (regionKeys.length) t.region_keys = regionKeys;
     }
     if (audience) t.audience_id = audience;
     return t;
-  }, [locationMode, locationPreset, customGeos, audience, language]);
+  }, [locationMode, locationPreset, customGeos, audience, ageMin, ageMax]);
 
   /* ─── Live estimate (debounced, hits Meta delivery_estimate) ─── */
   const debouncedBudget = useDebounced(budget, 500);
@@ -185,24 +242,30 @@ export const CreateCampaignPage = () => {
   /* ─── Launch mutation ─── */
   const launch = useMutation({
     mutationFn: () => {
-      const preset = LOCATION_PRESETS.find((l) => l.id === locationPreset);
-      const langPreset = LANGUAGE_PRESETS.find((l) => l.id === language);
+      const publisherPlatforms: string[] = [];
+      if (fbEnabled) publisherPlatforms.push("facebook");
+      if (igEnabled) publisherPlatforms.push("instagram");
       return api.createAdCampaign({
         name: name.trim(),
         objective: objectiveObj.meta,
         destination_type: objectiveObj.destinationType,
         daily_budget_inr: Number(budget),
         status: launchPaused ? "PAUSED" : "ACTIVE",
+        start_time: new Date(startDate).toISOString(),
+        end_time: hasEndDate ? new Date(endDate).toISOString() : undefined,
         targeting: {
           ...targetingPayload,
-          locales: langPreset?.locales,
+          genders: gender === "all" ? undefined : (gender === "male" ? [1] : [2]),
+          publisher_platforms: publisherPlatforms.length > 0 && publisherPlatforms.length < 2 ? publisherPlatforms : undefined,
+          facebook_positions: fbEnabled && fbPlacements.length < PLACEMENTS.facebook.length ? fbPlacements : undefined,
+          instagram_positions: igEnabled && igPlacements.length < PLACEMENTS.instagram.length ? igPlacements : undefined,
         },
         creative: pageId ? {
           page_id: pageId,
           image_url: adImageUrl || undefined,
           headline: adHeadline,
           body: adBody,
-          link_url: adLinkUrl,
+          link_url: resolvedLinkUrl,
           cta_type: objectiveObj.cta,
         } : undefined,
       });
@@ -347,10 +410,21 @@ export const CreateCampaignPage = () => {
                 pages={pages}
                 pagesLoading={pagesQ.isPending || pagesQ.isFetching}
                 refreshPages={() => qc.invalidateQueries({ queryKey: ["ads", "pages"] })}
+                ageMin={ageMin} setAgeMin={setAgeMin}
+                ageMax={ageMax} setAgeMax={setAgeMax}
+                gender={gender} setGender={setGender}
+                startDate={startDate} setStartDate={setStartDate}
+                hasEndDate={hasEndDate} setHasEndDate={setHasEndDate}
+                endDate={endDate} setEndDate={setEndDate}
+                fbEnabled={fbEnabled} setFbEnabled={setFbEnabled}
+                igEnabled={igEnabled} setIgEnabled={setIgEnabled}
+                fbPlacements={fbPlacements} setFbPlacements={setFbPlacements}
+                igPlacements={igPlacements} setIgPlacements={setIgPlacements}
                 adImageUrl={adImageUrl} setAdImageUrl={setAdImageUrl}
                 adHeadline={adHeadline} setAdHeadline={setAdHeadline}
                 adBody={adBody} setAdBody={setAdBody}
                 adLinkUrl={adLinkUrl} setAdLinkUrl={setAdLinkUrl}
+                icebreaker={icebreaker} setIcebreaker={setIcebreaker}
                 objectiveObj={objectiveObj}
                 isCTW={isCTW}
                 whatsappNumber={metaQ.data?.display_phone_number ?? null}
@@ -381,6 +455,16 @@ export const CreateCampaignPage = () => {
 
           {/* ─── PREVIEW (sticky) ─── */}
           <div className="lg:sticky lg:top-[140px] lg:self-start space-y-4">
+            {step >= 2 && (
+              <AdMockupPreview
+                pageName={pages.find((pg) => pg.id === pageId)?.name ?? "Your Page"}
+                headline={adHeadline}
+                body={adBody}
+                imageUrl={adImageUrl}
+                ctaLabel={isCTW ? "WhatsApp" : ctaLabel(objectiveObj.cta)}
+                isCTW={isCTW}
+              />
+            )}
             <LivePreviewCard
               name={name}
               objectiveObj={objectiveObj}
@@ -496,10 +580,21 @@ type StepAudienceCreativeProps = {
   pages: Array<{ id: string; name: string; category: string | null }>;
   pagesLoading: boolean;
   refreshPages: () => void;
+  ageMin: number; setAgeMin: (v: number) => void;
+  ageMax: number; setAgeMax: (v: number) => void;
+  gender: "all" | "male" | "female"; setGender: (v: "all" | "male" | "female") => void;
+  startDate: string; setStartDate: (v: string) => void;
+  hasEndDate: boolean; setHasEndDate: (v: boolean) => void;
+  endDate: string; setEndDate: (v: string) => void;
+  fbEnabled: boolean; setFbEnabled: (v: boolean) => void;
+  igEnabled: boolean; setIgEnabled: (v: boolean) => void;
+  fbPlacements: string[]; setFbPlacements: (v: string[]) => void;
+  igPlacements: string[]; setIgPlacements: (v: string[]) => void;
   adImageUrl: string; setAdImageUrl: (v: string) => void;
   adHeadline: string; setAdHeadline: (v: string) => void;
   adBody: string; setAdBody: (v: string) => void;
   adLinkUrl: string; setAdLinkUrl: (v: string) => void;
+  icebreaker: string; setIcebreaker: (v: string) => void;
   objectiveObj: typeof OBJECTIVES[number];
   isCTW: boolean;
   whatsappNumber: string | null;
@@ -702,6 +797,104 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
       </div>
     </Card>
 
+    {/* Demographics: age + gender */}
+    <Card>
+      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">Demographics</Label>
+      <div className="grid grid-cols-2 gap-3 mt-2">
+        <div>
+          <p className="text-[10px] text-foreground/60 font-extrabold mb-1.5">AGE</p>
+          <div className="flex items-center gap-2">
+            <Select value={String(p.ageMin)} onValueChange={(v) => p.setAgeMin(Number(v))}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 53 }, (_, i) => 13 + i).map((n) => (
+                  <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-[12px] text-foreground/60 font-bold">to</span>
+            <Select value={String(p.ageMax)} onValueChange={(v) => p.setAgeMax(Number(v))}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 53 }, (_, i) => 13 + i).map((n) => (
+                  <SelectItem key={n} value={String(n)}>{n === 65 ? "65+" : n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div>
+          <p className="text-[10px] text-foreground/60 font-extrabold mb-1.5">GENDER</p>
+          <div className="flex gap-1">
+            {(["all", "male", "female"] as const).map((g) => (
+              <button
+                key={g}
+                onClick={() => p.setGender(g)}
+                className={cn(
+                  "flex-1 px-2 py-2 rounded-lg text-[11px] font-extrabold border-2 capitalize transition-all",
+                  p.gender === g ? "bg-[#FF6A1F] text-white border-[#B8420A]" : "bg-white text-foreground/70 border-[#E8B968]"
+                )}
+              >{g}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Card>
+
+    {/* Schedule */}
+    <Card>
+      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
+        <Clock className="w-3.5 h-3.5" /> Schedule
+      </Label>
+      <div className="grid grid-cols-2 gap-3 mt-2">
+        <div>
+          <p className="text-[10px] text-foreground/60 font-extrabold mb-1.5">START DATE</p>
+          <Input type="date" value={p.startDate} onChange={(e) => p.setStartDate(e.target.value)} min={today()} />
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-[10px] text-foreground/60 font-extrabold">END DATE</p>
+            <label className="flex items-center gap-1.5 text-[10px] font-extrabold text-foreground/70 cursor-pointer">
+              <input type="checkbox" checked={p.hasEndDate} onChange={(e) => p.setHasEndDate(e.target.checked)} className="accent-[#FF6A1F]" />
+              Set end date
+            </label>
+          </div>
+          <Input
+            type="date"
+            value={p.endDate}
+            onChange={(e) => p.setEndDate(e.target.value)}
+            min={p.startDate}
+            disabled={!p.hasEndDate}
+            className={!p.hasEndDate ? "opacity-50" : ""}
+          />
+        </div>
+      </div>
+    </Card>
+
+    {/* Platforms & Placements */}
+    <Card>
+      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">Platforms & Placements</Label>
+      <p className="text-[11px] text-foreground/60 font-medium mt-1 mb-2.5">Sab on rakho = max reach. Specific placements pe limit karna ho to off-tick karein.</p>
+
+      <PlacementBlock
+        platform="facebook"
+        enabled={p.fbEnabled}
+        onEnabled={p.setFbEnabled}
+        placements={p.fbPlacements}
+        onPlacements={p.setFbPlacements}
+        options={PLACEMENTS.facebook}
+      />
+      <div className="h-2" />
+      <PlacementBlock
+        platform="instagram"
+        enabled={p.igEnabled}
+        onEnabled={p.setIgEnabled}
+        placements={p.igPlacements}
+        onPlacements={p.setIgPlacements}
+        options={PLACEMENTS.instagram}
+      />
+    </Card>
+
     {/* Ad Creative */}
     <SectionHeader
       icon={ImageIcon}
@@ -746,21 +939,23 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
         className="mt-1.5 font-extrabold"
         maxLength={40}
       />
+      <p className="text-[10px] text-foreground/50 font-medium mt-1.5">Big bold text below the image. Keep it short and punchy.</p>
     </Card>
 
     <Card>
       <Label htmlFor="cc-body" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
-        <FileText className="w-3.5 h-3.5" /> Body text <span className="text-foreground/40 ml-1">({p.adBody.length}/125)</span>
+        <FileText className="w-3.5 h-3.5" /> Primary text <span className="text-foreground/40 ml-1">({p.adBody.length}/1000)</span>
       </Label>
       <Textarea
         id="cc-body"
         value={p.adBody}
-        onChange={(e) => p.setAdBody(e.target.value.slice(0, 125))}
-        placeholder="Diwali special — Hindi WhatsApp pe chat karein aur extra 15% discount paayein."
+        onChange={(e) => p.setAdBody(e.target.value.slice(0, 1000))}
+        placeholder="Diwali special — WhatsApp pe order karein aur extra 15% discount paayein. Free delivery on orders above ₹499."
         className="mt-1.5"
-        rows={3}
-        maxLength={125}
+        rows={4}
+        maxLength={1000}
       />
+      <p className="text-[10px] text-foreground/50 font-medium mt-1.5">Caption above the image. First 125 characters show in most placements; rest hides behind "See more".</p>
     </Card>
 
     <Card>
@@ -788,8 +983,93 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
         CTA button: <span className="font-mono">{p.objectiveObj.cta}</span> ({p.objectiveObj.label} ke liye recommended)
       </div>
     </Card>
+
+    {/* Icebreaker — pre-filled WhatsApp message */}
+    {p.isCTW && (
+      <Card>
+        <Label htmlFor="cc-ice" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
+          <MessageCircle className="w-3.5 h-3.5" /> Pre-filled WhatsApp message <span className="text-foreground/40 ml-1">(optional)</span>
+        </Label>
+        <Input
+          id="cc-ice"
+          value={p.icebreaker}
+          onChange={(e) => p.setIcebreaker(e.target.value.slice(0, 200))}
+          placeholder="Hi, mujhe Diwali offer ke baare me jaanna hai"
+          className="mt-1.5"
+          maxLength={200}
+        />
+        <p className="text-[11px] text-foreground/60 font-medium mt-1.5">
+          Customer click karega → WhatsApp khulega aur yeh text already typed hoga. Sirf "Send" dabana hai. Conversion {">"}2x increase karta hai.
+        </p>
+      </Card>
+    )}
   </>
 );
+
+/* ─────────────────────────── Placement block ─────────────────────────── */
+
+const PlacementBlock = ({
+  platform, enabled, onEnabled, placements, onPlacements, options,
+}: {
+  platform: "facebook" | "instagram";
+  enabled: boolean;
+  onEnabled: (v: boolean) => void;
+  placements: string[];
+  onPlacements: (v: string[]) => void;
+  options: readonly { readonly id: string; readonly label: string }[];
+}) => {
+  const isFB = platform === "facebook";
+  const color = isFB ? "#0866FF" : "#D4308E";
+  const Logo = () => isFB
+    ? <span className="w-5 h-5 rounded-full bg-[#0866FF] text-white flex items-center justify-center text-[11px] font-black flex-shrink-0">f</span>
+    : <span className="w-5 h-5 rounded-md bg-gradient-to-br from-[#FFD23F] via-[#D4308E] to-[#3C50E0] text-white flex items-center justify-center flex-shrink-0">
+        <span className="w-3 h-3 rounded-full border-[1.5px] border-white" />
+      </span>;
+  return (
+    <div className={cn("rounded-xl border-2 p-3", enabled ? "border-[#E8B968] bg-white" : "border-[#E8B968]/40 bg-[#FFF6E8]/40 opacity-60")}>
+      <div className="flex items-center gap-2 mb-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onEnabled(e.target.checked)}
+          className="w-4 h-4 accent-[#FF6A1F]"
+        />
+        <Logo />
+        <span className="text-[13px] font-extrabold capitalize">{platform}</span>
+        <span className="text-[10px] text-foreground/60 font-medium">
+          {placements.length}/{options.length} placements
+        </span>
+        <button
+          onClick={() => onPlacements(placements.length === options.length ? [] : options.map((o) => o.id))}
+          disabled={!enabled}
+          className="ml-auto text-[10px] font-extrabold text-foreground/60 hover:text-foreground disabled:opacity-40"
+        >
+          {placements.length === options.length ? "Clear all" : "Select all"}
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => {
+          const isOn = placements.includes(o.id);
+          return (
+            <button
+              key={o.id}
+              disabled={!enabled}
+              onClick={() => onPlacements(isOn ? placements.filter((p) => p !== o.id) : [...placements, o.id])}
+              className={cn(
+                "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold border transition disabled:opacity-40",
+                isOn ? "border-transparent text-white" : "border-[#E8B968] bg-white text-foreground/70 hover:bg-[#FFF1D6]"
+              )}
+              style={isOn ? { background: color } : {}}
+            >
+              {isOn && <CheckCircle2 className="w-3 h-3" strokeWidth={3} />}
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 /* ─────────────────────────── STEP 3 ─────────────────────────── */
 
@@ -979,6 +1259,108 @@ const ReviewRow = ({ label, value, icon: Icon }: { label: string; value: string;
     <span className="text-[13px] font-extrabold text-right truncate">{value}</span>
   </div>
 );
+
+/* ─── Realistic Facebook-feed style ad preview ─── */
+
+const ctaLabel = (cta: string): string => {
+  const map: Record<string, string> = {
+    LEARN_MORE: "Learn More",
+    SHOP_NOW: "Shop Now",
+    SIGN_UP: "Sign Up",
+    LIKE_PAGE: "Like Page",
+    WHATSAPP_MESSAGE: "WhatsApp",
+    MESSAGE_PAGE: "Message",
+    CONTACT_US: "Contact Us",
+    DOWNLOAD: "Download",
+    SUBSCRIBE: "Subscribe",
+    BOOK_TRAVEL: "Book Now",
+    ORDER_NOW: "Order Now",
+  };
+  return map[cta] ?? "Learn More";
+};
+
+const AdMockupPreview = ({
+  pageName, headline, body, imageUrl, ctaLabel: cta, isCTW,
+}: {
+  pageName: string;
+  headline: string;
+  body: string;
+  imageUrl: string;
+  ctaLabel: string;
+  isCTW: boolean;
+}) => {
+  const initial = (pageName || "A").charAt(0).toUpperCase();
+  return (
+    <div className="bg-white rounded-2xl border border-[#E8E8E8] shadow-[0_4px_12px_rgba(0,0,0,0.06)] overflow-hidden font-sans">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0866FF] to-[#D4308E] text-white flex items-center justify-center text-[14px] font-extrabold flex-shrink-0">
+          {initial}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-bold text-[#050505] truncate leading-tight">{pageName}</p>
+          <div className="flex items-center gap-1 text-[11px] text-[#65676B]">
+            <span>Sponsored</span>
+            <span>·</span>
+            <Globe className="w-2.5 h-2.5" />
+          </div>
+        </div>
+        <MoreHorizontal className="w-5 h-5 text-[#65676B]" />
+      </div>
+
+      {/* Body text */}
+      {body ? (
+        <p className="px-3 pb-2 text-[13px] text-[#050505] whitespace-pre-wrap leading-snug">
+          {body.length > 125 ? <>{body.slice(0, 125)}<span className="text-[#65676B] font-medium"> … See more</span></> : body}
+        </p>
+      ) : (
+        <p className="px-3 pb-2 text-[12px] text-[#65676B] italic">Your primary text will appear here</p>
+      )}
+
+      {/* Image */}
+      <div className="bg-[#F0F2F5] aspect-[1.91/1] flex items-center justify-center overflow-hidden">
+        {imageUrl ? (
+          <img src={imageUrl} alt="ad" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+        ) : (
+          <div className="text-center text-[#65676B]">
+            <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-50" />
+            <p className="text-[11px] font-medium">Image preview · 1200×628</p>
+          </div>
+        )}
+      </div>
+
+      {/* CTA bar */}
+      <div className="bg-[#F0F2F5] px-3 py-2.5 flex items-center justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-wider text-[#65676B] font-medium">{isCTW ? "WHATSAPP" : "WEBSITE"}</p>
+          <p className="text-[13px] font-bold text-[#050505] truncate">{headline || "Your headline appears here"}</p>
+        </div>
+        <button
+          className={cn(
+            "inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-bold flex-shrink-0 ml-2 border",
+            isCTW ? "bg-white border-[#25D366] text-[#25D366]" : "bg-[#0866FF] text-white border-[#0866FF]"
+          )}
+        >
+          {isCTW && <MessageCircle className="w-3.5 h-3.5" fill="currentColor" strokeWidth={0} />}
+          {cta}
+        </button>
+      </div>
+
+      {/* Reactions row */}
+      <div className="flex items-center gap-1 px-3 py-2 border-t border-[#E8E8E8] text-[#65676B]">
+        <button className="flex-1 flex items-center justify-center gap-1.5 py-1 hover:bg-[#F0F2F5] rounded text-[12px] font-bold">
+          <ThumbsUp className="w-4 h-4" /> Like
+        </button>
+        <button className="flex-1 flex items-center justify-center gap-1.5 py-1 hover:bg-[#F0F2F5] rounded text-[12px] font-bold">
+          <MessageSquare className="w-4 h-4" /> Comment
+        </button>
+        <button className="flex-1 flex items-center justify-center gap-1.5 py-1 hover:bg-[#F0F2F5] rounded text-[12px] font-bold">
+          <Share2 className="w-4 h-4" /> Share
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const LivePreviewCard = ({
   name, objectiveObj, dailySpend, reachLow, reachHigh, resultsLow, resultsHigh,

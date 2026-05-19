@@ -161,6 +161,8 @@ export const api = {
     destination_type?: "WHATSAPP" | "MESSENGER" | "WEBSITE" | "ON_AD";
     daily_budget_inr: number;
     status?: "ACTIVE" | "PAUSED";
+    start_time?: string;
+    end_time?: string;
     targeting?: {
       country_codes?: string[];
       city_keys?: string[];
@@ -169,6 +171,10 @@ export const api = {
       age_max?: number;
       audience_id?: string;
       locales?: number[];
+      genders?: number[];
+      publisher_platforms?: string[];
+      facebook_positions?: string[];
+      instagram_positions?: string[];
     };
     creative?: {
       page_id: string;
