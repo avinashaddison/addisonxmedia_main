@@ -315,7 +315,8 @@ export const CreateCampaignPage = () => {
                 language={language} setLanguage={setLanguage}
                 pageId={pageId} setPageId={setPageId}
                 pages={pages}
-                pagesLoading={pagesQ.isPending}
+                pagesLoading={pagesQ.isPending || pagesQ.isFetching}
+                refreshPages={() => qc.invalidateQueries({ queryKey: ["ads", "pages"] })}
                 adImageUrl={adImageUrl} setAdImageUrl={setAdImageUrl}
                 adHeadline={adHeadline} setAdHeadline={setAdHeadline}
                 adBody={adBody} setAdBody={setAdBody}
@@ -463,6 +464,7 @@ type StepAudienceCreativeProps = {
   pageId: string; setPageId: (v: string) => void;
   pages: Array<{ id: string; name: string; category: string | null }>;
   pagesLoading: boolean;
+  refreshPages: () => void;
   adImageUrl: string; setAdImageUrl: (v: string) => void;
   adHeadline: string; setAdHeadline: (v: string) => void;
   adBody: string; setAdBody: (v: string) => void;
@@ -494,27 +496,41 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
 
     {/* Facebook Page (required for Ad creative) */}
     <Card>
-      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">
-        Facebook Page (ad isi se chalegi)
-      </Label>
-      <p className="text-[11px] text-foreground/60 font-medium mt-1 mb-2">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">
+          Facebook Page (ad isi se chalegi)
+        </Label>
+        <button
+          onClick={p.refreshPages}
+          disabled={p.pagesLoading}
+          className="text-[10px] font-extrabold text-[#3C50E0] hover:underline disabled:opacity-50 inline-flex items-center gap-1"
+        >
+          {p.pagesLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "↻"} Refresh
+        </button>
+      </div>
+      <p className="text-[11px] text-foreground/60 font-medium mb-2">
         Ad apke Page ke naam se publish hoga · {p.isCTW ? "WhatsApp number bhi isi page se linked hai" : "users isi page ka naam dekhenge"}
       </p>
-      <Select value={p.pageId} onValueChange={p.setPageId}>
-        <SelectTrigger>
-          <SelectValue placeholder={p.pagesLoading ? "Loading pages…" : p.pages.length === 0 ? "Koi page nahi mila — Meta Business par page banao" : "Page select karein"} />
-        </SelectTrigger>
-        <SelectContent>
-          {p.pages.map((pg) => (
-            <SelectItem key={pg.id} value={pg.id}>
-              <span className="flex items-center gap-2">
-                <span className="font-bold">{pg.name}</span>
-                {pg.category && <span className="text-foreground/60 text-[11px]">· {pg.category}</span>}
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+
+      {p.pages.length === 0 && !p.pagesLoading ? (
+        <PageEmptyState />
+      ) : (
+        <Select value={p.pageId} onValueChange={p.setPageId}>
+          <SelectTrigger>
+            <SelectValue placeholder={p.pagesLoading ? "Loading pages…" : "Page select karein"} />
+          </SelectTrigger>
+          <SelectContent>
+            {p.pages.map((pg) => (
+              <SelectItem key={pg.id} value={pg.id}>
+                <span className="flex items-center gap-2">
+                  <span className="font-bold">{pg.name}</span>
+                  {pg.category && <span className="text-foreground/60 text-[11px]">· {pg.category}</span>}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
     </Card>
 
     {/* Custom Audience */}
@@ -842,6 +858,73 @@ const SectionHeader = ({ icon: Icon, iconBg, title, subtitle }: { icon: typeof T
 const Card = ({ children, className }: { children: React.ReactNode; className?: string }) => (
   <div className={cn("bg-white border-2 border-[#E8B968] rounded-2xl p-4 shadow-[0_3px_0_0_#E8B968]", className)}>
     {children}
+  </div>
+);
+
+/** Empty-state shown inside the Page picker when /me/accounts returns no pages.
+ *  Pages can't be created via API (Meta restriction), so we deep-link the user
+ *  to the right place + show what they have to do once the page exists. */
+const PageEmptyState = () => (
+  <div className="rounded-xl border-2 border-dashed border-[#D4308E]/40 bg-[#FCE5F0]/40 p-3">
+    <div className="flex items-start gap-2.5 mb-3">
+      <div className="w-8 h-8 rounded-lg bg-[#D4308E] text-white flex items-center justify-center flex-shrink-0">
+        <Info className="w-4 h-4" strokeWidth={2.5} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-extrabold text-[#A11A6A]">Koi Facebook Page nahi mila</p>
+        <p className="text-[11px] text-foreground/70 font-medium mt-0.5">
+          Meta khud ke API se hum Page banaa nahi sakte — Meta ki policy hai. 3 quick steps:
+        </p>
+      </div>
+    </div>
+
+    <ol className="space-y-2 text-[11px] mb-3">
+      <li className="flex items-start gap-2">
+        <span className="w-5 h-5 rounded-full bg-[#FF6A1F] text-white text-[10px] font-extrabold flex items-center justify-center flex-shrink-0">1</span>
+        <div>
+          <p className="font-extrabold">Page banao</p>
+          <p className="text-foreground/70 font-medium">Click niche button — new tab khulega Meta pe</p>
+        </div>
+      </li>
+      <li className="flex items-start gap-2">
+        <span className="w-5 h-5 rounded-full bg-[#FF6A1F] text-white text-[10px] font-extrabold flex items-center justify-center flex-shrink-0">2</span>
+        <div>
+          <p className="font-extrabold">Business Manager me Page add karo</p>
+          <p className="text-foreground/70 font-medium">business.facebook.com → Settings → Pages → Add → "Claim a Page" → Page name daalo</p>
+        </div>
+      </li>
+      <li className="flex items-start gap-2">
+        <span className="w-5 h-5 rounded-full bg-[#FF6A1F] text-white text-[10px] font-extrabold flex items-center justify-center flex-shrink-0">3</span>
+        <div>
+          <p className="font-extrabold">System User ko Page assign karo</p>
+          <p className="text-foreground/70 font-medium">Settings → Users → System Users → "Addison" → Assign Assets → Pages → tick karo, "Manage Page" permission</p>
+        </div>
+      </li>
+    </ol>
+
+    <div className="flex gap-2 flex-wrap">
+      <a
+        href="https://www.facebook.com/pages/create"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0866FF] text-white text-[12px] font-extrabold hover:bg-[#0050D6] transition"
+      >
+        <span className="w-4 h-4 rounded-full bg-white text-[#0866FF] flex items-center justify-center text-[10px] font-black">f</span>
+        Create new Facebook Page →
+      </a>
+      <a
+        href="https://business.facebook.com/settings/system-users"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border-2 border-[#E8B968] text-foreground text-[12px] font-extrabold hover:bg-[#FFF6E8] transition"
+      >
+        Business Manager →
+      </a>
+    </div>
+
+    <p className="text-[10px] text-foreground/60 font-medium mt-3">
+      Page assign karne ke baad upar "Refresh" dabao — yahaan dropdown me dikhega.
+    </p>
   </div>
 );
 
