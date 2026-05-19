@@ -54,10 +54,13 @@ type ObjectiveId = typeof OBJECTIVES[number]["id"];
 
 const BUDGET_PRESETS = ["500", "1000", "2500", "5000", "10000"] as const;
 
+// Only country-code presets are safe to hardcode (ISO codes are stable).
+// Region IDs are Meta-internal and not documented — they must come from
+// the live targeting/search API. The earlier hardcoded Tier-1/Tier-2 IDs
+// were guesses that Meta rejected with "Invalid regions". For city-level
+// targeting use the "Custom — search cities" mode below.
 const LOCATION_PRESETS = [
-  { id: "all-india",   label: "All India · 1.4B reach",                                       country_codes: ["IN"] },
-  { id: "tier1",       label: "Tier-1 cities (Bombay, Delhi, Bangalore, Chennai, Hyderabad)", region_keys: ["1956", "1969", "1959", "1966", "1962"] },
-  { id: "tier2",       label: "Tier-2 cities (Indore, Ranchi, Jaipur, Lucknow, Pune…)",       region_keys: ["1957", "1958", "1968", "1965", "1963"] },
+  { id: "all-india",   label: "All India · 1.4B reach", country_codes: ["IN"] },
 ];
 
 // Meta locale IDs aren't public-documented and the user-facing language
@@ -109,7 +112,7 @@ export const CreateCampaignPage = () => {
   const [audience, setAudience]         = useState<string>("");
   const [pageId, setPageId]             = useState<string>("");
   const [locationMode, setLocationMode] = useState<"preset" | "custom">("preset");
-  const [locationPreset, setLocationPreset] = useState<string>("tier2");
+  const [locationPreset, setLocationPreset] = useState<string>("all-india");
   const [customGeos, setCustomGeos]     = useState<GeoChip[]>([]);
   const [geoQuery, setGeoQuery]         = useState("");
   const [language, setLanguage]         = useState("hi");
@@ -622,12 +625,24 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
               {l.label}
             </button>
           ))}
+          <p className="text-[10px] text-foreground/50 font-medium mt-1">
+            Specific cities chahiye? "Search cities" mode try karein — Meta ke real IDs ke saath.
+          </p>
         </div>
       ) : (
         <>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/40" />
             <Input value={p.geoQuery} onChange={(e) => p.setGeoQuery(e.target.value)} placeholder="Type city or state name (e.g. Ranchi, Jharkhand)…" className="pl-9" />
+          </div>
+          <div className="flex gap-1.5 mt-2 flex-wrap">
+            {["Ranchi", "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune", "Ahmedabad", "Jaipur"].map((city) => (
+              <button
+                key={city}
+                onClick={() => p.setGeoQuery(city)}
+                className="px-2 py-1 rounded-full text-[10px] font-extrabold border border-[#E8B968] bg-white text-foreground/70 hover:bg-[#FFF1D6] transition"
+              >+ {city}</button>
+            ))}
           </div>
           {p.geoLoading && <p className="text-[11px] text-foreground/60 mt-2 flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin" /> Searching Meta…</p>}
           {p.geoResults.length > 0 && (
