@@ -31,6 +31,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { AdMediaInput } from "./AdMediaInput";
 
 // Meta's ODAX taxonomy (Oct 2023+).
 //
@@ -1109,27 +1110,13 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
     />
 
     <Card>
-      <Label htmlFor="cc-image" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
-        <ImageIcon className="w-3.5 h-3.5" /> Image URL
+      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
+        <ImageIcon className="w-3.5 h-3.5" /> Ad image
       </Label>
-      <Input
-        id="cc-image"
-        value={p.adImageUrl}
-        onChange={(e) => p.setAdImageUrl(e.target.value)}
-        placeholder="https://yourwebsite.com/diwali-poster.jpg"
-        className="mt-1.5"
-      />
-      <p className="text-[11px] text-foreground/60 font-medium mt-1.5">
-        1200×628px recommended · public URL chahiye (Meta khud download karega)
+      <p className="text-[11px] text-foreground/60 font-medium mt-1 mb-2">
+        1200×628px recommended · drag & drop upload via Cloudinary, ya public URL paste karein.
       </p>
-      {p.adImageUrl && (
-        <img
-          src={p.adImageUrl}
-          alt="preview"
-          className="mt-2 w-full max-w-xs rounded-xl border-2 border-[#E8B968] object-cover aspect-[1.91/1]"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-        />
-      )}
+      <AdMediaInput value={p.adImageUrl} onChange={p.setAdImageUrl} resource="image" />
     </Card>
 
     <Card>
