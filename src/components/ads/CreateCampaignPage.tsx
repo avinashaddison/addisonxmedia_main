@@ -352,55 +352,34 @@ export const CreateCampaignPage = () => {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#FFF6E8]">
-      {/* ─────── Top bar ─────── */}
-      <div className="border-b-2 border-[#E8B968] bg-white px-6 lg:px-10 py-3 flex items-center gap-3 sticky top-0 z-20">
-        <button
-          onClick={() => navigate("/app/ads")}
-          className="w-9 h-9 rounded-xl bg-[#FFF1D6] border-2 border-[#E8B968] flex items-center justify-center hover:bg-[#FFE8C7] transition flex-shrink-0"
-          aria-label="Back"
-        >
-          <ArrowLeft className="w-4 h-4 text-[#B8651A]" strokeWidth={2.5} />
-        </button>
-        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] text-white flex items-center justify-center shadow-md flex-shrink-0">
-          <Megaphone className="w-5 h-5" strokeWidth={2.5} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-[18px] font-black tracking-tight leading-tight">Naya campaign banaiye</h1>
-          <p className="text-[11px] text-foreground/60 font-medium">Meta Marketing API · creates Campaign + Ad Set + Ad atomically</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => navigate("/app/ads")}>Cancel</Button>
-      </div>
-
-      {/* ─────── Step tracker ─────── */}
-      <div className="bg-white border-b border-[#E8B968]/40 px-6 lg:px-10 py-3 flex items-center gap-2 sticky top-[64px] z-10">
-        {[
-          { n: 1, label: "Objective" },
-          { n: 2, label: "Audience & creative" },
-          { n: 3, label: "Budget & launch" },
-        ].map((s, i) => (
-          <div key={s.n} className="flex items-center gap-2 flex-1">
-            <button
-              onClick={() => { if (s.n < step) setStep(s.n); }}
-              className={cn(
-                "flex items-center gap-2 flex-1 px-3 py-2 rounded-xl border-2 transition-all text-left",
-                step === s.n && "border-[#FF6A1F] bg-[#FFEFE0] shadow-[0_2px_0_0_#B8420A]",
-                step >  s.n && "border-[#0E8A4B]/40 bg-[#E6F7EE] cursor-pointer hover:bg-[#D2F1DF]",
-                step <  s.n && "border-[#E8B968]/60 bg-white opacity-60",
-              )}
-            >
-              <span className={cn(
-                "w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-extrabold flex-shrink-0",
-                step === s.n && "bg-[#FF6A1F] text-white",
-                step >  s.n && "bg-[#0E8A4B] text-white",
-                step <  s.n && "bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968]",
-              )}>
-                {step > s.n ? <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={3} /> : s.n}
-              </span>
-              <span className="text-[12px] font-extrabold tracking-tight truncate">{s.label}</span>
-            </button>
-            {i < 2 && <ChevronRight className="w-4 h-4 text-foreground/30 flex-shrink-0" />}
+      {/* ─────── Top bar (back + title + thin progress + cancel) ─────── */}
+      <div className="border-b-2 border-[#E8B968] bg-white sticky top-0 z-20">
+        <div className="px-6 lg:px-10 py-3 flex items-center gap-3">
+          <button
+            onClick={() => navigate("/app/ads")}
+            className="w-9 h-9 rounded-xl bg-[#FFF1D6] border-2 border-[#E8B968] flex items-center justify-center hover:bg-[#FFE8C7] transition flex-shrink-0"
+            aria-label="Back"
+          >
+            <ArrowLeft className="w-4 h-4 text-[#B8651A]" strokeWidth={2.5} />
+          </button>
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] text-white flex items-center justify-center shadow-md flex-shrink-0">
+            <Megaphone className="w-5 h-5" strokeWidth={2.5} />
           </div>
-        ))}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-[18px] font-black tracking-tight leading-tight">Naya campaign banaiye</h1>
+            <p className="text-[11px] text-foreground/60 font-medium">
+              Step {step} of 3 · {step === 1 ? "Objective" : step === 2 ? "Audience & creative" : "Budget & launch"}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate("/app/ads")}>Cancel</Button>
+        </div>
+        {/* Thin progress strip — replaces the bulky step tracker */}
+        <div className="h-1 bg-[#FFF1D6]">
+          <div
+            className="h-full bg-gradient-to-r from-[#FF6A1F] to-[#FFD23F] transition-all duration-300"
+            style={{ width: `${(step / 3) * 100}%` }}
+          />
+        </div>
       </div>
 
       {/* ─────── Demo / connection warning ─────── */}

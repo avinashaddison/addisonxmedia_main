@@ -52,7 +52,9 @@ const Index = () => {
     }
   }, [location.pathname, navigate]);
 
-  const showTopbar = page !== "inbox";
+  // Hide the global topbar for full-page wizards (inbox + ads create) — they
+  // have their own dedicated top bar so the global one would just clutter.
+  const showTopbar = page !== "inbox" && !isAdsCreate;
 
   const handleNavigate = (next: string) => {
     navigate(`/app/${next}`);
