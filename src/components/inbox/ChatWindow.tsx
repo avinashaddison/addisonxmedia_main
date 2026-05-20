@@ -337,8 +337,15 @@ export const ChatWindow = ({ conversation }: Props) => {
 
       {/* Messages */}
       <div
-        className="flex-1 overflow-y-auto px-5 py-5 space-y-2 relative dot-pattern"
-        style={{ background: "hsl(var(--chat-bg))" }}
+        className="flex-1 overflow-y-auto px-5 py-5 space-y-1 relative"
+        style={{
+          // Subtle WhatsApp-style wallpaper: warm cream base + tiny dot pattern
+          // overlaid via repeating-radial-gradient. Looks closer to a real chat
+          // app than the previous flat solid.
+          backgroundColor: "hsl(var(--chat-bg))",
+          backgroundImage: "radial-gradient(circle at 1px 1px, hsl(var(--foreground) / 0.04) 1px, transparent 0)",
+          backgroundSize: "18px 18px",
+        }}
       >
         {isLoading && (
           <div className="flex justify-center py-8">
@@ -359,10 +366,12 @@ export const ChatWindow = ({ conversation }: Props) => {
         {messageRows.map((row) => {
           if (row.kind === "day") {
             return (
-              <div key={row.key} className="flex justify-center py-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-[0.18em] px-3 py-1 rounded-full bg-card/80 backdrop-blur-sm text-muted-foreground shadow-sm">
+              <div key={row.key} className="flex items-center gap-3 py-3 px-2">
+                <div className="flex-1 h-px bg-gradient-to-r from-transparent via-foreground/15 to-foreground/15" />
+                <span className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-muted-foreground px-2 py-1 rounded-full bg-white/70 backdrop-blur shadow-sm">
                   {row.label}
                 </span>
+                <div className="flex-1 h-px bg-gradient-to-r from-foreground/15 via-foreground/15 to-transparent" />
               </div>
             );
           }
@@ -392,25 +401,59 @@ export const ChatWindow = ({ conversation }: Props) => {
           }
 
           return (
-            <div key={row.key} className={cn("flex animate-bubble-pop group", isOutbound ? "justify-end" : "justify-start", !row.isGroupTail && "mb-0.5")}>
-              <div className="max-w-[75%] relative">
+            <div key={row.key} className={cn("flex items-end gap-2 animate-bubble-pop group/msg", isOutbound ? "justify-end" : "justify-start", !row.isGroupTail && "mb-0.5")}>
+              {/* Incoming avatar — only on the last bubble in a same-sender run.
+                  Otherwise reserve the space so all bubbles in a group align. */}
+              {!isOutbound && (
+                row.isGroupTail ? (
+                  <div className={cn(
+                    "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white shadow-sm flex-shrink-0 mb-0.5",
+                    contact.tag === "hot" ? "bg-[#D4308E]" :
+                    contact.tag === "warm" ? "bg-[#FF6A1F]" :
+                    "bg-[#3C50E0]"
+                  )}>
+                    {initials}
+                  </div>
+                ) : (
+                  <div className="w-7 flex-shrink-0" />
+                )
+              )}
+
+              <div className="max-w-[72%] relative">
                 <div className={cn(
-                  "relative shadow-sm overflow-hidden",
-                  // When showing only an image (no caption), use minimal padding so the
-                  // image fills the bubble; otherwise normal padding.
-                  hasMedia && isImage && !msg.body ? "p-0 rounded-2xl" : "rounded-2xl px-3.5 py-2",
+                  "relative overflow-hidden transition-shadow",
+                  // No padding for image-only bubbles so the image goes edge-to-edge.
+                  hasMedia && isImage && !msg.body ? "p-0" : "px-3.5 py-2",
+                  // Premium-feel rounded corners: tail-corner is squared off ONLY on
+                  // the last bubble of the group (matches the avatar/tail position).
                   isOutbound
-                    ? "bg-[hsl(var(--chat-outgoing))] rounded-br-md"
-                    : "bg-[hsl(var(--chat-incoming))] shadow-foreground/5 rounded-bl-md",
+                    ? cn("bg-[hsl(var(--chat-outgoing))] rounded-2xl", row.isGroupTail && "rounded-br-md")
+                    : cn("bg-[hsl(var(--chat-incoming))] rounded-2xl", row.isGroupTail && "rounded-bl-md"),
+                  // Layered soft shadow (bigger than shadow-sm, more refined)
+                  "shadow-[0_1px_2px_rgba(0,0,0,0.04),0_2px_8px_rgba(0,0,0,0.04)]",
                   isFailed && "ring-2 ring-destructive/30"
                 )}>
+                  {/* CSS bubble tail — small triangular notch matching the bubble
+                      colour, attached to the last bubble of each run. */}
+                  {row.isGroupTail && (
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "absolute bottom-0 w-3 h-3",
+                        isOutbound
+                          ? "right-[-6px] bg-[hsl(var(--chat-outgoing))] [clip-path:polygon(0_0,100%_100%,0_100%)]"
+                          : "left-[-6px] bg-[hsl(var(--chat-incoming))] [clip-path:polygon(100%_0,100%_100%,0_100%)]"
+                      )}
+                    />
+                  )}
+
                   {msg.is_ai_generated && isOutbound && (
                     <span className="absolute -top-2 -left-1 text-[8px] font-bold text-primary bg-primary-soft px-1.5 py-0.5 rounded uppercase tracking-wider flex items-center gap-0.5 z-10">
                       <Sparkles className="w-2.5 h-2.5" /> AI
                     </span>
                   )}
                   {hasMedia ? (
-                    <div className={cn(hasMedia && isImage && !msg.body ? "p-1" : "")}>
+                    <div className={cn(hasMedia && isImage && !msg.body ? "p-0.5" : "")}>
                       <MediaBubble
                         type={media!.type}
                         src={media!.src}
@@ -419,16 +462,16 @@ export const ChatWindow = ({ conversation }: Props) => {
                       />
                     </div>
                   ) : msg.body ? (
-                    <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-foreground">{msg.body}</p>
+                    <p className="text-[14px] leading-[1.45] whitespace-pre-wrap text-foreground">{msg.body}</p>
                   ) : null}
                   {row.isGroupTail && (
                     <div className={cn(
                       "flex items-center gap-1",
-                      hasMedia && isImage && !msg.body ? "absolute bottom-1.5 right-2 bg-black/35 backdrop-blur-sm px-1.5 py-0.5 rounded" : "mt-1",
+                      hasMedia && isImage && !msg.body ? "absolute bottom-1.5 right-2 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded-md" : "mt-0.5",
                       isOutbound ? "justify-end" : "justify-start"
                     )}>
                       <span className={cn(
-                        "text-[10px]",
+                        "text-[10px] font-medium",
                         hasMedia && isImage && !msg.body ? "text-white" : "text-muted-foreground"
                       )}>
                         {formatTime(msg.created_at)}
@@ -437,6 +480,21 @@ export const ChatWindow = ({ conversation }: Props) => {
                     </div>
                   )}
                 </div>
+
+                {/* Hover actions strip — appears on hover, positioned next to bubble */}
+                <div className={cn(
+                  "absolute top-1/2 -translate-y-1/2 opacity-0 group-hover/msg:opacity-100 transition-opacity flex items-center gap-1",
+                  isOutbound ? "right-full mr-1.5" : "left-full ml-1.5"
+                )}>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(msg.body); toast.success("Copied"); }}
+                    className="w-7 h-7 rounded-full bg-white border border-border shadow-md hover:bg-muted text-foreground/60 hover:text-foreground flex items-center justify-center transition"
+                    title="Copy text"
+                  >
+                    <FileText className="w-3 h-3" />
+                  </button>
+                </div>
+
                 {/* Retry button for failed outbound messages */}
                 {isFailed && isOutbound && row.isGroupTail && (
                   <div className="flex items-center gap-1 mt-1 justify-end">
@@ -451,6 +509,9 @@ export const ChatWindow = ({ conversation }: Props) => {
                   </div>
                 )}
               </div>
+
+              {/* Outbound right-side spacer to balance the avatar column */}
+              {isOutbound && <div className="w-1 flex-shrink-0" />}
             </div>
           );
         })}
