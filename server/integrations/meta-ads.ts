@@ -299,6 +299,13 @@ export type TargetingSpec = {
    *  targeting expansion is now always applied to every ad set automatically.
    *  Kept here as a type-only marker; the route layer no longer sets it. */
   targeting_optimization?: string;
+  /** Replaced targeting_optimization in late 2024. Meta now REQUIRES this
+   *  explicitly — sending an ad set without it fails with "Advantage
+   *  audience flag required". advantage_audience: 1 = expansion on (Meta's
+   *  recommended default), 0 = off (audience locked to exact criteria). */
+  targeting_automation?: {
+    advantage_audience: 0 | 1;
+  };
 };
 
 /** Real reach + impressions estimate from Meta. Updates as the user changes

@@ -324,15 +324,17 @@ app.post("/ads/campaigns", async (c) => {
     if (exclusions.interests || exclusions.custom_audiences) {
       targetingSpec.exclusions = exclusions;
     }
-    // Meta removed the targeting_optimization field in 2024 — Advantage
-    // detailed targeting is now ALWAYS auto-applied to all ad sets. Sending
-    // the field returns:
-    //   "The targeting_optimization field has been removed: You don't need
-    //    to set a value for the targeting_optimization field because it has
-    //    been removed."
-    // So we simply ignore body.targeting?.targeting_expansion — Meta does
-    // the right thing on its own. The UI toggle is kept for clarity but
-    // is informational only.
+    // Meta replaced targeting_optimization (removed 2024) with the new
+    // targeting_automation.advantage_audience flag and made it MANDATORY in
+    // late 2024. Sending an ad set without it now fails with:
+    //   "Advantage audience flag required: set the advantage_audience flag
+    //    to either 1 or 0 within the targeting_automation field"
+    // We default to 1 (expansion on) which is Meta's recommended setting
+    // and what the old targeting_expansion=true toggle effectively meant.
+    // If the user explicitly flipped the toggle off, honor that.
+    targetingSpec.targeting_automation = {
+      advantage_audience: body.targeting?.targeting_expansion === false ? 0 : 1,
+    };
 
     // Pick optimization goal per objective. CTW campaigns now ride on
     // OUTCOME_TRAFFIC + wa.me link (no destination_type=WHATSAPP, no
