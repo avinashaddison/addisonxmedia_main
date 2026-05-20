@@ -1,6 +1,5 @@
-import { Menu, RefreshCw, Moon, Sun, Search } from "lucide-react";
+import { Menu, RefreshCw, Search } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useTheme } from "next-themes";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "./CommandPalette";
@@ -9,9 +8,7 @@ import { NotificationCenter } from "./NotificationCenter";
 type Props = { onNavigate: (page: string) => void; onMenuClick?: () => void };
 
 export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
-  const { theme, setTheme } = useTheme();
   const qc = useQueryClient();
-  const isDark = theme === "dark";
   const [syncedAt, setSyncedAt] = useState<number>(Date.now());
   const [now, setNow] = useState<number>(Date.now());
   const [refreshing, setRefreshing] = useState(false);
@@ -95,15 +92,8 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
         </button>
       </div>
 
-      <button
-        onClick={() => setTheme(isDark ? "light" : "dark")}
-        title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        aria-label="Toggle theme"
-        className="w-9 h-9 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors flex-shrink-0 relative overflow-hidden"
-      >
-        <Sun className={`w-4 h-4 absolute transition-all duration-300 ${isDark ? "rotate-90 scale-0 opacity-0" : "rotate-0 scale-100 opacity-100"}`} />
-        <Moon className={`w-4 h-4 absolute transition-all duration-300 ${isDark ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-0 opacity-0"}`} />
-      </button>
+      {/* Theme toggle removed — see src/components/ThemeToggle.tsx for the
+          rationale. Re-enable once a proper dark palette is designed. */}
 
       <NotificationCenter onNavigate={onNavigate} />
 

@@ -28,14 +28,11 @@ import {
   Plus,
   MessageSquarePlus,
   Send,
-  Moon,
-  Sun,
   LogOut,
   Loader2,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
-import { useTheme } from "next-themes";
 import { toast } from "sonner";
 
 type Props = {
@@ -69,8 +66,6 @@ const NAV_ITEMS = [
 
 export const CommandPalette = ({ open, onOpenChange, onNavigate }: Props) => {
   const { user, signOut } = useAuth();
-  const { theme, setTheme } = useTheme();
-  const isDark = theme === "dark";
 
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
@@ -246,16 +241,8 @@ export const CommandPalette = ({ open, onOpenChange, onNavigate }: Props) => {
 
         {/* Preferences */}
         <CommandGroup heading="Preferences">
-          <CommandItem
-            value="toggle theme dark light mode"
-            onSelect={() => runAction(() => {
-              setTheme(isDark ? "light" : "dark");
-              toast.success(`Switched to ${isDark ? "light" : "dark"} mode`);
-            })}
-          >
-            {isDark ? <Sun className="w-4 h-4 mr-2 text-muted-foreground" /> : <Moon className="w-4 h-4 mr-2 text-muted-foreground" />}
-            <span className="flex-1">Switch to {isDark ? "light" : "dark"} mode</span>
-          </CommandItem>
+          {/* Dark-mode toggle removed — app brand is light-only for now.
+              See src/components/ThemeToggle.tsx for the full rationale. */}
           <CommandItem
             value="logout sign out exit"
             onSelect={() => runAction(() => {
