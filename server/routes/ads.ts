@@ -34,6 +34,11 @@ import {
   createAd,
   deleteCampaign,
   deleteAdSet,
+  singleCampaignInsights,
+  campaignTimeSeries,
+  campaignBreakdown,
+  listAdsInCampaign,
+  adsInsights,
   AdsApiError,
   type AdsCredentials,
   type MetaCampaign,
@@ -734,6 +739,174 @@ app.patch("/ads/campaigns/:id", async (c) => {
     return c.json({ error: err.error }, 400);
   }
 });
+
+/* ─────────── Single-campaign analytics (powers /app/ads/:id) ─────────── */
+
+app.get("/ads/campaigns/:id/analytics", async (c) => {
+  const id = c.req.param("id");
+  const range = (c.req.query("range") as "last_7d" | "last_14d" | "last_30d" | "last_90d") ?? "last_30d";
+  const creds = await getCreds(c.var.userId);
+
+  if (!creds) return c.json(demoCampaignAnalytics(id), 200);
+
+  try {
+    // Run everything in parallel — even when Meta is slow, total wait is the
+    // slowest single endpoint (usually ~1.5s for insights with breakdowns).
+    const [campaign, totals, daily, byAgeGender, byPlatform, ads, perAd] = await Promise.all([
+      // Campaign metadata
+      adsFetchSafe(creds, `/${id}?fields=id,name,objective,status,effective_status,daily_budget,lifetime_budget,created_time,start_time,stop_time`),
+      singleCampaignInsights(creds, id, range).catch(() => null),
+      campaignTimeSeries(creds, id, range).catch(() => []),
+      campaignBreakdown(creds, id, "age,gender", range).catch(() => []),
+      campaignBreakdown(creds, id, "publisher_platform,platform_position", range).catch(() => []),
+      listAdsInCampaign(creds, id).catch(() => []),
+      adsInsights(creds, id, range).catch(() => []),
+    ]);
+
+    const adInsightsById = new Map(perAd.map((i) => [i.ad_id, i]));
+
+    return c.json({
+      demo: false,
+      campaign: campaign ?? null,
+      range,
+      totals: shapeTotals(totals),
+      daily: daily.map((d) => ({
+        date: d.date_start,
+        spend: Number(d.spend ?? 0),
+        impressions: Number(d.impressions ?? 0),
+        clicks: Number(d.clicks ?? 0),
+        results: extractResults(d.actions),
+      })),
+      by_age_gender: byAgeGender.map((r) => ({
+        age: r.age,
+        gender: r.gender,
+        spend: Number(r.spend ?? 0),
+        impressions: Number(r.impressions ?? 0),
+        clicks: Number(r.clicks ?? 0),
+      })),
+      by_placement: byPlatform.map((r) => ({
+        platform: r.publisher_platform,
+        position: r.platform_position,
+        spend: Number(r.spend ?? 0),
+        impressions: Number(r.impressions ?? 0),
+        clicks: Number(r.clicks ?? 0),
+      })),
+      ads: ads.map((a) => {
+        const ins = adInsightsById.get(a.id);
+        return {
+          id: a.id,
+          name: a.name,
+          status: a.status,
+          effective_status: a.effective_status,
+          adset_id: a.adset_id,
+          created_time: a.created_time,
+          spend: ins ? Number(ins.spend ?? 0) : 0,
+          impressions: ins ? Number(ins.impressions ?? 0) : 0,
+          clicks: ins ? Number(ins.clicks ?? 0) : 0,
+          ctr: ins ? Number(ins.ctr ?? 0) : 0,
+          cpc: ins ? Number(ins.cpc ?? 0) : 0,
+          results: extractResults(ins?.actions),
+        };
+      }),
+    });
+  } catch (e) {
+    const err = onApiError(e);
+    return c.json({ ...demoCampaignAnalytics(id), error: err.error }, 200);
+  }
+});
+
+async function adsFetchSafe(creds: AdsCredentials, path: string) {
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0${path}`, {
+      headers: { Authorization: `Bearer ${creds.accessToken}` },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function extractResults(actions?: Array<{ action_type: string; value: string }> | null): number {
+  if (!actions) return 0;
+  const ctw = actions.find((a) => a.action_type === "onsite_conversion.messaging_conversation_started_7d");
+  const purchase = actions.find((a) => a.action_type === "purchase");
+  const leads = actions.find((a) => a.action_type === "lead");
+  const linkClicks = actions.find((a) => a.action_type === "link_click");
+  return Number(ctw?.value ?? purchase?.value ?? leads?.value ?? linkClicks?.value ?? 0);
+}
+
+function shapeTotals(t: (Awaited<ReturnType<typeof singleCampaignInsights>>) | null) {
+  if (!t) return { spend: 0, impressions: 0, clicks: 0, ctr: 0, cpc: 0, cpm: 0, reach: 0, frequency: 0, results: 0 };
+  return {
+    spend: Number(t.spend ?? 0),
+    impressions: Number(t.impressions ?? 0),
+    clicks: Number(t.clicks ?? 0),
+    ctr: Number(t.ctr ?? 0),
+    cpc: Number(t.cpc ?? 0),
+    cpm: Number(t.cpm ?? 0),
+    reach: Number(t.reach ?? 0),
+    frequency: Number(t.frequency ?? 0),
+    results: extractResults(t.actions),
+  };
+}
+
+function demoCampaignAnalytics(id: string) {
+  const days = 14;
+  const daily = Array.from({ length: days }, (_, i) => {
+    const d = new Date(Date.now() - (days - 1 - i) * 86400_000);
+    const base = 800 + Math.random() * 1200;
+    const ctr = 2 + Math.random() * 1.5;
+    const impressions = Math.round(base * 100);
+    const clicks = Math.round(impressions * (ctr / 100));
+    return {
+      date: d.toISOString().slice(0, 10),
+      spend: Math.round(base),
+      impressions,
+      clicks,
+      results: Math.round(clicks * 0.075),
+    };
+  });
+  const sum = (k: "spend" | "impressions" | "clicks" | "results") => daily.reduce((a, b) => a + b[k], 0);
+  return {
+    demo: true,
+    campaign: { id, name: "Demo · Diwali CTW", objective: "OUTCOME_TRAFFIC", status: "ACTIVE", effective_status: "ACTIVE", daily_budget: "100000", created_time: new Date(Date.now() - days * 86400_000).toISOString() },
+    range: "last_30d",
+    totals: {
+      spend: sum("spend"),
+      impressions: sum("impressions"),
+      clicks: sum("clicks"),
+      ctr: (sum("clicks") / Math.max(1, sum("impressions"))) * 100,
+      cpc: sum("spend") / Math.max(1, sum("clicks")),
+      cpm: (sum("spend") / Math.max(1, sum("impressions"))) * 1000,
+      reach: Math.round(sum("impressions") * 0.45),
+      frequency: sum("impressions") / Math.max(1, Math.round(sum("impressions") * 0.45)),
+      results: sum("results"),
+    },
+    daily,
+    by_age_gender: [
+      { age: "18-24", gender: "female", spend: 2100, impressions: 18000, clicks: 590 },
+      { age: "18-24", gender: "male",   spend: 1900, impressions: 16500, clicks: 480 },
+      { age: "25-34", gender: "female", spend: 3200, impressions: 28000, clicks: 1020 },
+      { age: "25-34", gender: "male",   spend: 2800, impressions: 24500, clicks: 880 },
+      { age: "35-44", gender: "female", spend: 1500, impressions: 13000, clicks: 410 },
+      { age: "35-44", gender: "male",   spend: 1300, impressions: 11500, clicks: 350 },
+      { age: "45-54", gender: "female", spend: 700,  impressions: 6000,  clicks: 170 },
+      { age: "45-54", gender: "male",   spend: 600,  impressions: 5200,  clicks: 140 },
+    ],
+    by_placement: [
+      { platform: "instagram", position: "stream",       spend: 4200, impressions: 38000, clicks: 1350 },
+      { platform: "instagram", position: "story",        spend: 2800, impressions: 25000, clicks: 820 },
+      { platform: "instagram", position: "reels",        spend: 1900, impressions: 17500, clicks: 610 },
+      { platform: "facebook",  position: "feed",         spend: 2400, impressions: 21000, clicks: 740 },
+      { platform: "facebook",  position: "marketplace",  spend: 800,  impressions: 7200,  clicks: 220 },
+    ],
+    ads: [
+      { id: "demo_ad_1", name: "Diwali_offer_v3", status: "ACTIVE",  effective_status: "ACTIVE", adset_id: "demo_as_1", created_time: new Date().toISOString(), spend: 7400, impressions: 64500, clicks: 2200, ctr: 3.41, cpc: 3.36, results: 165 },
+      { id: "demo_ad_2", name: "Diwali_offer_v1", status: "PAUSED",  effective_status: "PAUSED", adset_id: "demo_as_1", created_time: new Date().toISOString(), spend: 3100, impressions: 28500, clicks: 880, ctr: 3.09, cpc: 3.52, results: 60 },
+    ],
+  };
+}
 
 /* ─────────── Insights (account-level KPIs) ─────────── */
 

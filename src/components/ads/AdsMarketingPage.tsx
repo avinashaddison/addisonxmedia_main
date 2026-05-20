@@ -375,6 +375,7 @@ export const AdsMarketingPage = () => {
                 <CampaignRow
                   key={c.id}
                   c={c}
+                  onClick={() => navigate(`/app/ads/${c.id}`)}
                   onToggle={() => {
                     if (c.id.startsWith("demo_")) {
                       toast.info("Connect Meta Ads to control real campaigns");
@@ -637,7 +638,7 @@ const PlatformBadge = ({ p }: { p: Platform }) => {
   );
 };
 
-const CampaignRow = ({ c, onToggle }: { c: AdCampaign; onToggle?: () => void }) => {
+const CampaignRow = ({ c, onToggle, onClick }: { c: AdCampaign; onToggle?: () => void; onClick?: () => void }) => {
   const statusStyles = {
     active:  { dot: "bg-[#0E8A4B]", text: "text-[#0E8A4B]", bg: "bg-[#E6F7EE]", label: "Active" },
     paused:  { dot: "bg-[#B8651A]", text: "text-[#B8651A]", bg: "bg-[#FFF1D6]", label: "Paused" },
@@ -647,8 +648,14 @@ const CampaignRow = ({ c, onToggle }: { c: AdCampaign; onToggle?: () => void }) 
   const spentPct = Math.min(100, (c.spent_inr / Math.max(1, c.daily_budget_inr * 7)) * 100);
 
   return (
-    <div className="grid grid-cols-[36px_1.6fr_110px_1fr_120px_120px_110px_110px_90px_60px] gap-3 px-4 py-3 border-b border-[#E8B968]/40 last:border-b-0 items-center hover:bg-[#FFF6E8] transition min-w-[1100px]">
-      <button onClick={onToggle} className="w-7 h-7 rounded-lg bg-[#FFF1D6] border border-[#E8B968] flex items-center justify-center hover:bg-[#FFE8C7] transition">
+    <div
+      onClick={onClick}
+      className="grid grid-cols-[36px_1.6fr_110px_1fr_120px_120px_110px_110px_90px_60px] gap-3 px-4 py-3 border-b border-[#E8B968]/40 last:border-b-0 items-center hover:bg-[#FFF6E8] transition min-w-[1100px] cursor-pointer"
+    >
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggle?.(); }}
+        className="w-7 h-7 rounded-lg bg-[#FFF1D6] border border-[#E8B968] flex items-center justify-center hover:bg-[#FFE8C7] transition"
+      >
         {c.status === "active" ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
       </button>
       <div className="min-w-0">
@@ -694,7 +701,10 @@ const CampaignRow = ({ c, onToggle }: { c: AdCampaign; onToggle?: () => void }) 
           {statusStyles.label}
         </span>
       </div>
-      <button className="w-8 h-8 rounded-lg hover:bg-[#FFE8C7] flex items-center justify-center text-foreground/60 hover:text-foreground transition">
+      <button
+        onClick={(e) => e.stopPropagation()}
+        className="w-8 h-8 rounded-lg hover:bg-[#FFE8C7] flex items-center justify-center text-foreground/60 hover:text-foreground transition"
+      >
         <MoreHorizontal className="w-4 h-4" />
       </button>
     </div>

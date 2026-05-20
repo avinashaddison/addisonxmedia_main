@@ -162,6 +162,77 @@ export async function campaignInsights(
   return res.data ?? [];
 }
 
+/** Single-campaign full insights (totals over the date range). */
+export async function singleCampaignInsights(
+  creds: AdsCredentials,
+  campaignId: string,
+  datePreset: "today" | "yesterday" | "last_7d" | "last_14d" | "last_30d" | "last_90d" = "last_30d"
+): Promise<MetaInsights & { reach?: string; frequency?: string; cpm?: string }> {
+  const res = await adsFetch<{ data: Array<MetaInsights & { reach?: string; frequency?: string; cpm?: string }> }>(
+    `/${campaignId}/insights?fields=spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions&date_preset=${datePreset}`,
+    { method: "GET", token: creds.accessToken }
+  );
+  return res.data?.[0] ?? { spend: "0", impressions: "0", clicks: "0", ctr: "0", cpc: "0" };
+}
+
+/** Daily time-series for a campaign. */
+export async function campaignTimeSeries(
+  creds: AdsCredentials,
+  campaignId: string,
+  datePreset: "last_7d" | "last_14d" | "last_30d" | "last_90d" = "last_30d"
+): Promise<Array<{ date_start: string; spend: string; impressions: string; clicks: string; ctr?: string; cpc?: string; actions?: Array<{ action_type: string; value: string }> }>> {
+  const res = await adsFetch<{ data: Array<{ date_start: string; spend: string; impressions: string; clicks: string; ctr?: string; cpc?: string; actions?: Array<{ action_type: string; value: string }> }> }>(
+    `/${campaignId}/insights?fields=spend,impressions,clicks,ctr,cpc,actions&date_preset=${datePreset}&time_increment=1&limit=200`,
+    { method: "GET", token: creds.accessToken }
+  );
+  return res.data ?? [];
+}
+
+/** Breakdown by a Meta dimension (age, gender, age,gender, publisher_platform, etc.). */
+export async function campaignBreakdown(
+  creds: AdsCredentials,
+  campaignId: string,
+  breakdowns: string,
+  datePreset: "last_7d" | "last_14d" | "last_30d" | "last_90d" = "last_30d"
+): Promise<Array<Record<string, string> & { spend: string; impressions: string; clicks: string }>> {
+  const params = new URLSearchParams({
+    fields: "spend,impressions,clicks,ctr,cpc,actions",
+    breakdowns,
+    date_preset: datePreset,
+    limit: "200",
+  });
+  const res = await adsFetch<{ data: Array<Record<string, string> & { spend: string; impressions: string; clicks: string }> }>(
+    `/${campaignId}/insights?${params}`,
+    { method: "GET", token: creds.accessToken }
+  );
+  return res.data ?? [];
+}
+
+/** List ads under a campaign (with their ad sets + minimal creative info). */
+export async function listAdsInCampaign(
+  creds: AdsCredentials,
+  campaignId: string
+): Promise<Array<{ id: string; name: string; status: string; effective_status: string; adset_id: string; created_time: string }>> {
+  const res = await adsFetch<{ data: Array<{ id: string; name: string; status: string; effective_status: string; adset_id: string; created_time: string }> }>(
+    `/${campaignId}/ads?fields=id,name,status,effective_status,adset_id,created_time&limit=50`,
+    { method: "GET", token: creds.accessToken }
+  );
+  return res.data ?? [];
+}
+
+/** Per-ad insights (for the ads breakdown). */
+export async function adsInsights(
+  creds: AdsCredentials,
+  campaignId: string,
+  datePreset: "last_7d" | "last_14d" | "last_30d" | "last_90d" = "last_30d"
+): Promise<Array<MetaInsights & { ad_id: string }>> {
+  const res = await adsFetch<{ data: Array<MetaInsights & { ad_id: string }> }>(
+    `/${campaignId}/insights?fields=ad_id,spend,impressions,clicks,ctr,cpc,actions&level=ad&date_preset=${datePreset}&limit=200`,
+    { method: "GET", token: creds.accessToken }
+  );
+  return res.data ?? [];
+}
+
 /* ─────────── Audiences ─────────── */
 
 export type MetaCustomAudience = {

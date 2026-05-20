@@ -197,6 +197,18 @@ export const api = {
       interests: Array<{ id: string; name: string; audience_size_lower_bound?: number; audience_size_upper_bound?: number; topic?: string; path?: string[] }>;
       demo?: boolean;
     }>(`/ads/targeting/interests${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  getCampaignAnalytics: (id: string, range: "last_7d" | "last_14d" | "last_30d" | "last_90d" = "last_30d") =>
+    get<{
+      demo: boolean;
+      campaign: { id: string; name: string; objective: string; status: string; effective_status: string; daily_budget?: string; lifetime_budget?: string; created_time?: string; start_time?: string; stop_time?: string } | null;
+      range: string;
+      totals: { spend: number; impressions: number; clicks: number; ctr: number; cpc: number; cpm: number; reach: number; frequency: number; results: number };
+      daily: Array<{ date: string; spend: number; impressions: number; clicks: number; results: number }>;
+      by_age_gender: Array<{ age: string; gender: string; spend: number; impressions: number; clicks: number }>;
+      by_placement: Array<{ platform: string; position: string; spend: number; impressions: number; clicks: number }>;
+      ads: Array<{ id: string; name: string; status: string; effective_status: string; adset_id: string; created_time: string; spend: number; impressions: number; clicks: number; ctr: number; cpc: number; results: number }>;
+      error?: string;
+    }>(`/ads/campaigns/${id}/analytics?range=${range}`),
   estimateAdDelivery: (data: {
     objective: string;
     destination_type?: "WHATSAPP" | "MESSENGER" | "WEBSITE" | "ON_AD";
