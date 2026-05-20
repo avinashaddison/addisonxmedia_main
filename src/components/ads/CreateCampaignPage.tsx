@@ -268,14 +268,33 @@ export const CreateCampaignPage = () => {
       const publisherPlatforms: string[] = [];
       if (fbEnabled) publisherPlatforms.push("facebook");
       if (igEnabled) publisherPlatforms.push("instagram");
+
+      // Schedule rule: Meta refuses ad sets shorter than 24h on daily budget.
+      // - If start date is today or in the past, omit start_time entirely so
+      //   Meta defaults to "start delivering now, run indefinitely". Sending
+      //   start_time=today midnight + no end_time triggers the
+      //   "Campaign schedule is too short" rejection because some Meta
+      //   timezones interpret it as a 0-hour window.
+      // - End time only included when the user explicitly set one AND the
+      //   gap from start is >= 24h.
+      const now = Date.now();
+      const startMs = new Date(startDate).getTime();
+      const isFutureStart = startMs > now + 60_000;
+      const startIso = isFutureStart ? new Date(startMs).toISOString() : undefined;
+      const endMs = hasEndDate ? new Date(endDate).getTime() : null;
+      const effectiveStartMs = isFutureStart ? startMs : now;
+      const endIso = endMs && endMs - effectiveStartMs >= 24 * 3600_000
+        ? new Date(endMs).toISOString()
+        : undefined;
+
       return api.createAdCampaign({
         name: name.trim(),
         objective: objectiveObj.meta,
         destination_type: objectiveObj.destinationType,
         daily_budget_inr: Number(budget),
         status: launchPaused ? "PAUSED" : "ACTIVE",
-        start_time: new Date(startDate).toISOString(),
-        end_time: hasEndDate ? new Date(endDate).toISOString() : undefined,
+        start_time: startIso,
+        end_time: endIso,
         targeting: {
           ...targetingPayload,
           genders: gender === "all" ? undefined : (gender === "male" ? [1] : [2]),
@@ -313,6 +332,15 @@ export const CreateCampaignPage = () => {
   const stepValid = (s: number) => {
     if (s === 1) return !!objective;
     if (s === 2) {
+      // Schedule sanity: if user set an end date, require >= 24h gap from
+      // start (or from "now" if start is today / in the past). Catches the
+      // Meta "Campaign schedule is too short" error before hitting Meta.
+      if (hasEndDate) {
+        const startMs = new Date(startDate).getTime();
+        const endMs = new Date(endDate).getTime();
+        const refStart = startMs > Date.now() ? startMs : Date.now();
+        if (endMs - refStart < 24 * 3600_000) return false;
+      }
       return name.trim().length >= 3
         && adHeadline.trim().length >= 5
         && adBody.trim().length >= 10
@@ -332,6 +360,16 @@ export const CreateCampaignPage = () => {
         else if (adHeadline.trim().length < 5) msg = `Headline kam se kam 5 letters chahiye (abhi ${adHeadline.trim().length})`;
         else if (adBody.trim().length < 10) msg = `Body text kam se kam 10 letters chahiye (abhi ${adBody.trim().length})`;
         else if (isCTW && !adLinkUrl.trim()) msg = "WhatsApp link chahiye (wa.me/91xxxxxxxxxx)";
+        else if (hasEndDate) {
+          const startMs = new Date(startDate).getTime();
+          const endMs = new Date(endDate).getTime();
+          const refStart = startMs > Date.now() ? startMs : Date.now();
+          if (endMs - refStart < 24 * 3600_000) {
+            msg = "End date kam se kam 24 hours baad ka rakhein (Meta requirement)";
+          } else {
+            msg = "Form pura karein";
+          }
+        }
         else msg = "Form pura karein";
       } else if (step === 3) {
         msg = "Daily budget ₹100 ya zyada hona chahiye";
