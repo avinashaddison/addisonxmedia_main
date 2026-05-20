@@ -16,7 +16,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { profile, conversation, contact, metaConfig, message } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
-import { sendTextMessage } from "../integrations/meta";
+import { sendTextMessage, sendImageMessage } from "../integrations/meta";
 import { decrypt } from "../crypto";
 
 const app = new Hono<{ Variables: AuthVariables }>();
@@ -117,38 +117,42 @@ app.post("/payments/upi/send", async (c) => {
   const upiLink = `upi://pay?${params.toString()}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=${encodeURIComponent(upiLink)}`;
 
-  // Compose the WhatsApp message text. We include both the deep link (so
-  // tapping on mobile auto-opens UPI app) and a wa-friendly fallback line.
+  // Short caption — what customers actually see on their phone next to the QR.
+  // WhatsApp's image-message caption supports basic formatting (*bold* etc).
   const messageBody =
-    `💳 *Payment request — ₹${body.amount_inr.toLocaleString("en-IN")}*\n\n` +
-    `Tap the link below to pay via your UPI app (PhonePe / GPay / Paytm / BHIM):\n` +
+    `💳 *₹${body.amount_inr.toLocaleString("en-IN")} to ${displayName}*\n` +
+    `UPI ID: \`${vpa}\`\n\n` +
+    `📷 Scan the QR or tap below to pay:\n` +
     `${upiLink}\n\n` +
-    `Note: ${note}\n` +
-    `Pay to: ${displayName} (${vpa})`;
+    `_Please complete the payment_ 🙏`;
 
-  // Send via Meta WhatsApp (if connected). Otherwise just store as outbound
-  // dry-run so the operator sees the message in their inbox.
+  // Send the QR as an actual WhatsApp image with the short caption.
+  // Falls back to text-only if image send fails (e.g. QR URL not reachable).
   const [cfg] = await db.select().from(metaConfig).where(eq(metaConfig.userId, userId)).limit(1);
   let metaMessageId: string | null = null;
   let sentLive = false;
 
   if (cfg?.enabled && cfg.accessToken && cfg.phoneNumberId) {
+    const creds = {
+      accessToken: decrypt(cfg.accessToken),
+      phoneNumberId: cfg.phoneNumberId,
+      businessAccountId: cfg.businessAccountId,
+    };
+    const recipient = ctc.phone.replace(/^\+/, "");
     try {
-      const sent = await sendTextMessage(
-        {
-          accessToken: decrypt(cfg.accessToken),
-          phoneNumberId: cfg.phoneNumberId,
-          businessAccountId: cfg.businessAccountId,
-        },
-        ctc.phone.replace(/^\+/, ""),
-        messageBody,
-      );
+      const sent = await sendImageMessage(creds, recipient, qrUrl, messageBody);
       metaMessageId = sent.messages?.[0]?.id ?? null;
       sentLive = true;
     } catch (e) {
-      console.error("[payments/upi/send] WhatsApp send failed", e);
-      // Fall through — we still record the message locally so the operator sees
-      // the pay link in their UI and can copy it manually if needed.
+      console.error("[payments/upi/send] image send failed, retrying as text", e);
+      try {
+        const sent = await sendTextMessage(creds, recipient, messageBody);
+        metaMessageId = sent.messages?.[0]?.id ?? null;
+        sentLive = true;
+      } catch (e2) {
+        console.error("[payments/upi/send] WhatsApp send failed", e2);
+        // Fall through — we still record the message locally
+      }
     }
   }
 

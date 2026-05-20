@@ -78,6 +78,31 @@ export async function sendTextMessage(
   });
 }
 
+// Send an image to the user. The image must be a public HTTPS URL that Meta
+// can download — they fetch + re-host before delivery. Caption supports
+// WhatsApp formatting (*bold*, _italic_, ~strike~, ```mono```).
+export async function sendImageMessage(
+  creds: MetaCredentials,
+  to: string,
+  imageUrl: string,
+  caption?: string,
+): Promise<{ messages: Array<{ id: string }> }> {
+  return metaFetch(`/${creds.phoneNumberId}/messages`, {
+    method: "POST",
+    token: creds.accessToken,
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "image",
+      image: {
+        link: imageUrl,
+        ...(caption ? { caption } : {}),
+      },
+    }),
+  });
+}
+
 // Send an approved template message (works outside 24h window). Used for broadcasts.
 export async function sendTemplateMessage(
   creds: MetaCredentials,
