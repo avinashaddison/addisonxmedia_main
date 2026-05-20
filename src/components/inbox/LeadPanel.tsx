@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import {
   Phone, Mail, Tag, StickyNote, X, Flame, Snowflake, CircleDot,
-  Save, Trophy, Plus, Loader2, Globe, Bell,
+  Save, Trophy, Plus, Loader2, Globe, Bell, IndianRupee,
 } from "lucide-react";
+import { SendPaymentDialog } from "./SendPaymentDialog";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Contact, initialsFor, formatRelative } from "@/lib/inbox-types";
@@ -17,13 +18,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 type Props = {
   contact: Contact;
+  conversationId?: string;
   onClose?: () => void;
 };
 
 const formatINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
-export const LeadPanel = ({ contact, onClose }: Props) => {
+export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
   const qc = useQueryClient();
   const { user } = useAuth();
   const initials = initialsFor(contact.name);
@@ -33,6 +35,7 @@ export const LeadPanel = ({ contact, onClose }: Props) => {
   const [score, setScore] = useState(contact.score);
   const [notes, setNotes] = useState(contact.notes ?? "");
   const [saving, setSaving] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
 
   // Reset editor state when switching contacts
   useEffect(() => {
@@ -233,6 +236,22 @@ export const LeadPanel = ({ contact, onClose }: Props) => {
           </button>
         </div>
 
+        {/* Send pay link — only when we have an active conversation */}
+        {conversationId && (
+          <div className="px-4 py-3 border-t border-border">
+            <button
+              onClick={() => setPaymentOpen(true)}
+              className="w-full h-11 rounded-xl flex items-center justify-center gap-2 bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white text-[13px] font-extrabold shadow-[0_3px_0_0_#075A30] hover:shadow-[0_1px_0_0_#075A30] hover:translate-y-[2px] transition-all"
+            >
+              <IndianRupee className="w-4 h-4" strokeWidth={2.5} />
+              Send UPI pay link
+            </button>
+            <p className="text-[10px] text-muted-foreground font-medium text-center mt-1.5">
+              QR + tap-to-pay link · directly to WhatsApp
+            </p>
+          </div>
+        )}
+
         {/* Lead info */}
         <div className="px-4 py-3 border-t border-border space-y-2">
           <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Contact info</h4>
@@ -378,6 +397,16 @@ export const LeadPanel = ({ contact, onClose }: Props) => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* UPI Send-payment dialog */}
+      {conversationId && (
+        <SendPaymentDialog
+          open={paymentOpen}
+          onOpenChange={setPaymentOpen}
+          conversationId={conversationId}
+          contactName={contact.name}
+        />
+      )}
     </div>
   );
 };

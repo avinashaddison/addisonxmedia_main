@@ -228,6 +228,17 @@ export const api = {
     }>("/ads/estimate", data),
   listAdPages: () =>
     get<{ pages: Array<{ id: string; name: string; category: string | null }>; demo?: boolean }>("/ads/pages"),
+
+  // UPI payment requests — sent to a customer's WhatsApp inbox as a deep link + QR.
+  getUpiConfig: () =>
+    get<{ vpa: string; display_name: string; configured: boolean }>("/payments/upi/config"),
+  saveUpiConfig: (data: { vpa: string; display_name?: string }) =>
+    patch<{ ok: true; vpa: string; display_name: string; configured: boolean }>("/payments/upi/config", data),
+  sendUpiPaymentRequest: (data: { conversation_id: string; amount_inr: number; note?: string }) =>
+    post<{ ok: true; upi_link: string; qr_url: string; amount_inr: number; note: string; sent_live: boolean; mode: "live" | "dry-run" }>(
+      "/payments/upi/send",
+      data,
+    ),
   adsPreflight: () =>
     get<{
       ok: boolean;

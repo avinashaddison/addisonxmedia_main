@@ -143,6 +143,11 @@ export const profile = pgTable("profile", {
   displayName: text("display_name"),
   avatarUrl: text("avatar_url"),
   phone: text("phone"),
+  // UPI payment settings — used by /api/payments/upi/send to construct
+  // upi://pay deep links + QR codes when the operator wants to collect
+  // money via WhatsApp.
+  upiVpa: text("upi_vpa"),
+  upiDisplayName: text("upi_display_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

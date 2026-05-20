@@ -34,7 +34,7 @@ export const InboxPage = () => {
       {active ? (
         <>
           <ChatWindow conversation={active} />
-          <LeadPanel contact={active.contact} />
+          <LeadPanel contact={active.contact} conversationId={active.id} />
         </>
       ) : (
         <div className="flex-1 flex items-center justify-center bg-card">

@@ -19,6 +19,7 @@ import integrationsRoutes from "./routes/integrations";
 import webhookRoutes from "./routes/webhooks";
 import adminRoutes from "./routes/admin";
 import adsRoutes from "./routes/ads";
+import paymentsRoutes from "./routes/payments";
 import { getSeoSettings, injectSeo, buildSitemapXml, buildRobotsTxt } from "./lib/seo";
 
 const app = new Hono();
@@ -93,6 +94,7 @@ app.route("/api", inboxRoutes);
 app.route("/api", metaRoutes);
 app.route("/api", integrationsRoutes);
 app.route("/api", adsRoutes);
+app.route("/api", paymentsRoutes);
 
 // /sitemap.xml + /robots.txt are dynamic — driven by admin settings, available
 // in both dev and prod so SEO checks work the same locally.
