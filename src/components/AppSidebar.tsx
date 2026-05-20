@@ -18,7 +18,6 @@ import { useEffect, useState } from "react";
 import { prefetchPage } from "@/lib/prefetch";
 
 const SIDEBAR_COLLAPSED_KEY = "addisonx-sidebar-collapsed";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 type Props = {
   active: string;
@@ -318,11 +317,6 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           </div>
         </div>
       )}
-
-      {/* Theme toggle */}
-      <div className="px-2.5 pb-2">
-        <ThemeToggle collapsed={collapsed} />
-      </div>
 
       {/* User menu */}
       <div className="p-2.5 border-t-2 border-[#E8B968] bg-white">

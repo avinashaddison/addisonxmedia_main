@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Search, Bell, BellOff } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ConversationWithContact, tagLabel, initialsFor, formatRelative } from "@/lib/inbox-types";
@@ -10,6 +10,8 @@ type Props = {
   onSelect: (id: string) => void;
   loading: boolean;
   className?: string;
+  muted?: boolean;
+  onToggleMuted?: () => void;
 };
 
 const filters = ["All", "Unread", "Hot", "Closed"] as const;
@@ -20,7 +22,7 @@ const statusDot = (tag: string, hasUnread: boolean) => {
   return { color: "bg-muted-foreground", pulse: false, label: "Quiet" };
 };
 
-export const ConversationList = ({ conversations, activeId, onSelect, loading, className }: Props) => {
+export const ConversationList = ({ conversations, activeId, onSelect, loading, className, muted, onToggleMuted }: Props) => {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("All");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -80,7 +82,24 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
             </span>
           </p>
         </div>
-        <NewConversationDialog onCreated={onSelect} />
+        <div className="flex items-center gap-1.5">
+          {onToggleMuted && (
+            <button
+              onClick={onToggleMuted}
+              title={muted ? "Sound off — click to unmute" : "Sound on — click to mute"}
+              aria-label={muted ? "Unmute notifications" : "Mute notifications"}
+              className={cn(
+                "w-9 h-9 rounded-xl border-2 flex items-center justify-center transition-all",
+                muted
+                  ? "bg-[#FFF6E8] border-[#E8B968] text-foreground/50 hover:text-foreground"
+                  : "bg-[#FFD23F] border-[#E8B968] text-[#7A4A00] hover:bg-[#FFC10E]"
+              )}
+            >
+              {muted ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+            </button>
+          )}
+          <NewConversationDialog onCreated={onSelect} />
+        </div>
       </div>
 
       {/* Search */}
