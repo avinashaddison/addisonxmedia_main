@@ -39,7 +39,7 @@ function parseMediaUrl(mediaUrl: string | null, messageId: string): { type: "ima
   const rest = mediaUrl.slice("meta:".length);
   const parts = rest.split(":");
   const type = (parts.length > 1 ? parts[0] : "image") as "image" | "video" | "audio" | "document" | "sticker" | "unknown";
-  return { type, src: `/api/inbox/messages/${messageId}/media` };
+  return { type, src: `/api/messages/${messageId}/media` };
 }
 
 /** Day label for date separators: "Today" / "Yesterday" / "Mon, 17 May 2026". */
