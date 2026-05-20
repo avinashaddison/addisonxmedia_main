@@ -520,7 +520,16 @@ admin.post("/api/admin/subscriptions/:id/refund", requireAdmin(["super_admin", "
  *  anyway. When env vars are missing, enabled=false and the SPA falls back
  *  to URL-paste mode. */
 admin.get("/api/system/uploads/config", async (c) => {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME ?? "";
+  // Accept either the explicit pair (CLOUDINARY_CLOUD_NAME + CLOUDINARY_UPLOAD_PRESET)
+  // or the standard CLOUDINARY_URL Cloudinary dashboard hands out
+  // (format: cloudinary://<key>:<secret>@<cloud_name>). We only pull the
+  // cloud_name from CLOUDINARY_URL — the upload preset still has to be set
+  // separately because the dashboard URL doesn't include it.
+  let cloudName = process.env.CLOUDINARY_CLOUD_NAME ?? "";
+  if (!cloudName && process.env.CLOUDINARY_URL) {
+    const match = process.env.CLOUDINARY_URL.match(/^cloudinary:\/\/[^:]+:[^@]+@(.+)$/);
+    if (match) cloudName = match[1];
+  }
   const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET ?? "";
   return c.json({
     enabled: Boolean(cloudName && uploadPreset),
