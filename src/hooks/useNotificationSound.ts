@@ -2,6 +2,41 @@ import { useEffect, useRef, useState } from "react";
 import type { ConversationWithContact } from "@/lib/inbox-types";
 
 const MUTE_KEY = "addisonx-inbox-muted";
+const MUTE_EVENT = "addisonx-inbox-mute-change";
+
+const readMuted = () =>
+  typeof window !== "undefined" && window.localStorage.getItem(MUTE_KEY) === "1";
+
+/**
+ * Subscribe to the inbox mute flag across the whole app.
+ * Returns `[muted, toggle]`. Toggling from any component updates every other
+ * subscriber via a custom event (localStorage `storage` events only fire
+ * cross-tab, not within the same tab — hence the manual dispatch).
+ */
+export const useMuteState = () => {
+  const [muted, setMuted] = useState<boolean>(readMuted);
+
+  useEffect(() => {
+    const sync = () => setMuted(readMuted());
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === MUTE_KEY) sync();
+    };
+    window.addEventListener(MUTE_EVENT, sync);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(MUTE_EVENT, sync);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
+  const toggle = () => {
+    const next = !readMuted();
+    window.localStorage.setItem(MUTE_KEY, next ? "1" : "0");
+    window.dispatchEvent(new Event(MUTE_EVENT));
+  };
+
+  return [muted, toggle] as const;
+};
 
 // Synthesize a soft two-tone "ding" via Web Audio API so we don't ship a binary.
 // G5 → C6, sine wave, ~250ms fade. Plays at ~0.18 gain so it's noticeable but
@@ -37,20 +72,12 @@ const playDing = (ctx: AudioContext) => {
  * already drives this; no extra fetching needed.
  */
 export const useNotificationSound = (conversations: ConversationWithContact[]) => {
-  const [muted, setMuted] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(MUTE_KEY) === "1";
-  });
+  const [muted] = useMuteState();
 
   // Track the previous unread total. `null` means "haven't seen any data yet"
   // so the first load doesn't trigger a ding for existing unreads.
   const prevTotalRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-
-  // Persist mute state
-  useEffect(() => {
-    window.localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
-  }, [muted]);
 
   // Lazy-init AudioContext on first user gesture (browsers block autoplay).
   // We listen once for any click/keydown anywhere, then create + resume.
@@ -96,6 +123,4 @@ export const useNotificationSound = (conversations: ConversationWithContact[]) =
       playDing(ctx);
     }
   }, [conversations, muted]);
-
-  return [muted, () => setMuted((m) => !m)] as const;
 };

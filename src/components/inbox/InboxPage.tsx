@@ -3,13 +3,13 @@ import { ConversationList } from "./ConversationList";
 import { ChatWindow } from "./ChatWindow";
 import { LeadPanel } from "./LeadPanel";
 import { useConversations } from "@/hooks/useInboxData";
-import { useNotificationSound } from "@/hooks/useNotificationSound";
+import { useMuteState } from "@/hooks/useNotificationSound";
 import { MessageCircle, Loader2 } from "lucide-react";
 
 export const InboxPage = () => {
   const { data: conversations = [], isLoading } = useConversations();
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [muted, toggleMuted] = useNotificationSound(conversations);
+  const [muted, toggleMuted] = useMuteState();
 
   // Auto-select the first conversation when the list loads / changes
   useEffect(() => {

@@ -5,6 +5,8 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { GlobalTopbar } from "@/components/global/GlobalTopbar";
 import { AddisonLogo } from "@/components/brand/AddisonLogo";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
+import { useConversations } from "@/hooks/useInboxData";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
 
 // Each sub-page becomes its own bundle. The user's first /app/dashboard
 // load only ships dashboard + sidebar code; other pages load on demand.
@@ -55,6 +57,13 @@ const Index = () => {
       navigate("/app/dashboard", { replace: true });
     }
   }, [location.pathname, navigate]);
+
+  // Mount the conversations poll + notification chime at the app-shell level
+  // (not inside InboxPage) so a new WhatsApp message dings + bumps the sidebar
+  // badge from ANY page — Dashboard, Contacts, Ads, etc.  React Query dedupes
+  // by key, so InboxPage's own useConversations() call shares this cache.
+  const { data: conversations = [] } = useConversations();
+  useNotificationSound(conversations);
 
   // Hide the global topbar for full-page wizards (inbox + ads create) — they
   // have their own dedicated top bar so the global one would just clutter.

@@ -16,6 +16,7 @@ import { api } from "@/lib/api";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { prefetchPage } from "@/lib/prefetch";
+import { useConversations } from "@/hooks/useInboxData";
 
 const SIDEBAR_COLLAPSED_KEY = "addisonx-sidebar-collapsed";
 
@@ -72,7 +73,10 @@ const groups: { label: string; items: NavItem[] }[] = [
   },
 ];
 
-const useSidebarBadges = () => {
+// Tasks-only badge query. The inbox badge is derived from useConversations()
+// below so it updates at the same 5s cadence as the chats list — instead of
+// the 30s sidebar poll which used to lag visibly behind reality.
+const useTasksBadge = () => {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["sidebar-badges", user?.id],
@@ -84,7 +88,13 @@ const useSidebarBadges = () => {
 
 export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClose }: Props) => {
   const { user, signOut } = useAuth();
-  const { data: badges } = useSidebarBadges();
+  const { data: tasksBadges } = useTasksBadge();
+  // Same query key as the app-shell mount in pages/Index.tsx — shared cache,
+  // no extra fetch. Every page renders the sidebar, so the inbox badge stays
+  // live everywhere.
+  const { data: conversations = [] } = useConversations();
+  const inboxUnread = conversations.reduce((a, c) => a + (c.unread_count || 0), 0);
+  const badges = { inbox: inboxUnread, tasks: tasksBadges?.tasks ?? 0 };
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
