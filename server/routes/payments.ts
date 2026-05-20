@@ -117,13 +117,15 @@ app.post("/payments/upi/send", async (c) => {
   const upiLink = `upi://pay?${params.toString()}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=${encodeURIComponent(upiLink)}`;
 
-  // Short caption — what customers actually see on their phone next to the QR.
-  // WhatsApp's image-message caption supports basic formatting (*bold* etc).
+  // Short caption — what customers see next to the QR. We deliberately
+  // DON'T include the raw upi://pay?... link because it looks ugly with
+  // URL-encoded chars (%40, +, etc) and the QR + UPI ID gives them both
+  // ways to pay anyway (scan on another phone, or type the UPI ID in
+  // their UPI app).
   const messageBody =
     `💳 *₹${body.amount_inr.toLocaleString("en-IN")} to ${displayName}*\n` +
     `UPI ID: \`${vpa}\`\n\n` +
-    `📷 Scan the QR or tap below to pay:\n` +
-    `${upiLink}\n\n` +
+    `📷 Scan the QR to pay\n\n` +
     `_Please complete the payment_ 🙏`;
 
   // Send the QR as an actual WhatsApp image with the short caption.
