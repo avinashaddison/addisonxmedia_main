@@ -576,6 +576,7 @@ const StepObjective = ({
       iconBg="bg-[#FF6A1F]"
       title="Aapka goal kya hai?"
       subtitle="Meta is field se decide karta hai ki ad kisko dikhana hai · sahi objective = saste results"
+      tag="Step 1 · Objective"
     />
     <div className="grid sm:grid-cols-2 gap-3">
       {OBJECTIVES.map((o) => (
@@ -669,8 +670,9 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
     <SectionHeader
       icon={Users}
       iconBg="bg-[#3C50E0]"
-      title="Audience aur ad creative"
+      title="Targeting"
       subtitle={`${p.objectiveObj.label} — kisko dikhega aur kya dikhega`}
+      tag="Who sees this"
     />
 
     {/* Campaign name */}
@@ -965,6 +967,7 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
       iconBg="bg-[#7A1500]"
       title="Advanced targeting"
       subtitle="Interest aur behavior se audience tightly target karein · optional"
+      tag="Optional · pro mode"
     />
 
     {/* Interests */}
@@ -1124,9 +1127,10 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
       iconBg="bg-[#D4308E]"
       title="Ad creative · yeh actually dikhega"
       subtitle="Image + heading + body + CTA button — yahi ad customer ko dikhega"
+      tag="The visible part"
     />
 
-    <Card>
+    <Card accent="#D4308E">
       <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
         <ImageIcon className="w-3.5 h-3.5" /> Ad image
       </Label>
@@ -1136,7 +1140,7 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
       <AdMediaInput value={p.adImageUrl} onChange={p.setAdImageUrl} resource="image" />
     </Card>
 
-    <Card>
+    <Card accent="#D4308E">
       <Label htmlFor="cc-headline" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
         <FileText className="w-3.5 h-3.5" /> Headline <span className="text-foreground/40 ml-1">({p.adHeadline.length}/40)</span>
       </Label>
@@ -1151,7 +1155,7 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
       <p className="text-[10px] text-foreground/50 font-medium mt-1.5">Big bold text below the image. Keep it short and punchy.</p>
     </Card>
 
-    <Card>
+    <Card accent="#D4308E">
       <Label htmlFor="cc-body" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
         <FileText className="w-3.5 h-3.5" /> Primary text <span className="text-foreground/40 ml-1">({p.adBody.length}/1000)</span>
       </Label>
@@ -1167,7 +1171,7 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
       <p className="text-[10px] text-foreground/50 font-medium mt-1.5">Caption above the image. First 125 characters show in most placements; rest hides behind "See more".</p>
     </Card>
 
-    <Card>
+    <Card accent="#D4308E">
       <Label htmlFor="cc-link" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">
         Destination URL
       </Label>
@@ -1195,7 +1199,7 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
 
     {/* Icebreaker — pre-filled WhatsApp message */}
     {p.isCTW && (
-      <Card>
+      <Card accent="#25D366">
         <Label htmlFor="cc-ice" className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
           <MessageCircle className="w-3.5 h-3.5" /> Pre-filled WhatsApp message <span className="text-foreground/40 ml-1">(optional)</span>
         </Label>
@@ -1298,6 +1302,7 @@ const StepBudget = ({
     <SectionHeader
       icon={IndianRupee}
       iconBg="bg-[#0E8A4B]"
+      tag="Step 3 · Spend"
       title="Budget aur final review"
       subtitle="Daily budget set karo, AI optimization on rakho, aur campaign launch karo"
     />
@@ -1375,20 +1380,51 @@ const StepBudget = ({
 
 /* ─────────────────────────── Shared blocks ─────────────────────────── */
 
-const SectionHeader = ({ icon: Icon, iconBg, title, subtitle }: { icon: typeof Target; iconBg: string; title: string; subtitle: string }) => (
-  <div className="flex items-start gap-3 mb-1">
-    <div className={cn("w-12 h-12 rounded-2xl text-white flex items-center justify-center shadow-md flex-shrink-0", iconBg)}>
-      <Icon className="w-6 h-6" strokeWidth={2.5} />
+/** Section header with gradient halo, decorative tag stripe, and animated
+ *  icon — looks more like a polished SaaS hero than a plain h2. */
+const SectionHeader = ({
+  icon: Icon, iconBg, title, subtitle, tag,
+}: { icon: typeof Target; iconBg: string; title: string; subtitle: string; tag?: string }) => (
+  <div className="relative mb-1 mt-2">
+    <div className="flex items-center gap-3">
+      <div className="relative flex-shrink-0">
+        {/* Glow halo */}
+        <div className={cn("absolute inset-0 rounded-2xl blur-md opacity-40", iconBg)} />
+        <div className={cn("relative w-12 h-12 rounded-2xl text-white flex items-center justify-center shadow-md", iconBg)}>
+          <Icon className="w-6 h-6" strokeWidth={2.5} />
+        </div>
+      </div>
+      <div className="flex-1 min-w-0">
+        {tag && (
+          <span className="inline-block text-[9px] font-extrabold uppercase tracking-[0.18em] text-[#B8651A] bg-[#FFF1D6] px-2 py-0.5 rounded-full border border-[#E8B968] mb-1">
+            {tag}
+          </span>
+        )}
+        <h2 className="text-[20px] font-black tracking-tight leading-tight">{title}</h2>
+        <p className="text-[12px] text-foreground/70 font-medium mt-0.5">{subtitle}</p>
+      </div>
     </div>
-    <div className="flex-1 min-w-0">
-      <h2 className="text-[20px] font-black tracking-tight">{title}</h2>
-      <p className="text-[12px] text-foreground/70 font-medium mt-0.5">{subtitle}</p>
-    </div>
+    {/* Decorative dashed bottom rule */}
+    <div className="mt-3 h-px bg-[image:repeating-linear-gradient(90deg,#E8B968_0,#E8B968_6px,transparent_6px,transparent_12px)]" />
   </div>
 );
 
-const Card = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-  <div className={cn("bg-white border-2 border-[#E8B968] rounded-2xl p-4 shadow-[0_3px_0_0_#E8B968]", className)}>
+/** Card with subtle category-color accent strip on the left edge + lift-on-hover.
+ *  Default accent is saffron. Pass `accent` to switch (e.g. blue for targeting,
+ *  magenta for creative). */
+const Card = ({
+  children, className, accent = "#E8B968",
+}: { children: React.ReactNode; className?: string; accent?: string }) => (
+  <div
+    className={cn(
+      "group relative bg-white border-2 border-[#E8B968] rounded-2xl p-4 shadow-[0_3px_0_0_#E8B968] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_5px_0_0_#E8B968] overflow-hidden",
+      className
+    )}
+  >
+    {/* Accent strip — only shows when accent != default cream */}
+    {accent !== "#E8B968" && (
+      <span className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: accent }} />
+    )}
     {children}
   </div>
 );
