@@ -5,9 +5,7 @@ import { ConversationWithContact, Message } from "@/lib/inbox-types";
 import { toast } from "sonner";
 
 // =====================
-// CONVERSATIONS — polls only while tab is focused (15s).
-// Was 5s for every tab regardless of focus. With 10 idle users, 5s polling =
-// 120 queries/min hammering the DB for nothing.
+// CONVERSATIONS — polls every 5s while focused, instant on tab focus, paused when hidden.
 // =====================
 export const useConversations = () => {
   const { user } = useAuth();
@@ -15,14 +13,16 @@ export const useConversations = () => {
     queryKey: ["conversations", user?.id],
     enabled: !!user,
     queryFn: () => api.listConversations() as Promise<ConversationWithContact[]>,
-    refetchInterval: 15_000,
+    refetchInterval: 5_000,
     refetchIntervalInBackground: false, // pauses when tab is hidden
-    staleTime: 5_000, // 5s window where cache counts as fresh
+    refetchOnWindowFocus: true,         // instant refresh when user returns to tab
+    staleTime: 1_500,
   });
 };
 
 // =====================
-// MESSAGES (per conversation) — 10s while focused, paused when hidden.
+// MESSAGES (per conversation) — 3s polling on the active chat.
+// Matches WhatsApp Web's cadence. Paused when tab hidden, instant on focus.
 // =====================
 export const useMessages = (conversationId: string | null) => {
   return useQuery({
@@ -32,9 +32,10 @@ export const useMessages = (conversationId: string | null) => {
       conversationId
         ? (api.listMessages(conversationId) as Promise<Message[]>)
         : Promise.resolve([]),
-    refetchInterval: 10_000,
+    refetchInterval: 3_000,
     refetchIntervalInBackground: false,
-    staleTime: 3_000,
+    refetchOnWindowFocus: true,
+    staleTime: 1_000,
   });
 };
 
