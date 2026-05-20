@@ -245,6 +245,8 @@ export const api = {
     demo: boolean;
     error?: string;
   }>("/ads/audiences"),
+  createAdAudience: (data: { name: string; description?: string; source: "crm" | "empty"; filter?: { tags?: string[] } }) =>
+    post<{ ok: true; id: string; name: string; uploaded: number; note?: string; warning?: string }>("/ads/audiences", data),
 };
 
 export { ApiError };

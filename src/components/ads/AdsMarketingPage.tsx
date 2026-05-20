@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { CreateAudienceDialog } from "./CreateAudienceDialog";
 
 /* ============================================================
    Types mirror the /api/ads/* response shapes (which in turn mirror
@@ -87,6 +88,7 @@ export const AdsMarketingPage = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused" | "review">("all");
   const [boostOpen, setBoostOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
+  const [createAudienceOpen, setCreateAudienceOpen] = useState(false);
 
   const connectionQ = useQuery({ queryKey: ["ads", "connection"], queryFn: () => api.getAdsConnection() });
   const campaignsQ = useQuery({ queryKey: ["ads", "campaigns"], queryFn: () => api.listAdCampaigns() });
@@ -405,7 +407,7 @@ export const AdsMarketingPage = () => {
                   <p className="text-[11px] text-foreground/60 font-medium">Custom · Lookalike · Saved targeting</p>
                 </div>
               </div>
-              <Button size="sm" variant="outline">
+              <Button size="sm" variant="outline" onClick={() => setCreateAudienceOpen(true)}>
                 <Plus className="w-3.5 h-3.5" /> Naya audience
               </Button>
             </div>
@@ -414,6 +416,22 @@ export const AdsMarketingPage = () => {
               {audiences.length === 0 && audiencesQ.isPending && (
                 <div className="px-4 py-12 text-center">
                   <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#B8230C]" />
+                </div>
+              )}
+              {audiences.length === 0 && !audiencesQ.isPending && (
+                <div className="px-6 py-12 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#3C50E0] to-[#2533A8] text-white mx-auto mb-4 flex items-center justify-center shadow-md">
+                    <Users className="w-7 h-7" strokeWidth={2.5} />
+                  </div>
+                  <p className="text-[16px] font-black tracking-tight">Koi custom audience nahi hai</p>
+                  <p className="text-[12px] text-foreground/60 font-medium mt-1 max-w-md mx-auto">
+                    Audience banao apne CRM contacts se · Meta unhe target karega WhatsApp aur Instagram pe. Hot leads se start karein.
+                  </p>
+                  <div className="flex gap-2 mt-4 justify-center">
+                    <Button onClick={() => setCreateAudienceOpen(true)}>
+                      <Plus className="w-3.5 h-3.5" /> Naya audience banao
+                    </Button>
+                  </div>
                 </div>
               )}
               {audiences.map((a) => {
@@ -514,6 +532,13 @@ export const AdsMarketingPage = () => {
 
       {/* ============ CONNECT META ADS DIALOG ============ */}
       <ConnectMetaAdsDialog open={connectOpen} onOpenChange={setConnectOpen} />
+
+      {/* ============ CREATE AUDIENCE DIALOG ============ */}
+      <CreateAudienceDialog
+        open={createAudienceOpen}
+        onOpenChange={setCreateAudienceOpen}
+        onCreated={() => qc.invalidateQueries({ queryKey: ["ads", "audiences"] })}
+      />
     </PageShell>
   );
 };

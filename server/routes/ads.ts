@@ -11,9 +11,10 @@
  */
 
 import { Hono } from "hono";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { db } from "../db/client";
-import { metaConfig } from "../db/schema";
+import { metaConfig, contact } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
 import { encrypt, decrypt } from "../crypto";
 import {
@@ -39,6 +40,8 @@ import {
   campaignBreakdown,
   listAdsInCampaign,
   adsInsights,
+  createCustomAudience,
+  addUsersToAudience,
   AdsApiError,
   type AdsCredentials,
   type MetaCampaign,
@@ -963,6 +966,122 @@ app.get("/ads/audiences", async (c) => {
     return c.json({ audiences: DEMO_AUDIENCES, error: err.error, demo: true });
   }
 });
+
+/**
+ * Create a Custom Audience and optionally upload CRM contacts into it.
+ *
+ * Body:
+ *   - name: string (required)
+ *   - description?: string
+ *   - source: "crm" | "empty"
+ *   - filter?: { tags?: string[] }   // when source=crm — narrow to specific tags
+ *
+ * For source="crm", we fetch the user's contacts (filtered if specified),
+ * normalize + SHA-256 hash each phone number (Meta's required format), and
+ * batch-upload to the audience. Audience appears in Meta in ~10 minutes once
+ * Meta finishes matching the hashes against their user graph.
+ */
+app.post("/ads/audiences", async (c) => {
+  const creds = await getCreds(c.var.userId);
+  if (!creds) return c.json({ error: "Connect Meta Ads first" }, 400);
+
+  const body = await c.req.json<{
+    name: string;
+    description?: string;
+    source: "crm" | "empty";
+    filter?: { tags?: string[] };
+  }>();
+
+  if (!body.name?.trim()) return c.json({ error: "name required" }, 400);
+  if (body.source !== "crm" && body.source !== "empty") {
+    return c.json({ error: "source must be 'crm' or 'empty'" }, 400);
+  }
+
+  // Step 1 — create the audience in Meta
+  let audience: { id: string };
+  try {
+    audience = await createCustomAudience(creds, {
+      name: body.name.trim(),
+      description: body.description ?? (body.source === "crm" ? "Created from AddisonX CRM contacts" : "Created from AddisonX"),
+    });
+  } catch (e) {
+    const err = onApiError(e);
+    return c.json({ error: `Audience creation failed — ${err.error}` }, 400);
+  }
+
+  // If empty, we're done.
+  if (body.source === "empty") {
+    return c.json({ ok: true, id: audience.id, name: body.name.trim(), uploaded: 0 });
+  }
+
+  // Step 2 — fetch matching contacts from workspace
+  const whereClauses = [eq(contact.ownerId, c.var.userId)];
+  if (body.filter?.tags?.length) {
+    whereClauses.push(inArray(contact.tag, body.filter.tags));
+  }
+  const contacts = await db
+    .select({ phone: contact.phone, email: contact.email })
+    .from(contact)
+    .where(and(...whereClauses))
+    .limit(10_000); // Meta caps at 10k per session
+
+  // Step 3 — normalize + hash. Phones in E.164 (no spaces/dashes/+), emails lowercase.
+  const phones = contacts
+    .map((r) => normalizePhone(r.phone))
+    .filter((p): p is string => Boolean(p));
+  const hashedPhones = phones.map((p) => sha256(p));
+
+  if (hashedPhones.length === 0) {
+    return c.json({
+      ok: true,
+      id: audience.id,
+      name: body.name.trim(),
+      uploaded: 0,
+      note: "Audience created but no valid phone numbers found in your CRM. Add contacts with phone numbers and retry, or upload manually in Meta.",
+    });
+  }
+
+  // Step 4 — batch-upload (Meta accepts up to 10k per call)
+  try {
+    const result = await addUsersToAudience(creds, audience.id, {
+      schema: ["PHONE"],
+      data: hashedPhones.map((h) => [h]),
+    });
+    return c.json({
+      ok: true,
+      id: audience.id,
+      name: body.name.trim(),
+      uploaded: result.num_received ?? hashedPhones.length,
+      note: "Meta is matching hashes against their user graph — audience size will update in ~10 min.",
+    });
+  } catch (e) {
+    const err = onApiError(e);
+    // Audience was created but user upload failed. Don't roll back — user can
+    // retry by adding more contacts or uploading via Meta UI.
+    return c.json({
+      ok: true,
+      id: audience.id,
+      name: body.name.trim(),
+      uploaded: 0,
+      warning: `Audience created but user upload failed: ${err.error}`,
+    });
+  }
+});
+
+/** Normalize a phone string to E.164-without-plus form so SHA-256 matches
+ *  Meta's expected format. Strips spaces / dashes / parentheses. */
+function normalizePhone(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/[^\d]/g, "");
+  if (digits.length < 8) return null;
+  // For Indian numbers without country code, prepend 91. (E.164 expects country code.)
+  if (digits.length === 10 && /^[6-9]/.test(digits)) return `91${digits}`;
+  return digits;
+}
+
+function sha256(s: string): string {
+  return createHash("sha256").update(s.toLowerCase().trim()).digest("hex");
+}
 
 /* ─────────── Shape helpers ─────────── */
 

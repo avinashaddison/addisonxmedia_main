@@ -31,6 +31,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { CreateAudienceDialog } from "./CreateAudienceDialog";
 import { AdMediaInput } from "./AdMediaInput";
 
 // Meta's ODAX taxonomy (Oct 2023+).
@@ -143,6 +144,7 @@ export const CreateCampaignPage = () => {
   const [objective, setObjective]       = useState<ObjectiveId>("ctw");
   const [name, setName]                 = useState("");
   const [audience, setAudience]         = useState<string>("");
+  const [createAudienceOpen, setCreateAudienceOpen] = useState(false);
   const [pageId, setPageId]             = useState<string>("");
   const [locationMode, setLocationMode] = useState<"preset" | "custom">("preset");
   const [locationPreset, setLocationPreset] = useState<string>("all-india");
@@ -443,6 +445,7 @@ export const CreateCampaignPage = () => {
                 audience={audience} setAudience={setAudience}
                 audiences={audiences}
                 audiencesLoading={audiencesQ.isPending}
+                onCreateAudience={() => setCreateAudienceOpen(true)}
                 locationMode={locationMode} setLocationMode={setLocationMode}
                 locationPreset={locationPreset} setLocationPreset={setLocationPreset}
                 customGeos={customGeos} setCustomGeos={setCustomGeos}
@@ -539,6 +542,16 @@ export const CreateCampaignPage = () => {
         </div>
       </div>
 
+      {/* Audience-create dialog (opened from the audience picker) */}
+      <CreateAudienceDialog
+        open={createAudienceOpen}
+        onOpenChange={setCreateAudienceOpen}
+        onCreated={(a) => {
+          qc.invalidateQueries({ queryKey: ["ads", "audiences"] });
+          setAudience(a.id); // auto-select the new audience in the picker
+        }}
+      />
+
       {/* ─────── Bottom action bar ─────── */}
       <div className="border-t-2 border-[#E8B968] bg-white px-6 lg:px-10 py-3 flex items-center gap-3 flex-wrap">
         <div className="text-[11px] text-foreground/60 font-medium flex-1 min-w-0 truncate">
@@ -624,6 +637,7 @@ type StepAudienceCreativeProps = {
   audience: string; setAudience: (v: string) => void;
   audiences: Array<{ id: string; name: string; size: number; type: string }>;
   audiencesLoading: boolean;
+  onCreateAudience: () => void;
   locationMode: "preset" | "custom"; setLocationMode: (v: "preset" | "custom") => void;
   locationPreset: string; setLocationPreset: (v: string) => void;
   customGeos: GeoChip[]; setCustomGeos: (v: GeoChip[]) => void;
@@ -727,11 +741,20 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
 
     {/* Custom Audience */}
     <Card>
-      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">
-        Custom audience (optional)
-      </Label>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold">
+          Custom audience (optional)
+        </Label>
+        <button
+          type="button"
+          onClick={() => p.onCreateAudience()}
+          className="text-[10px] font-extrabold text-[#3C50E0] hover:underline inline-flex items-center gap-1"
+        >
+          + Naya audience banao
+        </button>
+      </div>
       <p className="text-[11px] text-foreground/60 font-medium mt-1 mb-2">
-        Meta se aate hain · empty hai? Pehle Audiences tab pe banao. Skip karne pe Meta auto-target karega.
+        CRM contacts se audience banao, ya skip karein — Meta auto-target karega.
       </p>
       <Select value={p.audience} onValueChange={p.setAudience}>
         <SelectTrigger>

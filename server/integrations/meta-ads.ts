@@ -245,6 +245,42 @@ export type MetaCustomAudience = {
   delivery_status?: { code: number; description: string };
 };
 
+/** Create an empty custom audience. Users can be added later via
+ *  addUsersToAudience or uploaded inside Meta Business Manager. */
+export async function createCustomAudience(
+  creds: AdsCredentials,
+  body: { name: string; description?: string; customerFileSource?: "USER_PROVIDED_ONLY" | "PARTNER_PROVIDED_ONLY" | "BOTH_USER_AND_PARTNER_PROVIDED" }
+): Promise<{ id: string }> {
+  return adsFetch(`/${actId(creds.adAccountId)}/customaudiences`, {
+    method: "POST",
+    token: creds.accessToken,
+    body: JSON.stringify({
+      name: body.name,
+      description: body.description ?? "",
+      subtype: "CUSTOM",
+      customer_file_source: body.customerFileSource ?? "USER_PROVIDED_ONLY",
+    }),
+  });
+}
+
+/** Append hashed user identifiers to a Custom Audience. Schema must match
+ *  what's in `data` — for phone numbers use ["PHONE"], for email use ["EMAIL"],
+ *  or compose [["PHONE", "EMAIL"]] for multi-key matching.
+ *  data is an array of arrays of SHA-256 hashed lowercased strings. */
+export async function addUsersToAudience(
+  creds: AdsCredentials,
+  audienceId: string,
+  body: { schema: string[]; data: string[][] }
+): Promise<{ audience_id: string; session_id?: number; num_received?: number }> {
+  return adsFetch(`/${audienceId}/users`, {
+    method: "POST",
+    token: creds.accessToken,
+    body: JSON.stringify({
+      payload: { schema: body.schema, data: body.data },
+    }),
+  });
+}
+
 export async function listCustomAudiences(creds: AdsCredentials): Promise<MetaCustomAudience[]> {
   const res = await adsFetch<{ data: MetaCustomAudience[] }>(
     `/${actId(creds.adAccountId)}/customaudiences?fields=id,name,subtype,approximate_count_lower_bound,approximate_count_upper_bound,description,delivery_status&limit=100`,
