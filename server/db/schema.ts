@@ -418,3 +418,25 @@ export const aiUsage = pgTable("ai_usage", {
 }));
 
 export type AiUsage = typeof aiUsage.$inferSelect;
+
+// ============================================================
+// AI persona — workspace-level "Train Addison" config
+// ============================================================
+// One row per workspace (1 user = 1 workspace today). The helper
+// getPersonaWithDefaults() in server/lib/ai-persona.ts returns sensible
+// defaults when no row exists, so brand-new accounts can call AI features
+// before filling the form.
+export const aiPersona = pgTable("workspace_ai_persona", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  businessName: text("business_name").notNull().default(""),
+  whatWeSell: text("what_we_sell").notNull().default(""),
+  tone: text("tone").notNull().default("friendly"),                                            // 'friendly' | 'professional' | 'casual' | 'urgent_sales'
+  responseLanguage: text("response_language").notNull().default("hinglish"),                   // 'hinglish' | 'hindi' | 'english'
+  alwaysSay: text("always_say").notNull().default(""),
+  neverSay: text("never_say").notNull().default(""),
+  escalateKeywords: text("escalate_keywords").notNull().default("refund, complaint, legal, lawyer, scam, police, cheating, fraud"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type AiPersona = typeof aiPersona.$inferSelect;

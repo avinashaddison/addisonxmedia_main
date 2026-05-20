@@ -258,6 +258,36 @@ export const api = {
   }>("/ads/audiences"),
   createAdAudience: (data: { name: string; description?: string; source: "crm" | "empty"; filter?: { tags?: string[] } }) =>
     post<{ ok: true; id: string; name: string; uploaded: number; note?: string; warning?: string }>("/ads/audiences", data),
+
+  // ─── Addison AI ──────────────────────────────────────────────────────────
+  getAiUsage: () => get<{
+    plan: string;
+    cap: number;                              // -1 = unlimited
+    used: number;
+    remaining: number;                        // -1 = unlimited
+    breakdown: Array<{ feature: string; calls: number; weight: number; cost_inr: number }>;
+    month_start: string;
+    ai_configured: boolean;
+  }>("/ai/usage"),
+  pingAi: () => post<{
+    ok: boolean;
+    reply: string;
+    tokens: { input: number; output: number };
+    cost_inr: number;
+    model: string;
+  }>("/ai/ping"),
+  getAiPersona: () => get<AiPersona>("/ai/persona"),
+  updateAiPersona: (data: Partial<AiPersona>) => patch<AiPersona>("/ai/persona", data),
+};
+
+export type AiPersona = {
+  business_name: string;
+  what_we_sell: string;
+  tone: "friendly" | "professional" | "casual" | "urgent_sales";
+  response_language: "hinglish" | "hindi" | "english";
+  always_say: string;
+  never_say: string;
+  escalate_keywords: string;
 };
 
 export { ApiError };

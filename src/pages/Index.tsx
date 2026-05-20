@@ -25,11 +25,13 @@ const IntegrationsPage = lazy(() => import("@/components/integrations/Integratio
 const AdsMarketingPage = lazy(() => import("@/components/ads/AdsMarketingPage").then((m) => ({ default: m.AdsMarketingPage })));
 const CreateCampaignPage = lazy(() => import("@/components/ads/CreateCampaignPage").then((m) => ({ default: m.CreateCampaignPage })));
 const CampaignAnalyticsPage = lazy(() => import("@/components/ads/CampaignAnalyticsPage").then((m) => ({ default: m.CampaignAnalyticsPage })));
+const AITrainingPage = lazy(() => import("@/components/ai/AITrainingPage").then((m) => ({ default: m.AITrainingPage })));
 
 const VALID_PAGES = new Set([
   "dashboard", "inbox", "contacts", "deals", "analytics",
   "campaigns", "broadcasts", "templates", "followups",
   "ads", "activity", "integrations", "settings",
+  "ai-training",
 ]);
 
 const PageFallback = () => (
@@ -115,6 +117,7 @@ const Index = () => {
             {page === "activity" && <ActivityPage />}
             {page === "integrations" && <IntegrationsPage />}
             {page === "settings" && <SettingsPage />}
+            {page === "ai-training" && <AITrainingPage />}
           </Suspense>
         </div>
       </div>

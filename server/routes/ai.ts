@@ -16,6 +16,7 @@ import { requireAuth, type AuthVariables } from "../middleware/auth";
 import { rateLimit } from "../middleware/rateLimit";
 import { chat, isAiConfigured } from "../integrations/openai";
 import { checkAiCap, logAiUsage, getUsageSummary } from "../lib/ai-usage";
+import { getPersonaWithDefaults, updatePersona, type Persona } from "../lib/ai-persona";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -37,6 +38,19 @@ app.use(
 app.get("/ai/usage", async (c) => {
   const summary = await getUsageSummary(c.var.userId);
   return c.json(summary);
+});
+
+/** Read the workspace's AI persona (falls back to defaults if no row yet). */
+app.get("/ai/persona", async (c) => {
+  const persona = await getPersonaWithDefaults(c.var.userId);
+  return c.json(persona);
+});
+
+/** Save / update the workspace's AI persona. Whitelisted-field upsert. */
+app.patch("/ai/persona", async (c) => {
+  const body = await c.req.json<Partial<Persona>>();
+  const updated = await updatePersona(c.var.userId, body);
+  return c.json(updated);
 });
 
 /**

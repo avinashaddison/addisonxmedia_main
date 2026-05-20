@@ -63,6 +63,12 @@ const groups: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
+    label: "AI",
+    items: [
+      { icon: Brain, label: "AI Training", id: "ai-training", hint: "Teach Addison about your business", smart: true },
+    ],
+  },
+  {
     label: "System",
     items: [
       { icon: BarChart3, label: "Analytics", id: "analytics", hint: "Reports & insights" },
@@ -223,6 +229,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
             Sales: "text-[#0E8A4B]",
             Marketing: "text-[#FF6A1F]",
             Automation: "text-[#D4308E]",
+            AI: "text-[#3C50E0]",
             System: "text-[#B8651A]",
           };
           return (
