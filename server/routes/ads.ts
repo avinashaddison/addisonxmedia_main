@@ -324,9 +324,15 @@ app.post("/ads/campaigns", async (c) => {
     if (exclusions.interests || exclusions.custom_audiences) {
       targetingSpec.exclusions = exclusions;
     }
-    if (body.targeting?.targeting_expansion) {
-      targetingSpec.targeting_optimization = "expansion_all";
-    }
+    // Meta removed the targeting_optimization field in 2024 — Advantage
+    // detailed targeting is now ALWAYS auto-applied to all ad sets. Sending
+    // the field returns:
+    //   "The targeting_optimization field has been removed: You don't need
+    //    to set a value for the targeting_optimization field because it has
+    //    been removed."
+    // So we simply ignore body.targeting?.targeting_expansion — Meta does
+    // the right thing on its own. The UI toggle is kept for clarity but
+    // is informational only.
 
     // Pick optimization goal per objective. CTW campaigns now ride on
     // OUTCOME_TRAFFIC + wa.me link (no destination_type=WHATSAPP, no

@@ -295,8 +295,9 @@ export type TargetingSpec = {
     behaviors?: Array<{ id: string; name?: string }>;
     custom_audiences?: Array<{ id: string }>;
   };
-  /** When set to {"targeting_optimization":"expansion_all"}, lets Meta
-   *  expand interests/lookalikes for better performance. */
+  /** DEPRECATED — Meta removed this field in 2024. Advantage detailed
+   *  targeting expansion is now always applied to every ad set automatically.
+   *  Kept here as a type-only marker; the route layer no longer sets it. */
   targeting_optimization?: string;
 };
 

@@ -1067,14 +1067,14 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
           ))}
         </SelectContent>
       </Select>
-      <div className="mt-4 flex items-center gap-3 p-3 rounded-xl bg-[#FFF1D6] border border-[#E8B968]">
-        <Switch checked={p.targetingExpansion} onCheckedChange={p.setTargetingExpansion} />
+      <div className="mt-4 flex items-center gap-3 p-3 rounded-xl bg-[#E6F7EE] border border-[#0E8A4B]/40">
+        <CheckCircle2 className="w-5 h-5 text-[#0E8A4B] flex-shrink-0" strokeWidth={3} />
         <div className="flex-1">
-          <p className="text-[13px] font-extrabold flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-[#FF6A1F]" /> Meta Advantage detailed targeting expansion
+          <p className="text-[13px] font-extrabold flex items-center gap-1.5 text-[#0A6E3C]">
+            <Sparkles className="w-3.5 h-3.5" /> Meta Advantage detailed targeting · auto-applied
           </p>
           <p className="text-[11px] text-foreground/70 font-medium mt-0.5">
-            Meta ko allow karein audience beyond exact interests me expand karne ki, agar wahan results bahar mile. Cheaper conversions typically.
+            Meta automatically expands audience beyond exact interests when cheaper results exist outside. No toggle needed — it's on by default for all campaigns (Meta removed the off-switch in 2024).
           </p>
         </div>
       </div>
