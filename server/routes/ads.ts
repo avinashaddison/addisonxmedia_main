@@ -326,15 +326,22 @@ app.post("/ads/campaigns", async (c) => {
     }
     // Meta replaced targeting_optimization (removed 2024) with the new
     // targeting_automation.advantage_audience flag and made it MANDATORY in
-    // late 2024. Sending an ad set without it now fails with:
-    //   "Advantage audience flag required: set the advantage_audience flag
-    //    to either 1 or 0 within the targeting_automation field"
-    // We default to 1 (expansion on) which is Meta's recommended setting
-    // and what the old targeting_expansion=true toggle effectively meant.
-    // If the user explicitly flipped the toggle off, honor that.
-    targetingSpec.targeting_automation = {
-      advantage_audience: body.targeting?.targeting_expansion === false ? 0 : 1,
-    };
+    // late 2024.
+    //
+    // Caveat: Advantage audience CANNOT coexist with narrow age caps —
+    // Meta rejects ad sets where advantage_audience=1 AND age_max < 65
+    // (the recent error is "Maximum age is below threshold"). Auto-detect
+    // user intent:
+    //   - If user narrowed age (max < 65 or min > 18) → strict targeting,
+    //     turn Advantage OFF so their age cap is respected as a hard limit.
+    //   - Otherwise (default 18-65) → Advantage ON (Meta's recommended).
+    //   - Explicit "targeting_expansion=false" from UI overrides to OFF.
+    const userNarrowedAge =
+      (body.targeting?.age_max ?? 65) < 65 ||
+      (body.targeting?.age_min ?? 18) > 18;
+    const advantageAudience =
+      body.targeting?.targeting_expansion === false || userNarrowedAge ? 0 : 1;
+    targetingSpec.targeting_automation = { advantage_audience: advantageAudience };
 
     // Pick optimization goal per objective. CTW campaigns now ride on
     // OUTCOME_TRAFFIC + wa.me link (no destination_type=WHATSAPP, no
