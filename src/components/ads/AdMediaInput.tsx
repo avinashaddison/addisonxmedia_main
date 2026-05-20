@@ -63,9 +63,17 @@ export const AdMediaInput = ({
       }
       try {
         const result = await upload(file, cfg, resource);
-        onChange(result.secure_url);
+        // Auto-transform Cloudinary URLs to Meta-friendly dimensions:
+        //   image: 1200×628 (1.91:1) c_fill, auto quality + format negotiation
+        //   video: c_limit so Meta accepts any uploaded video without re-encoding
+        // This means even a 4000×4000 source ends up delivered as 1200×628.
+        const optimized = resource === "image"
+          ? result.secure_url.replace("/image/upload/", "/image/upload/c_fill,g_center,w_1200,h_628,q_auto,f_auto/")
+          : result.secure_url.replace("/video/upload/", "/video/upload/c_limit,w_1280,h_720,q_auto/");
+        onChange(optimized);
         setMeta(result);
-        toast.success(`Uploaded · ${(result.bytes / 1_000_000).toFixed(1)} MB`);
+        const meta = resource === "image" ? `${result.width}×${result.height} → 1200×628 for Meta` : `${(result.bytes / 1_000_000).toFixed(1)} MB`;
+        toast.success(`Uploaded · ${meta}`);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Upload failed");
       }

@@ -512,6 +512,25 @@ admin.post("/api/admin/subscriptions/:id/refund", requireAdmin(["super_admin", "
 /** Public read-only endpoint — customer app uses this to learn which
  *  feature flags + system toggles are currently on. Skips requireAdmin.
  *  Only exposes keys that are safe to share (no secrets like razorpay_key_id). */
+/** Public — returns Cloudinary unsigned-upload config from env so the browser
+ *  can do direct-to-Cloudinary uploads without proxying multi-MB image bytes
+ *  through our Render compute. Both values are safe to expose: the upload
+ *  preset must be marked "unsigned" in the Cloudinary dashboard (which limits
+ *  folder + formats + max size), and cloud_name is in every delivery URL
+ *  anyway. When env vars are missing, enabled=false and the SPA falls back
+ *  to URL-paste mode. */
+admin.get("/api/system/uploads/config", async (c) => {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME ?? "";
+  const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET ?? "";
+  return c.json({
+    enabled: Boolean(cloudName && uploadPreset),
+    cloudName: cloudName || null,
+    uploadPreset: uploadPreset || null,
+    maxImageMb: Number(process.env.CLOUDINARY_MAX_IMAGE_MB ?? 25),
+    maxVideoMb: Number(process.env.CLOUDINARY_MAX_VIDEO_MB ?? 100),
+  });
+});
+
 admin.get("/api/system/flags", async (c) => {
   const rows = await db.select().from(systemSetting);
   const safe: Record<string, string | null> = {};
