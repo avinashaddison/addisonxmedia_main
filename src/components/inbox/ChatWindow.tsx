@@ -1,9 +1,9 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import {
   Send, Paperclip, Smile, Check, CheckCheck, MoreVertical,
   CreditCard, Sparkles, Phone, Loader2, Bot,
   ChevronDown, Image as ImageIcon, Wand2, AlertTriangle,
-  Package, RotateCcw, ShieldOff,
+  Package, RotateCcw, ShieldOff, FileText, Mic, Film, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,6 +27,93 @@ const StatusIcon = ({ status }: { status: MessageStatus }) => {
   if (status === "read") return <CheckCheck className="w-3 h-3 text-accent" aria-label="read" />;
   if (status === "failed") return <span className="text-[9px] text-destructive font-bold">FAILED</span>;
   return null;
+};
+
+/** Parse "meta:{type}:{id}" or legacy "meta:{id}" into { type, id, src }. */
+function parseMediaUrl(mediaUrl: string | null, messageId: string): { type: "image" | "video" | "audio" | "document" | "sticker" | "unknown"; src: string } | null {
+  if (!mediaUrl) return null;
+  if (!mediaUrl.startsWith("meta:")) {
+    // External URL — use directly
+    return { type: "image", src: mediaUrl };
+  }
+  const rest = mediaUrl.slice("meta:".length);
+  const parts = rest.split(":");
+  const type = (parts.length > 1 ? parts[0] : "image") as "image" | "video" | "audio" | "document" | "sticker" | "unknown";
+  return { type, src: `/api/inbox/messages/${messageId}/media` };
+}
+
+/** Day label for date separators: "Today" / "Yesterday" / "Mon, 17 May 2026". */
+function dayLabel(d: Date): string {
+  const now = new Date();
+  const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const m0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dayMs = 86400_000;
+  if (m0 === t0) return "Today";
+  if (m0 === t0 - dayMs) return "Yesterday";
+  return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+}
+
+const MediaBubble = ({
+  type, src, caption, onExpand,
+}: {
+  type: "image" | "video" | "audio" | "document" | "sticker" | "unknown";
+  src: string;
+  caption?: string;
+  onExpand?: () => void;
+}) => {
+  if (type === "image" || type === "sticker") {
+    return (
+      <div>
+        <button
+          onClick={onExpand}
+          className="block rounded-xl overflow-hidden bg-muted/40 hover:opacity-95 transition cursor-zoom-in"
+          aria-label="Open full size"
+        >
+          <img
+            src={src}
+            alt={caption || "WhatsApp image"}
+            className="max-w-[280px] max-h-[320px] object-cover w-full block"
+            loading="lazy"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+        </button>
+        {caption && <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-foreground mt-1.5">{caption}</p>}
+      </div>
+    );
+  }
+  if (type === "video") {
+    return (
+      <div>
+        <video src={src} controls className="max-w-[280px] max-h-[320px] rounded-xl block" />
+        {caption && <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-foreground mt-1.5">{caption}</p>}
+      </div>
+    );
+  }
+  if (type === "audio") {
+    return (
+      <div className="flex items-center gap-2.5 min-w-[200px] max-w-[280px]">
+        <div className="w-9 h-9 rounded-full bg-[#0E8A4B] text-white flex items-center justify-center flex-shrink-0">
+          <Mic className="w-4 h-4" strokeWidth={2.5} />
+        </div>
+        <audio src={src} controls className="flex-1 h-9" />
+      </div>
+    );
+  }
+  if (type === "document") {
+    return (
+      <a href={src} target="_blank" rel="noopener noreferrer" download className="flex items-center gap-2.5 min-w-[200px] max-w-[280px] hover:underline">
+        <div className="w-10 h-10 rounded-lg bg-[#3C50E0] text-white flex items-center justify-center flex-shrink-0">
+          <FileText className="w-4 h-4" strokeWidth={2.5} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[13px] font-extrabold truncate">{caption || "Document"}</p>
+          <p className="text-[11px] text-foreground/60 font-medium">Click to download</p>
+        </div>
+      </a>
+    );
+  }
+  // unknown
+  return <p className="text-[13px] text-foreground/60 italic">[Unsupported media]</p>;
 };
 
 // Reusable saved-reply templates. Editing happens on the Templates page.
@@ -111,6 +198,45 @@ export const ChatWindow = ({ conversation }: Props) => {
     setShowTemplates(false);
     textareaRef.current?.focus();
   };
+
+  // Lightbox for click-to-expand on images
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
+  // Group consecutive same-sender messages within 2-minute windows so we
+  // only show the timestamp + tail on the last bubble of the run. Date
+  // separators ("Today" / "Yesterday" / date) get inserted between groups
+  // from different calendar days.
+  const messageRows = useMemo(() => {
+    const out: Array<
+      | { kind: "day"; label: string; key: string }
+      | { kind: "msg"; msg: typeof messages[number]; isGroupTail: boolean; key: string }
+    > = [];
+    let lastDay = "";
+    let lastDirection: string | null = null;
+    let lastTime = 0;
+
+    messages.forEach((msg, i) => {
+      const ts = new Date(msg.created_at);
+      const label = dayLabel(ts);
+      if (label !== lastDay) {
+        out.push({ kind: "day", label, key: `day-${label}-${i}` });
+        lastDay = label;
+        lastDirection = null;
+      }
+
+      // Look-ahead: is this the last in a same-direction same-2min run?
+      const next = messages[i + 1];
+      const isLastInRun =
+        !next ||
+        next.direction !== msg.direction ||
+        new Date(next.created_at).getTime() - ts.getTime() > 2 * 60_000;
+
+      out.push({ kind: "msg", msg, isGroupTail: isLastInRun, key: msg.id });
+      lastDirection = msg.direction;
+      lastTime = ts.getTime();
+    });
+    return out;
+  }, [messages]);
 
   const handleDeliverProduct = async (payload: ProductDeliveryPayload, autoCloseDeal: boolean) => {
     sendMut.mutate({ conversationId: conversation.id, body: encodeProductDelivery(payload) });
@@ -230,48 +356,89 @@ export const ChatWindow = ({ conversation }: Props) => {
           </div>
         )}
 
-        {messages.map((msg) => {
+        {messageRows.map((row) => {
+          if (row.kind === "day") {
+            return (
+              <div key={row.key} className="flex justify-center py-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-[0.18em] px-3 py-1 rounded-full bg-card/80 backdrop-blur-sm text-muted-foreground shadow-sm">
+                  {row.label}
+                </span>
+              </div>
+            );
+          }
+
+          const msg = row.msg;
           const isOutbound = msg.direction === "outbound";
           const productPayload = decodeProductDelivery(msg.body);
           const isFailed = msg.status === "failed";
+          const media = parseMediaUrl(msg.media_url ?? null, msg.id);
+          const hasMedia = !!media;
+          const isImage = media?.type === "image" || media?.type === "sticker";
 
           if (productPayload) {
             return (
-              <div key={msg.id} className={cn("flex animate-bubble-pop", isOutbound ? "justify-end" : "justify-start")}>
+              <div key={row.key} className={cn("flex animate-bubble-pop", isOutbound ? "justify-end" : "justify-start", !row.isGroupTail && "mb-0.5")}>
                 <div className="relative">
                   <ProductDeliveryCard payload={productPayload} />
-                  <div className={cn("flex items-center gap-1 mt-1", isOutbound ? "justify-end" : "justify-start")}>
-                    <span className="text-[10px] text-muted-foreground">{formatTime(msg.created_at)}</span>
-                    {isOutbound && <StatusIcon status={msg.status} />}
-                  </div>
+                  {row.isGroupTail && (
+                    <div className={cn("flex items-center gap-1 mt-1", isOutbound ? "justify-end" : "justify-start")}>
+                      <span className="text-[10px] text-muted-foreground">{formatTime(msg.created_at)}</span>
+                      {isOutbound && <StatusIcon status={msg.status} />}
+                    </div>
+                  )}
                 </div>
               </div>
             );
           }
 
           return (
-            <div key={msg.id} className={cn("flex animate-bubble-pop group", isOutbound ? "justify-end" : "justify-start")}>
+            <div key={row.key} className={cn("flex animate-bubble-pop group", isOutbound ? "justify-end" : "justify-start", !row.isGroupTail && "mb-0.5")}>
               <div className="max-w-[75%] relative">
                 <div className={cn(
-                  "rounded-2xl px-3.5 py-2 relative shadow-sm",
+                  "relative shadow-sm overflow-hidden",
+                  // When showing only an image (no caption), use minimal padding so the
+                  // image fills the bubble; otherwise normal padding.
+                  hasMedia && isImage && !msg.body ? "p-0 rounded-2xl" : "rounded-2xl px-3.5 py-2",
                   isOutbound
                     ? "bg-[hsl(var(--chat-outgoing))] rounded-br-md"
                     : "bg-[hsl(var(--chat-incoming))] shadow-foreground/5 rounded-bl-md",
                   isFailed && "ring-2 ring-destructive/30"
                 )}>
                   {msg.is_ai_generated && isOutbound && (
-                    <span className="absolute -top-2 -left-1 text-[8px] font-bold text-primary bg-primary-soft px-1.5 py-0.5 rounded uppercase tracking-wider flex items-center gap-0.5">
+                    <span className="absolute -top-2 -left-1 text-[8px] font-bold text-primary bg-primary-soft px-1.5 py-0.5 rounded uppercase tracking-wider flex items-center gap-0.5 z-10">
                       <Sparkles className="w-2.5 h-2.5" /> AI
                     </span>
                   )}
-                  <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-foreground">{msg.body}</p>
-                  <div className={cn("flex items-center gap-1 mt-1", isOutbound ? "justify-end" : "justify-start")}>
-                    <span className="text-[10px] text-muted-foreground">{formatTime(msg.created_at)}</span>
-                    {isOutbound && <StatusIcon status={msg.status} />}
-                  </div>
+                  {hasMedia ? (
+                    <div className={cn(hasMedia && isImage && !msg.body ? "p-1" : "")}>
+                      <MediaBubble
+                        type={media!.type}
+                        src={media!.src}
+                        caption={msg.body || undefined}
+                        onExpand={isImage ? () => setLightboxSrc(media!.src) : undefined}
+                      />
+                    </div>
+                  ) : msg.body ? (
+                    <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-foreground">{msg.body}</p>
+                  ) : null}
+                  {row.isGroupTail && (
+                    <div className={cn(
+                      "flex items-center gap-1",
+                      hasMedia && isImage && !msg.body ? "absolute bottom-1.5 right-2 bg-black/35 backdrop-blur-sm px-1.5 py-0.5 rounded" : "mt-1",
+                      isOutbound ? "justify-end" : "justify-start"
+                    )}>
+                      <span className={cn(
+                        "text-[10px]",
+                        hasMedia && isImage && !msg.body ? "text-white" : "text-muted-foreground"
+                      )}>
+                        {formatTime(msg.created_at)}
+                      </span>
+                      {isOutbound && <StatusIcon status={msg.status} />}
+                    </div>
+                  )}
                 </div>
                 {/* Retry button for failed outbound messages */}
-                {isFailed && isOutbound && (
+                {isFailed && isOutbound && row.isGroupTail && (
                   <div className="flex items-center gap-1 mt-1 justify-end">
                     <button
                       onClick={() => handleRetry(msg.body)}
@@ -375,6 +542,28 @@ export const ChatWindow = ({ conversation }: Props) => {
         contactName={contact.name}
         onDeliver={handleDeliverProduct}
       />
+
+      {/* Image lightbox — click outside or X to close */}
+      {lightboxSrc && (
+        <div
+          onClick={() => setLightboxSrc(null)}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-6 cursor-zoom-out animate-fade-in"
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); setLightboxSrc(null); }}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={lightboxSrc}
+            alt="Full size"
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl cursor-default"
+          />
+        </div>
+      )}
     </div>
   );
 };

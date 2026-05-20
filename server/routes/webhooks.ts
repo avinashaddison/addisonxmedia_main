@@ -157,15 +157,18 @@ async function handleInboundMessage(userId: string, contacts: any[], m: any) {
 }
 
 function extractMessageBody(m: any): string {
+  // For media messages we return the caption text only (may be empty). The
+  // media itself is referenced via media_url so the UI renders it inline
+  // instead of showing a placeholder string like "[Image]".
   switch (m.type) {
     case "text": return m.text?.body ?? "";
-    case "image": return m.image?.caption ?? "[Image]";
-    case "video": return m.video?.caption ?? "[Video]";
-    case "audio": return "[Voice note]";
-    case "document": return m.document?.caption ?? `[Document: ${m.document?.filename ?? "file"}]`;
-    case "location": return `[Location: ${m.location?.latitude}, ${m.location?.longitude}]`;
-    case "contacts": return "[Shared contact card]";
-    case "sticker": return "[Sticker]";
+    case "image": return m.image?.caption ?? "";
+    case "video": return m.video?.caption ?? "";
+    case "audio": return "";
+    case "document": return m.document?.caption ?? m.document?.filename ?? "";
+    case "sticker": return "";
+    case "location": return `📍 ${m.location?.name ?? "Shared location"}`;
+    case "contacts": return "📇 Shared a contact card";
     case "interactive":
       return m.interactive?.button_reply?.title
         ?? m.interactive?.list_reply?.title
@@ -175,11 +178,14 @@ function extractMessageBody(m: any): string {
 }
 
 function extractMediaUrl(m: any): string | null {
-  // Meta returns a media id; you'd need a separate Graph API call to fetch the
-  // actual URL with auth. For now we store null and let the UI show a placeholder.
-  // Future: fetch /v21.0/{media_id} → url, download, re-upload to your CDN.
-  if (m.image?.id || m.video?.id || m.audio?.id || m.document?.id || m.sticker?.id) {
-    return `meta:${m[m.type]?.id}`;
+  // We store the media as `meta:{type}:{id}` so the UI / proxy can both
+  // figure out HOW to render it (image vs video vs audio vs doc) without
+  // needing to round-trip back to Meta just to learn the mime type.
+  // The /api/messages/:id/media proxy still resolves the binary URL on-demand.
+  const types = ["image", "video", "audio", "document", "sticker"] as const;
+  for (const t of types) {
+    const id = m[t]?.id;
+    if (id) return `meta:${t}:${id}`;
   }
   return null;
 }
