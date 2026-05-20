@@ -43,6 +43,8 @@ export const CreateAudienceDialog = ({
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState<string[]>([]);
 
+  const [tosError, setTosError] = useState<string | null>(null);
+
   const create = useMutation({
     mutationFn: () => api.createAdAudience({
       name: name.trim(),
@@ -63,8 +65,19 @@ export const CreateAudienceDialog = ({
       setDescription("");
       setTags([]);
       setSource("crm");
+      setTosError(null);
     },
-    onError: (e) => toast.error(String(e)),
+    onError: (e) => {
+      const msg = String(e);
+      // Meta's one-time TOS gate for customer-list audiences. Surface the
+      // accept URL as an inline action instead of a fire-and-forget toast.
+      const tosUrlMatch = msg.match(/https:\/\/business\.facebook\.com\/ads\/manage\/customaudiences\/tos\/[^\s)]+/);
+      if (tosUrlMatch || /Custom Audience Terms/i.test(msg)) {
+        setTosError(tosUrlMatch?.[0] ?? "https://business.facebook.com/ads/manage/customaudiences");
+      } else {
+        toast.error(msg);
+      }
+    },
   });
 
   const toggleTag = (id: string) =>
@@ -183,6 +196,25 @@ export const CreateAudienceDialog = ({
               <p className="text-[11px] font-medium text-foreground/80">
                 Phones are SHA-256 hashed before they leave our server. Meta matches the hash against their user graph — they never see raw numbers. ~10 minutes for the audience size to populate.
               </p>
+            </div>
+          )}
+
+          {tosError && (
+            <div className="px-3 py-3 rounded-xl bg-[#FCE5F0] border-2 border-[#D4308E]/40">
+              <p className="text-[12px] font-extrabold text-[#A11A6A] mb-1.5">
+                ⚠ Meta Custom Audience Terms not accepted
+              </p>
+              <p className="text-[11px] font-medium text-foreground/80 mb-2">
+                Meta requires you to accept the Custom Audience Terms once per ad account before uploading any customer list. It's a 30-second one-time consent — no fees, no commitment. After accepting, come back and click "Create audience" again.
+              </p>
+              <a
+                href={tosError}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4308E] text-white text-[11px] font-extrabold hover:bg-[#A11A6A] transition"
+              >
+                Open Meta Terms in new tab →
+              </a>
             </div>
           )}
         </div>
