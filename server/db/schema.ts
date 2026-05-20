@@ -393,3 +393,28 @@ export const systemSetting = pgTable("system_setting", {
 });
 
 export type SystemSetting = typeof systemSetting.$inferSelect;
+
+// ============================================================
+// AI — usage log for Addison AI features
+// ============================================================
+// One row per OpenAI call. Source of truth for monthly cap enforcement
+// (sum weight WHERE user_id = ? AND created_at >= month_start) — no
+// separate counter column, so resets happen automatically on the 1st.
+export const aiUsage = pgTable("ai_usage", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  feature: text("feature").notNull(),                                       // 'reply_suggestion' | 'auto_reply' | 'ad_copy' | 'followup_gen' | 'insights' | 'test'
+  model: text("model").notNull(),                                           // 'gpt-4o-mini' | 'gpt-4o'
+  promptTokens: integer("prompt_tokens").notNull().default(0),
+  completionTokens: integer("completion_tokens").notNull().default(0),
+  costInr: numeric("cost_inr", { precision: 10, scale: 4 }).notNull().default("0"),
+  weight: integer("weight").notNull().default(1),                           // counts toward monthly cap
+  ok: boolean("ok").notNull().default(true),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userCreatedIdx: index("ai_usage_user_created_idx").on(t.userId, t.createdAt),
+  featureCreatedIdx: index("ai_usage_feature_created_idx").on(t.feature, t.createdAt),
+}));
+
+export type AiUsage = typeof aiUsage.$inferSelect;
