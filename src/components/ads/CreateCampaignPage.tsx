@@ -1450,6 +1450,8 @@ const ctaLabel = (cta: string): string => {
   return map[cta] ?? "Learn More";
 };
 
+type PreviewMode = "ig_feed" | "fb_feed" | "ig_story";
+
 const AdMockupPreview = ({
   pageName, headline, body, imageUrl, ctaLabel: cta, isCTW,
 }: {
@@ -1460,73 +1462,211 @@ const AdMockupPreview = ({
   ctaLabel: string;
   isCTW: boolean;
 }) => {
+  const [mode, setMode] = useState<PreviewMode>("ig_feed");
+  return (
+    <div>
+      {/* Platform tabs */}
+      <div className="flex gap-1 mb-2 px-1">
+        <PreviewTab active={mode === "ig_feed"} onClick={() => setMode("ig_feed")} color="#D4308E" label="Instagram" />
+        <PreviewTab active={mode === "fb_feed"} onClick={() => setMode("fb_feed")} color="#0866FF" label="Facebook" />
+        <PreviewTab active={mode === "ig_story"} onClick={() => setMode("ig_story")} color="#D4308E" label="Story" />
+      </div>
+
+      {/* Phone frame */}
+      <div className="bg-[#1F1F1F] rounded-[28px] p-2 shadow-[0_8px_24px_rgba(0,0,0,0.18)] mx-auto" style={{ maxWidth: 320 }}>
+        {/* Notch */}
+        <div className="flex justify-center mb-1">
+          <div className="w-16 h-3 rounded-b-xl bg-black" />
+        </div>
+        {/* Screen */}
+        <div className="bg-white rounded-[20px] overflow-hidden">
+          {mode === "ig_feed" && <InstagramFeedCard pageName={pageName} headline={headline} body={body} imageUrl={imageUrl} cta={cta} isCTW={isCTW} />}
+          {mode === "fb_feed" && <FacebookFeedCard pageName={pageName} headline={headline} body={body} imageUrl={imageUrl} cta={cta} isCTW={isCTW} />}
+          {mode === "ig_story" && <InstagramStoryCard pageName={pageName} body={body} imageUrl={imageUrl} cta={cta} isCTW={isCTW} />}
+        </div>
+        {/* Home bar */}
+        <div className="flex justify-center pt-2 pb-1">
+          <div className="w-24 h-1 rounded-full bg-white/40" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PreviewTab = ({ active, onClick, color, label }: { active: boolean; onClick: () => void; color: string; label: string }) => (
+  <button
+    onClick={onClick}
+    className={cn(
+      "flex-1 px-2 py-1.5 rounded-lg text-[11px] font-extrabold border-2 transition-all",
+      active ? "text-white border-transparent" : "bg-white text-foreground/60 border-[#E8B968]"
+    )}
+    style={active ? { background: color } : {}}
+  >
+    {label}
+  </button>
+);
+
+/* ─── Instagram Feed (square image, IG header) ─── */
+const InstagramFeedCard = ({ pageName, headline, body, imageUrl, cta, isCTW }: { pageName: string; headline: string; body: string; imageUrl: string; cta: string; isCTW: boolean }) => {
   const initial = (pageName || "A").charAt(0).toUpperCase();
   return (
-    <div className="bg-white rounded-2xl border border-[#E8E8E8] shadow-[0_4px_12px_rgba(0,0,0,0.06)] overflow-hidden font-sans">
-      {/* Header */}
+    <div className="font-sans text-[#262626]">
+      {/* IG header */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-[#EFEFEF]">
+        <div className="p-[2px] rounded-full bg-gradient-to-tr from-[#FFD23F] via-[#D4308E] to-[#3C50E0]">
+          <div className="w-8 h-8 rounded-full bg-white p-[2px]">
+            <div className="w-full h-full rounded-full bg-gradient-to-br from-[#0866FF] to-[#D4308E] text-white flex items-center justify-center text-[11px] font-extrabold">
+              {initial}
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[12px] font-bold truncate leading-tight">{pageName}</p>
+          <p className="text-[10px] text-[#737373]">Sponsored</p>
+        </div>
+        <MoreHorizontal className="w-4 h-4 text-[#262626]" />
+      </div>
+      {/* Image (square, 1:1 for IG feed) */}
+      <div className="bg-[#FAFAFA] aspect-square flex items-center justify-center overflow-hidden">
+        {imageUrl ? (
+          <img src={imageUrl} alt="ad" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+        ) : (
+          <div className="text-center text-[#A8A8A8]">
+            <ImageIcon className="w-10 h-10 mx-auto mb-1 opacity-50" />
+            <p className="text-[10px] font-medium">1:1 · Instagram Feed</p>
+          </div>
+        )}
+      </div>
+      {/* CTA bar (full width swipe-up style) */}
+      <button
+        className={cn(
+          "w-full py-2.5 flex items-center justify-center gap-1.5 border-b border-[#EFEFEF] text-[12px] font-extrabold",
+          isCTW ? "bg-[#25D366] text-white" : "bg-[#0866FF] text-white"
+        )}
+      >
+        {isCTW && <MessageCircle className="w-3.5 h-3.5" fill="currentColor" strokeWidth={0} />}
+        {cta}
+        <ArrowRight className="w-3 h-3 ml-1" />
+      </button>
+      {/* Reactions */}
+      <div className="flex items-center gap-3 px-3 py-1.5">
+        <Heart className="w-5 h-5" />
+        <MessageSquare className="w-5 h-5" />
+        <Share2 className="w-5 h-5" />
+      </div>
+      {/* Caption */}
+      <div className="px-3 pb-2">
+        <p className="text-[11px] font-bold inline">{pageName} </p>
+        <p className="text-[11px] inline">
+          {body ? (body.length > 80 ? <>{body.slice(0, 80)}<span className="text-[#8E8E8E]"> … more</span></> : body) : <span className="italic text-[#A8A8A8]">Your primary text will appear here</span>}
+        </p>
+        {headline && <p className="text-[10px] text-[#8E8E8E] mt-0.5 truncate">{headline}</p>}
+      </div>
+    </div>
+  );
+};
+
+/* ─── Facebook Feed (1.91:1 image, FB header) ─── */
+const FacebookFeedCard = ({ pageName, headline, body, imageUrl, cta, isCTW }: { pageName: string; headline: string; body: string; imageUrl: string; cta: string; isCTW: boolean }) => {
+  const initial = (pageName || "A").charAt(0).toUpperCase();
+  return (
+    <div className="font-sans">
       <div className="flex items-center gap-2 px-3 pt-3 pb-2">
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0866FF] to-[#D4308E] text-white flex items-center justify-center text-[14px] font-extrabold flex-shrink-0">
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0866FF] to-[#D4308E] text-white flex items-center justify-center text-[12px] font-extrabold flex-shrink-0">
           {initial}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-bold text-[#050505] truncate leading-tight">{pageName}</p>
-          <div className="flex items-center gap-1 text-[11px] text-[#65676B]">
-            <span>Sponsored</span>
-            <span>·</span>
-            <Globe className="w-2.5 h-2.5" />
+          <p className="text-[12px] font-bold text-[#050505] truncate leading-tight">{pageName}</p>
+          <div className="flex items-center gap-1 text-[10px] text-[#65676B]">
+            <span>Sponsored</span>·<Globe className="w-2.5 h-2.5" />
           </div>
         </div>
-        <MoreHorizontal className="w-5 h-5 text-[#65676B]" />
+        <MoreHorizontal className="w-4 h-4 text-[#65676B]" />
       </div>
-
-      {/* Body text */}
       {body ? (
-        <p className="px-3 pb-2 text-[13px] text-[#050505] whitespace-pre-wrap leading-snug">
-          {body.length > 125 ? <>{body.slice(0, 125)}<span className="text-[#65676B] font-medium"> … See more</span></> : body}
+        <p className="px-3 pb-2 text-[12px] text-[#050505] leading-snug">
+          {body.length > 100 ? <>{body.slice(0, 100)}<span className="text-[#65676B] font-medium"> … See more</span></> : body}
         </p>
       ) : (
-        <p className="px-3 pb-2 text-[12px] text-[#65676B] italic">Your primary text will appear here</p>
+        <p className="px-3 pb-2 text-[11px] text-[#65676B] italic">Your primary text will appear here</p>
       )}
-
-      {/* Image */}
       <div className="bg-[#F0F2F5] aspect-[1.91/1] flex items-center justify-center overflow-hidden">
         {imageUrl ? (
           <img src={imageUrl} alt="ad" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         ) : (
           <div className="text-center text-[#65676B]">
-            <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-50" />
-            <p className="text-[11px] font-medium">Image preview · 1200×628</p>
+            <ImageIcon className="w-7 h-7 mx-auto mb-1 opacity-50" />
+            <p className="text-[10px] font-medium">1200×628 · Facebook Feed</p>
           </div>
         )}
       </div>
-
-      {/* CTA bar */}
-      <div className="bg-[#F0F2F5] px-3 py-2.5 flex items-center justify-between">
+      <div className="bg-[#F0F2F5] px-3 py-2 flex items-center justify-between">
         <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-wider text-[#65676B] font-medium">{isCTW ? "WHATSAPP" : "WEBSITE"}</p>
-          <p className="text-[13px] font-bold text-[#050505] truncate">{headline || "Your headline appears here"}</p>
+          <p className="text-[9px] uppercase tracking-wider text-[#65676B] font-medium">{isCTW ? "WA.ME" : "WEBSITE"}</p>
+          <p className="text-[12px] font-bold text-[#050505] truncate">{headline || "Your headline appears here"}</p>
         </div>
         <button
           className={cn(
-            "inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-bold flex-shrink-0 ml-2 border",
+            "inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-bold flex-shrink-0 ml-2 border",
             isCTW ? "bg-white border-[#25D366] text-[#25D366]" : "bg-[#0866FF] text-white border-[#0866FF]"
+          )}
+        >
+          {isCTW && <MessageCircle className="w-3 h-3" fill="currentColor" strokeWidth={0} />}
+          {cta}
+        </button>
+      </div>
+      <div className="flex items-center gap-1 px-3 py-1.5 border-t border-[#E8E8E8] text-[#65676B]">
+        <button className="flex-1 flex items-center justify-center gap-1 text-[11px] font-bold"><ThumbsUp className="w-3.5 h-3.5" />Like</button>
+        <button className="flex-1 flex items-center justify-center gap-1 text-[11px] font-bold"><MessageSquare className="w-3.5 h-3.5" />Comment</button>
+        <button className="flex-1 flex items-center justify-center gap-1 text-[11px] font-bold"><Share2 className="w-3.5 h-3.5" />Share</button>
+      </div>
+    </div>
+  );
+};
+
+/* ─── Instagram Story (9:16 vertical, full image, overlay) ─── */
+const InstagramStoryCard = ({ pageName, body, imageUrl, cta, isCTW }: { pageName: string; body: string; imageUrl: string; cta: string; isCTW: boolean }) => {
+  const initial = (pageName || "A").charAt(0).toUpperCase();
+  return (
+    <div className="relative bg-black overflow-hidden" style={{ aspectRatio: "9/16" }}>
+      {imageUrl ? (
+        <img src={imageUrl} alt="ad" className="absolute inset-0 w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-[#D4308E] via-[#7A1500] to-[#0A3D24] flex items-center justify-center text-center text-white/80">
+          <div>
+            <ImageIcon className="w-12 h-12 mx-auto mb-2 opacity-60" />
+            <p className="text-[11px] font-bold">9:16 · Story / Reel</p>
+            <p className="text-[10px] mt-1 opacity-70">Upload vertical or full-bleed image</p>
+          </div>
+        </div>
+      )}
+      {/* Progress bar */}
+      <div className="absolute top-0 left-0 right-0 h-1 mx-2 mt-2 bg-white/30 rounded-full overflow-hidden">
+        <div className="h-full bg-white w-1/3" />
+      </div>
+      {/* Story header */}
+      <div className="absolute top-3 left-0 right-0 px-3 flex items-center gap-2 text-white">
+        <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur flex items-center justify-center text-[11px] font-extrabold border border-white/30">
+          {initial}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-bold truncate">{pageName}</p>
+          <p className="text-[9px] opacity-80">Sponsored</p>
+        </div>
+        <MoreHorizontal className="w-4 h-4" />
+      </div>
+      {/* Bottom caption + swipe-up CTA */}
+      <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
+        {body && <p className="text-white text-[11px] font-medium mb-2 line-clamp-2">{body}</p>}
+        <button
+          className={cn(
+            "w-full py-2 rounded-full text-[12px] font-extrabold flex items-center justify-center gap-1.5 border",
+            isCTW ? "bg-white text-[#25D366] border-white" : "bg-white text-[#0866FF] border-white"
           )}
         >
           {isCTW && <MessageCircle className="w-3.5 h-3.5" fill="currentColor" strokeWidth={0} />}
           {cta}
-        </button>
-      </div>
-
-      {/* Reactions row */}
-      <div className="flex items-center gap-1 px-3 py-2 border-t border-[#E8E8E8] text-[#65676B]">
-        <button className="flex-1 flex items-center justify-center gap-1.5 py-1 hover:bg-[#F0F2F5] rounded text-[12px] font-bold">
-          <ThumbsUp className="w-4 h-4" /> Like
-        </button>
-        <button className="flex-1 flex items-center justify-center gap-1.5 py-1 hover:bg-[#F0F2F5] rounded text-[12px] font-bold">
-          <MessageSquare className="w-4 h-4" /> Comment
-        </button>
-        <button className="flex-1 flex items-center justify-center gap-1.5 py-1 hover:bg-[#F0F2F5] rounded text-[12px] font-bold">
-          <Share2 className="w-4 h-4" /> Share
+          <ArrowRight className="w-3 h-3" />
         </button>
       </div>
     </div>
