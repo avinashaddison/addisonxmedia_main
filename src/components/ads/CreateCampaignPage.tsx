@@ -502,7 +502,7 @@ export const CreateCampaignPage = () => {
       </div>
 
       {/* ─────── Bottom action bar ─────── */}
-      <div className="border-t-2 border-[#E8B968] bg-white px-6 lg:px-10 py-3 flex items-center gap-3 flex-wrap sticky bottom-0 z-20">
+      <div className="border-t-2 border-[#E8B968] bg-white px-6 lg:px-10 py-3 flex items-center gap-3 flex-wrap">
         <div className="text-[11px] text-foreground/60 font-medium flex-1 min-w-0 truncate">
           Step {step} of 3 · {step === 1 ? "Pick what you want to optimise for" : step === 2 ? "Audience + ad creative" : "Set spend + go live"}
         </div>
