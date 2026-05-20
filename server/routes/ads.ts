@@ -346,9 +346,14 @@ app.post("/ads/campaigns", async (c) => {
       /OUTCOME_ENGAGEMENT/i.test(body.objective) ? "POST_ENGAGEMENT" :
       "LINK_CLICKS"; // default for OUTCOME_TRAFFIC
 
-    // Step 2: Ad Set
+    // Step 2: Ad Set — with auto-retry for Meta's deprecated-interest swap.
+    // If Meta rejects with "Some detailed targeting options have been
+    // combined", it embeds the deprecated→alternative ID mapping in the
+    // error message. We parse it, swap the IDs in flexible_spec, and retry
+    // once. This catches the common Meta-side interest deprecation churn
+    // without making users find the new names manually.
     lastStep = "ad_set";
-    const adSet = await createAdSet(creds, {
+    const tryCreateAdSet = () => createAdSet(creds, {
       name: `${body.name} · Ad Set`,
       campaignId: campaign.id,
       dailyBudgetPaise: paise,
@@ -361,6 +366,46 @@ app.post("/ads/campaigns", async (c) => {
       endTime: body.end_time,
       status: "PAUSED",
     });
+
+    let adSet: { id: string };
+    try {
+      adSet = await tryCreateAdSet();
+    } catch (firstErr) {
+      const errMsg = firstErr instanceof Error ? firstErr.message : String(firstErr);
+      // Meta error format embeds alternatives as JSON in the message:
+      //   "...Relevant alternative options: [{...,"alternative_interest_id":"X",
+      //    "deprecated_interest_id":"Y"}]"
+      const jsonMatch = errMsg.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+      const swap: Record<string, { id: string; name?: string }> = {};
+      if (jsonMatch) {
+        try {
+          const list = JSON.parse(jsonMatch[0]) as Array<{
+            deprecated_interest_id?: string;
+            alternative_interest_id?: string;
+            alternative_interest_name?: string;
+          }>;
+          for (const m of list) {
+            if (m.deprecated_interest_id && m.alternative_interest_id) {
+              swap[m.deprecated_interest_id] = {
+                id: m.alternative_interest_id,
+                name: m.alternative_interest_name,
+              };
+            }
+          }
+        } catch { /* not JSON-parseable, fall through */ }
+      }
+      if (Object.keys(swap).length > 0 && targetingSpec.flexible_spec?.length) {
+        // Apply the swap, then retry once
+        targetingSpec.flexible_spec = targetingSpec.flexible_spec.map((g) => ({
+          ...g,
+          interests: g.interests?.map((i) => swap[i.id] ?? i),
+        }));
+        console.log("[ads] retrying ad set creation with swapped interests:", swap);
+        adSet = await tryCreateAdSet();
+      } else {
+        throw firstErr;
+      }
+    }
     adSetId = adSet.id;
 
     // Step 3: Ad Creative
