@@ -853,7 +853,7 @@ export default function Landing() {
       {/* ============== PRICING — POSTER STYLE ============== */}
       <section id="pricing" className="py-20 lg:py-24 bg-white border-y-2 border-[#E8B968]">
         <div className="max-w-6xl mx-auto px-5 lg:px-8">
-          <div className="text-center mb-12">
+          <div className="text-center mb-10">
             <span className="inline-block px-3 py-1 bg-[#FFD23F] text-[#7A4A00] text-[11px] uppercase tracking-[0.2em] font-extrabold rounded-full mb-4">
               ₹ mein pricing · Saaf-saaf
             </span>
@@ -863,7 +863,40 @@ export default function Landing() {
             <p className="text-muted-foreground font-medium">Free start karo · Jab grow ho, upgrade karo · GST invoice har mahine</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-5 mt-8">
+          {/* FREE BANNER — primary lead-gen funnel. No card, no time limit. */}
+          <div className="relative rounded-2xl bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white p-6 lg:p-8 mb-5 shadow-[0_6px_0_0_#073D22] overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#FFD23F]/20 rounded-full blur-2xl" />
+            <div className="relative flex flex-col lg:flex-row lg:items-center gap-6">
+              <div className="flex-1 min-w-0">
+                <span className="inline-block px-2.5 py-0.5 bg-[#FFD23F] text-[#7A4A00] text-[10px] uppercase tracking-[0.18em] font-extrabold rounded-full mb-2">
+                  Free forever · No card needed
+                </span>
+                <h3 className="text-2xl lg:text-3xl font-black tracking-tight leading-tight mb-1">
+                  Free start karo — abhi
+                </h3>
+                <p className="text-[13.5px] lg:text-sm text-white/90 font-medium leading-snug">
+                  100 conversations/mo · 20 AI actions · CRM + inbox + templates. UPI live mode upgrade pe milta hai.
+                </p>
+              </div>
+              <Link
+                to="/auth"
+                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-[#FFD23F] text-[#7A4A00] font-extrabold text-sm hover:bg-white transition shadow-[0_4px_0_0_#B8911A] hover:shadow-[0_2px_0_0_#B8911A] hover:translate-y-[2px] whitespace-nowrap flex-shrink-0"
+              >
+                Free signup
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+
+          {/* FIRST-100 FOUNDERS — urgency band. Remove after 100 signups. */}
+          <div className="rounded-xl border-2 border-dashed border-[#FF6A1F] bg-[#FFEFE0] px-4 py-2.5 mb-6 flex items-center justify-center gap-2 text-center">
+            <Crown className="w-3.5 h-3.5 text-[#FF6A1F] flex-shrink-0" />
+            <p className="text-[12px] lg:text-[12.5px] font-extrabold text-[#7A1500]">
+              First 100 founders only — <span className="text-[#FF6A1F]">lifetime ₹499 price lock on Starter</span>. Aage ₹999 hoga.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-5 mt-2">
             {PLANS.map((p, k) => (
               <div
                 key={p.name}
@@ -908,8 +941,30 @@ export default function Landing() {
             ))}
           </div>
 
+          {/* ENTERPRISE STRIP — kept lean so it doesn't compete with Growth/Scale */}
+          <div className="mt-5 rounded-2xl border-2 border-[#0A3D24] bg-[#0A3D24] text-white p-5 lg:p-6 flex flex-col lg:flex-row lg:items-center gap-4 shadow-[0_4px_0_0_#072917]">
+            <div className="flex-1 min-w-0">
+              <span className="inline-block px-2.5 py-0.5 bg-[#FFD23F] text-[#7A4A00] text-[10px] uppercase tracking-[0.18em] font-extrabold rounded-full mb-2">
+                Enterprise
+              </span>
+              <p className="text-lg lg:text-xl font-black tracking-tight leading-tight">
+                Listed companies, agencies with 10+ workspaces, SSO + DPDP DPO assistance
+              </p>
+              <p className="text-[12.5px] text-white/80 font-medium mt-1">
+                Unlimited everything · Dedicated CSM · Custom integrations (Tally, ERP) · SLA 99.9% · From ₹19,999/mo
+              </p>
+            </div>
+            <a
+              href="https://wa.me/916206153116"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#FFD23F] text-[#7A4A00] font-extrabold text-sm hover:bg-white transition shadow-[0_3px_0_0_#B8911A] hover:shadow-[0_1px_0_0_#B8911A] hover:translate-y-[2px] whitespace-nowrap flex-shrink-0"
+            >
+              <MessageCircle className="w-4 h-4" fill="currentColor" strokeWidth={0} />
+              Contact sales
+            </a>
+          </div>
+
           <p className="text-center text-xs text-muted-foreground mt-8 font-medium">
-            Sab plans mein unlimited team members (Growth se) · WhatsApp BSP fees at cost · No setup fees
+            Annual: 12 months pay karo, 14 mahine ke liye milega · WhatsApp BSP fees at cost · GST invoice · No setup fees
           </p>
         </div>
       </section>
@@ -1419,7 +1474,7 @@ const COMPARISON: { cap: string; us: boolean; others: boolean; personal: boolean
   { cap: "AI agent (replies in Hindi & Hinglish)", us: true, others: false, personal: false },
   { cap: "UPI / Razorpay payment links in chat", us: true, others: false, personal: false },
   { cap: "Pre-built festive templates (Diwali, Holi)", us: true, others: false, personal: false },
-  { cap: "Unlimited team members on Growth plan", us: true, others: false, personal: false },
+  { cap: "Free tier — no credit card, no time limit", us: true, others: false, personal: false },
   { cap: "Data hosted in Mumbai · DPDP-ready", us: true, others: false, personal: false },
   { cap: "GST invoice auto-generated", us: true, others: false, personal: false },
   { cap: "10,000 broadcasts in one click", us: true, others: true, personal: false },
@@ -1453,44 +1508,48 @@ const PLANS = [
   {
     name: "Starter",
     tag: "Solo founders, kirana, single-clinic",
-    price: "₹499",
-    cta: "Free trial",
+    price: "₹999",
+    cta: "Start free trial",
     featured: false,
     features: [
-      "1,000 conversations/mo",
-      "2 team members",
-      "Hindi + English templates",
-      "UPI / Razorpay payment links",
-      "Email support",
+      "2,000 conversations/mo",
+      "500 AI actions/mo (Hinglish replies)",
+      "UPI live mode — actually collect payments",
+      "3 team members",
+      "Broadcasts + templates",
+      "Email + WhatsApp support",
     ],
   },
   {
     name: "Growth",
-    tag: "Scaling D2C, coaching, multi-branch",
-    price: "₹1,999",
-    cta: "Free trial",
+    tag: "D2C, coaching, multi-branch — most popular",
+    price: "₹2,999",
+    cta: "Start free trial",
     featured: true,
     features: [
       "10,000 conversations/mo",
-      "Unlimited team members",
-      "Addison AI included",
-      "Workflows & broadcasts",
-      "11 Indian languages",
+      "5,000 AI actions/mo · all features unlocked",
+      "Meta Ads in-app · CTW campaigns",
+      "Ad-to-Sale ROAS attribution (exclusive)",
+      "AI insights · follow-up automation",
+      "10 team members · custom domain",
       "Priority WhatsApp + call support",
     ],
   },
   {
-    name: "Enterprise",
-    tag: "Listed companies, high-volume teams",
-    price: "Custom",
-    cta: "Contact sales",
+    name: "Scale",
+    tag: "High-volume D2C, agencies, multi-location",
+    price: "₹7,999",
+    cta: "Start free trial",
     featured: false,
     features: [
-      "Unlimited conversations",
-      "Dedicated CSM (IST)",
-      "Custom integrations · Tally · ERP",
-      "SSO + DPDP DPO assistance",
-      "SLA · onboarding · GST invoice",
+      "50,000 conversations/mo",
+      "25,000 AI actions/mo",
+      "Up to 3 workspaces (one bill)",
+      "API access · webhooks",
+      "White-label (custom sender domain)",
+      "25 team members",
+      "Dedicated CSM (IST hours)",
     ],
   },
 ];
