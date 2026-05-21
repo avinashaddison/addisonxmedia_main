@@ -372,6 +372,10 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleNavigate("upgrade")} className="text-[#FF6A1F] focus:text-[#FF6A1F]">
+              <Crown className="w-4 h-4 mr-2" />
+              Upgrade plan
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleNavigate("settings")}>
               <Settings className="w-4 h-4 mr-2" />
               Workspace settings

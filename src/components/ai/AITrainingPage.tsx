@@ -297,7 +297,7 @@ const UsageMeter = ({ usage }: { usage: NonNullable<ReturnType<typeof api.getAiU
         </div>
         {usage.cap !== -1 && pct >= 70 && (
           <a
-            href="/app/settings"
+            href="/app/upgrade"
             className="text-[11px] font-extrabold text-[#FF6A1F] hover:text-[#E85C12] flex items-center gap-1"
           >
             Upgrade plan <ArrowUpRight className="w-3 h-3" />

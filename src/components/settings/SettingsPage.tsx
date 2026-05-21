@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/PageShell";
 import {
   Settings, User, Phone, Bot, Bell, Shield, LogOut, Check, Plug, Sparkles,
@@ -881,10 +882,34 @@ const TeamSection = () => {
 };
 
 /* ============================== BILLING ============================== */
+const PLAN_LABELS: Record<string, { label: string; price: string; nextTier?: string }> = {
+  free:       { label: "Free",       price: "₹0 / mo",       nextTier: "Starter" },
+  starter:    { label: "Starter",    price: "₹999 / mo",     nextTier: "Growth" },
+  growth:     { label: "Growth",     price: "₹2,999 / mo",   nextTier: "Scale" },
+  scale:      { label: "Scale",      price: "₹7,999 / mo" },
+  enterprise: { label: "Enterprise", price: "Custom" },
+};
+
 const BillingSection = () => {
-  const usage = { messages: 8420, messagesLimit: 25000, contacts: 1240, contactsLimit: 5000 };
-  const msgPct = (usage.messages / usage.messagesLimit) * 100;
-  const ctPct  = (usage.contacts / usage.contactsLimit) * 100;
+  const navigate = useNavigate();
+  const { data: me } = useQuery({
+    queryKey: ["billing-me"],
+    queryFn: () => api.getBillingMe(),
+    staleTime: 30_000,
+  });
+  const { data: aiUsage } = useQuery({
+    queryKey: ["ai-usage"],
+    queryFn: () => api.getAiUsage(),
+    staleTime: 30_000,
+  });
+
+  const currentPlan = (me?.plan ?? "free").toLowerCase();
+  const plan = PLAN_LABELS[currentPlan] ?? PLAN_LABELS.free;
+  const pending = me?.pending_upgrade;
+
+  const aiUsed = aiUsage?.used ?? 0;
+  const aiCap = aiUsage?.cap ?? 0;
+  const aiPct = aiCap === -1 ? 0 : aiCap > 0 ? Math.min(100, (aiUsed / aiCap) * 100) : 0;
 
   return (
     <>
@@ -896,25 +921,49 @@ const BillingSection = () => {
         {/* Plan card */}
         <div className="rounded-xl bg-gradient-to-br from-primary via-primary-glow to-accent p-5 text-primary-foreground mb-4 relative overflow-hidden">
           <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10 blur-3xl" />
-          <div className="relative flex items-center justify-between">
+          <div className="relative flex items-center justify-between gap-3 flex-wrap">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Crown className="w-4 h-4" />
                 <p className="text-[11px] font-bold uppercase tracking-widest opacity-90">Current Plan</p>
               </div>
-              <p className="text-2xl font-extrabold">Growth</p>
-              <p className="text-[12px] opacity-90 mt-0.5">₹4,999 / month • Renews on Dec 24</p>
+              <p className="text-2xl font-extrabold">{plan.label}</p>
+              <p className="text-[12px] opacity-90 mt-0.5">{plan.price}</p>
+              {pending && (
+                <p className="text-[11px] mt-1.5 bg-white/15 rounded px-2 py-0.5 inline-block font-bold">
+                  Upgrade to {pending.target_plan} pending · status: {pending.status}
+                </p>
+              )}
             </div>
-            <Button className="bg-white text-primary hover:bg-white/90 gap-1.5 shadow-lg">
-              <TrendingUp className="w-4 h-4" /> Upgrade to Scale
-            </Button>
+            {plan.nextTier ? (
+              <Button onClick={() => navigate("/app/upgrade")} className="bg-white text-primary hover:bg-white/90 gap-1.5 shadow-lg">
+                <TrendingUp className="w-4 h-4" /> Upgrade to {plan.nextTier}
+              </Button>
+            ) : (
+              <Button onClick={() => navigate("/app/upgrade")} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/20 gap-1.5">
+                See plans
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Usage */}
+        {/* AI usage (real) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <UsageCard label="Messages sent" used={usage.messages} limit={usage.messagesLimit} pct={msgPct} icon={MessageSquare} unit="" />
-          <UsageCard label="Active contacts" used={usage.contacts} limit={usage.contactsLimit} pct={ctPct} icon={Users} unit="" />
+          <UsageCard
+            label="AI actions this month"
+            used={aiUsed}
+            limit={aiCap === -1 ? aiUsed : aiCap}
+            pct={aiPct}
+            icon={Sparkles}
+            unit=""
+          />
+          <div className="rounded-xl border border-border bg-card p-3 flex flex-col justify-center">
+            <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1">Need more AI?</p>
+            <p className="text-[12px] text-foreground/80 leading-snug mb-2">AI Power Pack adds 10,000 actions for ₹999/mo</p>
+            <Button onClick={() => navigate("/app/upgrade")} size="sm" variant="outline" className="self-start gap-1.5">
+              <Zap className="w-3.5 h-3.5" /> See options
+            </Button>
+          </div>
         </div>
       </SectionCard>
 

@@ -453,3 +453,29 @@ export const aiPersona = pgTable("workspace_ai_persona", {
 });
 
 export type AiPersona = typeof aiPersona.$inferSelect;
+
+// ============================================================
+// BILLING — plan upgrade requests (manual fulfillment until Razorpay live)
+// ============================================================
+// Customer clicks "Upgrade to Growth" in /app/upgrade → row inserted here.
+// Admin sees pending rows in the admin panel, sends a Razorpay payment link
+// via WhatsApp, on confirmation marks status='completed' + bumps user.plan
+// via the existing /api/admin/workspaces/:id PATCH. When Razorpay is live
+// this table becomes the audit trail of every plan-change attempt.
+export const upgradeRequest = pgTable("upgrade_request", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  targetPlan: text("target_plan").notNull(),                                // 'starter' | 'growth' | 'scale' | 'enterprise'
+  billingCycle: text("billing_cycle").notNull().default("monthly"),         // 'monthly' | 'annual'
+  status: text("status").notNull().default("requested"),                    // 'requested' | 'contacted' | 'paid' | 'completed' | 'declined' | 'cancelled'
+  customerNote: text("customer_note"),
+  adminNotes: text("admin_notes"),
+  razorpayPaymentId: text("razorpay_payment_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => ({
+  userIdx: index("upgrade_request_user_idx").on(t.userId, t.createdAt),
+  statusIdx: index("upgrade_request_status_idx").on(t.status, t.createdAt),
+}));
+
+export type UpgradeRequest = typeof upgradeRequest.$inferSelect;

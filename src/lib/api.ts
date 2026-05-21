@@ -300,6 +300,25 @@ export const api = {
   }>("/ai/ping"),
   getAiPersona: () => get<AiPersona>("/ai/persona"),
   updateAiPersona: (data: Partial<AiPersona>) => patch<AiPersona>("/ai/persona", data),
+
+  // ─── Billing & plan upgrades ──────────────────────────────────────────────
+  getBillingMe: () => get<{
+    plan: string;
+    account_status: string;
+    trial_ends_at: string | null;
+    mrr_inr: string;
+    pending_upgrade: {
+      id: string;
+      target_plan: string;
+      billing_cycle: string;
+      status: string;
+      created_at: string;
+      customer_note: string | null;
+    } | null;
+  }>("/billing/me"),
+  requestUpgrade: (data: { target_plan: string; billing_cycle?: "monthly" | "annual"; customer_note?: string }) =>
+    post<{ ok: true; request: any }>("/billing/request-upgrade", data),
+  cancelUpgradeRequest: (id: string) => del(`/billing/upgrade-request/${id}`),
   getReplySuggestions: (conversationId: string) =>
     post<ReplySuggestionsResult>("/ai/reply-suggestions", { conversation_id: conversationId }),
 
