@@ -278,6 +278,20 @@ export const api = {
   }>("/ai/ping"),
   getAiPersona: () => get<AiPersona>("/ai/persona"),
   updateAiPersona: (data: Partial<AiPersona>) => patch<AiPersona>("/ai/persona", data),
+  getReplySuggestions: (conversationId: string) =>
+    post<ReplySuggestionsResult>("/ai/reply-suggestions", { conversation_id: conversationId }),
+};
+
+export type ReplySuggestion = {
+  type: "polite" | "sell" | "qualify";
+  text: string;
+};
+
+export type ReplySuggestionsResult = {
+  escalate: boolean;
+  suggestions: ReplySuggestion[];
+  reason?: string;
+  note?: string;
 };
 
 export type AiPersona = {

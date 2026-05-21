@@ -4,6 +4,7 @@ import {
   CreditCard, Sparkles, Phone, Loader2, Bot,
   ChevronDown, Image as ImageIcon, Wand2, AlertTriangle,
   Package, RotateCcw, ShieldOff, FileText, Mic, Film, X,
+  Brain, RefreshCcw, ShieldAlert, EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -138,6 +139,27 @@ export const ChatWindow = ({ conversation }: Props) => {
   const { data: messages = [], isLoading } = useMessages(conversation.id);
   const sendMut = useSendMessage();
 
+  // ── AI reply suggestions ──────────────────────────────────────────────────
+  // Only show suggestions when:
+  //   - the latest message is inbound (we're the ones who owe a reply)
+  //   - we're inside Meta's 24h customer-service window
+  //   - the user hasn't manually hidden the strip
+  // React Query key includes the last inbound message id so a NEW inbound
+  // auto-invalidates the prior suggestions.
+  const lastInboundMsg = useMemo(
+    () => [...messages].reverse().find((m) => m.direction === "inbound"),
+    [messages],
+  );
+  const latestIsInbound = messages.length > 0 && messages[messages.length - 1]?.direction === "inbound";
+  const [aiHidden, setAiHidden] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("addisonx-ai-suggestions-hidden") === "1";
+  });
+  useEffect(() => {
+    window.localStorage.setItem("addisonx-ai-suggestions-hidden", aiHidden ? "1" : "0");
+  }, [aiHidden]);
+  const shouldShowSuggestions = !aiHidden && latestIsInbound && !!lastInboundMsg;
+
   // Real send-mode indicator: is Meta WhatsApp configured + enabled?
   const { data: metaCfg } = useQuery({
     queryKey: ["meta-config"],
@@ -201,6 +223,24 @@ export const ChatWindow = ({ conversation }: Props) => {
 
   // Lightbox for click-to-expand on images
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
+  // AI suggestions — fetched only when the strip is visible. Key includes the
+  // last inbound message id so suggestions auto-refresh when a new inbound
+  // arrives (and we don't keep regenerating for the same message).
+  const suggestionsQuery = useQuery({
+    queryKey: ["reply-suggestions", conversation.id, lastInboundMsg?.id],
+    queryFn: () => api.getReplySuggestions(conversation.id),
+    enabled: shouldShowSuggestions && !!lastInboundMsg?.id,
+    staleTime: Infinity,        // don't refetch on re-mount; new inbound = new key
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    retry: 0,
+  });
+
+  const useSuggestion = (text: string) => {
+    setInput(text);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
 
   // Group consecutive same-sender messages within 2-minute windows so we
   // only show the timestamp + tail on the last bubble of the run. Date
@@ -541,6 +581,23 @@ export const ChatWindow = ({ conversation }: Props) => {
         </div>
       )}
 
+      {/* AI reply suggestions — manual approval flow (click to fill composer, never auto-sends) */}
+      {shouldShowSuggestions && (
+        <AiSuggestionStrip
+          query={suggestionsQuery}
+          onUse={useSuggestion}
+          onHide={() => setAiHidden(true)}
+        />
+      )}
+      {!shouldShowSuggestions && latestIsInbound && aiHidden && (
+        <button
+          onClick={() => setAiHidden(false)}
+          className="mx-5 mt-2 self-start text-[10.5px] font-bold text-primary/80 hover:text-primary bg-primary-soft hover:bg-primary-soft/80 px-2.5 py-1 rounded-full flex items-center gap-1 transition"
+        >
+          <Brain className="w-3 h-3" /> Show AI suggestions
+        </button>
+      )}
+
       {/* Input */}
       <div className="px-5 py-3 border-t border-border bg-card flex items-end gap-2 flex-shrink-0">
         <button
@@ -623,6 +680,118 @@ export const ChatWindow = ({ conversation }: Props) => {
             onClick={(e) => e.stopPropagation()}
             className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl cursor-default"
           />
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── AI suggestion strip ─────────────────────────────────────────────────────
+// Renders 3 draft replies above the composer. Manual-approval only: click =
+// fill the textarea; user can edit before sending. Never auto-sends in v1.
+const SUGGESTION_STYLE: Record<"polite" | "sell" | "qualify", { label: string; accent: string; chipBg: string }> = {
+  polite:  { label: "Polite",   accent: "border-[#0E8A4B] text-[#0E8A4B]", chipBg: "bg-[#E6F7EE]" },
+  sell:    { label: "Sell",     accent: "border-[#FF6A1F] text-[#FF6A1F]", chipBg: "bg-[#FFEFE0]" },
+  qualify: { label: "Qualify",  accent: "border-[#3C50E0] text-[#3C50E0]", chipBg: "bg-[#E4E8FF]" },
+};
+
+const AiSuggestionStrip = ({
+  query,
+  onUse,
+  onHide,
+}: {
+  query: ReturnType<typeof useQuery<import("@/lib/api").ReplySuggestionsResult>>;
+  onUse: (text: string) => void;
+  onHide: () => void;
+}) => {
+  const { data, isLoading, isError, error, refetch, isFetching } = query;
+
+  return (
+    <div className="px-5 py-2 border-t border-border bg-gradient-to-b from-[#FFF6E8]/60 to-card flex-shrink-0">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5">
+          <Brain className="w-3.5 h-3.5 text-[#3C50E0]" />
+          <span className="text-[10px] uppercase tracking-[0.18em] font-extrabold text-foreground/60">
+            Addison AI suggestions
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="text-[10px] font-bold text-foreground/55 hover:text-foreground flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted transition"
+            title="Generate fresh suggestions"
+          >
+            {isFetching ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCcw className="w-3 h-3" />}
+            Refresh
+          </button>
+          <button
+            onClick={onHide}
+            className="text-[10px] font-bold text-foreground/55 hover:text-foreground flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted transition"
+            title="Hide AI suggestions"
+          >
+            <EyeOff className="w-3 h-3" />
+            Hide
+          </button>
+        </div>
+      </div>
+
+      {isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-[60px] rounded-xl bg-muted/60 animate-pulse" />
+          ))}
+        </div>
+      )}
+
+      {isError && (
+        <div className="text-[11px] text-foreground/65 italic">
+          AI suggestions unavailable: {(error instanceof Error ? error.message : "unknown error")}
+        </div>
+      )}
+
+      {data?.escalate && (
+        <div className="flex items-start gap-2 rounded-xl border-2 border-[#D4308E] bg-[#FCE5F0] px-3 py-2">
+          <ShieldAlert className="w-4 h-4 text-[#D4308E] flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[11.5px] font-extrabold text-[#7A1854]">Escalate to human</p>
+            <p className="text-[10.5px] text-foreground/70 leading-snug">{data.reason}</p>
+          </div>
+        </div>
+      )}
+
+      {data && !data.escalate && data.suggestions.length === 0 && !isLoading && (
+        <div className="text-[11px] text-foreground/55 italic">
+          {data.note ?? "No suggestions — try refresh."}
+        </div>
+      )}
+
+      {data && !data.escalate && data.suggestions.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
+          {data.suggestions.map((s, i) => {
+            const style = SUGGESTION_STYLE[s.type] ?? SUGGESTION_STYLE.polite;
+            return (
+              <button
+                key={i}
+                onClick={() => onUse(s.text)}
+                className={cn(
+                  "group text-left rounded-xl border-2 bg-card p-2 transition-all hover:-translate-y-0.5 hover:shadow-sm",
+                  style.accent.replace("text-", "border-").split(" ")[0]
+                )}
+                title="Click to fill composer"
+              >
+                <span className={cn(
+                  "inline-block text-[9px] font-extrabold uppercase tracking-[0.12em] px-1.5 py-0.5 rounded mb-1",
+                  style.chipBg, style.accent
+                )}>
+                  {style.label}
+                </span>
+                <p className="text-[11.5px] leading-snug text-foreground/85 line-clamp-3 group-hover:text-foreground">
+                  {s.text}
+                </p>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
