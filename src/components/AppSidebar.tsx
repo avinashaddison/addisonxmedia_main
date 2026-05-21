@@ -309,31 +309,12 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
         })}
       </nav>
 
-      {/* AI status card */}
-      {!collapsed ? (
-        <div className="mx-2.5 mb-2 p-3 rounded-xl bg-gradient-to-br from-[#0A3D24] to-[#0D4E2E] border-2 border-[#FFD23F] shadow-[0_3px_0_0_#072917] relative overflow-hidden">
-          <div className="absolute -top-4 -right-4 w-12 h-12 bg-[#FFD23F]/20 rounded-full blur-xl" />
-          <div className="relative flex items-center gap-2 mb-1.5">
-            <div className="w-8 h-8 rounded-xl bg-[#FFD23F] flex items-center justify-center text-[#7A4A00] shadow-md">
-              <Sparkles className="w-4 h-4" strokeWidth={2.5} />
-            </div>
-            <div className="flex-1">
-              <p className="text-[12px] font-extrabold leading-tight text-white">Addison AI</p>
-              <p className="text-[10px] text-[#FFD23F] font-extrabold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#16C172] animate-pulse" />
-                Online · Ready
-              </p>
-            </div>
-          </div>
-          <p className="relative text-[10px] text-white/80 leading-snug font-medium">Hindi mein replies suggest kar raha hai</p>
-        </div>
-      ) : (
-        <div className="mb-2 mx-auto group relative">
-          <div className="w-9 h-9 rounded-xl bg-[#0A3D24] border-2 border-[#FFD23F] flex items-center justify-center shadow-md">
-            <Sparkles className="w-4 h-4 text-[#FFD23F]" />
-          </div>
-        </div>
-      )}
+      {/* Plan-aware Upgrade card — replaces the static "Addison AI / Online" card.
+          - Free / Starter → big saffron CTA pushing toward the next tier
+          - Growth / Scale → quiet plan badge with "Manage plan" link
+          - Pending upgrade → progress banner so they know we're processing
+          - Enterprise → custom-plan plate, no upgrade arrow */}
+      <SidebarUpgradeCard collapsed={collapsed} onNavigate={handleNavigate} />
 
       {/* User menu */}
       <div className="p-2.5 border-t-2 border-[#E8B968] bg-white">
@@ -415,5 +396,151 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
       </div>
       </aside>
     </>
+  );
+};
+
+// ─── Sidebar upgrade card ────────────────────────────────────────────────────
+//
+// Renders one of four states based on /api/billing/me:
+//   1. Pending upgrade   → green progress banner with "in progress" hint
+//   2. Free / Starter    → saffron CTA pushing to next paid tier
+//   3. Growth / Scale    → plan plate with "Manage plan" link
+//   4. Enterprise        → custom plate, no upgrade arrow
+//
+// Stays in the same vertical slot the old "Addison AI · Online" card used.
+
+const PLAN_NEXT: Record<string, { next: string; label: string; price: string }> = {
+  free:    { next: "starter", label: "Starter",  price: "₹999/mo" },
+  starter: { next: "growth",  label: "Growth",   price: "₹2,999/mo" },
+  growth:  { next: "scale",   label: "Scale",    price: "₹7,999/mo" },
+  scale:   { next: "",        label: "",         price: "" },
+};
+
+const PLAN_DISPLAY: Record<string, { name: string; price: string; gradient: string }> = {
+  free:       { name: "Free",       price: "₹0/mo",        gradient: "from-[#0A3D24] to-[#0D4E2E]" },
+  starter:    { name: "Starter",    price: "₹999/mo",      gradient: "from-[#3C50E0] to-[#2533A8]" },
+  growth:     { name: "Growth",     price: "₹2,999/mo",    gradient: "from-[#0E8A4B] to-[#0A6E3C]" },
+  scale:      { name: "Scale",      price: "₹7,999/mo",    gradient: "from-[#7A1052] to-[#A11A6A]" },
+  enterprise: { name: "Enterprise", price: "Custom",       gradient: "from-[#0A3D24] to-[#0A3D24]" },
+};
+
+const SidebarUpgradeCard = ({ collapsed, onNavigate }: { collapsed: boolean; onNavigate: (id: string) => void }) => {
+  const { user } = useAuth();
+  const { data: me } = useQuery({
+    queryKey: ["billing-me"],
+    queryFn: () => api.getBillingMe(),
+    enabled: !!user,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
+
+  const plan = (me?.plan ?? "free").toLowerCase();
+  const pending = me?.pending_upgrade ?? null;
+  const planDisplay = PLAN_DISPLAY[plan] ?? PLAN_DISPLAY.free;
+  const upgradeTarget = PLAN_NEXT[plan];
+  const isPaid = plan === "growth" || plan === "scale" || plan === "enterprise";
+
+  // Collapsed = just the crown icon (or pending shimmer)
+  if (collapsed) {
+    return (
+      <button
+        onClick={() => onNavigate("upgrade")}
+        title={pending ? `Upgrade to ${pending.target_plan} pending` : isPaid ? planDisplay.name : "Upgrade plan"}
+        className={cn(
+          "mb-2 mx-auto w-9 h-9 rounded-xl border-2 flex items-center justify-center shadow-md transition-all hover:scale-105",
+          pending
+            ? "bg-gradient-to-br from-[#FFD23F] to-[#FF6A1F] border-[#7A4A00] animate-pulse"
+            : isPaid
+              ? `bg-gradient-to-br ${planDisplay.gradient} border-[#FFD23F]`
+              : "bg-gradient-to-br from-[#FF6A1F] to-[#FFD23F] border-[#B8420A]"
+        )}
+        aria-label={isPaid ? `Current plan: ${planDisplay.name}` : "Upgrade plan"}
+      >
+        <Crown className={cn("w-4 h-4", isPaid ? "text-[#FFD23F]" : "text-white")} strokeWidth={2.5} />
+      </button>
+    );
+  }
+
+  // PENDING — request in flight (manual fulfillment in progress)
+  if (pending) {
+    return (
+      <button
+        onClick={() => onNavigate("upgrade")}
+        className="mx-2.5 mb-2 p-3 rounded-xl bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] border-2 border-[#FFD23F] shadow-[0_3px_0_0_#073D22] relative overflow-hidden text-left hover:translate-y-[1px] transition-all w-[calc(100%-1.25rem)] group"
+      >
+        <div className="absolute -top-4 -right-4 w-12 h-12 bg-[#FFD23F]/25 rounded-full blur-xl" />
+        <div className="relative flex items-center gap-2 mb-1.5">
+          <div className="w-8 h-8 rounded-xl bg-[#FFD23F] flex items-center justify-center text-[#7A4A00] shadow-md">
+            <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2.5} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-extrabold leading-tight text-white truncate">Upgrade in progress</p>
+            <p className="text-[10px] text-[#FFD23F] font-extrabold capitalize">→ {pending.target_plan} · {pending.billing_cycle}</p>
+          </div>
+        </div>
+        <p className="relative text-[10px] text-white/85 leading-snug font-medium">
+          Payment link WhatsApp pe bhej rahe hain — soon active.
+        </p>
+      </button>
+    );
+  }
+
+  // PAID — Growth / Scale / Enterprise
+  if (isPaid) {
+    return (
+      <button
+        onClick={() => onNavigate("upgrade")}
+        className={cn(
+          "mx-2.5 mb-2 p-3 rounded-xl border-2 border-[#FFD23F] shadow-[0_3px_0_0_rgba(0,0,0,0.25)] relative overflow-hidden text-left hover:translate-y-[1px] transition-all w-[calc(100%-1.25rem)] group bg-gradient-to-br",
+          planDisplay.gradient,
+        )}
+      >
+        <div className="absolute -top-4 -right-4 w-12 h-12 bg-[#FFD23F]/25 rounded-full blur-xl" />
+        <div className="relative flex items-center gap-2 mb-1.5">
+          <div className="w-8 h-8 rounded-xl bg-[#FFD23F] flex items-center justify-center text-[#7A4A00] shadow-md">
+            <Crown className="w-4 h-4" strokeWidth={2.5} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-extrabold leading-tight text-white truncate">{planDisplay.name} plan</p>
+            <p className="text-[10px] text-[#FFD23F] font-extrabold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#16C172] animate-pulse" />
+              Active · {planDisplay.price}
+            </p>
+          </div>
+        </div>
+        <p className="relative text-[10px] text-white/85 leading-snug font-medium flex items-center gap-1">
+          Manage plan
+          <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+        </p>
+      </button>
+    );
+  }
+
+  // FREE / STARTER → push to next tier (saffron CTA)
+  return (
+    <button
+      onClick={() => onNavigate("upgrade")}
+      className="mx-2.5 mb-2 p-3 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] border-2 border-[#B8420A] shadow-[0_3px_0_0_#7A2A06] relative overflow-hidden text-left hover:translate-y-[1px] transition-all w-[calc(100%-1.25rem)] group"
+    >
+      <div className="absolute -top-4 -right-4 w-14 h-14 bg-[#FFD23F]/30 rounded-full blur-xl" />
+      <div className="absolute -bottom-4 -left-4 w-12 h-12 bg-white/10 rounded-full blur-lg" />
+      <div className="relative flex items-center gap-2 mb-1.5">
+        <div className="w-8 h-8 rounded-xl bg-[#FFD23F] flex items-center justify-center text-[#7A4A00] shadow-md">
+          <Crown className="w-4 h-4" strokeWidth={2.5} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] text-[#FFD23F] font-extrabold uppercase tracking-wider">
+            {plan === "free" ? "Free plan" : "Starter plan"}
+          </p>
+          <p className="text-[13px] font-black leading-tight text-white truncate">
+            Upgrade to {upgradeTarget?.label}
+          </p>
+        </div>
+      </div>
+      <p className="relative text-[10px] text-white/95 leading-snug font-medium flex items-center gap-1">
+        From {upgradeTarget?.price}
+        <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform ml-auto" />
+      </p>
+    </button>
   );
 };

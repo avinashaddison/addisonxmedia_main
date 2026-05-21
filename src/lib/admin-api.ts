@@ -153,10 +153,35 @@ export const adminApi = {
       method: "POST",
       body: JSON.stringify({ amount, reason, paymentId }),
     }),
+
+  // Upgrade-request queue (manual plan activation)
+  upgradeRequests: (status?: string) =>
+    adminRequest<AdminUpgradeRequest[]>(`/upgrade-requests${status ? `?status=${status}` : ""}`),
+  updateUpgradeRequest: (id: string, body: { status?: string; admin_notes?: string | null; razorpay_payment_id?: string | null }) =>
+    adminRequest<AdminUpgradeRequest>(`/upgrade-requests/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  activateUpgrade: (id: string, body: { mrr_inr?: number; admin_notes?: string; razorpay_payment_id?: string }) =>
+    adminRequest<{ ok: true; plan: string }>(`/upgrade-requests/${id}/activate`, { method: "POST", body: JSON.stringify(body) }),
   health: () => adminRequest<{ checks: HealthCheck[]; timestamp: string }>("/health"),
   settings: () => adminRequest<SystemSetting[]>("/settings"),
   updateSetting: (key: string, value: string) =>
     adminRequest<{ ok: true }>(`/settings/${key}`, { method: "PATCH", body: JSON.stringify({ value }) }),
+};
+
+export type AdminUpgradeRequest = {
+  id: string;
+  userId: string;
+  targetPlan: string;
+  billingCycle: string;
+  status: string;
+  customerNote: string | null;
+  adminNotes: string | null;
+  razorpayPaymentId: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  userEmail: string | null;
+  userName: string | null;
+  currentPlan: string | null;
+  currentMrr: string | null;
 };
 
 export type SystemSetting = {

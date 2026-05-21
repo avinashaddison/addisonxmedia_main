@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { db } from "../db/client";
 import {
   user, contact, conversation, message, deal, campaign, broadcast, task,
-  adminAuditLog, impersonationSession, metaConfig, systemSetting,
+  adminAuditLog, impersonationSession, metaConfig, systemSetting, upgradeRequest,
 } from "../db/schema";
 import { eq, desc, sql, and, gt, isNull, or, ilike, count } from "drizzle-orm";
 import { requireAdmin, auditLog, type AdminVariables } from "../middleware/admin";
@@ -419,6 +419,114 @@ admin.delete("/api/admin/staff/:id", requireAdmin(["super_admin"]), async (c) =>
   await db.update(user).set({ isStaff: false, adminRole: null }).where(eq(user.id, id));
   await auditLog(c, "remove_staff", id);
   return c.json({ ok: true });
+});
+
+/* ─────────── Upgrade requests (manual fulfillment queue) ─────────── */
+//
+// Until Razorpay is live, admins manually process plan upgrades. List view
+// shows pending requests; activate endpoint completes a request + bumps the
+// user's plan in a single atomic-ish flow (two updates, no transaction yet
+// because we use postgres-js which doesn't expose tx in this setup).
+
+admin.get("/api/admin/upgrade-requests", async (c) => {
+  const status = c.req.query("status"); // 'requested' | 'contacted' | 'paid' | 'completed' | etc.
+  const baseWhere = status
+    ? eq(upgradeRequest.status, status)
+    : sql`${upgradeRequest.status} IN ('requested', 'contacted', 'paid')`;
+
+  const rows = await db
+    .select({
+      id: upgradeRequest.id,
+      userId: upgradeRequest.userId,
+      targetPlan: upgradeRequest.targetPlan,
+      billingCycle: upgradeRequest.billingCycle,
+      status: upgradeRequest.status,
+      customerNote: upgradeRequest.customerNote,
+      adminNotes: upgradeRequest.adminNotes,
+      razorpayPaymentId: upgradeRequest.razorpayPaymentId,
+      createdAt: upgradeRequest.createdAt,
+      completedAt: upgradeRequest.completedAt,
+      userEmail: user.email,
+      userName: user.name,
+      currentPlan: user.plan,
+      currentMrr: user.mrrInr,
+    })
+    .from(upgradeRequest)
+    .leftJoin(user, eq(upgradeRequest.userId, user.id))
+    .where(baseWhere)
+    .orderBy(desc(upgradeRequest.createdAt))
+    .limit(100);
+
+  return c.json(rows);
+});
+
+// Soft-update: change status, add notes, set Razorpay payment id. Does NOT
+// flip the plan (use POST .../activate for that).
+admin.patch("/api/admin/upgrade-requests/:id", requireAdmin(["super_admin", "billing"]), async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<{
+    status?: string;
+    admin_notes?: string | null;
+    razorpay_payment_id?: string | null;
+  }>();
+
+  const set: Record<string, unknown> = {};
+  if (body.status) {
+    const valid = ["requested", "contacted", "paid", "completed", "declined", "cancelled"];
+    if (!valid.includes(body.status)) return c.json({ error: "Invalid status" }, 400);
+    set.status = body.status;
+  }
+  if ("admin_notes" in body) set.adminNotes = body.admin_notes ?? null;
+  if ("razorpay_payment_id" in body) set.razorpayPaymentId = body.razorpay_payment_id ?? null;
+  if (body.status === "declined" || body.status === "cancelled") set.completedAt = new Date();
+
+  const [row] = await db.update(upgradeRequest).set(set).where(eq(upgradeRequest.id, id)).returning();
+  if (!row) return c.json({ error: "Not found" }, 404);
+  await auditLog(c, "upgrade_request_update", row.userId, { request_id: id, ...body });
+  return c.json(row);
+});
+
+// The big button: "Activate plan". Flips user.plan to the target + marks the
+// upgrade_request completed. This is the only path that should change a paid
+// user's plan from the admin panel.
+admin.post("/api/admin/upgrade-requests/:id/activate", requireAdmin(["super_admin", "billing"]), async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<{
+    mrr_inr?: number;
+    admin_notes?: string;
+    razorpay_payment_id?: string;
+  }>();
+
+  const [req] = await db.select().from(upgradeRequest).where(eq(upgradeRequest.id, id)).limit(1);
+  if (!req) return c.json({ error: "Not found" }, 404);
+  if (req.status === "completed") return c.json({ error: "Already completed" }, 400);
+
+  // 1. Flip the user's plan
+  const userUpdate: Record<string, unknown> = {
+    plan: req.targetPlan,
+    accountStatus: "active",
+    updatedAt: new Date(),
+  };
+  if (body.mrr_inr !== undefined) userUpdate.mrrInr = String(body.mrr_inr);
+  await db.update(user).set(userUpdate).where(eq(user.id, req.userId));
+
+  // 2. Complete the request
+  await db.update(upgradeRequest).set({
+    status: "completed",
+    completedAt: new Date(),
+    adminNotes: body.admin_notes ?? req.adminNotes,
+    razorpayPaymentId: body.razorpay_payment_id ?? req.razorpayPaymentId,
+  }).where(eq(upgradeRequest.id, id));
+
+  await auditLog(c, "upgrade_activated", req.userId, {
+    request_id: id,
+    target_plan: req.targetPlan,
+    billing_cycle: req.billingCycle,
+    mrr_inr: body.mrr_inr,
+    razorpay_payment_id: body.razorpay_payment_id,
+  });
+
+  return c.json({ ok: true, plan: req.targetPlan });
 });
 
 /* ─────────── Subscriptions (uses user.plan + user.mrrInr) ─────────── */
