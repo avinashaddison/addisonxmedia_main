@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   Target, IndianRupee, MousePointerClick, Eye, TrendingUp, Sparkles, Plus,
   Play, Pause, Copy, MoreHorizontal, Crown, Flame, ArrowRight, ArrowUpRight,
@@ -90,10 +90,33 @@ export const AdsMarketingPage = () => {
   const [connectOpen, setConnectOpen] = useState(false);
   const [createAudienceOpen, setCreateAudienceOpen] = useState(false);
 
-  const connectionQ = useQuery({ queryKey: ["ads", "connection"], queryFn: () => api.getAdsConnection() });
-  const campaignsQ = useQuery({ queryKey: ["ads", "campaigns"], queryFn: () => api.listAdCampaigns() });
-  const insightsQ = useQuery({ queryKey: ["ads", "insights", "last_7d"], queryFn: () => api.getAdInsights("last_7d") });
-  const audiencesQ = useQuery({ queryKey: ["ads", "audiences"], queryFn: () => api.listAdAudiences() });
+  // Snappier perceived perf: staleTime keeps data warm across remounts,
+  // placeholderData prevents loading flicker when filters change.
+  const connectionQ = useQuery({
+    queryKey: ["ads", "connection"],
+    queryFn: () => api.getAdsConnection(),
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+  const campaignsQ = useQuery({
+    queryKey: ["ads", "campaigns"],
+    queryFn: () => api.listAdCampaigns(),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+  const insightsQ = useQuery({
+    queryKey: ["ads", "insights", "last_7d"],
+    queryFn: () => api.getAdInsights("last_7d"),
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+  const audiencesQ = useQuery({
+    queryKey: ["ads", "audiences"],
+    queryFn: () => api.listAdAudiences(),
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+  const anyLoading = connectionQ.isLoading || campaignsQ.isLoading || insightsQ.isLoading;
 
   const isConnected = connectionQ.data?.connected ?? false;
   const isDemo = campaignsQ.data?.demo ?? true;
@@ -221,36 +244,44 @@ export const AdsMarketingPage = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <AdKPI
           label="Total spend (7 din)"
-          value={compactINR(stats.spent)}
+          rawValue={stats.spent}
+          format="inr"
           sub={`${campaigns.filter((c) => c.status === "active").length} active campaigns`}
           icon={IndianRupee}
           color="accent"
           trend="+18% vs last week"
+          loading={anyLoading}
         />
         <AdKPI
           label="Impressions"
-          value={compactNum(stats.impressions)}
+          rawValue={stats.impressions}
+          format="num"
           sub={`Reach: ${compactNum(Math.round(stats.impressions * 0.42))}`}
           icon={Eye}
           color="primary"
           trend="+22% vs last week"
+          loading={anyLoading}
         />
         <AdKPI
           label="Clicks · CTR"
-          value={compactNum(stats.clicks)}
+          rawValue={stats.clicks}
+          format="num"
           sub={`${stats.ctr.toFixed(2)}% CTR · ${fmtINR(stats.spent / Math.max(1, stats.clicks))} CPC`}
           icon={MousePointerClick}
           color="hot"
           trend="+8% vs last week"
+          loading={anyLoading}
         />
         <AdKPI
           label="ROAS"
-          value={`${stats.roas.toFixed(1)}x`}
+          rawValue={stats.roas}
+          format="roas"
           sub={`Revenue: ${compactINR(stats.revenue)}`}
           icon={TrendingUp}
           color="success"
           highlight
           trend={`+ ${compactINR(stats.revenue - stats.spent)} profit`}
+          loading={anyLoading}
         />
       </div>
 
@@ -260,15 +291,18 @@ export const AdsMarketingPage = () => {
           className="absolute inset-0 opacity-10"
           style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "20px 20px" }}
         />
+        {/* Soft saffron sheen sliding right-to-left, ~6s loop — adds life without being distracting */}
+        <div className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-[#FFD23F]/10 to-transparent animate-ai-sheen" />
         <div className="relative w-10 h-10 rounded-xl bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center shadow-md flex-shrink-0">
           <Brain className="w-5 h-5" strokeWidth={2.5} />
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#16C172] ring-2 ring-[#0A3D24] animate-pulse" aria-hidden />
         </div>
         <div className="relative flex-1 min-w-[220px]">
           <p className="text-[10px] uppercase tracking-[0.18em] text-[#FFD23F] font-extrabold">Addison AI Suggestions</p>
           <p className="text-[14px] font-extrabold mt-0.5">2 campaigns ka budget badhao · ROAS 5x se upar hai</p>
         </div>
         <div className="relative flex items-center gap-2">
-          <button className="text-[11px] font-extrabold bg-[#FFD23F] text-[#7A4A00] px-3 py-1.5 rounded-lg shadow-md hover:scale-105 transition">
+          <button className="text-[11px] font-extrabold bg-[#FFD23F] text-[#7A4A00] px-3 py-1.5 rounded-lg shadow-md hover:scale-105 hover:shadow-lg hover:shadow-[#FFD23F]/30 active:scale-95 transition-all">
             Apply (+₹500/day)
           </button>
           <button className="text-[11px] font-bold opacity-80 hover:opacity-100 transition">Dismiss</button>
@@ -608,28 +642,66 @@ const ConnectionCard = ({
   );
 };
 
+// Ease-out counter from 0 → target over `duration` ms. Re-runs when target
+// changes so KPIs animate on data refresh too.
+const useAnimatedCount = (target: number, duration = 700) => {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!Number.isFinite(target)) return;
+    let raf: number;
+    const start = performance.now();
+    const from = n;
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setN(from + (target - from) * eased);
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // Intentionally omit `n` from deps — we use it as the start value but
+    // don't want to retrigger the animation on every frame.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, duration]);
+  return n;
+};
+
 const AdKPI = ({
-  label, value, sub, icon: Icon, color, trend, highlight,
+  label, rawValue, format, sub, icon: Icon, color, trend, highlight, loading,
 }: {
   label: string;
-  value: string;
+  rawValue: number;
+  format: "inr" | "num" | "roas";
   sub?: string;
   icon: typeof Target;
   color: "primary" | "accent" | "success" | "hot";
   trend?: string;
   highlight?: boolean;
+  loading?: boolean;
 }) => {
   const styles = {
-    primary: { border: "border-[#3C50E0]", shadow: "shadow-[0_4px_0_0_#2533A8]", iconBg: "bg-[#3C50E0]", trendText: "text-[#3C50E0]" },
-    accent:  { border: "border-[#FF6A1F]", shadow: "shadow-[0_4px_0_0_#B8420A]", iconBg: "bg-[#FF6A1F]", trendText: "text-[#FF6A1F]" },
-    success: { border: "border-[#0E8A4B]", shadow: "shadow-[0_4px_0_0_#0A6E3C]", iconBg: "bg-[#0E8A4B]", trendText: "text-[#0E8A4B]" },
-    hot:     { border: "border-[#D4308E]", shadow: "shadow-[0_4px_0_0_#A11A6A]", iconBg: "bg-[#D4308E]", trendText: "text-[#D4308E]" },
+    primary: { border: "border-[#3C50E0]", shadow: "shadow-[0_4px_0_0_#2533A8]", hoverShadow: "hover:shadow-[0_6px_0_0_#2533A8]", iconBg: "bg-[#3C50E0]", trendText: "text-[#3C50E0]", glow: "from-[#3C50E0]/15" },
+    accent:  { border: "border-[#FF6A1F]", shadow: "shadow-[0_4px_0_0_#B8420A]", hoverShadow: "hover:shadow-[0_6px_0_0_#B8420A]", iconBg: "bg-[#FF6A1F]", trendText: "text-[#FF6A1F]", glow: "from-[#FF6A1F]/15" },
+    success: { border: "border-[#0E8A4B]", shadow: "shadow-[0_4px_0_0_#0A6E3C]", hoverShadow: "hover:shadow-[0_6px_0_0_#0A6E3C]", iconBg: "bg-[#0E8A4B]", trendText: "text-[#0E8A4B]", glow: "from-[#0E8A4B]/15" },
+    hot:     { border: "border-[#D4308E]", shadow: "shadow-[0_4px_0_0_#A11A6A]", hoverShadow: "hover:shadow-[0_6px_0_0_#A11A6A]", iconBg: "bg-[#D4308E]", trendText: "text-[#D4308E]", glow: "from-[#D4308E]/15" },
   }[color];
 
+  const animated = useAnimatedCount(rawValue);
+  const display =
+    format === "inr"  ? compactINR(animated) :
+    format === "roas" ? `${animated.toFixed(1)}x` :
+                        compactNum(animated);
+
   return (
-    <div className={cn("relative overflow-hidden bg-white border-2 rounded-2xl p-4", styles.border, styles.shadow)}>
-      <div className="flex items-center justify-between mb-3">
-        <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center text-white shadow-md", styles.iconBg)}>
+    <div className={cn(
+      "group relative overflow-hidden bg-white border-2 rounded-2xl p-4 transition-all duration-200 ease-out hover:-translate-y-0.5 will-change-transform",
+      styles.border, styles.shadow, styles.hoverShadow
+    )}>
+      {/* Soft brand-color glow on hover for depth */}
+      <div className={cn("pointer-events-none absolute -top-12 -right-12 w-32 h-32 rounded-full blur-2xl bg-gradient-to-br to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500", styles.glow)} />
+
+      <div className="relative flex items-center justify-between mb-3">
+        <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center text-white shadow-md transition-transform group-hover:scale-105", styles.iconBg)}>
           <Icon className="w-5 h-5" strokeWidth={2.5} />
         </div>
         {trend && (
@@ -639,9 +711,15 @@ const AdKPI = ({
           </span>
         )}
       </div>
-      <p className="text-[11px] uppercase tracking-[0.15em] text-foreground/60 font-extrabold">{label}</p>
-      <p className={cn("text-3xl font-black tracking-tight tabular-nums mt-1", highlight && styles.trendText)}>{value}</p>
-      {sub && <p className="text-[11px] text-foreground/60 font-medium mt-1">{sub}</p>}
+      <p className="relative text-[11px] uppercase tracking-[0.15em] text-foreground/60 font-extrabold">{label}</p>
+      {loading && rawValue === 0 ? (
+        <div className="relative h-9 w-24 mt-1 rounded-md bg-[#FFF1D6] animate-pulse" />
+      ) : (
+        <p className={cn("relative text-3xl font-black tracking-tight tabular-nums mt-1", highlight && styles.trendText)}>
+          {display}
+        </p>
+      )}
+      {sub && <p className="relative text-[11px] text-foreground/60 font-medium mt-1">{sub}</p>}
     </div>
   );
 };

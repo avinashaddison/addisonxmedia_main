@@ -48,10 +48,13 @@ export default {
       keyframes: {
         "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
         "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
+        // Slow saffron sheen sliding across surfaces (used on AI banner)
+        "ai-sheen": { "0%": { transform: "translateX(0)" }, "100%": { transform: "translateX(400%)" } },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "ai-sheen": "ai-sheen 6s linear infinite",
       },
     },
   },
