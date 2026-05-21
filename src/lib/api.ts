@@ -251,6 +251,21 @@ export const api = {
       ok: boolean;
       checks: Array<{ id: string; status: "pass" | "warn" | "fail"; label: string; message: string; fix_url?: string }>;
     }>("/ads/preflight"),
+  // Ad-to-Sale ROAS attribution — joins ad spend → CTW chats → deals → ₹ revenue.
+  getAdAttribution: (id: string, range?: "last_7d" | "last_14d" | "last_30d" | "last_90d") =>
+    get<{
+      demo: boolean;
+      spend_inr: number;
+      clicks: number;
+      ctw_chats: number;
+      contacts_warm: number;
+      deals_open: number;
+      deals_won: number;
+      revenue_inr: number;
+      roas: number | null;
+      headline: string | null;
+      ads_resolved: number;
+    }>(`/ads/campaigns/${id}/attribution${range ? `?range=${range}` : ""}`),
   updateAdCampaign: (id: string, data: { status?: "ACTIVE" | "PAUSED"; daily_budget_inr?: number; name?: string }) =>
     patch<{ ok: true }>(`/ads/campaigns/${id}`, data),
   getAdInsights: (range?: "today" | "yesterday" | "last_7d" | "last_14d" | "last_30d") =>

@@ -14,7 +14,8 @@ import { Hono } from "hono";
 import { eq, and, inArray } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { db } from "../db/client";
-import { metaConfig, contact } from "../db/schema";
+import { metaConfig, contact, conversation, deal, message } from "../db/schema";
+import { sql } from "drizzle-orm";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
 import { encrypt, decrypt } from "../crypto";
 import {
@@ -816,6 +817,123 @@ app.get("/ads/campaigns/:id/analytics", async (c) => {
     const err = onApiError(e);
     return c.json({ ...demoCampaignAnalytics(id), error: err.error }, 200);
   }
+});
+
+/**
+ * Ad-to-Sale ROAS Attribution.
+ *
+ * Joins:  ad spend → CTW clicks → WhatsApp conversations → deals won → UPI payments
+ * Source: Meta CTW referral payload captured by webhooks.ts onto conversation
+ *         rows (sourceAdId / ctwaClickId). All ads in the campaign roll up.
+ *
+ * The chain we return (camelCase keys from postgres-js → snaked client-side):
+ *   spend_inr      — what Meta charged you
+ *   clicks         — clicks on this campaign's ads (from Meta insights)
+ *   ctw_chats      — unique conversations sourced from this campaign
+ *   first_inbound  — count of conversations where customer actually messaged
+ *                    (= ctw_chats in our model since we only create conv on inbound)
+ *   contacts_warm  — distinct CTW-sourced contacts tagged warm or hot
+ *   deals_open     — open deals attached to those conversations
+ *   deals_won      — won deals attached
+ *   revenue_inr    — SUM(deal.value) on won deals
+ *   roas           — revenue / spend (Infinity-safe → returned as null when spend=0)
+ *
+ * Why first-touch (not multi-touch): MVP. Indian SMBs are running 1-2 active
+ * campaigns at a time; complex attribution models would be over-engineering.
+ */
+app.get("/ads/campaigns/:id/attribution", async (c) => {
+  const userId = c.var.userId;
+  const campaignId = c.req.param("id");
+  const range = (c.req.query("range") as "last_7d" | "last_14d" | "last_30d" | "last_90d") ?? "last_30d";
+
+  const creds = await getCreds(userId);
+  if (!creds) {
+    return c.json({
+      demo: true,
+      spend_inr: 4_800, clicks: 612, ctw_chats: 184,
+      contacts_warm: 142, deals_open: 28, deals_won: 9,
+      revenue_inr: 13_500, roas: 2.81,
+      headline: "Connect Meta Ads to see real attribution",
+      ads_resolved: [],
+    });
+  }
+
+  // 1) From Meta — campaign metadata + insights + the list of ad IDs that
+  //    belong to this campaign (so we can match against conversation.source_ad_id)
+  const [insights, ads] = await Promise.all([
+    singleCampaignInsights(creds, campaignId, range).catch(() => null),
+    listAdsInCampaign(creds, campaignId).catch(() => []),
+  ]);
+  const adIds: string[] = (ads ?? []).map((a: any) => String(a.id)).filter(Boolean);
+  const spendInr = Number(insights?.spend ?? 0);
+  const clicks = Number(insights?.clicks ?? 0);
+
+  // 2) From our DB — pull all CTW-sourced conversations for this user whose
+  //    source_ad_id matches one of the ad IDs in this campaign.
+  //    If Meta returned no ads, the IN(...) would be empty — short-circuit.
+  if (adIds.length === 0) {
+    return c.json({
+      demo: false, spend_inr: spendInr, clicks,
+      ctw_chats: 0, contacts_warm: 0, deals_open: 0, deals_won: 0,
+      revenue_inr: 0, roas: spendInr > 0 ? 0 : null,
+      headline: insights?.campaign_name ?? null,
+      ads_resolved: [],
+    });
+  }
+
+  const ctwConvs = await db
+    .select({
+      id: conversation.id,
+      contactId: conversation.contactId,
+      sourceAdId: conversation.sourceAdId,
+      headline: conversation.sourceHeadline,
+    })
+    .from(conversation)
+    .where(and(
+      eq(conversation.ownerId, userId),
+      inArray(conversation.sourceAdId, adIds),
+    ));
+
+  const convIds = ctwConvs.map((r) => r.id);
+  const contactIds = [...new Set(ctwConvs.map((r) => r.contactId))];
+
+  // 3) Pull deals on those conversations (single query)
+  const dealsForConvs = convIds.length === 0 ? [] : await db
+    .select({ stage: deal.stage, value: deal.value })
+    .from(deal)
+    .where(and(eq(deal.ownerId, userId), inArray(deal.conversationId, convIds)));
+
+  // 4) Pull warm/hot contact count
+  const warmAgg = contactIds.length === 0 ? [{ n: 0 }] : await db
+    .select({ n: sql<number>`COUNT(*)::int` })
+    .from(contact)
+    .where(and(
+      eq(contact.ownerId, userId),
+      inArray(contact.id, contactIds),
+      sql`${contact.tag} IN ('warm', 'hot')`,
+    ));
+
+  // 5) Roll up
+  const dealsOpen = dealsForConvs.filter((d) => d.stage !== "won" && d.stage !== "lost").length;
+  const dealsWon = dealsForConvs.filter((d) => d.stage === "won").length;
+  const revenueInr = dealsForConvs
+    .filter((d) => d.stage === "won")
+    .reduce((a, d) => a + Number(d.value ?? 0), 0);
+  const roas = spendInr > 0 ? Math.round((revenueInr / spendInr) * 100) / 100 : null;
+
+  return c.json({
+    demo: false,
+    spend_inr: spendInr,
+    clicks,
+    ctw_chats: ctwConvs.length,
+    contacts_warm: warmAgg[0]?.n ?? 0,
+    deals_open: dealsOpen,
+    deals_won: dealsWon,
+    revenue_inr: revenueInr,
+    roas,
+    headline: insights?.campaign_name ?? null,
+    ads_resolved: adIds.length,
+  });
 });
 
 async function adsFetchSafe(creds: AdsCredentials, path: string) {

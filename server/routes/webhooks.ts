@@ -123,15 +123,33 @@ async function handleInboundMessage(userId: string, contacts: any[], m: any) {
     .where(and(eq(conversation.contactId, ctc.id), eq(conversation.ownerId, userId)))
     .limit(1);
 
+  // Meta Click-to-WhatsApp referral payload — present on the first inbound
+  // message of an ad-sourced conversation. We capture it once at creation
+  // time; if a returning customer clicks a new ad we keep the FIRST attribution
+  // (industry-standard first-touch model).
+  const referral = m.referral as
+    | { source_id?: string; source_type?: string; headline?: string; ctwa_clid?: string }
+    | undefined;
+
   let convId: string;
   if (existingConv) {
     convId = existingConv.id;
-    await db.update(conversation).set({
+    // If we somehow missed the referral on creation (e.g. it's a re-engaged
+    // chat from an ad click), backfill — but never overwrite an existing
+    // source_ad_id (first-touch).
+    const backfill: Record<string, unknown> = {
       lastMessageAt: new Date(Number(m.timestamp) * 1000),
       lastMessagePreview: body.slice(0, 200),
       unreadCount: existingConv.unreadCount + 1,
       updatedAt: new Date(),
-    }).where(eq(conversation.id, convId));
+    };
+    if (referral?.source_id && !existingConv.sourceAdId) {
+      backfill.sourceAdId = referral.source_id;
+      backfill.sourceHeadline = referral.headline ?? null;
+      backfill.ctwaClickId = referral.ctwa_clid ?? null;
+      backfill.sourceType = referral.source_type ?? null;
+    }
+    await db.update(conversation).set(backfill).where(eq(conversation.id, convId));
   } else {
     const [conv] = await db.insert(conversation).values({
       contactId: ctc.id,
@@ -140,8 +158,18 @@ async function handleInboundMessage(userId: string, contacts: any[], m: any) {
       unreadCount: 1,
       lastMessageAt: new Date(Number(m.timestamp) * 1000),
       lastMessagePreview: body.slice(0, 200),
+      sourceAdId: referral?.source_id ?? null,
+      sourceHeadline: referral?.headline ?? null,
+      ctwaClickId: referral?.ctwa_clid ?? null,
+      sourceType: referral?.source_type ?? null,
     }).returning();
     convId = conv.id;
+    // Promote ad-sourced contacts to "warm" automatically — they're clearly
+    // interested. Operators can re-tag if needed.
+    if (referral?.source_id) {
+      await db.update(contact).set({ source: "Meta Ad", tag: "warm", updatedAt: new Date() })
+        .where(eq(contact.id, ctc.id));
+    }
   }
 
   await db.insert(message).values({

@@ -195,12 +195,19 @@ export const conversation = pgTable("conversation", {
   unreadCount: integer("unread_count").notNull().default(0),
   lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
   lastMessagePreview: text("last_message_preview"),
+  // Ad-to-Sale attribution — populated from Meta's CTW referral payload on the
+  // first inbound message. NULL for organic (non-ad) conversations.
+  sourceAdId: text("source_ad_id"),
+  sourceHeadline: text("source_headline"),
+  ctwaClickId: text("ctwa_click_id"),
+  sourceType: text("source_type"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   ownerIdx: index("conversation_owner_idx").on(t.ownerId),
   contactIdx: index("conversation_contact_idx").on(t.contactId),
   lastMsgIdx: index("conversation_last_msg_idx").on(t.lastMessageAt),
+  sourceAdIdx: index("conversation_source_ad_idx").on(t.sourceAdId, t.createdAt),
 }));
 
 export const message = pgTable("message", {

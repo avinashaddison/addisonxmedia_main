@@ -19,7 +19,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, ArrowUpRight, IndianRupee, Eye, MousePointerClick, Target,
   Loader2, Pause, Play, Users, MapPin, Sparkles, BarChart3, TrendingUp,
-  Info, Calendar, ChevronDown,
+  Info, Calendar, ChevronDown, MessageCircle, Trophy, ChevronRight, Crown,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -68,6 +68,15 @@ export const CampaignAnalyticsPage = () => {
     queryKey: ["ads", "analytics", id, range],
     queryFn: () => api.getCampaignAnalytics(id!, range),
     enabled: !!id,
+  });
+
+  // Ad-to-Sale ROAS chain (separate query so the heavier campaign analytics
+  // call doesn't block the more useful "did this ad make money?" insight).
+  const attributionQ = useQuery({
+    queryKey: ["ads", "attribution", id, range],
+    queryFn: () => api.getAdAttribution(id!, range),
+    enabled: !!id,
+    staleTime: 30_000,
   });
 
   const togglePause = useMutation({
@@ -179,6 +188,14 @@ export const CampaignAnalyticsPage = () => {
             <KPI label="Cost / click" value={data.totals.cpc > 0 ? fmtINR(data.totals.cpc) : "—"} sub={data.totals.frequency > 0 ? `${data.totals.frequency.toFixed(1)} frequency` : ""} icon={Target} color="#7A1500" />
             <KPI label="Results" value={compactNum(data.totals.results)} sub={data.totals.results > 0 ? `${fmtINR(data.totals.spend / data.totals.results)} CPR` : "—"} icon={Sparkles} color="#0E8A4B" highlight />
           </div>
+
+          {/* Ad-to-Sale ROAS attribution — the killer view */}
+          {attributionQ.data && (
+            <ConversionChain
+              data={attributionQ.data}
+              loading={attributionQ.isFetching}
+            />
+          )}
 
           {/* Time series */}
           <Card title="Daily performance" subtitle={`${data.daily.length} day${data.daily.length === 1 ? "" : "s"} of delivery`}>
@@ -430,6 +447,173 @@ const AdRow = ({ ad }: { ad: { id: string; name: string; effective_status: strin
       <p className="text-[13px] font-black tabular-nums">{ad.results}</p>
       <p className="text-[10px] text-foreground/60 font-medium">Results</p>
     </div>
+  </div>
+);
+
+// ─── Conversion Chain — the killer "₹ in / ₹ out" panel ─────────────────────
+//
+// Visualizes the full Ad-to-Sale path nobody else shows: ad spend → clicks →
+// WhatsApp chats → warm leads → won deals → revenue → ROAS. Data is the join
+// of Meta insights + our own conversation/deal tables, computed server-side
+// in /api/ads/campaigns/:id/attribution.
+//
+// Visual: a single horizontal flow with chevron separators between stages.
+// The two end-caps (Spent / ROAS) get prominent treatment because that's
+// what the operator actually decides on.
+
+type AttributionData = {
+  demo: boolean;
+  spend_inr: number;
+  clicks: number;
+  ctw_chats: number;
+  contacts_warm: number;
+  deals_open: number;
+  deals_won: number;
+  revenue_inr: number;
+  roas: number | null;
+  headline: string | null;
+  ads_resolved: number;
+};
+
+const ConversionChain = ({ data, loading }: { data: AttributionData; loading: boolean }) => {
+  const roasTone =
+    data.roas == null ? "neutral" :
+    data.roas >= 5  ? "great" :
+    data.roas >= 2  ? "good"  :
+    data.roas >= 1  ? "warn"  : "bad";
+
+  const roasStyles = {
+    great:   { bg: "from-[#0E8A4B] to-[#0A6E3C]", shadow: "shadow-[0_4px_0_0_#073D22]", label: "Strong ROAS 🔥" },
+    good:    { bg: "from-[#3C50E0] to-[#2533A8]", shadow: "shadow-[0_4px_0_0_#1A2380]", label: "Profitable" },
+    warn:    { bg: "from-[#B8651A] to-[#7A4A00]", shadow: "shadow-[0_4px_0_0_#5C3500]", label: "Break-even" },
+    bad:     { bg: "from-[#D4308E] to-[#A11A6A]", shadow: "shadow-[0_4px_0_0_#7A1052]", label: "Loss — review" },
+    neutral: { bg: "from-foreground/70 to-foreground/90", shadow: "shadow-[0_4px_0_0_rgba(0,0,0,0.3)]", label: "Awaiting spend" },
+  }[roasTone];
+
+  // CTR-to-chat conversion — how many of the clicks actually started a chat
+  const chatRate = data.clicks > 0 ? (data.ctw_chats / data.clicks) * 100 : 0;
+  // Close rate — chats that became won deals
+  const closeRate = data.ctw_chats > 0 ? (data.deals_won / data.ctw_chats) * 100 : 0;
+
+  return (
+    <div className="bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_4px_0_0_#E8B968] p-5 relative overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white flex items-center justify-center shadow-md">
+            <TrendingUp className="w-5 h-5" strokeWidth={2.5} />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-[14px] font-black tracking-tight">Ad-to-Sale ROAS chain</h3>
+              <span className="text-[8px] uppercase tracking-[0.18em] bg-[#FFD23F] text-[#7A4A00] font-extrabold px-1.5 py-0.5 rounded">EXCLUSIVE</span>
+            </div>
+            <p className="text-[11px] text-foreground/60 font-medium">
+              Rupees in → rupees out · joins Meta clicks to your CRM
+            </p>
+          </div>
+        </div>
+        {loading && <Loader2 className="w-4 h-4 animate-spin text-foreground/40" />}
+        {data.demo && (
+          <span className="text-[9px] uppercase tracking-wider font-extrabold text-[#B8651A] bg-[#FFF1D6] border border-[#E8B968] rounded px-2 py-1">
+            Demo — connect Meta for real data
+          </span>
+        )}
+      </div>
+
+      {/* Horizontal funnel */}
+      <div className="grid grid-cols-1 md:grid-cols-[1.2fr_auto_1fr_auto_1fr_auto_1fr_auto_1.2fr] items-center gap-2">
+        {/* 1. Spent */}
+        <ChainStage
+          label="Spent on Meta"
+          value={compactINR(data.spend_inr)}
+          sub={`${compactNum(data.clicks)} clicks`}
+          tone="cost"
+          icon={IndianRupee}
+        />
+        <ChainArrow />
+        {/* 2. Chats */}
+        <ChainStage
+          label="WA chats started"
+          value={compactNum(data.ctw_chats)}
+          sub={data.clicks > 0 ? `${chatRate.toFixed(0)}% click→chat` : "—"}
+          tone="step"
+          icon={MessageCircle}
+        />
+        <ChainArrow />
+        {/* 3. Warm */}
+        <ChainStage
+          label="Warm / hot leads"
+          value={compactNum(data.contacts_warm)}
+          sub={data.ctw_chats > 0 ? `${Math.round((data.contacts_warm / data.ctw_chats) * 100)}% qualified` : "—"}
+          tone="step"
+          icon={Users}
+        />
+        <ChainArrow />
+        {/* 4. Deals won */}
+        <ChainStage
+          label="Deals won"
+          value={compactNum(data.deals_won)}
+          sub={data.ctw_chats > 0 ? `${closeRate.toFixed(1)}% close rate · ${data.deals_open} open` : `${data.deals_open} open`}
+          tone="step"
+          icon={Trophy}
+        />
+        <ChainArrow />
+        {/* 5. Revenue + ROAS (the money shot) */}
+        <div className={cn("relative rounded-xl bg-gradient-to-br text-white p-3 sm:p-4", roasStyles.bg, roasStyles.shadow)}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[9px] uppercase tracking-[0.18em] font-extrabold opacity-90">Revenue</span>
+            <Crown className="w-3.5 h-3.5 opacity-80" />
+          </div>
+          <p className="text-2xl font-black tabular-nums leading-tight">{compactINR(data.revenue_inr)}</p>
+          <div className="flex items-baseline gap-1.5 mt-1.5">
+            <p className="text-[18px] font-black tabular-nums leading-none">
+              {data.roas == null ? "—" : `${data.roas.toFixed(1)}x`}
+            </p>
+            <p className="text-[10px] opacity-90 font-extrabold uppercase tracking-wider">ROAS</p>
+          </div>
+          <p className="text-[10px] opacity-80 font-bold mt-1">{roasStyles.label}</p>
+        </div>
+      </div>
+
+      {/* Footnote */}
+      <p className="text-[10px] text-foreground/50 mt-3 leading-snug">
+        Attribution is first-touch on the original CTW ad click. Revenue includes only deals marked <span className="font-extrabold">Won</span>.
+        Open deals can still close — refresh once they do.
+      </p>
+    </div>
+  );
+};
+
+const ChainStage = ({
+  label, value, sub, tone, icon: Icon,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  tone: "cost" | "step";
+  icon: typeof MessageCircle;
+}) => {
+  const styles = tone === "cost"
+    ? { border: "border-[#FF6A1F]/30", bg: "bg-[#FFEFE0]", iconBg: "bg-[#FF6A1F]" }
+    : { border: "border-[#E8B968]/60", bg: "bg-[#FFF6E8]", iconBg: "bg-foreground/80" };
+  return (
+    <div className={cn("rounded-xl border-2 p-3", styles.border, styles.bg)}>
+      <div className="flex items-center gap-1.5 mb-1">
+        <div className={cn("w-6 h-6 rounded-md flex items-center justify-center text-white", styles.iconBg)}>
+          <Icon className="w-3 h-3" strokeWidth={2.5} />
+        </div>
+        <p className="text-[9.5px] uppercase tracking-wider font-extrabold text-foreground/70 truncate">{label}</p>
+      </div>
+      <p className="text-xl font-black tabular-nums leading-tight">{value}</p>
+      <p className="text-[10px] text-foreground/55 font-medium">{sub}</p>
+    </div>
+  );
+};
+
+const ChainArrow = () => (
+  <div className="flex items-center justify-center text-foreground/30 rotate-90 md:rotate-0 py-1 md:py-0">
+    <ChevronRight className="w-5 h-5" strokeWidth={2.5} />
   </div>
 );
 
