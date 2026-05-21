@@ -148,6 +148,12 @@ export const profile = pgTable("profile", {
   // money via WhatsApp.
   upiVpa: text("upi_vpa"),
   upiDisplayName: text("upi_display_name"),
+  // Public links shared with customers via LeadPanel "Quick share" buttons.
+  // Each can be sent in one click with a Hinglish templated message.
+  whatsappCommunityUrl: text("whatsapp_community_url"),
+  instagramUrl: text("instagram_url"),
+  websiteUrl: text("website_url"),
+  facebookUrl: text("facebook_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

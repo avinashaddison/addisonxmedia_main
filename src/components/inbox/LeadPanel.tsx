@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import {
   Phone, Mail, Tag, StickyNote, X, Flame, Snowflake, CircleDot,
   Save, Trophy, Plus, Loader2, Globe, Bell, IndianRupee,
+  MessageCircle, Instagram, Link2, Facebook, Send, Settings as SettingsIcon, ExternalLink,
 } from "lucide-react";
+import { Link as RouterLink } from "react-router-dom";
 import { SendPaymentDialog } from "./SendPaymentDialog";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -252,6 +254,11 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
           </div>
         )}
 
+        {/* Quick share — workspace public links sent via WhatsApp with one click */}
+        {conversationId && (
+          <QuickShareSection contactName={contact.name} conversationId={conversationId} />
+        )}
+
         {/* Lead info */}
         <div className="px-4 py-3 border-t border-border space-y-2">
           <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Contact info</h4>
@@ -406,6 +413,179 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
           conversationId={conversationId}
           contactName={contact.name}
         />
+      )}
+    </div>
+  );
+};
+
+// ─── Quick share workspace links ─────────────────────────────────────────────
+//
+// Reads the workspace's public links from /api/profile (community, instagram,
+// website, facebook) and renders a button per configured link. Click → sends
+// a Hinglish-templated WhatsApp message with the link.
+// If the link isn't set up yet, shows a "Setup in Settings" CTA instead of
+// hiding the section, so users discover the feature.
+
+type LinkKey = "community" | "instagram" | "website" | "facebook";
+
+// Per-link visual styling. Tones match each platform's brand.
+const LINK_META: Record<LinkKey, {
+  label: string;
+  icon: typeof MessageCircle;
+  bg: string;
+  hoverBg: string;
+  shadow: string;
+  template: (name: string, link: string) => string;
+}> = {
+  community: {
+    label: "WhatsApp Community",
+    icon: MessageCircle,
+    bg: "from-[#0E8A4B] to-[#0A6E3C]",
+    hoverBg: "hover:from-[#0A6E3C] hover:to-[#075A30]",
+    shadow: "shadow-[0_3px_0_0_#075A30]",
+    template: (name, link) =>
+      `🎉 *Hamari WhatsApp Community mein join karein*\n\nHi ${name}! Exclusive offers, daily tips aur direct support ke liye yahan click karein:\n\n👉 ${link}`,
+  },
+  instagram: {
+    label: "Instagram",
+    icon: Instagram,
+    bg: "from-[#D4308E] to-[#A11A6A]",
+    hoverBg: "hover:from-[#A11A6A] hover:to-[#7A1052]",
+    shadow: "shadow-[0_3px_0_0_#7A1052]",
+    template: (name, link) =>
+      `📸 *Instagram pe follow karein*\n\nHi ${name}! Latest updates, behind-the-scenes aur customer stories yahan dekhein:\n\n👉 ${link}`,
+  },
+  website: {
+    label: "Website",
+    icon: Link2,
+    bg: "from-[#3C50E0] to-[#2533A8]",
+    hoverBg: "hover:from-[#2533A8] hover:to-[#1A2380]",
+    shadow: "shadow-[0_3px_0_0_#1A2380]",
+    template: (name, link) =>
+      `🌐 *Hamari website*\n\nHi ${name}! Saare products aur services yahan dekh sakte hain:\n\n👉 ${link}`,
+  },
+  facebook: {
+    label: "Facebook",
+    icon: Facebook,
+    bg: "from-[#1877F2] to-[#0E5BC0]",
+    hoverBg: "hover:from-[#0E5BC0] hover:to-[#0A4490]",
+    shadow: "shadow-[0_3px_0_0_#0A4490]",
+    template: (name, link) =>
+      `👍 *Facebook page*\n\nHi ${name}! Updates aur community ke liye Facebook pe join karein:\n\n👉 ${link}`,
+  },
+};
+
+const QuickShareSection = ({ contactName, conversationId }: { contactName: string; conversationId: string }) => {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ["profile", user?.id],
+    enabled: !!user,
+    queryFn: () => api.getProfile(),
+    staleTime: 60_000,
+  });
+  const [sending, setSending] = useState<LinkKey | null>(null);
+
+  const links: { key: LinkKey; url: string | null }[] = [
+    { key: "community", url: profile?.whatsapp_community_url ?? null },
+    { key: "instagram", url: profile?.instagram_url ?? null },
+    { key: "website",   url: profile?.website_url ?? null },
+    { key: "facebook",  url: profile?.facebook_url ?? null },
+  ];
+  const configured = links.filter((l) => !!l.url);
+  const allEmpty = configured.length === 0;
+
+  const handleSend = async (key: LinkKey, url: string) => {
+    setSending(key);
+    try {
+      const body = LINK_META[key].template(contactName.split(/\s+/)[0] || contactName, url);
+      await api.sendMessage(conversationId, { body, direction: "outbound", status: "sent" });
+      qc.invalidateQueries({ queryKey: ["messages", conversationId] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success(`${LINK_META[key].label} link sent ✨`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Send failed");
+    } finally {
+      setSending(null);
+    }
+  };
+
+  return (
+    <div className="px-4 py-3 border-t border-border">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+          <Send className="w-3 h-3" /> Quick share
+        </h4>
+        <RouterLink
+          to="/app/settings"
+          className="text-[10px] font-bold text-primary hover:text-primary-glow flex items-center gap-0.5"
+        >
+          <SettingsIcon className="w-3 h-3" /> Setup
+        </RouterLink>
+      </div>
+
+      {isLoading ? (
+        <div className="h-20 rounded-lg bg-muted/30 animate-pulse" />
+      ) : allEmpty ? (
+        <div className="rounded-xl border-2 border-dashed border-[#E8B968] bg-[#FFF6E8] px-3 py-3 text-center">
+          <p className="text-[11.5px] font-semibold leading-snug">
+            Apne links setup karein — fir ek click mein customer ko bhejein
+          </p>
+          <RouterLink
+            to="/app/settings"
+            className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-extrabold text-[#FF6A1F] hover:text-[#E85C12]"
+          >
+            <ExternalLink className="w-3 h-3" /> Settings mein add karein
+          </RouterLink>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {links.map(({ key, url }) => {
+            const meta = LINK_META[key];
+            const Icon = meta.icon;
+            const isSending = sending === key;
+            if (!url) {
+              return (
+                <div
+                  key={key}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-dashed border-border bg-muted/20 opacity-60"
+                  title={`${meta.label} not configured`}
+                >
+                  <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <span className="flex-1 text-[11.5px] font-semibold truncate">{meta.label}</span>
+                  <RouterLink
+                    to="/app/settings"
+                    className="text-[10px] font-bold text-primary hover:underline flex-shrink-0"
+                  >
+                    Setup
+                  </RouterLink>
+                </div>
+              );
+            }
+            return (
+              <button
+                key={key}
+                onClick={() => handleSend(key, url)}
+                disabled={isSending || !!sending}
+                className={cn(
+                  "w-full h-10 rounded-lg flex items-center gap-2 px-2.5 text-white text-[12px] font-extrabold bg-gradient-to-br transition-all hover:translate-y-[1px] disabled:opacity-70 disabled:cursor-not-allowed",
+                  meta.bg, meta.hoverBg, meta.shadow
+                )}
+                title={`Send ${meta.label} link to ${contactName}`}
+              >
+                {isSending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                ) : (
+                  <Icon className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2.5} />
+                )}
+                <span className="flex-1 text-left truncate">
+                  {isSending ? "Sending…" : `Send ${meta.label}`}
+                </span>
+                <Send className="w-3 h-3 flex-shrink-0 opacity-80" />
+              </button>
+            );
+          })}
+        </div>
       )}
     </div>
   );

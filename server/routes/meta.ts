@@ -27,14 +27,47 @@ app.get("/profile", async (c) => {
 });
 
 app.patch("/profile", async (c) => {
-  const body = await c.req.json();
+  const body = await c.req.json<{
+    display_name?: string | null;
+    phone?: string | null;
+    avatar_url?: string | null;
+    whatsapp_community_url?: string | null;
+    instagram_url?: string | null;
+    website_url?: string | null;
+    facebook_url?: string | null;
+  }>();
+
+  // Light URL validation — accept blank/null to clear, otherwise require http(s).
+  const validateUrl = (key: string, v: string | null | undefined): string | null | undefined => {
+    if (v === undefined) return undefined;            // not in body → leave alone
+    const trimmed = (v ?? "").trim();
+    if (!trimmed) return null;                        // cleared
+    if (!/^https?:\/\//i.test(trimmed)) {
+      throw new Error(`${key} must start with http:// or https://`);
+    }
+    return trimmed;
+  };
+
+  // Partial update — only touch fields explicitly present in the body.
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+  if ("display_name" in body)             set.displayName = body.display_name?.trim() || null;
+  if ("phone" in body)                    set.phone = body.phone?.trim() || null;
+  if ("avatar_url" in body)               set.avatarUrl = body.avatar_url?.trim() || null;
+  try {
+    const v1 = validateUrl("whatsapp_community_url", body.whatsapp_community_url);
+    const v2 = validateUrl("instagram_url",          body.instagram_url);
+    const v3 = validateUrl("website_url",            body.website_url);
+    const v4 = validateUrl("facebook_url",           body.facebook_url);
+    if (v1 !== undefined) set.whatsappCommunityUrl = v1;
+    if (v2 !== undefined) set.instagramUrl = v2;
+    if (v3 !== undefined) set.websiteUrl = v3;
+    if (v4 !== undefined) set.facebookUrl = v4;
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "Invalid URL" }, 400);
+  }
+
   const [row] = await db.update(profile)
-    .set({
-      displayName: body.display_name ?? null,
-      phone: body.phone ?? null,
-      avatarUrl: body.avatar_url ?? null,
-      updatedAt: new Date(),
-    })
+    .set(set)
     .where(eq(profile.userId, c.var.userId))
     .returning();
   return c.json(row);

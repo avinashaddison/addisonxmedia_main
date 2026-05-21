@@ -58,8 +58,15 @@ const del = (p: string) => request<void>(p, { method: "DELETE" });
 export const api = {
   // Profile
   getProfile: () => get<any>("/profile"),
-  updateProfile: (data: { display_name?: string | null; phone?: string | null; avatar_url?: string | null }) =>
-    patch<any>("/profile", data),
+  updateProfile: (data: {
+    display_name?: string | null;
+    phone?: string | null;
+    avatar_url?: string | null;
+    whatsapp_community_url?: string | null;
+    instagram_url?: string | null;
+    website_url?: string | null;
+    facebook_url?: string | null;
+  }) => patch<any>("/profile", data),
 
   // Sidebar / dashboard
   getSidebarBadges: () => get<{ inbox: number; tasks: number }>("/sidebar/badges"),

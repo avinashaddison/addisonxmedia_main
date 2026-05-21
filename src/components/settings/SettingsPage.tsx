@@ -71,7 +71,12 @@ export const SettingsPage = () => {
 
         {/* Section panel */}
         <div className="min-w-0">
-          {active === "profile"       && <ProfileSection user={user} onDirty={setDirty} />}
+          {active === "profile"       && (
+            <div className="space-y-4">
+              <ProfileSection user={user} onDirty={setDirty} />
+              <SocialLinksSection user={user} />
+            </div>
+          )}
           {active === "integrations"  && <IntegrationsSection />}
           {active === "account"       && <AccountSection email={user?.email} onSignOut={signOut} />}
         </div>
@@ -179,6 +184,96 @@ const ProfileSection = ({ user, onDirty }: { user: ReturnType<typeof useAuth>["u
           </Button>
         </div>
       </div>
+    </SectionCard>
+  );
+};
+
+/* ============================== SOCIAL LINKS ============================== */
+// Public workspace links shared with customers from the LeadPanel "Quick share"
+// buttons (WhatsApp Community, Instagram, Website, Facebook). Saved on the
+// `profile` row so they live with the rest of workspace identity (display name,
+// UPI VPA, etc).
+const SocialLinksSection = ({ user }: { user: ReturnType<typeof useAuth>["user"] }) => {
+  const qc = useQueryClient();
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ["profile", user?.id],
+    enabled: !!user,
+    queryFn: () => api.getProfile(),
+  });
+
+  const [community, setCommunity] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [website, setWebsite] = useState("");
+  const [facebook, setFacebook] = useState("");
+  const [saving, setSaving] = useState(false);
+  const initial = useRef({ community: "", instagram: "", website: "", facebook: "" });
+
+  useEffect(() => {
+    if (profile) {
+      const c = profile.whatsapp_community_url ?? "";
+      const i = profile.instagram_url ?? "";
+      const w = profile.website_url ?? "";
+      const f = profile.facebook_url ?? "";
+      setCommunity(c); setInstagram(i); setWebsite(w); setFacebook(f);
+      initial.current = { community: c, instagram: i, website: w, facebook: f };
+    }
+  }, [profile]);
+
+  const dirty =
+    community !== initial.current.community ||
+    instagram !== initial.current.instagram ||
+    website !== initial.current.website ||
+    facebook !== initial.current.facebook;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.updateProfile({
+        whatsapp_community_url: community.trim() || null,
+        instagram_url: instagram.trim() || null,
+        website_url: website.trim() || null,
+        facebook_url: facebook.trim() || null,
+      });
+      initial.current = { community, instagram, website, facebook };
+      qc.invalidateQueries({ queryKey: ["profile", user?.id] });
+      toast.success("Social links saved — abhi se inbox mein quick-share buttons active hain");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <SectionCard
+      title="Public links & socials"
+      subtitle="Yeh links inbox ki LeadPanel mein 'Quick share' buttons se ek-click WhatsApp pe bhej sakte hain"
+    >
+      {isLoading ? (
+        <div className="h-32 rounded-xl bg-muted/30 animate-pulse" />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+            <FieldRow label="WhatsApp Community link" hint="chat.whatsapp.com/... — invite link from your community settings">
+              <Input value={community} onChange={(e) => setCommunity(e.target.value)} placeholder="https://chat.whatsapp.com/..." />
+            </FieldRow>
+            <FieldRow label="Instagram profile" hint="Full URL to your Instagram page">
+              <Input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="https://instagram.com/yourbrand" />
+            </FieldRow>
+            <FieldRow label="Website" hint="Optional — main website / product page">
+              <Input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://yourbrand.com" />
+            </FieldRow>
+            <FieldRow label="Facebook page" hint="Optional — public Facebook page URL">
+              <Input value={facebook} onChange={(e) => setFacebook(e.target.value)} placeholder="https://facebook.com/yourbrand" />
+            </FieldRow>
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-border mt-4">
+            <Button onClick={handleSave} disabled={!dirty || saving} size="sm">
+              {saving ? "Saving…" : "Save links"}
+            </Button>
+          </div>
+        </>
+      )}
     </SectionCard>
   );
 };
