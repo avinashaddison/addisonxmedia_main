@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:migrate": "tsx scripts/apply-migrations.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
