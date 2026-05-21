@@ -432,6 +432,45 @@ export const BroadcastsPage = () => {
               </div>
               <span className="text-[10px] uppercase font-bold tracking-wider text-success bg-success-soft px-2 py-1 rounded">Live estimate</span>
             </div>
+
+            {/* Transparency: Meta WhatsApp BSP cost preview.
+                Meta bills directly — this is what they will charge the customer's
+                Meta account, not us. Marketing rate (₹0.78) is the worst-case;
+                utility templates (₹0.115) drop the cost ~85%. */}
+            {reach > 0 && (
+              <div className="mt-2 rounded-xl border-2 border-dashed border-[#E8B968] bg-[#FFF6E8] p-3">
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#0E8A4B] flex-shrink-0" />
+                    <p className="text-[11px] font-extrabold uppercase tracking-wider text-foreground/70">
+                      Meta will charge your account
+                    </p>
+                  </div>
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-[#B8651A] bg-white border border-[#E8B968] rounded px-1.5 py-0.5 flex-shrink-0">
+                    Direct from Meta · No markup
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-white border border-[#E8B968] p-2">
+                    <p className="text-[9.5px] uppercase tracking-wider text-foreground/55 font-bold">Marketing template</p>
+                    <p className="text-[15px] font-black tabular-nums leading-tight">
+                      ~₹{(reach * 0.78).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                    </p>
+                    <p className="text-[9.5px] text-foreground/55">@ ₹0.78/msg</p>
+                  </div>
+                  <div className="rounded-lg bg-[#E6F7EE] border border-[#0E8A4B]/30 p-2">
+                    <p className="text-[9.5px] uppercase tracking-wider text-[#0E8A4B] font-bold">Utility template</p>
+                    <p className="text-[15px] font-black tabular-nums leading-tight text-[#0E8A4B]">
+                      ~₹{(reach * 0.115).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                    </p>
+                    <p className="text-[9.5px] text-foreground/55">@ ₹0.115/msg</p>
+                  </div>
+                </div>
+                <p className="text-[10px] text-foreground/55 mt-1.5 leading-snug">
+                  Promo/sale broadcasts = marketing rate. Order updates / reminders = utility rate. Aap template Meta Business Manager mein category set karte hain.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Scheduling */}

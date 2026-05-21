@@ -280,6 +280,17 @@ export const api = {
   updateAiPersona: (data: Partial<AiPersona>) => patch<AiPersona>("/ai/persona", data),
   getReplySuggestions: (conversationId: string) =>
     post<ReplySuggestionsResult>("/ai/reply-suggestions", { conversation_id: conversationId }),
+
+  // Meta BSP cost estimate (this month) — what Meta will bill the workspace.
+  getMetaCostEstimate: () => get<{
+    month_start: string;
+    outbound_count: number;
+    estimate_marketing_inr: number;
+    estimate_utility_inr: number;
+    estimate_auth_inr: number;
+    rates: { marketing: number; utility: number; authentication: number };
+    note: string;
+  }>("/billing/meta-estimate"),
 };
 
 export type ReplySuggestion = {

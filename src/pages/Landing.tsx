@@ -966,6 +966,11 @@ export default function Landing() {
           <p className="text-center text-xs text-muted-foreground mt-8 font-medium">
             Annual: 12 months pay karo, 14 mahine ke liye milega · WhatsApp BSP fees at cost · GST invoice · No setup fees
           </p>
+
+          {/* Honest cost calculator — shows software + Meta fees side-by-side
+              so prospects can budget exactly. No "you save vs competitor"
+              claims — just transparent math. */}
+          <CostCalculator />
         </div>
       </section>
 
@@ -1553,3 +1558,181 @@ const PLANS = [
     ],
   },
 ];
+
+// ─── Honest cost calculator ──────────────────────────────────────────────────
+// Lets prospects price out their monthly bill = AddisonX software + Meta fees.
+// Meta rates are India 2026 rates passed through at cost.
+// PLAN_FEES are the displayed ₹ values from PLANS above.
+const META_RATE_MARKETING = 0.78;
+const META_RATE_UTILITY = 0.115;
+
+const PLAN_FEES: { id: "starter" | "growth" | "scale"; label: string; price: number; convCap: number }[] = [
+  { id: "starter", label: "Starter", price: 999,  convCap: 2_000 },
+  { id: "growth",  label: "Growth",  price: 2999, convCap: 10_000 },
+  { id: "scale",   label: "Scale",   price: 7999, convCap: 50_000 },
+];
+
+const CostCalculator = () => {
+  const [planId, setPlanId] = useState<"starter" | "growth" | "scale">("growth");
+  const [marketing, setMarketing] = useState(2000);
+  const [utility, setUtility] = useState(3000);
+
+  const plan = PLAN_FEES.find((p) => p.id === planId)!;
+  const metaMarketing = marketing * META_RATE_MARKETING;
+  const metaUtility = utility * META_RATE_UTILITY;
+  const metaTotal = metaMarketing + metaUtility;
+  const total = plan.price + metaTotal;
+  const totalConv = marketing + utility;
+  const overCap = totalConv > plan.convCap;
+  const avgPerMsg = totalConv > 0 ? total / totalConv : 0;
+
+  return (
+    <div className="mt-12 rounded-2xl bg-[#FFF6E8] border-2 border-[#E8B968] p-5 lg:p-7 shadow-[0_4px_0_0_#E8B968]">
+      <div className="flex flex-col lg:flex-row lg:items-end gap-2 mb-5">
+        <div className="flex-1">
+          <span className="inline-block px-2.5 py-0.5 bg-[#FF6A1F] text-white text-[10px] uppercase tracking-[0.18em] font-extrabold rounded-full mb-2">
+            Transparent calculator
+          </span>
+          <h3 className="text-2xl lg:text-3xl font-black tracking-tight leading-tight">
+            Aapka monthly bill exactly kitna hoga?
+          </h3>
+          <p className="text-sm text-foreground/65 font-medium mt-1">
+            Software fee + Meta fees · No hidden markup · No surprise charges
+          </p>
+        </div>
+      </div>
+
+      {/* Plan picker */}
+      <div className="grid grid-cols-3 gap-2 mb-5">
+        {PLAN_FEES.map((p) => {
+          const active = p.id === planId;
+          return (
+            <button
+              key={p.id}
+              onClick={() => setPlanId(p.id)}
+              className={`rounded-xl border-2 p-3 text-left transition-all ${
+                active
+                  ? "border-[#0E8A4B] bg-[#E6F7EE] shadow-[0_3px_0_0_#0E8A4B]"
+                  : "border-[#E8B968] bg-white hover:border-[#FF6A1F]/40"
+              }`}
+            >
+              <p className="text-[12px] font-extrabold">{p.label}</p>
+              <p className="text-[15px] font-black tabular-nums leading-tight">₹{p.price.toLocaleString("en-IN")}</p>
+              <p className="text-[9.5px] text-foreground/55 font-bold">{p.convCap.toLocaleString("en-IN")} conv/mo</p>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Sliders */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+        <SliderBlock
+          label="Marketing broadcasts / month"
+          subLabel={`@ ₹${META_RATE_MARKETING}/msg (Meta direct)`}
+          value={marketing}
+          onChange={setMarketing}
+          max={50000}
+          step={500}
+          tone="warn"
+        />
+        <SliderBlock
+          label="Utility messages / month"
+          subLabel={`@ ₹${META_RATE_UTILITY}/msg (Meta direct) — order updates, reminders`}
+          value={utility}
+          onChange={setUtility}
+          max={50000}
+          step={500}
+          tone="ok"
+        />
+      </div>
+
+      {/* Breakdown */}
+      <div className="rounded-xl bg-white border-2 border-[#E8B968] overflow-hidden mb-3">
+        <BillRow label={`AddisonX ${plan.label} subscription`} subLabel="Paid to us · GST included" value={plan.price} bold />
+        <BillRow label={`Meta marketing fees (${marketing.toLocaleString("en-IN")} msgs)`} subLabel="Paid directly to Meta · no markup from us" value={Math.round(metaMarketing)} />
+        <BillRow label={`Meta utility fees (${utility.toLocaleString("en-IN")} msgs)`} subLabel="Paid directly to Meta · 85% cheaper than marketing" value={Math.round(metaUtility)} />
+        <div className="px-4 py-3 bg-[#0A3D24] text-white flex items-center justify-between">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider font-extrabold opacity-80">Total monthly cost</p>
+            {totalConv > 0 && (
+              <p className="text-[10px] opacity-70 font-medium">
+                ~₹{avgPerMsg.toFixed(2)} per message · {totalConv.toLocaleString("en-IN")} total conv
+              </p>
+            )}
+          </div>
+          <p className="text-3xl font-black tabular-nums">₹{Math.round(total).toLocaleString("en-IN")}</p>
+        </div>
+      </div>
+
+      {overCap && (
+        <div className="mt-3 rounded-xl border-2 border-[#FF6A1F] bg-[#FFEFE0] p-3 flex items-start gap-2.5">
+          <Crown className="w-4 h-4 text-[#FF6A1F] flex-shrink-0 mt-0.5" />
+          <p className="text-[12px] leading-snug text-[#7A1500]">
+            <span className="font-extrabold">{totalConv.toLocaleString("en-IN")} conversations exceeds {plan.label}'s {plan.convCap.toLocaleString("en-IN")} cap.</span> Consider {plan.id === "starter" ? "Growth" : "Scale"} plan for higher allowance.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+        <TrustBadge label="No message markup" desc="Meta charges your account directly" />
+        <TrustBadge label="No setup fees" desc="Connect WhatsApp in 15 min" />
+        <TrustBadge label="No lock-in" desc="Your WABA, your customers — leave anytime" />
+      </div>
+    </div>
+  );
+};
+
+const SliderBlock = ({
+  label, subLabel, value, onChange, max, step, tone,
+}: { label: string; subLabel: string; value: number; onChange: (n: number) => void; max: number; step: number; tone: "ok" | "warn" }) => {
+  const accent = tone === "ok" ? "accent-[#0E8A4B]" : "accent-[#FF6A1F]";
+  const badgeColor = tone === "ok" ? "text-[#0E8A4B] bg-[#E6F7EE]" : "text-[#FF6A1F] bg-[#FFEFE0]";
+  return (
+    <div className="rounded-xl bg-white border-2 border-[#E8B968] p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <p className="text-[11.5px] font-extrabold uppercase tracking-wider text-foreground/70">{label}</p>
+          <p className="text-[10px] text-foreground/55">{subLabel}</p>
+        </div>
+        <span className={`text-[14px] font-black tabular-nums px-2 py-0.5 rounded ${badgeColor}`}>
+          {value.toLocaleString("en-IN")}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={`w-full ${accent} cursor-pointer`}
+      />
+      <div className="flex justify-between text-[9.5px] text-foreground/45 font-bold mt-1 tabular-nums">
+        <span>0</span>
+        <span>{max.toLocaleString("en-IN")}</span>
+      </div>
+    </div>
+  );
+};
+
+const BillRow = ({ label, subLabel, value, bold }: { label: string; subLabel: string; value: number; bold?: boolean }) => (
+  <div className={`px-4 py-3 flex items-center justify-between border-b border-[#E8B968]/40 last:border-b-0 ${bold ? "bg-[#FFF6E8]" : ""}`}>
+    <div className="min-w-0 flex-1">
+      <p className={`text-[12.5px] ${bold ? "font-extrabold" : "font-bold"} truncate`}>{label}</p>
+      <p className="text-[10px] text-foreground/55">{subLabel}</p>
+    </div>
+    <p className={`text-[14px] tabular-nums ${bold ? "font-black" : "font-bold"} ml-2`}>
+      ₹{value.toLocaleString("en-IN")}
+    </p>
+  </div>
+);
+
+const TrustBadge = ({ label, desc }: { label: string; desc: string }) => (
+  <div className="rounded-lg bg-white border border-[#E8B968] px-3 py-2 flex items-start gap-2">
+    <Check className="w-3.5 h-3.5 text-[#0E8A4B] flex-shrink-0 mt-0.5" strokeWidth={3} />
+    <div className="min-w-0">
+      <p className="text-[11.5px] font-extrabold leading-tight">{label}</p>
+      <p className="text-[9.5px] text-foreground/55 leading-snug">{desc}</p>
+    </div>
+  </div>
+);

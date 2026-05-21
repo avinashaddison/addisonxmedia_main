@@ -823,6 +823,8 @@ const BillingSection = () => {
         </div>
       </SectionCard>
 
+      <MetaSpendCard />
+
       <SectionCard title="Payment method" subtitle="How we charge for your subscription" icon={<CreditCard className="w-4 h-4" />}>
         <div className="flex items-center gap-3 p-3 rounded-xl border border-border">
           <div className="w-12 h-8 rounded bg-foreground text-background text-[10px] font-bold flex items-center justify-center">VISA</div>
@@ -834,6 +836,68 @@ const BillingSection = () => {
         </div>
       </SectionCard>
     </>
+  );
+};
+
+// Meta will bill the customer's connected WhatsApp account separately (we
+// don't take a cut). This card surfaces "what Meta will charge you this month"
+// so customers don't get sticker shock when Meta's auto-charge fires.
+const MetaSpendCard = () => {
+  const { data, isLoading } = useQuery({
+    queryKey: ["meta-cost-estimate"],
+    queryFn: () => api.getMetaCostEstimate(),
+    staleTime: 60_000,
+  });
+
+  return (
+    <SectionCard
+      title="Meta WhatsApp spend (separate from your AddisonX bill)"
+      subtitle="Meta charges your connected WhatsApp account directly — we don't add any markup"
+      icon={<MessageSquare className="w-4 h-4" />}
+    >
+      {isLoading || !data ? (
+        <div className="h-24 rounded-xl bg-muted/30 animate-pulse" />
+      ) : (
+        <>
+          <div className="rounded-xl border-2 border-dashed border-[#E8B968] bg-[#FFF6E8] p-4 mb-3">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-[10.5px] uppercase tracking-wider font-extrabold text-foreground/55">Outbound messages this month</p>
+                <p className="text-3xl font-black tabular-nums leading-tight">
+                  {data.outbound_count.toLocaleString("en-IN")}
+                </p>
+              </div>
+              <Badge variant="outline" className="gap-1.5 border-[#0E8A4B]/40 text-[#0E8A4B] bg-white">
+                Direct from Meta · No markup
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <EstimateTile label="If all marketing" subLabel={`@ ₹${data.rates.marketing}/msg`} value={data.estimate_marketing_inr} tone="warn" />
+              <EstimateTile label="If all utility" subLabel={`@ ₹${data.rates.utility}/msg`} value={data.estimate_utility_inr} tone="ok" />
+              <EstimateTile label="If all auth (OTP)" subLabel={`@ ₹${data.rates.authentication}/msg`} value={data.estimate_auth_inr} tone="neutral" />
+            </div>
+            <p className="text-[10.5px] text-foreground/55 mt-2.5 leading-snug">
+              {data.note} Aapka actual bill aap ke Meta Business Manager account mein dikhega — hum is amount ko nahi lete.
+            </p>
+          </div>
+        </>
+      )}
+    </SectionCard>
+  );
+};
+
+const EstimateTile = ({ label, subLabel, value, tone }: { label: string; subLabel: string; value: number; tone: "ok" | "warn" | "neutral" }) => {
+  const bg = tone === "ok" ? "bg-[#E6F7EE] border-[#0E8A4B]/30" : tone === "warn" ? "bg-[#FFEFE0] border-[#FF6A1F]/30" : "bg-white border-[#E8B968]";
+  const text = tone === "ok" ? "text-[#0E8A4B]" : tone === "warn" ? "text-[#7A1500]" : "text-foreground/85";
+  return (
+    <div className={cn("rounded-lg border-2 p-2.5", bg)}>
+      <p className="text-[9.5px] uppercase tracking-wider font-extrabold text-foreground/60">{label}</p>
+      <p className={cn("text-[16px] font-black tabular-nums leading-tight", text)}>
+        ~₹{value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+      </p>
+      <p className="text-[9.5px] text-foreground/55">{subLabel}</p>
+    </div>
   );
 };
 

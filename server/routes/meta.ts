@@ -334,4 +334,50 @@ app.post("/seed", async (c) => {
   return c.json({ seeded: true, contacts: contacts.length });
 });
 
+// ============================================================
+// META BSP COST ESTIMATE — what Meta will bill the workspace this month
+// ============================================================
+//
+// We don't store the template-category per outbound message yet, so the actual
+// invoice depends on whether the customer's templates are marketing / utility /
+// authentication. This endpoint returns BOTH ends of the range so users can
+// budget conservatively (assume marketing) or aggressively (assume utility).
+//
+// Source: count outbound messages with a "send-attempted" status in the
+// current calendar month, then multiply by Meta's India rates.
+app.get("/billing/meta-estimate", async (c) => {
+  const userId = c.var.userId;
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+  const [agg] = await db
+    .select({ outbound: sql<number>`COUNT(*)::int` })
+    .from(message)
+    .where(and(
+      eq(message.ownerId, userId),
+      eq(message.direction, "outbound"),
+      sql`${message.status} IN ('sent', 'delivered', 'read')`,
+      sql`${message.createdAt} >= ${monthStart.toISOString()}`,
+    ));
+
+  const outbound = agg?.outbound ?? 0;
+
+  // India rates (₹) per conversation. A "conversation" ~= one 24h window per
+  // recipient — for the estimate we conservatively treat 1 outbound message as
+  // 1 conversation (over-estimate, safer for the customer).
+  const RATE_MARKETING = 0.78;
+  const RATE_UTILITY = 0.115;
+  const RATE_AUTH = 0.107;
+
+  return c.json({
+    month_start: monthStart.toISOString(),
+    outbound_count: outbound,
+    estimate_marketing_inr: Math.round(outbound * RATE_MARKETING * 100) / 100,
+    estimate_utility_inr: Math.round(outbound * RATE_UTILITY * 100) / 100,
+    estimate_auth_inr: Math.round(outbound * RATE_AUTH * 100) / 100,
+    rates: { marketing: RATE_MARKETING, utility: RATE_UTILITY, authentication: RATE_AUTH },
+    note: "Estimate assumes 1 outbound message = 1 Meta conversation. Actual invoice depends on your template categories and 24h conversation windows.",
+  });
+});
+
 export default app;
