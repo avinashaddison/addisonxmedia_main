@@ -1,7 +1,9 @@
 import { Menu, RefreshCw, Search } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 import { CommandPalette } from "./CommandPalette";
 import { NotificationCenter } from "./NotificationCenter";
 
@@ -73,6 +75,11 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
         </button>
       </div>
 
+      {/* WhatsApp API status — surfaces the live connection state of the
+          Meta integration so customers know whether inbound messages can
+          actually arrive without leaving the current page. */}
+      <WhatsAppStatusPill />
+
       {/* Resync — actually invalidates queries */}
       <div className="hidden md:flex items-center gap-2 flex-shrink-0">
         <button
@@ -99,5 +106,110 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onNavigate={onNavigate} />
     </header>
+  );
+};
+
+/* WhatsApp Business API status pill.
+ *
+ * Three states (in order of severity):
+ *   1. Live      — meta_connected && meta_enabled
+ *                  → green pill, animated emerald dot, hover shows phone
+ *   2. Pending   — meta_connected && !meta_enabled
+ *                  → amber pill, pulsing amber dot — Meta hasn't verified yet
+ *   3. Off       — !meta_connected
+ *                  → soft red pill, links to settings to start setup
+ *
+ * Polls every 90s (status changes rarely — token expiry, webhook flip).
+ * Used to live as a one-line note buried in settings; surfacing it in the
+ * topbar means a glance tells the operator whether inbound delivery is
+ * working without leaving whatever page they're on. */
+const WhatsAppStatusPill = () => {
+  const { data, isLoading } = useQuery({
+    queryKey: ["inbox-status-pill"],
+    queryFn: () => api.inboxStatus(),
+    staleTime: 60_000,
+    refetchInterval: 90_000,
+    refetchOnWindowFocus: true,
+  });
+
+  if (isLoading || !data) {
+    return (
+      <div className="hidden md:flex items-center gap-1.5 bg-muted/40 rounded-full px-2.5 py-1 flex-shrink-0">
+        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-pulse" />
+        <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground/70 leading-none">
+          WhatsApp
+        </span>
+      </div>
+    );
+  }
+
+  const isLive = data.meta_connected && data.meta_enabled;
+  const isPending = data.meta_connected && !data.meta_enabled;
+
+  // ── Live: emerald, dot-pulse, phone tooltip ────────────────────────────
+  if (isLive) {
+    return (
+      <Link
+        to="/app/settings"
+        title={`WhatsApp Business: ${data.display_phone_number ?? "live"}`}
+        className="hidden md:flex items-center gap-1.5 bg-[#E6F7EE] hover:bg-[#D0EFDD] border border-[#0E8A4B]/40 rounded-full pl-1.5 pr-2.5 py-1 flex-shrink-0 transition-colors group"
+      >
+        <span className="relative flex items-center justify-center w-3 h-3">
+          <span className="absolute inset-0 rounded-full bg-[#0E8A4B] opacity-30 animate-ping" />
+          <span className="relative w-2 h-2 rounded-full bg-[#0E8A4B] shadow-[0_0_4px_rgba(14,138,75,0.6)]" />
+        </span>
+        <div className="flex flex-col leading-none">
+          <span className="text-[8px] font-extrabold uppercase tracking-wider text-[#0A6E3C]/70">
+            WhatsApp API
+          </span>
+          <span className="text-[10px] font-black text-[#0A6E3C] leading-tight">
+            Live
+          </span>
+        </div>
+      </Link>
+    );
+  }
+
+  // ── Pending: amber, pulsing dot ────────────────────────────────────────
+  if (isPending) {
+    return (
+      <Link
+        to="/app/settings"
+        title="Connected but not yet verified by Meta — click to re-test"
+        className="hidden md:flex items-center gap-1.5 bg-[#FFF1D6] hover:bg-[#FFE9BD] border border-[#E8B968] rounded-full pl-1.5 pr-2.5 py-1 flex-shrink-0 transition-colors group"
+      >
+        <span className="relative flex items-center justify-center w-3 h-3">
+          <span className="absolute inset-0 rounded-full bg-[#FFB020] opacity-40 animate-ping" />
+          <span className="relative w-2 h-2 rounded-full bg-[#FFB020] shadow-[0_0_4px_rgba(255,176,32,0.6)]" />
+        </span>
+        <div className="flex flex-col leading-none">
+          <span className="text-[8px] font-extrabold uppercase tracking-wider text-[#B8651A]/80">
+            WhatsApp API
+          </span>
+          <span className="text-[10px] font-black text-[#B8651A] leading-tight">
+            Pending
+          </span>
+        </div>
+      </Link>
+    );
+  }
+
+  // ── Off: soft red, faster pulse, CTA ────────────────────────────────────
+  return (
+    <Link
+      to="/app/settings"
+      title="WhatsApp not connected — click to set up"
+      className="hidden md:flex items-center gap-1.5 bg-[#FCE5F0] hover:bg-[#F8D4E5] border border-[#D4308E]/40 rounded-full pl-1.5 pr-2.5 py-1 flex-shrink-0 transition-colors group"
+    >
+      <span className="w-2.5 h-2.5 rounded-full bg-[#D4308E] shadow-[0_0_4px_rgba(212,48,142,0.5)]" />
+      <div className="flex flex-col leading-none">
+        <span className="text-[8px] font-extrabold uppercase tracking-wider text-[#A11A6A]/80">
+          WhatsApp API
+        </span>
+        <span className="text-[10px] font-black text-[#A11A6A] leading-tight">
+          Not connected
+        </span>
+      </div>
+    </Link>
   );
 };
