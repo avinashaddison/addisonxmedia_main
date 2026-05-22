@@ -6,6 +6,8 @@ import { requireAuth, type AuthVariables } from "../middleware/auth";
 import {
   verifyCredentials,
   listTemplates as listMetaTemplates,
+  getBusinessProfile,
+  updateBusinessProfile,
   MetaApiError,
 } from "../integrations/meta";
 import { encrypt, decrypt } from "../crypto";
@@ -166,6 +168,128 @@ app.post("/integrations/meta/test", async (c) => {
 app.delete("/integrations/meta", async (c) => {
   await db.delete(metaConfig).where(eq(metaConfig.userId, c.var.userId));
   return c.body(null, 204);
+});
+
+// ── WhatsApp Business Profile (about/description/address/email/websites/vertical) ──
+// Public-facing info on the WhatsApp number. Read + write via Meta's
+// /{phone-number-id}/whatsapp_business_profile endpoint. Profile photo upload
+// is intentionally not exposed yet — Meta requires the multi-step Resumable
+// Upload API which we haven't wired.
+
+// Meta v21 enum. Anything outside this list is rejected by Meta with an opaque
+// error, so we validate up-front to give a useful message.
+const VALID_VERTICALS = new Set([
+  "UNDEFINED", "OTHER", "AUTO", "BEAUTY", "APPAREL", "EDU", "ENTERTAIN",
+  "EVENT_PLAN", "FINANCE", "GROCERY", "GOVT", "HOTEL", "HEALTH", "NONPROFIT",
+  "PROF_SERVICES", "RETAIL", "TRAVEL", "RESTAURANT", "NOT_A_BIZ",
+]);
+
+app.get("/integrations/meta/profile", async (c) => {
+  const [row] = await db.select().from(metaConfig)
+    .where(eq(metaConfig.userId, c.var.userId)).limit(1);
+  if (!row) return c.json({ error: "No Meta config saved" }, 404);
+
+  try {
+    const profile = await getBusinessProfile({
+      accessToken: decrypt(row.accessToken),
+      phoneNumberId: row.phoneNumberId,
+      businessAccountId: row.businessAccountId,
+    });
+    return c.json(profile);
+  } catch (err) {
+    if (err instanceof MetaApiError) {
+      const status = err.status >= 400 && err.status < 600 ? (err.status as 400 | 401 | 403 | 404 | 500) : 500;
+      return c.json({ error: err.message }, status);
+    }
+    throw err;
+  }
+});
+
+app.patch("/integrations/meta/profile", async (c) => {
+  const [row] = await db.select().from(metaConfig)
+    .where(eq(metaConfig.userId, c.var.userId)).limit(1);
+  if (!row) return c.json({ error: "No Meta config saved" }, 404);
+
+  const body = await c.req.json<{
+    about?: string;
+    address?: string;
+    description?: string;
+    email?: string;
+    websites?: string[];
+    vertical?: string;
+  }>();
+
+  // Length / format validation — Meta returns opaque errors for these, so
+  // catch them here with messages a customer can act on.
+  const updates: {
+    about?: string; address?: string; description?: string;
+    email?: string; websites?: string[]; vertical?: string;
+  } = {};
+
+  if (body.about !== undefined) {
+    const v = body.about.trim();
+    if (v.length > 139) return c.json({ error: "About must be 139 characters or fewer" }, 400);
+    updates.about = v;
+  }
+  if (body.address !== undefined) {
+    const v = body.address.trim();
+    if (v.length > 256) return c.json({ error: "Address must be 256 characters or fewer" }, 400);
+    updates.address = v;
+  }
+  if (body.description !== undefined) {
+    const v = body.description.trim();
+    if (v.length > 512) return c.json({ error: "Description must be 512 characters or fewer" }, 400);
+    updates.description = v;
+  }
+  if (body.email !== undefined) {
+    const v = body.email.trim();
+    if (v.length > 128) return c.json({ error: "Email must be 128 characters or fewer" }, 400);
+    if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+      return c.json({ error: "Email looks invalid" }, 400);
+    }
+    updates.email = v;
+  }
+  if (body.websites !== undefined) {
+    const sites = body.websites.map((s) => s.trim()).filter(Boolean);
+    if (sites.length > 2) return c.json({ error: "Up to 2 websites only" }, 400);
+    for (const s of sites) {
+      if (s.length > 256) return c.json({ error: "Each website must be 256 characters or fewer" }, 400);
+      if (!/^https?:\/\//i.test(s)) return c.json({ error: `Website must start with http:// or https:// — got "${s}"` }, 400);
+    }
+    updates.websites = sites;
+  }
+  if (body.vertical !== undefined) {
+    const v = body.vertical.trim().toUpperCase();
+    if (v && !VALID_VERTICALS.has(v)) {
+      return c.json({ error: `Invalid vertical "${v}"` }, 400);
+    }
+    updates.vertical = v;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return c.json({ error: "No fields to update" }, 400);
+  }
+
+  try {
+    await updateBusinessProfile({
+      accessToken: decrypt(row.accessToken),
+      phoneNumberId: row.phoneNumberId,
+      businessAccountId: row.businessAccountId,
+    }, updates);
+    // Return the latest server state so the UI doesn't have to round-trip.
+    const profile = await getBusinessProfile({
+      accessToken: decrypt(row.accessToken),
+      phoneNumberId: row.phoneNumberId,
+      businessAccountId: row.businessAccountId,
+    });
+    return c.json(profile);
+  } catch (err) {
+    if (err instanceof MetaApiError) {
+      const status = err.status >= 400 && err.status < 600 ? (err.status as 400 | 401 | 403 | 404 | 500) : 500;
+      return c.json({ error: `Meta rejected: ${err.message}` }, status);
+    }
+    throw err;
+  }
 });
 
 // List templates from the user's WABA — used by Templates and Broadcasts pages.

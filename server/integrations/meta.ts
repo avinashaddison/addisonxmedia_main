@@ -168,4 +168,61 @@ export async function listTemplates(
   );
 }
 
+// ── WhatsApp Business Profile (about/description/address/email/websites/vertical) ──
+// This is the public-facing info customers see on the WhatsApp number — read +
+// write via /{phone-number-id}/whatsapp_business_profile. Profile photo is
+// intentionally omitted: Meta requires a `profile_picture_handle` from their
+// Resumable Upload API, which is a multi-step flow we haven't wired yet.
+
+export type WhatsAppBusinessProfile = {
+  about?: string;
+  address?: string;
+  description?: string;
+  email?: string;
+  profile_picture_url?: string;
+  websites?: string[];
+  vertical?: string;
+  messaging_product?: string;
+};
+
+const PROFILE_FIELDS = [
+  "about", "address", "description", "email",
+  "profile_picture_url", "websites", "vertical",
+].join(",");
+
+export async function getBusinessProfile(creds: MetaCredentials): Promise<WhatsAppBusinessProfile> {
+  // Meta wraps the profile in { data: [ {...} ] } — always an array of one.
+  const res = await metaFetch<{ data: WhatsAppBusinessProfile[] }>(
+    `/${creds.phoneNumberId}/whatsapp_business_profile?fields=${PROFILE_FIELDS}`,
+    { method: "GET", token: creds.accessToken }
+  );
+  return res.data?.[0] ?? {};
+}
+
+export type WhatsAppBusinessProfileUpdate = {
+  about?: string;
+  address?: string;
+  description?: string;
+  email?: string;
+  websites?: string[];
+  vertical?: string;
+};
+
+export async function updateBusinessProfile(
+  creds: MetaCredentials,
+  fields: WhatsAppBusinessProfileUpdate,
+): Promise<{ success: boolean }> {
+  // Meta requires messaging_product: "whatsapp" on every write. Only send the
+  // keys that are actually provided — passing `undefined` would null them out.
+  const body: Record<string, unknown> = { messaging_product: "whatsapp" };
+  for (const [k, v] of Object.entries(fields)) {
+    if (v !== undefined && v !== null) body[k] = v;
+  }
+  return metaFetch(`/${creds.phoneNumberId}/whatsapp_business_profile`, {
+    method: "POST",
+    token: creds.accessToken,
+    body: JSON.stringify(body),
+  });
+}
+
 export { MetaApiError };

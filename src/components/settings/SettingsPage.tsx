@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, WHATSAPP_VERTICALS, type WhatsAppBusinessProfile, type WhatsAppBusinessProfileUpdate } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/PageShell";
@@ -9,7 +9,9 @@ import {
   CreditCard, Users, Mail, MessageSquare, Upload, Zap, Target, BookOpen,
   KeyRound, ShieldCheck, LogIn, Camera, Crown, TrendingUp, FileText,
   PlugZap, Rocket, AlertCircle, Trash2, Plus, Save,
+  Building2, Globe, MapPin, AtSign, Info, ImageIcon,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -539,6 +541,11 @@ const IntegrationsSection = () => {
           {isLoading && <p className="text-[11px] text-muted-foreground mt-3">Loading config…</p>}
         </div>
 
+        {/* WhatsApp Business Profile — public info customers see on the number.
+         *  Only rendered once credentials are connected (otherwise the Meta
+         *  endpoint 404s). */}
+        {isConnected && <WhatsAppProfileCard />}
+
         {/* Collision dialog — surfaces when the WABA number is already
          *  claimed by another account. Prevents the silent "I don't see my
          *  chats" failure mode by asking the user to confirm transfer. */}
@@ -602,6 +609,258 @@ const IntegrationsSection = () => {
         </div>
       </div>
     </SectionCard>
+  );
+};
+
+/* ============================== WHATSAPP BUSINESS PROFILE ============================== */
+/* The public info customers see on your WhatsApp number — read/written via
+ * Meta's /{phone-number-id}/whatsapp_business_profile endpoint. Profile photo
+ * is display-only for now (Meta requires a Resumable Upload handle, not a URL,
+ * which is a multi-step flow we'll wire later). */
+
+const WhatsAppProfileCard = () => {
+  const qc = useQueryClient();
+  const { data: profile, isLoading, error } = useQuery({
+    queryKey: ["meta-profile"],
+    queryFn: () => api.getMetaProfile(),
+    // Profile changes propagate slowly from Meta (often 30-60s) so don't
+    // hammer the endpoint — one refetch on focus is enough.
+    staleTime: 30_000,
+  });
+
+  const [about, setAbout]               = useState("");
+  const [description, setDescription]   = useState("");
+  const [address, setAddress]           = useState("");
+  const [email, setEmail]               = useState("");
+  const [website1, setWebsite1]         = useState("");
+  const [website2, setWebsite2]         = useState("");
+  const [vertical, setVertical]         = useState("UNDEFINED");
+  const [saving, setSaving]             = useState(false);
+
+  // Hydrate form from server state. Re-runs when profile data refreshes.
+  useEffect(() => {
+    if (!profile) return;
+    setAbout(profile.about ?? "");
+    setDescription(profile.description ?? "");
+    setAddress(profile.address ?? "");
+    setEmail(profile.email ?? "");
+    setWebsite1(profile.websites?.[0] ?? "");
+    setWebsite2(profile.websites?.[1] ?? "");
+    setVertical(profile.vertical ?? "UNDEFINED");
+  }, [profile]);
+
+  const dirty =
+    about       !== (profile?.about       ?? "") ||
+    description !== (profile?.description ?? "") ||
+    address     !== (profile?.address     ?? "") ||
+    email       !== (profile?.email       ?? "") ||
+    website1    !== (profile?.websites?.[0] ?? "") ||
+    website2    !== (profile?.websites?.[1] ?? "") ||
+    vertical    !== (profile?.vertical    ?? "UNDEFINED");
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Only send fields that actually changed — Meta accepts partial updates
+      // and we don't want to clobber a value the user didn't touch.
+      const updates: WhatsAppBusinessProfileUpdate = {};
+      if (about       !== (profile?.about       ?? "")) updates.about       = about.trim();
+      if (description !== (profile?.description ?? "")) updates.description = description.trim();
+      if (address     !== (profile?.address     ?? "")) updates.address     = address.trim();
+      if (email       !== (profile?.email       ?? "")) updates.email       = email.trim();
+      if (vertical    !== (profile?.vertical    ?? "UNDEFINED")) updates.vertical = vertical;
+      const newSites = [website1.trim(), website2.trim()].filter(Boolean);
+      const oldSites = profile?.websites ?? [];
+      if (newSites.join("|") !== oldSites.join("|")) updates.websites = newSites;
+
+      const next = await api.updateMetaProfile(updates);
+      qc.setQueryData(["meta-profile"], next);
+      toast.success("WhatsApp profile updated · live on Meta");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const aboutLeft       = 139 - about.length;
+  const descriptionLeft = 512 - description.length;
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="flex items-start gap-3 mb-4">
+        <div className="w-11 h-11 rounded-xl bg-[#25D366]/10 text-[#0E8A4B] flex items-center justify-center flex-shrink-0">
+          <Building2 className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-[14px] font-bold">WhatsApp Business Profile</h3>
+            <span className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Public</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            About, description, address, email, websites & industry — what customers see on your WhatsApp number.
+          </p>
+        </div>
+      </div>
+
+      {isLoading && <p className="text-[12px] text-muted-foreground py-2">Loading profile from Meta…</p>}
+
+      {error && (
+        <div className="rounded-lg border border-hot/30 bg-hot/5 px-3 py-2.5 text-[12px] text-hot font-medium">
+          Couldn't load profile: {error instanceof Error ? error.message : "Unknown error"}
+        </div>
+      )}
+
+      {profile && (
+        <div className="space-y-4">
+          {/* Profile photo — display only for now. Upload requires Meta's
+           *  Resumable Upload API (multi-step) which we haven't wired. */}
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
+            <div className="w-14 h-14 rounded-full bg-muted overflow-hidden flex items-center justify-center flex-shrink-0">
+              {profile.profile_picture_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profile.profile_picture_url} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <ImageIcon className="w-5 h-5 text-muted-foreground" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-semibold">Profile photo</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {profile.profile_picture_url ? "Currently set on Meta" : "No photo set"} · upload coming soon
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="wa-about" className="text-[12px] font-semibold flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5" /> About
+              <span className={cn(
+                "ml-auto text-[10px] font-normal",
+                aboutLeft < 0 ? "text-hot" : "text-muted-foreground"
+              )}>
+                {aboutLeft} left
+              </span>
+            </Label>
+            <Input
+              id="wa-about"
+              value={about}
+              onChange={(e) => setAbout(e.target.value)}
+              placeholder="Hey there! I am using WhatsApp."
+              maxLength={160}
+              className="h-10 mt-1"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Short tagline shown right under your number. Max 139 chars.
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="wa-description" className="text-[12px] font-semibold flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5" /> Description
+              <span className={cn(
+                "ml-auto text-[10px] font-normal",
+                descriptionLeft < 0 ? "text-hot" : "text-muted-foreground"
+              )}>
+                {descriptionLeft} left
+              </span>
+            </Label>
+            <Textarea
+              id="wa-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What your business does — products, services, hours…"
+              maxLength={550}
+              rows={3}
+              className="mt-1 resize-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="wa-vertical" className="text-[12px] font-semibold flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5" /> Industry
+              </Label>
+              <select
+                id="wa-vertical"
+                value={vertical}
+                onChange={(e) => setVertical(e.target.value)}
+                className="w-full h-10 mt-1 rounded-md border border-input bg-background px-3 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {WHATSAPP_VERTICALS.map((v) => (
+                  <option key={v.value} value={v.value}>{v.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="wa-email" className="text-[12px] font-semibold flex items-center gap-1.5">
+                <AtSign className="w-3.5 h-3.5" /> Email
+              </Label>
+              <Input
+                id="wa-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="hello@yourbusiness.com"
+                maxLength={128}
+                className="h-10 mt-1"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="wa-address" className="text-[12px] font-semibold flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5" /> Address
+            </Label>
+            <Input
+              id="wa-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Shop / office address"
+              maxLength={256}
+              className="h-10 mt-1"
+            />
+          </div>
+
+          <div>
+            <Label className="text-[12px] font-semibold flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5" /> Websites
+              <span className="ml-auto text-[10px] font-normal text-muted-foreground">up to 2</span>
+            </Label>
+            <div className="space-y-2 mt-1">
+              <Input
+                value={website1}
+                onChange={(e) => setWebsite1(e.target.value)}
+                placeholder="https://yourbusiness.com"
+                maxLength={256}
+                className="h-10"
+              />
+              <Input
+                value={website2}
+                onChange={(e) => setWebsite2(e.target.value)}
+                placeholder="https://shop.yourbusiness.com (optional)"
+                maxLength={256}
+                className="h-10"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              onClick={handleSave}
+              disabled={saving || !dirty || aboutLeft < 0 || descriptionLeft < 0}
+              className="gap-1.5"
+            >
+              {saving ? "Saving to Meta…" : "Save profile"}
+              {!saving && <Save className="w-3.5 h-3.5" />}
+            </Button>
+            {!dirty && !saving && (
+              <span className="text-[11px] text-muted-foreground">All changes saved</span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

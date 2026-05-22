@@ -155,6 +155,13 @@ export const api = {
   deleteMetaConfig: () => del("/integrations/meta"),
   listMetaTemplates: () => get<{ data: Array<{ name: string; language: string; status: string; category: string; components: any[] }> }>("/integrations/meta/templates"),
 
+  // WhatsApp Business Profile (public info: about / address / description /
+  // email / websites / vertical / profile photo URL — photo is read-only for
+  // now; upload requires Meta's Resumable Upload API which isn't wired yet).
+  getMetaProfile: () => get<WhatsAppBusinessProfile>("/integrations/meta/profile"),
+  updateMetaProfile: (data: WhatsAppBusinessProfileUpdate) =>
+    patch<WhatsAppBusinessProfile>("/integrations/meta/profile", data),
+
   // ── Ads Marketing (Meta Marketing API) ────────────────────────────────
   // GETs return `demo: true` when no credentials are connected so the UI can
   // show a banner without blowing up on an empty state.
@@ -373,6 +380,48 @@ export type ReplySuggestionsResult = {
   reason?: string;
   note?: string;
 };
+
+export type WhatsAppBusinessProfile = {
+  about?: string;
+  address?: string;
+  description?: string;
+  email?: string;
+  profile_picture_url?: string;
+  websites?: string[];
+  vertical?: string;
+  messaging_product?: string;
+};
+
+export type WhatsAppBusinessProfileUpdate = {
+  about?: string;
+  address?: string;
+  description?: string;
+  email?: string;
+  websites?: string[];
+  vertical?: string;
+};
+
+export const WHATSAPP_VERTICALS = [
+  { value: "UNDEFINED",     label: "— Select industry —" },
+  { value: "OTHER",         label: "Other" },
+  { value: "AUTO",          label: "Automotive" },
+  { value: "BEAUTY",        label: "Beauty, Spa & Salon" },
+  { value: "APPAREL",       label: "Clothing & Apparel" },
+  { value: "EDU",           label: "Education" },
+  { value: "ENTERTAIN",     label: "Entertainment" },
+  { value: "EVENT_PLAN",    label: "Event Planning & Service" },
+  { value: "FINANCE",       label: "Finance & Banking" },
+  { value: "GROCERY",       label: "Food & Grocery" },
+  { value: "GOVT",          label: "Public Service" },
+  { value: "HOTEL",         label: "Hotel & Lodging" },
+  { value: "HEALTH",        label: "Medical & Health" },
+  { value: "NONPROFIT",     label: "Non-profit" },
+  { value: "PROF_SERVICES", label: "Professional Services" },
+  { value: "RETAIL",        label: "Shopping & Retail" },
+  { value: "TRAVEL",        label: "Travel & Transportation" },
+  { value: "RESTAURANT",    label: "Restaurant" },
+  { value: "NOT_A_BIZ",     label: "Not a Business" },
+] as const;
 
 export type AiPersona = {
   business_name: string;
