@@ -497,11 +497,18 @@ export const upgradeRequest = pgTable("upgrade_request", {
   customerNote: text("customer_note"),
   adminNotes: text("admin_notes"),
   razorpayPaymentId: text("razorpay_payment_id"),
+  // ── Cashfree Payment Gateway integration ──────────────────────────────
+  cashfreeOrderId: text("cashfree_order_id"),
+  cashfreePaymentSessionId: text("cashfree_payment_session_id"),
+  cashfreePaymentId: text("cashfree_payment_id"),
+  cashfreePaymentMethod: text("cashfree_payment_method"),
+  amountInr: numeric("amount_inr", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
 }, (t) => ({
   userIdx: index("upgrade_request_user_idx").on(t.userId, t.createdAt),
   statusIdx: index("upgrade_request_status_idx").on(t.status, t.createdAt),
+  cashfreeOrderIdx: index("upgrade_request_cashfree_order_idx").on(t.cashfreeOrderId),
 }));
 
 export type UpgradeRequest = typeof upgradeRequest.$inferSelect;

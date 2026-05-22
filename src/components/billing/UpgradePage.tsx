@@ -111,8 +111,52 @@ export const UpgradePage = () => {
     },
   });
 
-  const requestUpgrade = (plan: Plan["id"]) => {
+  // Probe Cashfree availability so we can branch between paid (instant)
+  // and manual (WhatsApp link) flows. Cheap (~1ms), cached 5 minutes.
+  const { data: cashfreeStatus } = useQuery({
+    queryKey: ["cashfree-status"],
+    queryFn: () => api.cashfreeStatus(),
+    staleTime: 5 * 60_000,
+  });
+
+  const requestUpgrade = async (plan: Plan["id"]) => {
     setPendingPlan(plan);
+
+    // Cashfree path — checkout in modal, server activates plan on success.
+    if (cashfreeStatus?.configured) {
+      try {
+        const order = await api.cashfreeCreateOrder(plan, cycle);
+        const { openCashfreeCheckout } = await import("@/lib/cashfree");
+        const result = await openCashfreeCheckout({
+          paymentSessionId: order.paymentSessionId,
+          mode: order.mode,
+          returnUrl: `${window.location.origin}/app/upgrade/return?order_id={order_id}`,
+        });
+        if (result.ok === false) {
+          toast.error(result.error);
+          setPendingPlan(null);
+          return;
+        }
+        // Modal closed — could be success or user dismissal. Hit verify to
+        // confirm; if PAID, plan flip happens server-side and billing-me
+        // refetches will show the new badge.
+        const verify = await api.cashfreeVerify(order.orderId);
+        if (verify.cashfreeStatus === "PAID") {
+          toast.success(`Welcome to ${plan} 🎉`);
+        } else {
+          toast.info("Payment not completed — you can retry anytime");
+        }
+        qc.invalidateQueries({ queryKey: ["billing-me"] });
+        qc.invalidateQueries({ queryKey: ["billing-me-pill"] });
+        setPendingPlan(null);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Checkout failed");
+        setPendingPlan(null);
+      }
+      return;
+    }
+
+    // Manual fallback — admin sends payment link via WhatsApp.
     submit.mutate(plan);
   };
 

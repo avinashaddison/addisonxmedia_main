@@ -35,6 +35,7 @@ const AdminHealth = lazy(() => import("./pages/admin/AdminHealth.tsx"));
 const AdminSettings = lazy(() => import("./pages/admin/AdminSettings.tsx"));
 const AdminSecurity = lazy(() => import("./pages/admin/AdminSecurity.tsx"));
 const AdminDiagnostics = lazy(() => import("./pages/admin/AdminDiagnostics.tsx"));
+const UpgradeReturn = lazy(() => import("./pages/UpgradeReturn.tsx"));
 
 // Sensible global defaults — was using vanilla `new QueryClient()` which means
 // staleTime: 0 (refetch on every mount) + refetchOnWindowFocus: true (refetch
@@ -83,6 +84,16 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
+              {/* Cashfree return_url lands here. MUST be declared BEFORE
+                  /app/* otherwise the catch-all eats the path. */}
+              <Route
+                path="/app/upgrade/return"
+                element={
+                  <ProtectedRoute>
+                    <UpgradeReturn />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/app/*"
                 element={

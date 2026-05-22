@@ -1,7 +1,8 @@
 import { Hono } from "hono";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "../db/client";
-import { contact, conversation, message, metaConfig, webhookOrphan } from "../db/schema";
+import { contact, conversation, message, metaConfig, webhookOrphan, upgradeRequest, user } from "../db/schema";
+import { verifyWebhookSignature as verifyCashfreeSignature } from "../integrations/cashfree";
 
 // Meta WhatsApp webhook receiver.
 //
@@ -248,5 +249,130 @@ function extractMediaUrl(m: any): string | null {
   }
   return null;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Cashfree Payment Gateway webhook
+ *
+ * Setup in Cashfree dashboard:
+ *   1. Webhook URL → https://YOUR_DOMAIN/api/webhooks/cashfree
+ *   2. Subscribe to PAYMENT_SUCCESS_WEBHOOK + PAYMENT_FAILED_WEBHOOK
+ *   3. Secret → uses your existing API secret (no separate webhook secret)
+ *
+ * Signature: base64(HMAC-SHA256(secret, timestamp + rawBody))
+ *   Headers:
+ *     x-webhook-timestamp
+ *     x-webhook-signature
+ *
+ * Idempotency: the redirect-verify path may activate the user's plan before
+ * us; we re-check upgrade_request.status with a WHERE-clause guard so a
+ * second activation is a no-op.
+ * ───────────────────────────────────────────────────────────────────────── */
+app.post("/webhooks/cashfree", async (c) => {
+  // MUST read raw body first — re-serialized JSON breaks the signature.
+  const rawBody = await c.req.text();
+  const signature = c.req.header("x-webhook-signature") ?? "";
+  const timestamp = c.req.header("x-webhook-timestamp") ?? "";
+
+  if (!signature || !timestamp) {
+    console.warn("[webhooks/cashfree] missing signature/timestamp headers");
+    return c.json({ error: "missing signature" }, 400);
+  }
+
+  const ok = verifyCashfreeSignature({ rawBody, signature, timestamp });
+  if (!ok) {
+    console.warn("[webhooks/cashfree] signature verify failed");
+    return c.json({ error: "invalid signature" }, 401);
+  }
+
+  type CashfreeWebhookPayload = {
+    type: string;        // e.g. PAYMENT_SUCCESS_WEBHOOK
+    data: {
+      order: { order_id: string; order_amount: number; order_currency: string; order_tags?: Record<string, string> };
+      payment: {
+        cf_payment_id: number;
+        payment_status: string;
+        payment_amount: number;
+        payment_currency: string;
+        payment_message?: string;
+        payment_time: string;
+        payment_method?: Record<string, unknown>;
+        payment_group?: string;
+      };
+      customer_details?: { customer_id?: string };
+    };
+    event_time: string;
+  };
+
+  let payload: CashfreeWebhookPayload;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    return c.json({ error: "invalid json" }, 400);
+  }
+
+  try {
+    const eventType = payload.type;
+    const orderId = payload.data?.order?.order_id;
+    if (!orderId) {
+      console.warn("[webhooks/cashfree] no order_id in payload", eventType);
+      return c.json({ ok: true, ignored: "no_order_id" });
+    }
+
+    // Locate the matching upgrade_request row. If we don't recognize the
+    // order (e.g. some other Cashfree integration shares the secret), we
+    // ack-200 so Cashfree doesn't retry — but log it for visibility.
+    const [req] = await db.select().from(upgradeRequest)
+      .where(eq(upgradeRequest.cashfreeOrderId, orderId)).limit(1);
+    if (!req) {
+      console.warn(`[webhooks/cashfree] unknown order_id: ${orderId} (${eventType})`);
+      return c.json({ ok: true, ignored: "unknown_order" });
+    }
+
+    const paymentStatus = payload.data?.payment?.payment_status;
+    const cfPaymentId = payload.data?.payment?.cf_payment_id
+      ? String(payload.data.payment.cf_payment_id) : null;
+    const paymentMethod = payload.data?.payment?.payment_group ?? null;
+
+    // Always record the latest Cashfree-side details for audit
+    await db.update(upgradeRequest).set({
+      cashfreePaymentId: cfPaymentId,
+      cashfreePaymentMethod: paymentMethod,
+    }).where(eq(upgradeRequest.id, req.id));
+
+    // PAYMENT_SUCCESS — activate the plan if not already activated
+    if (eventType === "PAYMENT_SUCCESS_WEBHOOK" && paymentStatus === "SUCCESS") {
+      if (req.status !== "completed") {
+        await db.transaction(async (tx) => {
+          await tx.update(user)
+            .set({ plan: req.targetPlan })
+            .where(eq(user.id, req.userId));
+          await tx.update(upgradeRequest)
+            .set({ status: "completed", completedAt: new Date() })
+            .where(and(eq(upgradeRequest.id, req.id), sql_neq_completed));
+        });
+      }
+      console.log(`[webhooks/cashfree] activated ${req.targetPlan} for user=${req.userId} (order=${orderId})`);
+    } else if (eventType === "PAYMENT_FAILED_WEBHOOK" || paymentStatus === "FAILED" || paymentStatus === "USER_DROPPED") {
+      // Don't touch user.plan — just mark the request declined so the
+      // upgrade UI can surface a retry CTA.
+      if (req.status === "requested" || req.status === "contacted") {
+        await db.update(upgradeRequest).set({
+          status: "declined",
+          adminNotes: `Cashfree: ${payload.data?.payment?.payment_message ?? paymentStatus}`,
+        }).where(eq(upgradeRequest.id, req.id));
+      }
+      console.log(`[webhooks/cashfree] payment ${paymentStatus} for order=${orderId}`);
+    }
+  } catch (err) {
+    console.error("[webhooks/cashfree] processing error", err);
+    // Still return 200 — we already verified signature; surfacing 500 makes
+    // Cashfree retry which can mess with idempotency. Logs are the safety net.
+  }
+
+  return c.json({ ok: true }, 200);
+});
+
+// Idempotency guard — second activation must be a no-op
+const sql_neq_completed = sql`${upgradeRequest.status} <> 'completed'`;
 
 export default app;

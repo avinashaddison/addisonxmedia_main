@@ -735,8 +735,29 @@ admin.get("/api/admin/health", async (c) => {
     detail: `${metaStats.enabled}/${metaStats.total} workspaces connected`,
   });
 
-  // Razorpay placeholder
-  checks.push({ service: "Razorpay", status: "warn", latencyMs: 0, detail: "Not wired in this build" });
+  // Cashfree — checks env config + active upgrade requests for visibility
+  const { cashfreeIsConfigured, cashfreeMode } = await import("../integrations/cashfree");
+  if (cashfreeIsConfigured()) {
+    const [paidCount] = await db.select({ n: count(upgradeRequest.id) })
+      .from(upgradeRequest)
+      .where(and(
+        eq(upgradeRequest.status, "completed"),
+        gt(upgradeRequest.completedAt, new Date(Date.now() - 30 * 24 * 3600 * 1000)),
+      ));
+    checks.push({
+      service: "Cashfree Payment Gateway",
+      status: "ok",
+      latencyMs: 0,
+      detail: `${cashfreeMode()} mode · ${paidCount.n} paid upgrades in last 30d`,
+    });
+  } else {
+    checks.push({
+      service: "Cashfree Payment Gateway",
+      status: "warn",
+      latencyMs: 0,
+      detail: "Not configured — set CASHFREE_APP_ID + CASHFREE_SECRET_KEY (manual upgrade-request flow stays active as fallback)",
+    });
+  }
 
   return c.json({
     checks,

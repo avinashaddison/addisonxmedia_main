@@ -17,8 +17,13 @@
 import { Hono } from "hono";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../db/client";
-import { user, upgradeRequest } from "../db/schema";
+import { user, upgradeRequest, profile } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
+import {
+  cashfreeIsConfigured, cashfreeMode, createOrder as cfCreateOrder,
+  getOrder as cfGetOrder, priceFor, isValidPlanKey, isValidCycle,
+  type PlanKey, type BillingCycle,
+} from "../integrations/cashfree";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -127,6 +132,171 @@ app.delete("/billing/upgrade-request/:id", async (c) => {
     .set({ status: "cancelled", completedAt: new Date() })
     .where(eq(upgradeRequest.id, id));
   return c.json({ ok: true });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Cashfree Payment Gateway — paid upgrade flow (v2023-08-01)
+ *
+ * 1. POST /billing/cashfree/create-order
+ *    Body: { plan: "starter|growth|scale", cycle: "monthly|annual" }
+ *    - Server picks canonical price (frontend can't tamper with amount)
+ *    - Posts to Cashfree /orders, gets payment_session_id back
+ *    - Inserts/updates upgrade_request with cashfree_order_id + session
+ *    - Returns { paymentSessionId, orderId, mode, amountInr } to frontend
+ *
+ * 2. GET /billing/cashfree/verify/:orderId
+ *    - Hits Cashfree /orders/{orderId} server-side
+ *    - If status=PAID, flips upgrade_request → completed + user.plan
+ *    - Idempotent: re-runs after webhook are no-ops
+ *    Returns the latest plan state for the frontend to display.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+app.get("/billing/cashfree/status", async (c) => {
+  // Frontend probes this to decide between "Pay with Cashfree" and "Request
+  // upgrade" (the manual fallback). When configured=false the manual flow
+  // stays as the only path so we never block users from upgrading.
+  return c.json({
+    configured: cashfreeIsConfigured(),
+    mode: cashfreeMode(),
+  });
+});
+
+app.post("/billing/cashfree/create-order", async (c) => {
+  if (!cashfreeIsConfigured()) {
+    return c.json({ error: "Cashfree not configured on this server" }, 503);
+  }
+  const userId = c.var.userId;
+  const userEmail = c.var.userEmail;
+
+  const body = await c.req.json<{ plan?: string; cycle?: string }>().catch(() => ({} as { plan?: string; cycle?: string }));
+  const plan = (body.plan ?? "").toLowerCase();
+  const cycle = (body.cycle ?? "monthly").toLowerCase();
+
+  if (!isValidPlanKey(plan)) {
+    return c.json({ error: "plan must be one of: starter, growth, scale" }, 400);
+  }
+  if (!isValidCycle(cycle)) {
+    return c.json({ error: "cycle must be 'monthly' or 'annual'" }, 400);
+  }
+
+  // Pull user (for plan check + name/email) and profile (for phone).
+  // Phone lives on `profile`, not `user`, since BetterAuth's user row is
+  // auth-only — we extended onboarding to capture phone into profile.
+  const [u] = await db.select({
+    id: user.id, email: user.email, name: user.name, plan: user.plan,
+  }).from(user).where(eq(user.id, userId)).limit(1);
+  if (!u) return c.json({ error: "User not found" }, 404);
+  if (u.plan === plan) {
+    return c.json({ error: `You're already on the ${plan} plan.` }, 400);
+  }
+
+  const [p] = await db.select({ phone: profile.phone })
+    .from(profile).where(eq(profile.userId, userId)).limit(1);
+
+  // Cashfree requires E.164-ish phone. If we don't have one (signup-only
+  // user), fall back to a placeholder — Cashfree will still accept but UPI
+  // flows won't autofill. The customer will fill it in on their checkout.
+  const customerPhone = (p?.phone ?? "").replace(/[^\d+]/g, "") || "9999999999";
+
+  const amount = priceFor(plan as PlanKey, cycle as BillingCycle);
+  const orderId = `addisonx_${userId.slice(0, 8)}_${Date.now()}`;
+
+  // Build absolute return URL from the request's origin (works dev + prod
+  // without env config gymnastics).
+  const origin = new URL(c.req.url).origin;
+  const returnUrl = `${origin}/app/upgrade/return?order_id={order_id}`;
+  const notifyUrl = `${origin}/api/webhooks/cashfree`;
+
+  const order = await cfCreateOrder({
+    order_id: orderId,
+    order_amount: amount,
+    order_currency: "INR",
+    customer_details: {
+      customer_id: userId,
+      customer_email: u.email ?? userEmail,
+      customer_phone: customerPhone,
+      customer_name: u.name ?? undefined,
+    },
+    order_meta: { return_url: returnUrl, notify_url: notifyUrl },
+    order_note: `AddisonX ${plan} · ${cycle}`,
+    order_tags: { plan, cycle, user_id: userId },
+  }).catch((err) => {
+    console.error("[cashfree create-order]", err);
+    return null;
+  });
+
+  if (!order || !order.payment_session_id) {
+    return c.json({ error: "Failed to create Cashfree order — check server logs" }, 502);
+  }
+
+  // Cancel any prior pending upgrade_request — keep only the latest paid attempt
+  await db.update(upgradeRequest)
+    .set({ status: "cancelled" })
+    .where(and(
+      eq(upgradeRequest.userId, userId),
+      sql`${upgradeRequest.status} IN ('requested', 'contacted')`,
+    ));
+
+  await db.insert(upgradeRequest).values({
+    userId,
+    targetPlan: plan,
+    billingCycle: cycle,
+    status: "requested",
+    cashfreeOrderId: order.order_id,
+    cashfreePaymentSessionId: order.payment_session_id,
+    amountInr: String(amount),
+    customerNote: `Cashfree checkout initiated · ${cashfreeMode()}`,
+  });
+
+  return c.json({
+    paymentSessionId: order.payment_session_id,
+    orderId: order.order_id,
+    mode: cashfreeMode(),
+    amountInr: amount,
+  });
+});
+
+app.get("/billing/cashfree/verify/:orderId", async (c) => {
+  if (!cashfreeIsConfigured()) {
+    return c.json({ error: "Cashfree not configured on this server" }, 503);
+  }
+  const userId = c.var.userId;
+  const orderId = c.req.param("orderId");
+  if (!orderId) return c.json({ error: "orderId required" }, 400);
+
+  // Confirm this order belongs to the calling user — never let one user
+  // query another's order status.
+  const [req] = await db.select()
+    .from(upgradeRequest)
+    .where(and(eq(upgradeRequest.cashfreeOrderId, orderId), eq(upgradeRequest.userId, userId)))
+    .limit(1);
+  if (!req) return c.json({ error: "Order not found" }, 404);
+
+  const order = await cfGetOrder(orderId).catch((err) => {
+    console.error("[cashfree verify]", err);
+    return null;
+  });
+  if (!order) return c.json({ error: "Cashfree lookup failed" }, 502);
+
+  // Activate if PAID and not already activated — idempotent (webhook may
+  // have raced and beat us here, which is fine, the WHERE-clause is the gate)
+  if (order.order_status === "PAID" && req.status !== "completed") {
+    await db.transaction(async (tx) => {
+      await tx.update(user)
+        .set({ plan: req.targetPlan })
+        .where(eq(user.id, userId));
+      await tx.update(upgradeRequest)
+        .set({ status: "completed", completedAt: new Date() })
+        .where(eq(upgradeRequest.id, req.id));
+    });
+  }
+
+  return c.json({
+    orderId,
+    cashfreeStatus: order.order_status,
+    upgradeStatus: order.order_status === "PAID" ? "completed" : req.status,
+    plan: order.order_status === "PAID" ? req.targetPlan : null,
+  });
 });
 
 export default app;

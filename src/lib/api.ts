@@ -317,6 +317,17 @@ export const api = {
   updateAiPersona: (data: Partial<AiPersona>) => patch<AiPersona>("/ai/persona", data),
 
   // ─── Billing & plan upgrades ──────────────────────────────────────────────
+  // Cashfree Payment Gateway — paid upgrade flow.
+  cashfreeStatus: () => get<{ configured: boolean; mode: "sandbox" | "production" }>("/billing/cashfree/status"),
+  cashfreeCreateOrder: (plan: string, cycle: "monthly" | "annual") =>
+    post<{ paymentSessionId: string; orderId: string; mode: "sandbox" | "production"; amountInr: number }>(
+      "/billing/cashfree/create-order", { plan, cycle }
+    ),
+  cashfreeVerify: (orderId: string) =>
+    get<{ orderId: string; cashfreeStatus: string; upgradeStatus: string; plan: string | null }>(
+      `/billing/cashfree/verify/${encodeURIComponent(orderId)}`
+    ),
+
   getBillingMe: () => get<{
     plan: string;
     account_status: string;
