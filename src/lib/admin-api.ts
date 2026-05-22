@@ -167,6 +167,13 @@ export const adminApi = {
   reassignChats: (body: { fromUserId: string; toUserId: string; includeMetaConfig?: boolean }) =>
     adminRequest<{ ok: true }>("/diagnostics/reassign-chats", { method: "POST", body: JSON.stringify(body) }),
   duplicateAccounts: () => adminRequest<{ groups: DuplicateAccountGroup[] }>("/diagnostics/duplicate-accounts"),
+  inspectAccount: (q: string) =>
+    adminRequest<InspectAccountReport>(`/diagnostics/inspect?q=${encodeURIComponent(q)}`),
+  consolidateAccounts: (body: { targetUserId: string; sourceUserIds: string[]; deleteSources?: boolean }) =>
+    adminRequest<{ ok: true; summary: { moved: Record<string, number>; metaConfigMoves: number; profileMoves: number; deletedUsers: number } }>(
+      "/diagnostics/consolidate",
+      { method: "POST", body: JSON.stringify(body) }
+    ),
   mergeAccounts: (body: { canonicalUserId: string; duplicateUserIds: string[] }) =>
     adminRequest<{ ok: true; summary: { moved: Record<string, number>; metaConfigMoves: number; profileMoves: number; deletedUsers: number } }>(
       "/diagnostics/merge-accounts",
@@ -269,6 +276,55 @@ export type DuplicateAccountUser = {
   contacts: number;
   messages: number;
   metaConfigs: number;
+};
+
+export type InspectUser = {
+  id: string;
+  email: string;
+  name: string;
+  plan: string | null;
+  status: string | null;
+  createdAt: string;
+  conversations: number;
+  contacts: number;
+  messages: number;
+  hasMetaConfig: boolean;
+  matchedDirectly: boolean;
+};
+
+export type InspectMetaConfig = {
+  id: string;
+  userId: string;
+  phoneNumberId: string;
+  displayPhoneNumber: string | null;
+  enabled: boolean;
+  lastVerifiedAt: string | null;
+  userEmail: string | null;
+  userName: string | null;
+  userPlan: string | null;
+};
+
+export type InspectConversation = {
+  id: string;
+  ownerId: string;
+  status: string | null;
+  lastMessageAt: string | null;
+  unreadCount: number | null;
+  contactName: string | null;
+  contactPhone: string | null;
+};
+
+export type InspectAccountReport = {
+  query: string;
+  users: InspectUser[];
+  metaConfigs: InspectMetaConfig[];
+  conversations: InspectConversation[];
+  suggestion: {
+    canonicalUserId: string;
+    canonicalEmail: string;
+    duplicateUserIds: string[];
+    reason: string;
+  } | null;
 };
 
 export type DuplicateAccountGroup = {

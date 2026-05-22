@@ -823,6 +823,232 @@ admin.get("/api/admin/diagnostics/chat-ownership", requireAdmin(["super_admin", 
   return c.json({ ownership, metaConfigs: metaRows, unroutedWebhooks24h: Number(orphan24h) });
 });
 
+/* Deep inspect — exposes EVERYTHING about a single account / phone /
+ * email so admin can debug "why don't I see my chats" without writing SQL.
+ *
+ * Query `q` is matched against email (substring), user.id (exact),
+ * phone_number_id (substring), display_phone_number (substring).
+ *
+ * Returns:
+ *   - All matching user rows with their counts + plan/status
+ *   - All meta_config rows that match (user-id wise or phone-wise)
+ *   - All conversations owned by any matched user, with contact info
+ *   - The merge/consolidate suggestion (best canonical user_id)
+ */
+admin.get("/api/admin/diagnostics/inspect", requireAdmin(["super_admin", "moderator", "billing"]), async (c) => {
+  const qRaw = c.req.query("q")?.trim();
+  if (!qRaw) return c.json({ error: "q parameter required" }, 400);
+  const q = qRaw.toLowerCase();
+  const qLike = `%${q}%`;
+
+  // 1. Find candidate users by email substring OR exact id match.
+  const userMatches = await db.select({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    plan: user.plan,
+    status: user.accountStatus,
+    createdAt: user.createdAt,
+  }).from(user)
+    .where(or(ilike(user.email, qLike), eq(user.id, qRaw)))
+    .orderBy(asc(user.createdAt));
+
+  // 2. Find meta_configs by phone substring (also pulls users that own them).
+  const metaMatches = await db
+    .select({
+      id: metaConfig.id,
+      userId: metaConfig.userId,
+      phoneNumberId: metaConfig.phoneNumberId,
+      displayPhoneNumber: metaConfig.displayPhoneNumber,
+      enabled: metaConfig.enabled,
+      lastVerifiedAt: metaConfig.lastVerifiedAt,
+      userEmail: user.email,
+      userName: user.name,
+      userPlan: user.plan,
+    })
+    .from(metaConfig)
+    .leftJoin(user, eq(user.id, metaConfig.userId))
+    .where(or(
+      ilike(metaConfig.phoneNumberId, qLike),
+      ilike(metaConfig.displayPhoneNumber, qLike),
+      // Also include configs whose owner appears in userMatches
+      userMatches.length > 0 ? inArray(metaConfig.userId, userMatches.map((u) => u.id)) : sql`false`,
+    ));
+
+  // 3. Union of user ids we care about.
+  const allUserIds = Array.from(new Set([
+    ...userMatches.map((u) => u.id),
+    ...metaMatches.map((m) => m.userId),
+  ]));
+
+  // 4. Per-user counts
+  const [convCounts, contactCounts, messageCounts] = allUserIds.length > 0
+    ? await Promise.all([
+        db.select({ ownerId: conversation.ownerId, n: count(conversation.id) })
+          .from(conversation).where(inArray(conversation.ownerId, allUserIds)).groupBy(conversation.ownerId),
+        db.select({ ownerId: contact.ownerId, n: count(contact.id) })
+          .from(contact).where(inArray(contact.ownerId, allUserIds)).groupBy(contact.ownerId),
+        db.select({ ownerId: message.ownerId, n: count(message.id) })
+          .from(message).where(inArray(message.ownerId, allUserIds)).groupBy(message.ownerId),
+      ])
+    : [[], [], []];
+
+  const countsByUser = new Map<string, { conversations: number; contacts: number; messages: number }>();
+  for (const id of allUserIds) countsByUser.set(id, { conversations: 0, contacts: 0, messages: 0 });
+  for (const r of convCounts)    countsByUser.get(r.ownerId)!.conversations = Number(r.n);
+  for (const r of contactCounts) countsByUser.get(r.ownerId)!.contacts      = Number(r.n);
+  for (const r of messageCounts) countsByUser.get(r.ownerId)!.messages      = Number(r.n);
+
+  // 5. Pull complete user records for any user_id touched (incl. ones found
+  //    only via meta_config that didn't match the original q).
+  const extraUserIds = allUserIds.filter((id) => !userMatches.some((u) => u.id === id));
+  const extraUsers = extraUserIds.length > 0
+    ? await db.select({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        plan: user.plan,
+        status: user.accountStatus,
+        createdAt: user.createdAt,
+      }).from(user).where(inArray(user.id, extraUserIds))
+    : [];
+
+  const allUsers = [...userMatches, ...extraUsers].map((u) => ({
+    id: u.id,
+    email: u.email,
+    name: u.name ?? "—",
+    plan: u.plan ?? null,
+    status: u.status ?? null,
+    createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt),
+    ...(countsByUser.get(u.id) ?? { conversations: 0, contacts: 0, messages: 0 }),
+    hasMetaConfig: metaMatches.some((m) => m.userId === u.id),
+    matchedDirectly: userMatches.some((mu) => mu.id === u.id),
+  })).sort((a, b) => (b.conversations + b.contacts + b.messages) - (a.conversations + a.contacts + a.messages));
+
+  // 6. Find recent conversations across all matched users (preview)
+  const conversations = allUserIds.length > 0
+    ? await db
+        .select({
+          id: conversation.id,
+          ownerId: conversation.ownerId,
+          status: conversation.status,
+          lastMessageAt: conversation.lastMessageAt,
+          unreadCount: conversation.unreadCount,
+          contactName: contact.name,
+          contactPhone: contact.phone,
+        })
+        .from(conversation)
+        .leftJoin(contact, eq(contact.id, conversation.contactId))
+        .where(inArray(conversation.ownerId, allUserIds))
+        .orderBy(desc(conversation.lastMessageAt))
+        .limit(50)
+    : [];
+
+  // 7. Suggest canonical user: the one with the most data among matches
+  const suggestedCanonical = allUsers.length > 0 ? allUsers[0] : null;
+
+  return c.json({
+    query: qRaw,
+    users: allUsers,
+    metaConfigs: metaMatches,
+    conversations,
+    suggestion: suggestedCanonical
+      ? {
+          canonicalUserId: suggestedCanonical.id,
+          canonicalEmail: suggestedCanonical.email,
+          duplicateUserIds: allUsers.filter((u) => u.id !== suggestedCanonical.id).map((u) => u.id),
+          reason: "Highest data ownership (chats + contacts + messages)",
+        }
+      : null,
+  });
+});
+
+/* Force-consolidate — destructive, super_admin only. Reassigns ALL
+ * conversations/contacts/messages/deals/tasks/campaigns/broadcasts owned by
+ * any of `sourceUserIds` to `targetUserId`. Also moves meta_config + profile.
+ * Optionally deletes the source user rows. Used to fix "ghost owner" cases
+ * where data is orphaned under user_ids that no one logs into. */
+admin.post("/api/admin/diagnostics/consolidate", requireAdmin(["super_admin"]), async (c) => {
+  const body = await c.req.json<{
+    targetUserId: string;
+    sourceUserIds: string[];
+    deleteSources?: boolean;
+  }>();
+  if (!body.targetUserId || !Array.isArray(body.sourceUserIds) || body.sourceUserIds.length === 0) {
+    return c.json({ error: "targetUserId and sourceUserIds[] required" }, 400);
+  }
+  if (body.sourceUserIds.includes(body.targetUserId)) {
+    return c.json({ error: "targetUserId cannot be in sourceUserIds" }, 400);
+  }
+
+  const [target] = await db.select().from(user).where(eq(user.id, body.targetUserId)).limit(1);
+  if (!target) return c.json({ error: "targetUserId not found" }, 404);
+  const sources = await db.select().from(user).where(inArray(user.id, body.sourceUserIds));
+
+  const targetId = body.targetUserId;
+  const summary = await db.transaction(async (tx) => {
+    const moved: Record<string, number> = {
+      conversations: 0, contacts: 0, messages: 0, deals: 0,
+      tasks: 0, campaigns: 0, broadcasts: 0, upgradeRequests: 0,
+    };
+    let metaConfigMoves = 0;
+    let profileMoves = 0;
+    let deletedUsers = 0;
+
+    for (const src of sources) {
+      const srcId = src.id;
+      moved.conversations += (await tx.update(conversation).set({ ownerId: targetId })
+        .where(eq(conversation.ownerId, srcId)).returning({ id: conversation.id })).length;
+      moved.contacts += (await tx.update(contact).set({ ownerId: targetId })
+        .where(eq(contact.ownerId, srcId)).returning({ id: contact.id })).length;
+      moved.messages += (await tx.update(message).set({ ownerId: targetId })
+        .where(eq(message.ownerId, srcId)).returning({ id: message.id })).length;
+      moved.deals += (await tx.update(deal).set({ ownerId: targetId })
+        .where(eq(deal.ownerId, srcId)).returning({ id: deal.id })).length;
+      moved.tasks += (await tx.update(task).set({ ownerId: targetId })
+        .where(eq(task.ownerId, srcId)).returning({ id: task.id })).length;
+      moved.campaigns += (await tx.update(campaign).set({ ownerId: targetId })
+        .where(eq(campaign.ownerId, srcId)).returning({ id: campaign.id })).length;
+      moved.broadcasts += (await tx.update(broadcast).set({ ownerId: targetId })
+        .where(eq(broadcast.ownerId, srcId)).returning({ id: broadcast.id })).length;
+      moved.upgradeRequests += (await tx.update(upgradeRequest).set({ userId: targetId })
+        .where(eq(upgradeRequest.userId, srcId)).returning({ id: upgradeRequest.id })).length;
+
+      const [targetMeta] = await tx.select().from(metaConfig).where(eq(metaConfig.userId, targetId)).limit(1);
+      if (!targetMeta) {
+        metaConfigMoves += (await tx.update(metaConfig).set({ userId: targetId })
+          .where(eq(metaConfig.userId, srcId)).returning({ id: metaConfig.id })).length;
+      } else {
+        await tx.delete(metaConfig).where(eq(metaConfig.userId, srcId));
+      }
+      const [targetProfile] = await tx.select().from(profile).where(eq(profile.userId, targetId)).limit(1);
+      if (!targetProfile) {
+        profileMoves += (await tx.update(profile).set({ userId: targetId })
+          .where(eq(profile.userId, srcId)).returning({ id: profile.id })).length;
+      } else {
+        await tx.delete(profile).where(eq(profile.userId, srcId));
+      }
+
+      if (body.deleteSources) {
+        await tx.delete(user).where(eq(user.id, srcId));
+        deletedUsers += 1;
+      }
+    }
+    return { moved, metaConfigMoves, profileMoves, deletedUsers };
+  });
+
+  await auditLog(c, "consolidate_accounts", body.targetUserId, {
+    targetUserId: body.targetUserId,
+    targetEmail: target.email,
+    sourceUserIds: body.sourceUserIds,
+    sourceEmails: sources.map((u) => u.email),
+    deleteSources: !!body.deleteSources,
+    summary,
+  });
+
+  return c.json({ ok: true, summary });
+});
+
 /* Duplicate accounts — multiple `user` rows sharing the same email (case-
  * insensitive). This is the root cause of "I don't see my chats" — the
  * session is logged into one user_id, the chats live on a sibling user_id
@@ -840,9 +1066,20 @@ admin.get("/api/admin/diagnostics/duplicate-accounts", requireAdmin(["super_admi
     createdAt: user.createdAt,
   }).from(user).orderBy(asc(user.createdAt));
 
+  // Normalize: trim, lowercase, collapse internal whitespace, strip
+  // zero-width / non-printing chars. Whitespace and casing differences
+  // hid duplicates from the first version of this detector.
+  const normalizeEmail = (e: string) =>
+    e
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "")
+      .replace(/[​-‍﻿]/g, ""); // zero-width chars
+
   const groupsByEmail = new Map<string, typeof allUsers>();
   for (const u of allUsers) {
-    const key = u.email.toLowerCase();
+    const key = normalizeEmail(u.email);
+    if (!key) continue;
     const existing = groupsByEmail.get(key) ?? [];
     existing.push(u);
     groupsByEmail.set(key, existing);

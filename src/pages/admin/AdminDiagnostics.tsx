@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { adminApi, ChatOwnershipRow, WebhookOrphanGroup, DuplicateAccountUser } from "@/lib/admin-api";
+import { adminApi, ChatOwnershipRow, WebhookOrphanGroup, DuplicateAccountUser, InspectAccountReport } from "@/lib/admin-api";
 import {
   Activity, ArrowRight, Building2, Check, Inbox, Loader2, MessageSquare, Phone,
   RefreshCw, Search, Shuffle, Users as UsersIcon, AlertTriangle, CheckCircle2,
-  Radio, Trash2, ChevronDown, Copy, GitMerge, UserX,
+  Radio, Trash2, ChevronDown, Copy, GitMerge, UserX, ScanSearch, Crown, Zap,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,12 @@ const AdminDiagnostics = () => {
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeGroup, setMergeGroup] = useState<DuplicateAccountUser[] | null>(null);
   const [canonicalId, setCanonicalId] = useState<string>("");
+  const [inspectQuery, setInspectQuery] = useState("");
+  const [inspectSubmitted, setInspectSubmitted] = useState<string | null>(null);
+  const [consolidateOpen, setConsolidateOpen] = useState(false);
+  const [consolidateReport, setConsolidateReport] = useState<InspectAccountReport | null>(null);
+  const [consolidateTargetId, setConsolidateTargetId] = useState<string>("");
+  const [consolidateDeleteSources, setConsolidateDeleteSources] = useState(false);
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["admin-chat-ownership"],
@@ -80,6 +86,58 @@ const AdminDiagnostics = () => {
     setToUserId("");
     setIncludeMetaConfig(true);
     setReassignOpen(true);
+  };
+
+  const { data: inspect, isFetching: inspectFetching } = useQuery({
+    queryKey: ["admin-inspect", inspectSubmitted],
+    queryFn: () => adminApi.inspectAccount(inspectSubmitted!),
+    enabled: !!inspectSubmitted,
+  });
+
+  const runInspect = () => {
+    const v = inspectQuery.trim();
+    if (!v) return;
+    setInspectSubmitted(v);
+  };
+
+  const openConsolidate = (report: InspectAccountReport) => {
+    setConsolidateReport(report);
+    setConsolidateTargetId(report.suggestion?.canonicalUserId ?? report.users[0]?.id ?? "");
+    setConsolidateDeleteSources(false);
+    setConsolidateOpen(true);
+  };
+
+  const doConsolidate = async () => {
+    if (!consolidateReport || !consolidateTargetId) return;
+    const sourceUserIds = consolidateReport.users
+      .map((u) => u.id)
+      .filter((id) => id !== consolidateTargetId);
+    if (sourceUserIds.length === 0) {
+      toast.error("Target must differ from sources");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await adminApi.consolidateAccounts({
+        targetUserId: consolidateTargetId,
+        sourceUserIds,
+        deleteSources: consolidateDeleteSources,
+      });
+      const m = res.summary.moved;
+      toast.success(
+        `Consolidated · moved ${m.conversations} chats, ${m.contacts} contacts, ${m.messages} messages${res.summary.deletedUsers ? `, deleted ${res.summary.deletedUsers} source user(s)` : ""}`
+      );
+      setConsolidateOpen(false);
+      // Re-run inspect so the page updates
+      qc.invalidateQueries({ queryKey: ["admin-inspect", inspectSubmitted] });
+      qc.invalidateQueries({ queryKey: ["admin-chat-ownership"] });
+      qc.invalidateQueries({ queryKey: ["admin-duplicate-accounts"] });
+      qc.invalidateQueries({ queryKey: ["admin-metrics"] });
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const openMerge = (group: DuplicateAccountUser[]) => {
@@ -201,6 +259,132 @@ const AdminDiagnostics = () => {
         <TotalCard label="Total contacts" value={totals.contacts} icon={UsersIcon} color="indigo" />
         <TotalCard label="Total messages" value={totals.messages} icon={MessageSquare} color="magenta" />
         <TotalCard label="Workspaces with data" value={ownership.length} icon={Building2} color="orange" />
+      </div>
+
+      {/* Deep inspector — type any email / phone / user_id, see the complete
+       *  truth. The "I changed someone's plan, why isn't their inbox seeing
+       *  their chats?" debugger. */}
+      <div className="bg-white border-2 border-[#3C50E0] rounded-2xl shadow-[0_4px_0_0_#2533A8] mb-4 overflow-hidden">
+        <div className="flex items-center gap-2.5 px-4 py-3 bg-[#E4E8FF] border-b-2 border-[#3C50E0] flex-wrap">
+          <ScanSearch className="w-4 h-4 text-[#3C50E0]" />
+          <p className="text-[13px] font-black flex-1 min-w-0">Inspect account · see exactly what the DB knows</p>
+        </div>
+        <div className="px-4 py-3 flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[280px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#3C50E0]" />
+            <Input
+              value={inspectQuery}
+              onChange={(e) => setInspectQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && runInspect()}
+              placeholder="email substring · user.id · phone_number_id · display number"
+              className="pl-9 h-10 font-mono text-[12px]"
+            />
+          </div>
+          <Button onClick={runInspect} disabled={!inspectQuery.trim() || inspectFetching} className="bg-[#3C50E0] text-white shadow-[0_3px_0_0_#2533A8] hover:bg-[#2533A8]">
+            {inspectFetching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ScanSearch className="w-3.5 h-3.5" />} Inspect
+          </Button>
+        </div>
+        {inspect && (
+          <div className="border-t border-[#3C50E0]/30 px-4 py-3 bg-[#F5F7FF]">
+            {inspect.users.length === 0 ? (
+              <p className="text-[12px] font-semibold text-foreground/65 italic py-6 text-center">
+                No matches for "{inspect.query}"
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <p className="text-[11px] uppercase tracking-wider font-extrabold text-[#3C50E0]">
+                    Matched {inspect.users.length} user{inspect.users.length === 1 ? "" : "s"} · {inspect.metaConfigs.length} meta_config row{inspect.metaConfigs.length === 1 ? "" : "s"} · {inspect.conversations.length} conversation{inspect.conversations.length === 1 ? "" : "s"}
+                  </p>
+                  {inspect.users.length > 1 && inspect.suggestion && (
+                    <Button
+                      onClick={() => openConsolidate(inspect)}
+                      className="ml-auto h-8 bg-[#D4308E] text-white shadow-[0_3px_0_0_#A11A6A] hover:bg-[#C02680]"
+                    >
+                      <GitMerge className="w-3.5 h-3.5" /> Consolidate into one account
+                    </Button>
+                  )}
+                </div>
+
+                {/* Users grid */}
+                <div className="space-y-1.5 mb-3">
+                  {inspect.users.map((u) => (
+                    <div
+                      key={u.id}
+                      className={cn(
+                        "grid grid-cols-[1.4fr_80px_80px_80px_80px_120px] gap-2 items-center px-3 py-2 rounded-lg border",
+                        u.matchedDirectly ? "bg-white border-[#3C50E0]/50" : "bg-[#FFF1D6]/40 border-[#E8B968]/50"
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-extrabold truncate flex items-center gap-1.5">
+                          {u.name}
+                          {u.plan && (
+                            <span className="text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968]">
+                              {u.plan}
+                            </span>
+                          )}
+                          {!u.matchedDirectly && (
+                            <span className="text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#FFEFE0] text-[#B8420A]">
+                              via meta_config
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-[10px] font-mono text-foreground/60 truncate">{u.email}</p>
+                        <p className="text-[9px] font-mono text-foreground/40 truncate">{u.id}</p>
+                      </div>
+                      <span className="text-[12px] font-black text-[#0E8A4B] tabular-nums">{u.conversations}<span className="text-[8px] uppercase ml-0.5 font-extrabold">chat</span></span>
+                      <span className="text-[12px] font-extrabold text-foreground/80 tabular-nums">{u.contacts}<span className="text-[8px] uppercase ml-0.5 font-extrabold">cont</span></span>
+                      <span className="text-[12px] font-extrabold text-foreground/80 tabular-nums">{u.messages}<span className="text-[8px] uppercase ml-0.5 font-extrabold">msg</span></span>
+                      <span className="text-[10px] font-extrabold">
+                        {u.hasMetaConfig ? (
+                          <span className="text-[#0E8A4B]">✓ Meta</span>
+                        ) : (
+                          <span className="text-foreground/50">— Meta</span>
+                        )}
+                      </span>
+                      <span className="text-[10px] text-foreground/60 font-medium">{fmtDate(u.createdAt)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Meta config detail (only if any) */}
+                {inspect.metaConfigs.length > 0 && (
+                  <div className="rounded-lg bg-[#E6F7EE] border border-[#0E8A4B]/30 p-2.5 mb-3">
+                    <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#0A6E3C] mb-1.5">Meta configs</p>
+                    {inspect.metaConfigs.map((m) => (
+                      <div key={m.id} className="grid grid-cols-[1fr_140px_180px_80px] gap-2 items-center text-[11px] py-0.5">
+                        <span className="font-extrabold truncate">{m.userEmail || m.userId}</span>
+                        <span className="font-mono text-foreground/70">{m.displayPhoneNumber || "—"}</span>
+                        <span className="font-mono text-foreground/50 text-[9px]">{m.phoneNumberId}</span>
+                        <span className={cn("inline-flex w-fit text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full", m.enabled ? "bg-[#0E8A4B] text-white" : "bg-foreground/10 text-foreground/60")}>
+                          {m.enabled ? "live" : "off"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Recent conversations preview */}
+                {inspect.conversations.length > 0 && (
+                  <div className="rounded-lg bg-[#FFF1D6]/60 border border-[#E8B968]/60 p-2.5">
+                    <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#B8651A] mb-1.5">
+                      Recent conversations (first {inspect.conversations.length})
+                    </p>
+                    {inspect.conversations.slice(0, 8).map((c) => (
+                      <div key={c.id} className="grid grid-cols-[1fr_120px_80px_100px] gap-2 items-center text-[11px] py-0.5">
+                        <span className="font-extrabold truncate">{c.contactName ?? "(no name)"}</span>
+                        <span className="font-mono text-foreground/70 truncate">{c.contactPhone ?? "—"}</span>
+                        <span className="text-[10px] text-foreground/60 uppercase">{c.status}</span>
+                        <span className="font-mono text-foreground/40 text-[9px] truncate">{c.ownerId.slice(0, 12)}…</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Duplicate accounts — surface FIRST. This is the root cause of
@@ -471,6 +655,104 @@ const AdminDiagnostics = () => {
           </>
         )}
       </div>
+
+      {/* Consolidate dialog — same idea as Merge but works for unrelated
+       *  user_ids found via inspector (e.g., chats orphaned under an old
+       *  user_id when account was recreated). */}
+      <Dialog open={consolidateOpen} onOpenChange={setConsolidateOpen}>
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#D4308E] to-[#A11A6A] text-white flex items-center justify-center shadow-md">
+                <GitMerge className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div>
+                <DialogTitle>Consolidate accounts</DialogTitle>
+                <DialogDescription>
+                  Pick the target user — all data owned by the others gets moved here.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {consolidateReport && (
+            <div className="space-y-3 mt-2">
+              <p className="text-[11px] uppercase tracking-wider font-extrabold text-foreground/60">Target (the one to keep)</p>
+              <div className="space-y-1.5">
+                {consolidateReport.users.map((u) => {
+                  const isTarget = consolidateTargetId === u.id;
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => setConsolidateTargetId(u.id)}
+                      className={cn(
+                        "w-full text-left p-3 rounded-xl border-2 transition-all",
+                        isTarget
+                          ? "border-[#0E8A4B] bg-[#E6F7EE] ring-4 ring-[#0E8A4B]/15 shadow-[0_3px_0_0_#0A6E3C]"
+                          : "border-[#E8B968]/60 bg-white hover:border-[#E8B968] hover:-translate-y-0.5"
+                      )}
+                    >
+                      <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-black truncate flex items-center gap-2 flex-wrap">
+                            {u.name}
+                            {isTarget && (
+                              <span className="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#0E8A4B] text-white">
+                                Target
+                              </span>
+                            )}
+                            {u.plan && (
+                              <span className="text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968]">
+                                {u.plan}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-[10px] font-mono text-foreground/55 truncate">{u.email}</p>
+                          <p className="text-[9px] font-mono text-foreground/40 truncate">{u.id}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-extrabold text-[#0E8A4B] tabular-nums">{u.conversations} chats</p>
+                          <p className="text-[9px] text-foreground/55 font-medium tabular-nums">{u.contacts}c · {u.messages}m</p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <label className="flex items-start gap-2.5 p-3 rounded-xl border-2 border-[#FF6A1F]/40 bg-[#FFEFE0]/50 cursor-pointer transition hover:bg-[#FFEFE0]">
+                <Checkbox
+                  checked={consolidateDeleteSources}
+                  onCheckedChange={(v) => setConsolidateDeleteSources(Boolean(v))}
+                  className="mt-0.5"
+                />
+                <div>
+                  <p className="text-[12px] font-extrabold leading-tight">Delete source user rows after move</p>
+                  <p className="text-[11px] text-foreground/60 font-medium mt-0.5">
+                    Only check if you're certain — cascades BetterAuth account/session. Leave unchecked to keep source rows around (data already moved; they'll just be empty husks).
+                  </p>
+                </div>
+              </label>
+
+              <div className="flex items-start gap-2 text-[11px] text-[#B8420A] font-semibold p-2.5 rounded-lg bg-[#FFEFE0] border border-[#FF6A1F]/40">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>Single transaction. All chats, contacts, messages, deals, tasks, campaigns, broadcasts, upgrade requests, meta_config + profile move to the target. Cannot be auto-undone.</span>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConsolidateOpen(false)}>Cancel</Button>
+            <Button
+              onClick={doConsolidate}
+              disabled={submitting || !consolidateTargetId}
+              className="bg-[#D4308E] text-white shadow-[0_4px_0_0_#A11A6A] hover:bg-[#C02680]"
+            >
+              {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Consolidating…</> : <><GitMerge className="w-3.5 h-3.5" /> Move {(consolidateReport?.users.length ?? 1) - 1} → target</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Merge accounts dialog */}
       <Dialog open={mergeOpen} onOpenChange={setMergeOpen}>
