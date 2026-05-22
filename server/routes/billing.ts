@@ -161,7 +161,31 @@ app.get("/billing/cashfree/status", async (c) => {
   });
 });
 
+/* Deploy-check ping — proves the build deployed by Render is current.
+ * Bumped manually each time we ship a Cashfree change. Frontend can curl
+ * this; admin /health surfaces it.
+ *
+ * If this returns the OLD revision string, Render hasn't redeployed yet.
+ */
+app.get("/billing/cashfree/ping", async (c) => {
+  return c.json({
+    ok: true,
+    revision: "cashfree-r2-defensive-wrap",
+    configured: cashfreeIsConfigured(),
+    mode: cashfreeIsConfigured() ? cashfreeMode() : null,
+    hasAppId: !!process.env.CASHFREE_APP_ID,
+    hasSecret: !!process.env.CASHFREE_SECRET_KEY,
+    serverTime: new Date().toISOString(),
+  });
+});
+
 app.post("/billing/cashfree/create-order", async (c) => {
+  // Outer try/catch — without this, any throw outside the inner cfCreateOrder
+  // try (e.g. a DB schema mismatch, a typo, an env access) escapes to Hono's
+  // default handler and Render's edge returns a bare "502 Bad Gateway" with
+  // no JSON body, so the frontend can only show "Request failed (502)".
+  // The defensive wrap turns every failure into a structured JSON response.
+  try {
   if (!cashfreeIsConfigured()) {
     return c.json({ error: "Cashfree not configured on this server" }, 503);
   }
@@ -278,6 +302,17 @@ app.post("/billing/cashfree/create-order", async (c) => {
     mode: cashfreeMode(),
     amountInr: amount,
   });
+  } catch (err) {
+    // Catch-all — DB error, env error, anything that escaped the inner try.
+    // Without this, Hono propagates the throw and Render's edge gives the
+    // browser a bare "502 Bad Gateway" with no JSON body.
+    console.error("[cashfree create-order outer]", err);
+    return c.json({
+      error: "server_error",
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack?.split("\n").slice(0, 4).join(" · ") : null,
+    }, 500);
+  }
 });
 
 app.get("/billing/cashfree/verify/:orderId", async (c) => {
