@@ -56,6 +56,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useAudioContext, playDrop, playWon, playLost } from "@/lib/sound-effects";
+import { useMuteState } from "@/hooks/useNotificationSound";
 import {
   useDeals,
   useCreateDeal,
@@ -670,6 +672,12 @@ export const DealsPage = () => {
   const closed = deals.filter((d) => d.stage === "won" || d.stage === "lost").length;
   const conversion = closed === 0 ? 0 : Math.round((deals.filter((d) => d.stage === "won").length / closed) * 100);
 
+  // Sound effects for drop interactions — Won gets a celebratory arpeggio,
+  // Lost a soft descending two-tone, everything else a satisfying thunk.
+  // Respects the global mute toggle (same flag the inbox uses).
+  const audioCtxRef = useAudioContext();
+  const [muted] = useMuteState();
+
   const handleDragStart = (e: DragStartEvent) => setDraggingId(String(e.active.id));
   const handleDragEnd = (e: DragEndEvent) => {
     setDraggingId(null);
@@ -688,6 +696,16 @@ export const DealsPage = () => {
       ...(newStage === "won" ? { closed_at: new Date().toISOString() } : {}),
     });
     if (newStage === "won") toast.success(`💰 ${fmtINR(Number(deal.value))} closed!`);
+
+    // Play stage-appropriate sound. Don't auto-init the AudioContext here —
+    // useAudioContext already wired it up to the first user gesture, so by
+    // the time someone is dragging cards, ctx is live.
+    if (!muted && audioCtxRef.current) {
+      const ctx = audioCtxRef.current;
+      if (newStage === "won") playWon(ctx);
+      else if (newStage === "lost") playLost(ctx);
+      else playDrop(ctx);
+    }
   };
 
   const draggingDeal = draggingId ? deals.find((d) => d.id === draggingId) ?? null : null;
