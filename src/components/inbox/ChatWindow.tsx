@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ConversationWithContact, formatTime, initialsFor } from "@/lib/inbox-types";
+import { ConversationWithContact, formatTime, initialsFor, splitTextWithLinks } from "@/lib/inbox-types";
 import type { MessageStatus as MsgStatus } from "@/lib/api-types";
 import { useMessages, useSendMessage } from "@/hooks/useInboxData";
 import { toast } from "sonner";
@@ -502,7 +502,27 @@ export const ChatWindow = ({ conversation }: Props) => {
                       />
                     </div>
                   ) : msg.body ? (
-                    <p className="text-[14px] leading-[1.45] whitespace-pre-wrap text-foreground">{msg.body}</p>
+                    <p className="text-[14px] leading-[1.45] whitespace-pre-wrap text-foreground break-words">
+                      {splitTextWithLinks(msg.body).map((seg, i) =>
+                        seg.kind === "link" ? (
+                          <a
+                            key={i}
+                            href={seg.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className={cn(
+                              "underline decoration-2 underline-offset-2 font-semibold transition-colors break-all",
+                              isOutbound ? "text-[#0B5CFF] hover:text-[#0040D0]" : "text-[#0E8A4B] hover:text-[#0A6E3C]"
+                            )}
+                          >
+                            {seg.label}
+                          </a>
+                        ) : (
+                          <span key={i}>{seg.value}</span>
+                        )
+                      )}
+                    </p>
                   ) : null}
                   {row.isGroupTail && (
                     <div className={cn(
@@ -598,59 +618,87 @@ export const ChatWindow = ({ conversation }: Props) => {
         </button>
       )}
 
-      {/* Input */}
-      <div className="px-5 py-3 border-t border-border bg-card flex items-end gap-2 flex-shrink-0">
-        <button
-          onClick={() => setShowTemplates(!showTemplates)}
+      {/* Composer — single brand-styled card that wraps action chips,
+          textarea and the send button. Replaces the flat row that put the
+          textarea in muted gray with no visual frame around the whole
+          input area. */}
+      <div className="px-4 py-3 border-t-2 border-[#E8B968] bg-gradient-to-b from-[#FFF6E8]/40 to-card flex-shrink-0">
+        <div
           className={cn(
-            "h-10 px-2.5 rounded-xl flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider transition-colors flex-shrink-0",
-            showTemplates ? "bg-primary-soft text-primary" : "hover:bg-muted text-muted-foreground hover:text-foreground"
+            "rounded-2xl bg-white border-2 transition-all shadow-[0_3px_0_0_#E8B968]",
+            input.length > 0 ? "border-[#0E8A4B] shadow-[0_3px_0_0_#0A6E3C]" : "border-[#E8B968]"
           )}
-          aria-label="Quick reply templates"
         >
-          <Wand2 className="w-3.5 h-3.5" />
-          Templates
-          <ChevronDown className={cn("w-3 h-3 transition-transform", showTemplates && "rotate-180")} />
-        </button>
-        <button
-          onClick={() => setProductOpen(true)}
-          className="h-10 px-2.5 rounded-xl flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-          aria-label="Send digital product"
-          title="Deliver a digital product"
-        >
-          <Package className="w-3.5 h-3.5" />
-          Send product
-        </button>
-        <div className="flex-1 relative">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={
-              sendMode === "meta" && windowExpired
-                ? "Outside 24-hour window — send a template instead"
-                : sendMode === "dryrun"
-                  ? "Type a message…  (dry-run mode — not actually sent)"
-                  : "Type a message…  Enter to send · Shift + Enter for new line"
-            }
-            rows={1}
-            className="w-full resize-none rounded-2xl bg-muted border border-transparent px-4 py-2.5 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 focus:bg-card transition-all"
-          />
+          {/* Top row: action chips */}
+          <div className="flex items-center gap-1.5 px-2.5 pt-2 pb-1 flex-wrap">
+            <button
+              onClick={() => setShowTemplates(!showTemplates)}
+              className={cn(
+                "h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider transition-all border",
+                showTemplates
+                  ? "bg-[#FFD23F] text-[#3D1A00] border-[#E8B400] shadow-[0_2px_0_0_#B8860B]"
+                  : "bg-[#FFF1D6] text-[#B8651A] border-[#E8B968] hover:bg-[#FFE9BD] hover:-translate-y-0.5"
+              )}
+              aria-label="Quick reply templates"
+            >
+              <Wand2 className="w-3 h-3" strokeWidth={2.5} />
+              Templates
+              <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", showTemplates && "rotate-180")} />
+            </button>
+            <button
+              onClick={() => setProductOpen(true)}
+              className="h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968] hover:bg-[#FFE9BD] hover:-translate-y-0.5 transition-all"
+              aria-label="Send digital product"
+              title="Deliver a digital product"
+            >
+              <Package className="w-3 h-3" strokeWidth={2.5} />
+              Send product
+            </button>
+
+            <div className="flex-1" />
+
+            {/* Tiny char counter — appears only when typing */}
+            {input.length > 0 && (
+              <span className="text-[10px] font-mono font-extrabold text-foreground/40 tabular-nums pr-1">
+                {input.length}
+              </span>
+            )}
+          </div>
+
+          {/* Textarea + send */}
+          <div className="flex items-end gap-2 px-2.5 pb-2">
+            <div className="flex-1 relative">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder={
+                  sendMode === "meta" && windowExpired
+                    ? "Outside 24-hour window — send a template instead"
+                    : sendMode === "dryrun"
+                      ? "Type a message…  (dry-run — not actually sent)"
+                      : "Type a message…  Enter to send · Shift + Enter for new line"
+                }
+                rows={1}
+                className="w-full resize-none bg-transparent border-0 px-2 py-1.5 text-[14px] placeholder:text-foreground/35 focus:outline-none transition-all leading-relaxed"
+              />
+            </div>
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || sendMut.isPending}
+              aria-label="Send message"
+              className={cn(
+                "w-11 h-11 rounded-xl flex items-center justify-center transition-all flex-shrink-0 border-2",
+                input.trim() && !sendMut.isPending
+                  ? "bg-[#0E8A4B] text-white border-[#0A6E3C] shadow-[0_3px_0_0_#0A6E3C] hover:-translate-y-0.5 hover:bg-[#0A6E3C] active:translate-y-0 active:shadow-[0_1px_0_0_#0A6E3C]"
+                  : "bg-[#FFF1D6] text-foreground/35 border-[#E8B968]/50 shadow-[0_2px_0_0_#E8B968]/50"
+              )}
+            >
+              {sendMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" strokeWidth={2.5} />}
+            </button>
+          </div>
         </div>
-        <button
-          onClick={handleSend}
-          disabled={!input.trim() || sendMut.isPending}
-          aria-label="Send message"
-          className={cn(
-            "w-10 h-10 rounded-xl flex items-center justify-center transition-all flex-shrink-0",
-            input.trim() && !sendMut.isPending
-              ? "bg-gradient-to-br from-primary to-primary-glow text-primary-foreground hover:shadow-lg hover:shadow-primary/40 hover:-translate-y-0.5 active:scale-95"
-              : "bg-muted text-muted-foreground"
-          )}
-        >
-          {sendMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-        </button>
       </div>
 
       {/* Send Product Dialog */}

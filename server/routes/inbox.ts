@@ -169,6 +169,26 @@ app.patch("/conversations/:id", async (c) => {
   return c.json(row);
 });
 
+/* Delete conversation — and all of its messages. We don't soft-delete: if
+ * an operator removes a chat from their inbox they expect it gone, not
+ * stuck in a hidden archive. Messages cascade via FK. */
+app.delete("/conversations/:id", async (c) => {
+  const id = c.req.param("id");
+  // First confirm ownership; refuse silently 404 otherwise so we never reveal
+  // existence of a conversation belonging to another workspace.
+  const [existing] = await db.select({ id: conversation.id })
+    .from(conversation)
+    .where(and(eq(conversation.id, id), eq(conversation.ownerId, c.var.userId)))
+    .limit(1);
+  if (!existing) return c.json({ error: "Not found" }, 404);
+
+  // Messages reference conversation_id with onDelete: cascade per schema,
+  // so deleting the conversation also wipes its messages in a single query.
+  await db.delete(conversation)
+    .where(and(eq(conversation.id, id), eq(conversation.ownerId, c.var.userId)));
+  return c.json({ ok: true });
+});
+
 // ============================================================
 // MESSAGES (per conversation)
 // ============================================================

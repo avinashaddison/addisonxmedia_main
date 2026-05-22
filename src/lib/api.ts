@@ -94,6 +94,7 @@ export const api = {
   listConversations: () => get<any[]>("/conversations"),
   createConversation: (data: any) => post<any>("/conversations", data),
   updateConversation: (id: string, data: any) => patch<any>(`/conversations/${id}`, data),
+  deleteConversation: (id: string) => del(`/conversations/${id}`),
   inboxStatus: () => get<{
     meta_connected: boolean;
     meta_enabled: boolean;

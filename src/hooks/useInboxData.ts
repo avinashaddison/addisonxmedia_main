@@ -80,6 +80,25 @@ export const useCreateConversation = () => {
 };
 
 // =====================
+// DELETE CONVERSATION
+// =====================
+export const useDeleteConversation = () => {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: (conversationId: string) => api.deleteConversation(conversationId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["conversations", user?.id] });
+      toast.success("Chat deleted");
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Could not delete chat");
+    },
+  });
+};
+
+// =====================
 // MARK CONVERSATION READ
 // =====================
 export const useMarkRead = () => {

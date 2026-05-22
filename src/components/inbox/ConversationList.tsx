@@ -1,8 +1,21 @@
-import { Search, Bell, BellOff } from "lucide-react";
+import { Search, Bell, BellOff, Trash2, CheckCheck, Flame, Snowflake, Copy, ExternalLink, MessageCircleOff } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { ConversationWithContact, tagLabel, initialsFor, formatRelative } from "@/lib/inbox-types";
+import { ConversationWithContact, tagLabel, initialsFor, formatRelative, avatarUrlFor, splitTextWithLinks } from "@/lib/inbox-types";
 import { NewConversationDialog } from "./NewConversationDialog";
+import {
+  ContextMenu, ContextMenuContent, ContextMenuItem,
+  ContextMenuSeparator, ContextMenuTrigger, ContextMenuLabel,
+} from "@/components/ui/context-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useDeleteConversation, useMarkRead } from "@/hooks/useInboxData";
+import { api } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 type Props = {
   conversations: ConversationWithContact[];
@@ -26,7 +39,36 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("All");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ConversationWithContact | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const deleteMut = useDeleteConversation();
+  const markReadMut = useMarkRead();
+
+  const updateTag = async (id: string, tag: "hot" | "warm" | "cold") => {
+    try {
+      await api.updateContact(id, { tag });
+      qc.invalidateQueries({ queryKey: ["conversations", user?.id] });
+      toast.success(`Marked ${tag}`);
+    } catch (e) { toast.error(String(e)); }
+  };
+
+  const markUnread = async (id: string) => {
+    try {
+      await api.updateConversation(id, { unread_count: 1 });
+      qc.invalidateQueries({ queryKey: ["conversations", user?.id] });
+    } catch (e) { toast.error(String(e)); }
+  };
+
+  const closeConversation = async (id: string) => {
+    try {
+      await api.updateConversation(id, { status: "closed" });
+      qc.invalidateQueries({ queryKey: ["conversations", user?.id] });
+      toast.success("Conversation closed");
+    } catch (e) { toast.error(String(e)); }
+  };
 
   const filtered = conversations.filter((c) => {
     // Defensive: server uses leftJoin, so contact COULD be null on data races.
@@ -177,35 +219,57 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
           const initials = initialsFor(conv.contact.name);
           const dot = statusDot(conv.contact.tag, conv.unread_count > 0);
           const isHot = conv.contact.tag === "hot";
+          const dicebear = avatarUrlFor(conv.contact.phone || conv.contact.id, conv.contact.name);
+          const preview = conv.last_message_preview || "";
+          const hasLink = preview.match(/(https?:\/\/|www\.)/i);
 
           return (
-            <button
-              key={conv.id}
-              onClick={() => onSelect(conv.id)}
-              onMouseEnter={() => setHoveredId(conv.id)}
-              onMouseLeave={() => setHoveredId(null)}
-              className={cn(
-                "relative w-full flex items-start gap-3 px-4 py-3 text-left transition-all border-b border-[#E8B968]/40 group",
-                isActive
-                  ? "bg-[#E6F7EE]"
-                  : isHot
-                    ? "hover:bg-[#FCE5F0] bg-[#FCE5F0]/40"
-                    : "hover:bg-[#FFF6E8]"
-              )}
-            >
+            <ContextMenu key={conv.id}>
+              <ContextMenuTrigger asChild>
+                <button
+                  onClick={() => onSelect(conv.id)}
+                  onMouseEnter={() => setHoveredId(conv.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  className={cn(
+                    "relative w-full flex items-start gap-3 px-4 py-3 text-left transition-all border-b border-[#E8B968]/40 group",
+                    isActive
+                      ? "bg-[#E6F7EE]"
+                      : isHot
+                        ? "hover:bg-[#FCE5F0] bg-[#FCE5F0]/40"
+                        : "hover:bg-[#FFF6E8]"
+                  )}
+                >
               {isActive && (
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-10 rounded-r-full bg-[#0E8A4B]" />
               )}
 
-              {/* Avatar */}
+              {/* Avatar — DiceBear gradient initials fallback; we never get
+                  WhatsApp profile pictures from the webhook, so we draw a
+                  consistent colored initials avatar keyed off the contact's
+                  phone number. Falls back to a colored circle with initials
+                  if the network image fails. */}
               <div className="relative flex-shrink-0">
                 <div className={cn(
-                  "w-11 h-11 rounded-full flex items-center justify-center text-[12px] font-extrabold text-white shadow-md transition-transform group-hover:scale-105",
-                  isHot ? "bg-[#D4308E]" :
-                  conv.contact.tag === "warm" ? "bg-[#FF6A1F]" :
-                  "bg-[#3C50E0]"
+                  "w-11 h-11 rounded-full overflow-hidden shadow-md transition-transform group-hover:scale-105 ring-2",
+                  isHot ? "ring-[#D4308E]/40" :
+                  conv.contact.tag === "warm" ? "ring-[#FF6A1F]/40" :
+                  "ring-[#3C50E0]/30"
                 )}>
-                  {initials}
+                  <img
+                    src={dicebear}
+                    alt={conv.contact.name}
+                    loading="lazy"
+                    className="w-full h-full block"
+                    onError={(e) => {
+                      // Network/CDN fail — swap to a solid color circle with initials
+                      const el = e.currentTarget;
+                      el.style.display = "none";
+                      const parent = el.parentElement!;
+                      parent.classList.add("flex","items-center","justify-center","text-white","text-[12px]","font-extrabold");
+                      parent.classList.add(isHot ? "bg-[#D4308E]" : conv.contact.tag === "warm" ? "bg-[#FF6A1F]" : "bg-[#3C50E0]");
+                      parent.textContent = initials;
+                    }}
+                  />
                 </div>
                 <span
                   title={dot.label}
@@ -243,7 +307,20 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
                     isHovered ? "whitespace-normal line-clamp-2 text-foreground" : "truncate",
                     conv.unread_count > 0 ? "text-foreground font-medium" : "text-muted-foreground"
                   )}>
-                    {conv.last_message_preview || "No messages yet"}
+                    {hasLink && preview ? (
+                      <span className="inline-flex items-center gap-1">
+                        <ExternalLink className="w-2.5 h-2.5 inline text-[#3C50E0] flex-shrink-0" />
+                        {splitTextWithLinks(preview).map((seg, i) =>
+                          seg.kind === "link" ? (
+                            <span key={i} className="text-[#3C50E0] underline decoration-1 underline-offset-2">{seg.label}</span>
+                          ) : (
+                            <span key={i}>{seg.value}</span>
+                          )
+                        )}
+                      </span>
+                    ) : (
+                      preview || "No messages yet"
+                    )}
                   </p>
                   {conv.unread_count > 0 && (
                     <span className={cn(
@@ -265,10 +342,106 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
                   <span className="text-[10px] text-muted-foreground font-mono truncate">{conv.contact.phone}</span>
                 </div>
               </div>
-            </button>
+                </button>
+              </ContextMenuTrigger>
+
+              {/* Right-click menu — mark read/unread, tag changes, copy phone,
+                  close, delete. Brand-styled via the shared ContextMenu prims. */}
+              <ContextMenuContent className="w-60">
+                <ContextMenuLabel className="text-[10px] uppercase tracking-wider font-extrabold text-foreground/55 truncate">
+                  {conv.contact.name}
+                </ContextMenuLabel>
+                <ContextMenuSeparator />
+                {conv.unread_count > 0 ? (
+                  <ContextMenuItem onClick={() => markReadMut.mutate(conv.id)}>
+                    <CheckCheck className="w-3.5 h-3.5" /> Mark as read
+                  </ContextMenuItem>
+                ) : (
+                  <ContextMenuItem onClick={() => markUnread(conv.id)}>
+                    <Bell className="w-3.5 h-3.5" /> Mark as unread
+                  </ContextMenuItem>
+                )}
+                <ContextMenuSeparator />
+                <ContextMenuLabel className="text-[9px] uppercase tracking-wider font-extrabold text-foreground/40">
+                  Lead tag
+                </ContextMenuLabel>
+                <ContextMenuItem onClick={() => updateTag(conv.contact.id, "hot")}>
+                  <Flame className="w-3.5 h-3.5 text-[#D4308E]" /> Mark Hot
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => updateTag(conv.contact.id, "warm")}>
+                  <Flame className="w-3.5 h-3.5 text-[#FF6A1F]" /> Mark Warm
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => updateTag(conv.contact.id, "cold")}>
+                  <Snowflake className="w-3.5 h-3.5 text-[#3C50E0]" /> Mark Cold
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  onClick={() => {
+                    navigator.clipboard.writeText(conv.contact.phone);
+                    toast.success("Phone copied");
+                  }}
+                >
+                  <Copy className="w-3.5 h-3.5" /> Copy phone number
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onClick={() => {
+                    const url = `https://wa.me/${conv.contact.phone.replace(/[^\d]/g, "")}`;
+                    window.open(url, "_blank", "noopener,noreferrer");
+                  }}
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Open in WhatsApp.com
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                {conv.status !== "closed" && (
+                  <ContextMenuItem onClick={() => closeConversation(conv.id)}>
+                    <MessageCircleOff className="w-3.5 h-3.5" /> Close conversation
+                  </ContextMenuItem>
+                )}
+                <ContextMenuItem
+                  className="text-[#D4308E] focus:text-[#D4308E] focus:bg-[#FCE5F0]"
+                  onClick={() => setDeleteTarget(conv)}
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete chat
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           );
         })}
       </div>
+
+      {/* Delete confirmation — destructive, so guard with an alert dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this chat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget && (
+                <>
+                  Removes the conversation with <span className="font-bold">{deleteTarget.contact.name}</span> (<span className="font-mono">{deleteTarget.contact.phone}</span>) and all messages inside it.
+                  <br />
+                  The contact record stays in your Contacts list — only the chat is deleted.
+                  <br /><br />
+                  <span className="text-[#B8420A] font-semibold">This cannot be undone.</span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[#D4308E] text-white shadow-[0_4px_0_0_#A11A6A] hover:bg-[#C02680]"
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteMut.mutate(deleteTarget.id);
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete chat
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

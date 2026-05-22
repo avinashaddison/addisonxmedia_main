@@ -39,3 +39,39 @@ export const formatRelative = (iso: string | null | undefined) => {
 // HH:MM AM/PM in local time, used in chat bubbles
 export const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
+
+// URL regex covers http(s) + www. — anchored on word boundaries so
+// punctuation following a URL doesn't end up swallowed into the link.
+const URL_RE = /\b((?:https?:\/\/|www\.)[^\s<>"']+[^\s<>"',.;:!?)\]])/gi;
+
+/**
+ * Split a string into alternating text + URL segments. Lets us render
+ * URL fragments as <a> tags inside an otherwise-plain message body without
+ * dangerouslySetInnerHTML (and without trusting any HTML in the message).
+ */
+export type TextSegment = { kind: "text"; value: string } | { kind: "link"; href: string; label: string };
+
+export const splitTextWithLinks = (body: string): TextSegment[] => {
+  if (!body) return [];
+  const segments: TextSegment[] = [];
+  let last = 0;
+  for (const m of body.matchAll(URL_RE)) {
+    const idx = m.index ?? 0;
+    if (idx > last) segments.push({ kind: "text", value: body.slice(last, idx) });
+    const matched = m[1];
+    const href = matched.startsWith("www.") ? `https://${matched}` : matched;
+    segments.push({ kind: "link", href, label: matched });
+    last = idx + matched.length;
+  }
+  if (last < body.length) segments.push({ kind: "text", value: body.slice(last) });
+  return segments;
+};
+
+/** DiceBear-based avatar URL. Deterministic per contact (phone) so the same
+ *  contact always gets the same avatar across sessions. Note: Meta's webhook
+ *  payload doesn't expose WhatsApp profile pictures, so this is the next-best
+ *  thing — colorful initials avatars instead of plain text-on-color circles. */
+export const avatarUrlFor = (seed: string, name: string): string => {
+  const trimmed = (name ?? "").trim() || "?";
+  return `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(seed || trimmed)}&backgroundType=gradientLinear&fontWeight=700&fontSize=42`;
+};
