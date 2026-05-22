@@ -225,9 +225,32 @@ app.post("/billing/cashfree/create-order", async (c) => {
   const amount = priceFor(plan as PlanKey, cycle as BillingCycle);
   const orderId = `addisonx_${userId.slice(0, 8)}_${Date.now()}`;
 
-  // Build absolute return URL from the request's origin (works dev + prod
-  // without env config gymnastics).
-  const origin = new URL(c.req.url).origin;
+  // Build absolute return + notify URLs. Cashfree v2023-08-01 REQUIRES https://
+  // — Render terminates TLS at the edge so c.req.url is `http://` internally,
+  // which Cashfree rejects with `order_meta.return_url_invalid`. We honour
+  // x-forwarded-proto (set by every standard reverse proxy: Render, Vercel,
+  // Cloudflare) and fall back to the request URL only when not present
+  // (e.g. local dev). Forces https:// in production unconditionally via
+  // the PUBLIC_ORIGIN escape hatch if needed.
+  const publicOrigin = (process.env.PUBLIC_ORIGIN ?? "").replace(/\/+$/, "");
+  let origin: string;
+  if (publicOrigin) {
+    origin = publicOrigin;
+  } else {
+    const forwardedProto = c.req.header("x-forwarded-proto");
+    const forwardedHost = c.req.header("x-forwarded-host") ?? c.req.header("host");
+    if (forwardedProto && forwardedHost) {
+      origin = `${forwardedProto.split(",")[0].trim()}://${forwardedHost}`;
+    } else {
+      origin = new URL(c.req.url).origin;
+    }
+  }
+  // Belt-and-braces — if origin still came out http and we look like a real
+  // public host (not localhost), upgrade it so Cashfree accepts it. This
+  // prevents the http:// gotcha if a reverse proxy ever forgets x-forwarded.
+  if (origin.startsWith("http://") && !/^https?:\/\/(localhost|127\.0\.0\.1)/.test(origin)) {
+    origin = "https://" + origin.slice("http://".length);
+  }
   const returnUrl = `${origin}/app/upgrade/return?order_id={order_id}`;
   const notifyUrl = `${origin}/api/webhooks/cashfree`;
 
