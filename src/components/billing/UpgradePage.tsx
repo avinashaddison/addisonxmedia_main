@@ -130,10 +130,20 @@ export const UpgradePage = () => {
       } catch (e) {
         // Server returned 502 with a structured body that includes Cashfree's
         // real error message. Show it instead of "Request failed (502)".
-        const err = e as { body?: { message?: string; hint?: string; code?: string; type?: string }; message?: string };
+        const err = e as { body?: { message?: string; hint?: string; code?: string; type?: string; stack?: string }; message?: string; status?: number };
+        // Always console.error so we can read the exact body in DevTools
+        // even if the toast truncates or the user can't screenshot it.
+        // eslint-disable-next-line no-console
+        console.error("[cashfree-checkout] error", { status: err?.status, body: err?.body, message: err?.message });
         const msg = err?.body?.message || err?.message || "Cashfree request failed";
         const hint = err?.body?.hint;
-        toast.error(hint ? `${msg} · ${hint}` : msg, { duration: 7000 });
+        const code = err?.body?.code;
+        const display = [
+          msg,
+          code ? `(code: ${code})` : null,
+          hint,
+        ].filter(Boolean).join(" · ");
+        toast.error(display, { duration: 9000 });
         setPendingPlan(null);
         return;
       }
