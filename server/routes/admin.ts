@@ -3,9 +3,9 @@ import { db } from "../db/client";
 import {
   user, contact, conversation, message, deal, campaign, broadcast, task,
   adminAuditLog, impersonationSession, metaConfig, systemSetting, upgradeRequest,
-  webhookOrphan,
+  webhookOrphan, profile,
 } from "../db/schema";
-import { eq, desc, sql, and, gt, isNull, or, ilike, count, inArray } from "drizzle-orm";
+import { eq, desc, asc, sql, and, gt, isNull, or, ilike, count, inArray } from "drizzle-orm";
 import { requireAdmin, auditLog, type AdminVariables } from "../middleware/admin";
 import { sendMail } from "../lib/mailer";
 import { staffInviteTemplate, suspensionTemplate, refundTemplate } from "../lib/email-templates";
@@ -821,6 +821,165 @@ admin.get("/api/admin/diagnostics/chat-ownership", requireAdmin(["super_admin", 
     .where(and(gt(webhookOrphan.createdAt, since24h), isNull(webhookOrphan.claimedUserId)));
 
   return c.json({ ownership, metaConfigs: metaRows, unroutedWebhooks24h: Number(orphan24h) });
+});
+
+/* Duplicate accounts — multiple `user` rows sharing the same email (case-
+ * insensitive). This is the root cause of "I don't see my chats" — the
+ * session is logged into one user_id, the chats live on a sibling user_id
+ * with the same email. Merge-action moves all owned data to a chosen
+ * canonical user and deletes the duplicates. */
+admin.get("/api/admin/diagnostics/duplicate-accounts", requireAdmin(["super_admin", "moderator", "billing"]), async (c) => {
+  // Pull all users, group client-side by lower(email). Cheap at the scale
+  // we're at and avoids fiddly array_agg type-narrowing through Drizzle.
+  const allUsers = await db.select({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    plan: user.plan,
+    status: user.accountStatus,
+    createdAt: user.createdAt,
+  }).from(user).orderBy(asc(user.createdAt));
+
+  const groupsByEmail = new Map<string, typeof allUsers>();
+  for (const u of allUsers) {
+    const key = u.email.toLowerCase();
+    const existing = groupsByEmail.get(key) ?? [];
+    existing.push(u);
+    groupsByEmail.set(key, existing);
+  }
+  const duplicateGroups = Array.from(groupsByEmail.entries())
+    .filter(([, users]) => users.length > 1);
+
+  if (duplicateGroups.length === 0) return c.json({ groups: [] });
+
+  // Per-user counts so admin can pick a canonical intelligently.
+  const allIds = duplicateGroups.flatMap(([, users]) => users.map((u) => u.id));
+  const [convCounts, contactCounts, messageCounts, metaCounts] = await Promise.all([
+    db.select({ ownerId: conversation.ownerId, n: count(conversation.id) })
+      .from(conversation).where(inArray(conversation.ownerId, allIds))
+      .groupBy(conversation.ownerId),
+    db.select({ ownerId: contact.ownerId, n: count(contact.id) })
+      .from(contact).where(inArray(contact.ownerId, allIds))
+      .groupBy(contact.ownerId),
+    db.select({ ownerId: message.ownerId, n: count(message.id) })
+      .from(message).where(inArray(message.ownerId, allIds))
+      .groupBy(message.ownerId),
+    db.select({ userId: metaConfig.userId, n: count(metaConfig.id) })
+      .from(metaConfig).where(inArray(metaConfig.userId, allIds))
+      .groupBy(metaConfig.userId),
+  ]);
+
+  const byId = new Map<string, { conversations: number; contacts: number; messages: number; metaConfigs: number }>();
+  for (const id of allIds) byId.set(id, { conversations: 0, contacts: 0, messages: 0, metaConfigs: 0 });
+  for (const r of convCounts)    byId.get(r.ownerId)!.conversations = Number(r.n);
+  for (const r of contactCounts) byId.get(r.ownerId)!.contacts      = Number(r.n);
+  for (const r of messageCounts) byId.get(r.ownerId)!.messages      = Number(r.n);
+  for (const r of metaCounts)    byId.get(r.userId)!.metaConfigs    = Number(r.n);
+
+  const groups = duplicateGroups.map(([emailNorm, users]) => ({
+    emailNorm,
+    users: users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.name ?? "—",
+      plan: u.plan ?? null,
+      status: u.status ?? null,
+      createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt),
+      ...(byId.get(u.id) ?? { conversations: 0, contacts: 0, messages: 0, metaConfigs: 0 }),
+    })),
+  }));
+
+  return c.json({ groups });
+});
+
+admin.post("/api/admin/diagnostics/merge-accounts", requireAdmin(["super_admin"]), async (c) => {
+  const body = await c.req.json<{ canonicalUserId: string; duplicateUserIds: string[] }>();
+  if (!body.canonicalUserId || !Array.isArray(body.duplicateUserIds) || body.duplicateUserIds.length === 0) {
+    return c.json({ error: "canonicalUserId and duplicateUserIds[] required" }, 400);
+  }
+  if (body.duplicateUserIds.includes(body.canonicalUserId)) {
+    return c.json({ error: "canonicalUserId cannot be in duplicateUserIds" }, 400);
+  }
+
+  const [canonical] = await db.select().from(user).where(eq(user.id, body.canonicalUserId)).limit(1);
+  if (!canonical) return c.json({ error: "canonicalUserId not found" }, 404);
+  const duplicates = await db.select().from(user).where(inArray(user.id, body.duplicateUserIds));
+  if (duplicates.length === 0) return c.json({ error: "No duplicate users found" }, 404);
+
+  // Safety: every duplicate must share the canonical's lower(email). This
+  // prevents accidentally merging unrelated accounts.
+  const canonEmail = canonical.email.toLowerCase();
+  for (const dup of duplicates) {
+    if (dup.email.toLowerCase() !== canonEmail) {
+      return c.json({ error: `Refusing merge — user ${dup.id} email "${dup.email}" doesn't match canonical "${canonical.email}"` }, 400);
+    }
+  }
+
+  // Transactional sweep: move all owned data, handle UNIQUE collisions on
+  // meta_config + profile, then delete the duplicate user (which cascades
+  // BetterAuth account/session rows). Using .returning({id}) lets us count
+  // affected rows portably (postgres-js doesn't expose .rowCount via Drizzle).
+  const canonicalId = body.canonicalUserId;
+  const summary = await db.transaction(async (tx) => {
+    const moved: Record<string, number> = { conversations: 0, contacts: 0, messages: 0, deals: 0, tasks: 0, campaigns: 0, broadcasts: 0, upgradeRequests: 0 };
+    let metaConfigMoves = 0;
+    let profileMoves = 0;
+
+    for (const dup of duplicates) {
+      const dupId = dup.id;
+
+      moved.conversations += (await tx.update(conversation).set({ ownerId: canonicalId })
+        .where(eq(conversation.ownerId, dupId)).returning({ id: conversation.id })).length;
+      moved.contacts += (await tx.update(contact).set({ ownerId: canonicalId })
+        .where(eq(contact.ownerId, dupId)).returning({ id: contact.id })).length;
+      moved.messages += (await tx.update(message).set({ ownerId: canonicalId })
+        .where(eq(message.ownerId, dupId)).returning({ id: message.id })).length;
+      moved.deals += (await tx.update(deal).set({ ownerId: canonicalId })
+        .where(eq(deal.ownerId, dupId)).returning({ id: deal.id })).length;
+      moved.tasks += (await tx.update(task).set({ ownerId: canonicalId })
+        .where(eq(task.ownerId, dupId)).returning({ id: task.id })).length;
+      moved.campaigns += (await tx.update(campaign).set({ ownerId: canonicalId })
+        .where(eq(campaign.ownerId, dupId)).returning({ id: campaign.id })).length;
+      moved.broadcasts += (await tx.update(broadcast).set({ ownerId: canonicalId })
+        .where(eq(broadcast.ownerId, dupId)).returning({ id: broadcast.id })).length;
+      moved.upgradeRequests += (await tx.update(upgradeRequest).set({ userId: canonicalId })
+        .where(eq(upgradeRequest.userId, dupId)).returning({ id: upgradeRequest.id })).length;
+
+      // meta_config has UNIQUE(user_id) — only move if canonical has none
+      const [canonMeta] = await tx.select().from(metaConfig).where(eq(metaConfig.userId, canonicalId)).limit(1);
+      if (!canonMeta) {
+        metaConfigMoves += (await tx.update(metaConfig).set({ userId: canonicalId })
+          .where(eq(metaConfig.userId, dupId)).returning({ id: metaConfig.id })).length;
+      } else {
+        await tx.delete(metaConfig).where(eq(metaConfig.userId, dupId));
+      }
+
+      // profile has UNIQUE(user_id) — same special-case
+      const [canonProfile] = await tx.select().from(profile).where(eq(profile.userId, canonicalId)).limit(1);
+      if (!canonProfile) {
+        profileMoves += (await tx.update(profile).set({ userId: canonicalId })
+          .where(eq(profile.userId, dupId)).returning({ id: profile.id })).length;
+      } else {
+        await tx.delete(profile).where(eq(profile.userId, dupId));
+      }
+
+      // Delete the duplicate user — cascades to BetterAuth account/session
+      // rows + any remaining FK-referenced data we didn't explicitly move.
+      await tx.delete(user).where(eq(user.id, dupId));
+    }
+
+    return { moved, metaConfigMoves, profileMoves, deletedUsers: duplicates.length };
+  });
+
+  await auditLog(c, "merge_accounts", body.canonicalUserId, {
+    canonicalUserId: body.canonicalUserId,
+    canonicalEmail: canonical.email,
+    duplicateUserIds: body.duplicateUserIds,
+    duplicateEmails: duplicates.map((u) => u.email),
+    summary,
+  });
+
+  return c.json({ ok: true, summary });
 });
 
 /* Webhook orphans — inbound messages that arrived for a phone_number_id we

@@ -166,6 +166,12 @@ export const adminApi = {
   chatOwnership: () => adminRequest<ChatOwnershipReport>("/diagnostics/chat-ownership"),
   reassignChats: (body: { fromUserId: string; toUserId: string; includeMetaConfig?: boolean }) =>
     adminRequest<{ ok: true }>("/diagnostics/reassign-chats", { method: "POST", body: JSON.stringify(body) }),
+  duplicateAccounts: () => adminRequest<{ groups: DuplicateAccountGroup[] }>("/diagnostics/duplicate-accounts"),
+  mergeAccounts: (body: { canonicalUserId: string; duplicateUserIds: string[] }) =>
+    adminRequest<{ ok: true; summary: { moved: Record<string, number>; metaConfigMoves: number; profileMoves: number; deletedUsers: number } }>(
+      "/diagnostics/merge-accounts",
+      { method: "POST", body: JSON.stringify(body) }
+    ),
   webhookOrphans: (params?: { sinceDays?: number; onlyUnclaimed?: boolean }) => {
     const qs = new URLSearchParams();
     if (params?.sinceDays) qs.set("since", new Date(Date.now() - params.sinceDays * 24 * 3600 * 1000).toISOString());
@@ -250,6 +256,24 @@ export type WebhookOrphanEvent = {
   claimedUserId: string | null;
   claimedAt: string | null;
   createdAt: string;
+};
+
+export type DuplicateAccountUser = {
+  id: string;
+  email: string;
+  name: string;
+  plan: string | null;
+  status: string | null;
+  createdAt: string;
+  conversations: number;
+  contacts: number;
+  messages: number;
+  metaConfigs: number;
+};
+
+export type DuplicateAccountGroup = {
+  emailNorm: string;
+  users: DuplicateAccountUser[];
 };
 
 export type WebhookOrphanReport = {

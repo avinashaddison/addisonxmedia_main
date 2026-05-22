@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { adminApi, ChatOwnershipRow, WebhookOrphanGroup } from "@/lib/admin-api";
+import { adminApi, ChatOwnershipRow, WebhookOrphanGroup, DuplicateAccountUser } from "@/lib/admin-api";
 import {
   Activity, ArrowRight, Building2, Check, Inbox, Loader2, MessageSquare, Phone,
   RefreshCw, Search, Shuffle, Users as UsersIcon, AlertTriangle, CheckCircle2,
-  Radio, Trash2, ChevronDown,
+  Radio, Trash2, ChevronDown, Copy, GitMerge, UserX,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -30,10 +30,19 @@ const AdminDiagnostics = () => {
   const [claimGroup, setClaimGroup] = useState<WebhookOrphanGroup | null>(null);
   const [claimUserId, setClaimUserId] = useState<string>("");
   const [expandedPhone, setExpandedPhone] = useState<string | null>(null);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeGroup, setMergeGroup] = useState<DuplicateAccountUser[] | null>(null);
+  const [canonicalId, setCanonicalId] = useState<string>("");
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["admin-chat-ownership"],
     queryFn: () => adminApi.chatOwnership(),
+    refetchInterval: 60_000,
+  });
+
+  const { data: duplicates, refetch: refetchDuplicates } = useQuery({
+    queryKey: ["admin-duplicate-accounts"],
+    queryFn: () => adminApi.duplicateAccounts(),
     refetchInterval: 60_000,
   });
 
@@ -71,6 +80,43 @@ const AdminDiagnostics = () => {
     setToUserId("");
     setIncludeMetaConfig(true);
     setReassignOpen(true);
+  };
+
+  const openMerge = (group: DuplicateAccountUser[]) => {
+    // Default canonical = the user with the most data (chats + contacts + messages)
+    const best = [...group].sort((a, b) =>
+      (b.conversations + b.contacts + b.messages + b.metaConfigs) -
+      (a.conversations + a.contacts + a.messages + a.metaConfigs)
+    )[0];
+    setMergeGroup(group);
+    setCanonicalId(best.id);
+    setMergeOpen(true);
+  };
+
+  const doMerge = async () => {
+    if (!mergeGroup || !canonicalId) return;
+    const duplicateUserIds = mergeGroup.map((u) => u.id).filter((id) => id !== canonicalId);
+    if (duplicateUserIds.length === 0) {
+      toast.error("Pick a canonical user that's different from the others");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await adminApi.mergeAccounts({ canonicalUserId: canonicalId, duplicateUserIds });
+      const m = res.summary.moved;
+      toast.success(
+        `Merged ${res.summary.deletedUsers} duplicate(s) · moved ${m.conversations} chats, ${m.contacts} contacts, ${m.messages} messages`
+      );
+      setMergeOpen(false);
+      qc.invalidateQueries({ queryKey: ["admin-duplicate-accounts"] });
+      qc.invalidateQueries({ queryKey: ["admin-chat-ownership"] });
+      qc.invalidateQueries({ queryKey: ["admin-metrics"] });
+      qc.invalidateQueries({ queryKey: ["admin-workspaces"] });
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const openClaim = (group: WebhookOrphanGroup) => {
@@ -156,6 +202,68 @@ const AdminDiagnostics = () => {
         <TotalCard label="Total messages" value={totals.messages} icon={MessageSquare} color="magenta" />
         <TotalCard label="Workspaces with data" value={ownership.length} icon={Building2} color="orange" />
       </div>
+
+      {/* Duplicate accounts — surface FIRST. This is the root cause of
+       *  most "where are my chats?" tickets: two user rows share an email,
+       *  the session lands on one, the data lives on the other. */}
+      {duplicates && duplicates.groups.length > 0 && (
+        <div className="bg-white border-2 border-[#D4308E] rounded-2xl shadow-[0_4px_0_0_#A11A6A] mb-4 overflow-hidden">
+          <div className="flex items-center gap-2.5 px-4 py-3 bg-[#FCE5F0] border-b-2 border-[#D4308E] flex-wrap">
+            <UserX className="w-4 h-4 text-[#D4308E] animate-pulse" />
+            <p className="text-[13px] font-black flex-1 min-w-0">
+              Duplicate accounts · same email on multiple user rows
+              <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#D4308E] text-white text-[10px] font-extrabold uppercase tracking-wider">
+                {duplicates.groups.length} {duplicates.groups.length === 1 ? "group" : "groups"}
+              </span>
+            </p>
+            <Button variant="outline" className="h-8" onClick={() => refetchDuplicates()}>
+              <RefreshCw className="w-3 h-3" /> Reload
+            </Button>
+          </div>
+          <p className="text-[11px] text-foreground/65 font-medium px-4 pt-2.5">
+            Most likely cause of "I don't see my chats". Sessions land on one row, data lives on the other. Merge consolidates everything onto a canonical user and deletes the rest.
+          </p>
+          <div className="divide-y divide-[#D4308E]/15">
+            {duplicates.groups.map((g) => (
+              <div key={g.emailNorm} className="px-4 py-3">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <p className="text-[12px] font-extrabold font-mono text-[#9F1A6A]">{g.emailNorm}</p>
+                  <span className="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#FCE5F0] text-[#D4308E] border border-[#D4308E]/30">
+                    {g.users.length} accounts
+                  </span>
+                  <div className="ml-auto">
+                    <Button
+                      className="h-8 bg-[#D4308E] text-white shadow-[0_3px_0_0_#A11A6A] hover:bg-[#C02680]"
+                      onClick={() => openMerge(g.users)}
+                    >
+                      <GitMerge className="w-3.5 h-3.5" /> Merge accounts
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid gap-1.5">
+                  {g.users.map((u) => (
+                    <div
+                      key={u.id}
+                      className="grid grid-cols-[1.4fr_90px_70px_70px_70px_70px_140px] gap-2 items-center px-2.5 py-1.5 rounded-lg bg-[#FFF6E8] border border-[#E8B968]/40"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-extrabold truncate">{u.name}</p>
+                        <p className="text-[10px] font-mono text-foreground/55 truncate">{u.id.slice(0, 12)}…</p>
+                      </div>
+                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-[#B8651A]">{u.plan ?? "—"}</span>
+                      <span className="text-[10px] font-extrabold text-[#0E8A4B] tabular-nums">{u.conversations} chats</span>
+                      <span className="text-[10px] font-extrabold text-foreground/70 tabular-nums">{u.contacts} cont.</span>
+                      <span className="text-[10px] font-extrabold text-foreground/70 tabular-nums">{u.messages} msg</span>
+                      <span className="text-[10px] font-extrabold text-foreground/70 tabular-nums">{u.metaConfigs > 0 ? "✓ Meta" : "— Meta"}</span>
+                      <span className="text-[10px] text-foreground/55 font-medium">created {fmtDate(u.createdAt)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Unrouted webhooks (orphans) — surface FIRST since this is the early
        *  warning signal for "where are my chats?" tickets. */}
@@ -363,6 +471,89 @@ const AdminDiagnostics = () => {
           </>
         )}
       </div>
+
+      {/* Merge accounts dialog */}
+      <Dialog open={mergeOpen} onOpenChange={setMergeOpen}>
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#D4308E] to-[#A11A6A] text-white flex items-center justify-center shadow-md">
+                <GitMerge className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div>
+                <DialogTitle>Merge duplicate accounts</DialogTitle>
+                <DialogDescription>
+                  Pick the canonical user — all chats, contacts, messages, deals, tasks, broadcasts, Meta config, and profile from the others get moved here. Duplicate user rows are then deleted.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {mergeGroup && (
+            <div className="space-y-3 mt-2">
+              <p className="text-[11px] uppercase tracking-wider font-extrabold text-foreground/60">Choose canonical (the one to keep)</p>
+              <div className="space-y-1.5">
+                {mergeGroup.map((u) => {
+                  const isCanon = canonicalId === u.id;
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => setCanonicalId(u.id)}
+                      className={cn(
+                        "w-full text-left p-3 rounded-xl border-2 transition-all",
+                        isCanon
+                          ? "border-[#0E8A4B] bg-[#E6F7EE] ring-4 ring-[#0E8A4B]/15 shadow-[0_3px_0_0_#0A6E3C]"
+                          : "border-[#E8B968]/60 bg-white hover:border-[#E8B968] hover:-translate-y-0.5"
+                      )}
+                    >
+                      <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-black truncate flex items-center gap-2">
+                            {u.name}
+                            {isCanon && (
+                              <span className="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#0E8A4B] text-white">
+                                Canonical
+                              </span>
+                            )}
+                            {u.plan && (
+                              <span className="text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968]">
+                                {u.plan}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-[10px] font-mono text-foreground/55 truncate">{u.id}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-extrabold text-[#0E8A4B] tabular-nums">{u.conversations} chats</p>
+                          <p className="text-[9px] text-foreground/55 font-medium tabular-nums">{u.contacts}c · {u.messages}m</p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="rounded-xl bg-[#FFEFE0] border-2 border-[#FF6A1F] p-3 flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-[#FF6A1F] flex-shrink-0 mt-0.5" />
+                <div className="text-[11px] font-semibold text-[#B8420A] leading-relaxed">
+                  <strong className="font-extrabold">This is destructive.</strong> The non-canonical user rows will be deleted (cascades BetterAuth account+session). All owned data is transferred first in a single transaction — but the deleted users can't log in again afterwards. Make sure the canonical email/password works.
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMergeOpen(false)}>Cancel</Button>
+            <Button
+              onClick={doMerge}
+              disabled={submitting || !canonicalId}
+              className="bg-[#D4308E] text-white shadow-[0_4px_0_0_#A11A6A] hover:bg-[#C02680]"
+            >
+              {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Merging…</> : <><GitMerge className="w-3.5 h-3.5" /> Merge {(mergeGroup?.length ?? 1) - 1} into 1</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Claim orphan dialog */}
       <Dialog open={claimOpen} onOpenChange={setClaimOpen}>
