@@ -15,12 +15,78 @@ app.use("*", requireAuth);
 // ============================================================
 
 app.get("/conversations", async (c) => {
-  const rows = await db.query.conversation.findMany({
-    where: eq(conversation.ownerId, c.var.userId),
-    orderBy: [sql`${conversation.lastMessageAt} DESC NULLS LAST`, desc(conversation.createdAt)],
-    with: { contact: true },
-  });
-  return c.json(rows);
+  // Plain select + join — was using `db.query.conversation.findMany` with
+  // Drizzle's relations API, which silently returned [] in one production
+  // session even though the underlying rows existed (status endpoint reported
+  // count=4 for the same user_id). Hand-rolling the join eliminates the
+  // relations-resolution dependency.
+  const rows = await db
+    .select({
+      // conversation columns
+      id: conversation.id,
+      ownerId: conversation.ownerId,
+      contactId: conversation.contactId,
+      status: conversation.status,
+      unreadCount: conversation.unreadCount,
+      lastMessageAt: conversation.lastMessageAt,
+      lastMessagePreview: conversation.lastMessagePreview,
+      sourceAdId: conversation.sourceAdId,
+      sourceHeadline: conversation.sourceHeadline,
+      ctwaClickId: conversation.ctwaClickId,
+      sourceType: conversation.sourceType,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
+      // joined contact (nested manually below)
+      contact_id: contact.id,
+      contact_ownerId: contact.ownerId,
+      contact_name: contact.name,
+      contact_phone: contact.phone,
+      contact_email: contact.email,
+      contact_tag: contact.tag,
+      contact_score: contact.score,
+      contact_source: contact.source,
+      contact_notes: contact.notes,
+      contact_createdAt: contact.createdAt,
+      contact_updatedAt: contact.updatedAt,
+    })
+    .from(conversation)
+    .leftJoin(contact, eq(contact.id, conversation.contactId))
+    .where(eq(conversation.ownerId, c.var.userId))
+    .orderBy(sql`${conversation.lastMessageAt} DESC NULLS LAST`, desc(conversation.createdAt));
+
+  // Reshape into the { ...conversation, contact: {...} } shape the frontend expects.
+  const shaped = rows.map((r) => ({
+    id: r.id,
+    ownerId: r.ownerId,
+    contactId: r.contactId,
+    status: r.status,
+    unreadCount: r.unreadCount,
+    lastMessageAt: r.lastMessageAt,
+    lastMessagePreview: r.lastMessagePreview,
+    sourceAdId: r.sourceAdId,
+    sourceHeadline: r.sourceHeadline,
+    ctwaClickId: r.ctwaClickId,
+    sourceType: r.sourceType,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    contact: r.contact_id
+      ? {
+          id: r.contact_id,
+          ownerId: r.contact_ownerId,
+          name: r.contact_name,
+          phone: r.contact_phone,
+          email: r.contact_email,
+          tag: r.contact_tag,
+          score: r.contact_score,
+          source: r.contact_source,
+          notes: r.contact_notes,
+          createdAt: r.contact_createdAt,
+          updatedAt: r.contact_updatedAt,
+        }
+      : null,
+  }));
+
+  return c.json(shaped);
 });
 
 /* Returns the user's inbox-side health: WhatsApp connection state + tiny
