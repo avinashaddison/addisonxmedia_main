@@ -1,7 +1,7 @@
 import { Search, Bell, BellOff, Trash2, CheckCheck, Flame, Snowflake, Copy, ExternalLink, MessageCircleOff } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { ConversationWithContact, tagLabel, initialsFor, formatRelative, avatarUrlFor, splitTextWithLinks } from "@/lib/inbox-types";
+import { ConversationWithContact, tagLabel, initialsFor, formatRelative, splitTextWithLinks } from "@/lib/inbox-types";
 import { NewConversationDialog } from "./NewConversationDialog";
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem,
@@ -219,7 +219,6 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
           const initials = initialsFor(conv.contact.name);
           const dot = statusDot(conv.contact.tag, conv.unread_count > 0);
           const isHot = conv.contact.tag === "hot";
-          const dicebear = avatarUrlFor(conv.contact.phone || conv.contact.id, conv.contact.name);
           const preview = conv.last_message_preview || "";
           const hasLink = preview.match(/(https?:\/\/|www\.)/i);
 
@@ -243,33 +242,20 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-10 rounded-r-full bg-[#0E8A4B]" />
               )}
 
-              {/* Avatar — DiceBear gradient initials fallback; we never get
-                  WhatsApp profile pictures from the webhook, so we draw a
-                  consistent colored initials avatar keyed off the contact's
-                  phone number. Falls back to a colored circle with initials
-                  if the network image fails. */}
+              {/* Avatar — readable initial circle, tag-colored gradient.
+                  We can't fetch real WhatsApp profile pictures (Meta doesn't
+                  expose them in the webhook), so initials on a brand
+                  gradient is the cleanest legible fallback. Hot/warm/cold
+                  drive the gradient pair so the circle reads even at a
+                  glance. */}
               <div className="relative flex-shrink-0">
                 <div className={cn(
-                  "w-11 h-11 rounded-full overflow-hidden shadow-md transition-transform group-hover:scale-105 ring-2",
-                  isHot ? "ring-[#D4308E]/40" :
-                  conv.contact.tag === "warm" ? "ring-[#FF6A1F]/40" :
-                  "ring-[#3C50E0]/30"
+                  "w-11 h-11 rounded-full flex items-center justify-center text-[13px] font-black text-white shadow-md transition-transform group-hover:scale-105 ring-2 ring-white",
+                  isHot ? "bg-gradient-to-br from-[#FF4FA8] to-[#A11A6A]" :
+                  conv.contact.tag === "warm" ? "bg-gradient-to-br from-[#FF8C42] to-[#B8420A]" :
+                  "bg-gradient-to-br from-[#5468FF] to-[#1E40AF]"
                 )}>
-                  <img
-                    src={dicebear}
-                    alt={conv.contact.name}
-                    loading="lazy"
-                    className="w-full h-full block"
-                    onError={(e) => {
-                      // Network/CDN fail — swap to a solid color circle with initials
-                      const el = e.currentTarget;
-                      el.style.display = "none";
-                      const parent = el.parentElement!;
-                      parent.classList.add("flex","items-center","justify-center","text-white","text-[12px]","font-extrabold");
-                      parent.classList.add(isHot ? "bg-[#D4308E]" : conv.contact.tag === "warm" ? "bg-[#FF6A1F]" : "bg-[#3C50E0]");
-                      parent.textContent = initials;
-                    }}
-                  />
+                  <span className="drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]">{initials}</span>
                 </div>
                 <span
                   title={dot.label}
