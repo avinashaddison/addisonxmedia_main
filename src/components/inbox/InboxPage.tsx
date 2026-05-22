@@ -60,6 +60,24 @@ const InboxEmptyState = ({ loading }: { loading: boolean }) => {
     staleTime: 30_000,
   });
 
+  // Probe /api/conversations directly — bypasses the useConversations hook so
+  // we can compare the raw HTTP response against the cached list. If `probe`
+  // returns 4 rows but the page still shows "No conversations yet", the bug
+  // is in React Query caching. If probe also returns 0, the backend is at fault.
+  const { data: probe } = useQuery({
+    queryKey: ["inbox-debug-probe"],
+    queryFn: async () => {
+      const t = performance.now();
+      const r = await fetch("/api/conversations", { credentials: "include" });
+      const ms = Math.round(performance.now() - t);
+      const ok = r.ok;
+      const body = r.ok ? await r.json().catch(() => null) : null;
+      return { ok, status: r.status, ms, count: Array.isArray(body) ? body.length : 0, firstName: Array.isArray(body) && body[0]?.contact?.name ? body[0].contact.name : null };
+    },
+    staleTime: 5_000,
+    refetchInterval: 8_000,
+  });
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-card">
@@ -133,16 +151,23 @@ const InboxEmptyState = ({ loading }: { loading: boolean }) => {
           <span>Customers messaging your number should appear here automatically. If they're not, see <Link to="/app/settings" className="font-extrabold text-[#B8230C] hover:underline">integrations</Link>.</span>
         </div>
 
-        {/* Session whoami — exposes session.user_id + email + conversation_count
-            so "I see chats in admin but not here" mysteries can be solved by
-            comparing the user_id shown here to the user_id that admin says
-            owns the chats. */}
+        {/* Session whoami + raw /api/conversations probe. If probe.count ≠
+            status.conversation_count → caching bug. If probe.count == 0 →
+            backend bug. */}
         {status && (
           <div className="mt-3 p-2.5 rounded-lg bg-foreground/5 border border-foreground/10 text-[10px] font-mono text-foreground/55 text-left max-w-sm mx-auto break-all">
             <p className="font-extrabold text-foreground/70 text-[9px] uppercase tracking-wider mb-1 font-sans">Session debug</p>
             <p>user_id · {status.session_user_id}</p>
             <p>email · {status.session_email}</p>
             <p>db conversation_count · <span className={status.conversation_count === 0 ? "text-[#D4308E] font-bold" : "text-[#0E8A4B] font-bold"}>{status.conversation_count}</span></p>
+            {probe && (
+              <>
+                <p className="mt-1 font-extrabold text-foreground/70 text-[9px] uppercase tracking-wider font-sans">Raw /api/conversations probe</p>
+                <p>http · <span className={probe.ok ? "text-[#0E8A4B] font-bold" : "text-[#D4308E] font-bold"}>{probe.status}</span> · {probe.ms}ms</p>
+                <p>rows returned · <span className={probe.count === 0 ? "text-[#D4308E] font-bold" : "text-[#0E8A4B] font-bold"}>{probe.count}</span></p>
+                {probe.firstName && <p>first.contact.name · {probe.firstName}</p>}
+              </>
+            )}
           </div>
         )}
       </div>
