@@ -49,7 +49,7 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
   const syncLabel = secsAgo < 60 ? `${secsAgo}s ago` : `${Math.floor(secsAgo / 60)}m ago`;
 
   return (
-    <header className="h-14 px-3 sm:px-4 border-b border-border bg-card/70 backdrop-blur-xl flex items-center gap-2 sm:gap-3 flex-shrink-0 z-30">
+    <header className="h-16 px-3 sm:px-4 border-b border-border bg-card/70 backdrop-blur-xl flex items-center gap-2 sm:gap-3 flex-shrink-0 z-30">
       {onMenuClick && (
         <button
           onClick={onMenuClick}
@@ -89,10 +89,10 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
           disabled={refreshing}
           aria-label={refreshing ? "Refreshing" : `Synced ${syncLabel}`}
           title={refreshing ? "Refreshing…" : `Synced ${syncLabel} · click to refresh`}
-          className="w-8 h-8 rounded-full bg-[#FFF1D6] hover:bg-[#FFE9BD] border border-[#E8B968] disabled:opacity-60 flex items-center justify-center transition-colors flex-shrink-0"
+          className="w-9 h-9 rounded-full bg-[#FFF1D6] hover:bg-[#FFE9BD] border-2 border-[#E8B968] disabled:opacity-60 flex items-center justify-center transition-colors flex-shrink-0 shadow-[0_2px_0_0_#E8B968]"
         >
           <RefreshCw className={cn(
-            "w-3.5 h-3.5 text-[#B8651A]",
+            "w-4 h-4 text-[#B8651A]",
             refreshing && "animate-spin"
           )} />
         </button>
@@ -185,23 +185,23 @@ const WhatsAppStatusPill = () => {
       to="/app/settings"
       title={config.tooltip}
       className={cn(
-        "group flex items-center gap-2 bg-white border-2 rounded-full pl-2 pr-2 py-1 transition-all hover:-translate-y-0.5 active:translate-y-0",
+        "group flex items-center gap-2.5 bg-white border-2 rounded-full pl-3 pr-2 py-1.5 transition-all hover:-translate-y-0.5 active:translate-y-0",
         config.border,
         config.shadow,
         config.hoverShadow,
       )}
     >
-      <span className="relative flex items-center justify-center w-2.5 h-2.5">
+      <span className="relative flex items-center justify-center w-3 h-3">
         {config.animate && (
           <span className={cn("absolute inset-0 rounded-full opacity-50 animate-ping", config.dotColor)} />
         )}
-        <span className={cn("relative w-2 h-2 rounded-full", config.dotColor)} />
+        <span className={cn("relative w-2.5 h-2.5 rounded-full", config.dotColor)} />
       </span>
-      <span className={cn("text-[10px] font-extrabold uppercase tracking-wider leading-none", config.labelText)}>
+      <span className={cn("text-[12px] font-extrabold uppercase tracking-wider leading-none", config.labelText)}>
         WhatsApp&nbsp;Business API&nbsp;Status&nbsp;:
       </span>
       <span className={cn(
-        "text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full leading-none",
+        "text-[11px] font-black uppercase tracking-wider px-2 py-1 rounded-full leading-none",
         config.statusBg,
         config.statusText,
       )}>
@@ -254,18 +254,18 @@ const PlanStatusPill = ({ onNavigate }: { onNavigate: (page: string) => void }) 
   return (
     <div
       className={cn(
-        "flex items-center gap-2 bg-white border-2 rounded-full pl-2.5 pr-1 py-1 shadow-[0_2px_0_0_#B8230C]",
+        "flex items-center gap-2.5 bg-white border-2 rounded-full pl-3 pr-1.5 py-1.5 shadow-[0_2px_0_0_#B8230C]",
         isPaid ? "border-[#FFD23F]" : "border-[#E8B968]",
       )}
     >
-      <span className="text-[10px] font-extrabold uppercase tracking-wider text-foreground/55 leading-none">
+      <span className="text-[12px] font-extrabold uppercase tracking-wider text-foreground/55 leading-none">
         Current&nbsp;Plan&nbsp;:
       </span>
       <span className={cn(
-        "inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full leading-none",
+        "inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wider px-2 py-1 rounded-full leading-none",
         planColor,
       )}>
-        {isPaid && <Crown className="w-2.5 h-2.5" strokeWidth={2.5} />}
+        {isPaid && <Crown className="w-3 h-3" strokeWidth={2.5} />}
         {plan}
         {isPaid && cycle === "annual" && <span className="opacity-80">·YR</span>}
       </span>
@@ -274,15 +274,15 @@ const PlanStatusPill = ({ onNavigate }: { onNavigate: (page: string) => void }) 
         onClick={() => onNavigate("upgrade")}
         title={isPaid ? "Manage plan" : "Upgrade for more features"}
         className={cn(
-          "inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-full leading-none transition-all hover:-translate-y-0.5 active:translate-y-0",
+          "inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-full leading-none transition-all hover:-translate-y-0.5 active:translate-y-0",
           isPaid
             ? "bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968] hover:bg-[#FFE9BD]"
             : "bg-gradient-to-r from-[#B8230C] to-[#7A1500] text-white shadow-[0_2px_0_0_#5A0F00] hover:from-[#A01F0A] hover:to-[#691200]",
         )}
       >
-        <Sparkles className="w-2.5 h-2.5" strokeWidth={2.5} />
+        <Sparkles className="w-3 h-3" strokeWidth={2.5} />
         {isPaid ? "Manage" : "Explore Plans"}
-        <ArrowUpRight className="w-2.5 h-2.5" strokeWidth={2.5} />
+        <ArrowUpRight className="w-3 h-3" strokeWidth={2.5} />
       </button>
     </div>
   );
