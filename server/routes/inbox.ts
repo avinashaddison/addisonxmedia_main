@@ -33,6 +33,7 @@ app.get("/conversations", async (c) => {
  * the next correct action. */
 app.get("/inbox/status", async (c) => {
   const userId = c.var.userId;
+  const userEmail = c.var.userEmail;
   const [cfg] = await db.select().from(metaConfig).where(eq(metaConfig.userId, userId)).limit(1);
   const [{ n: conversationCount }] = await db
     .select({ n: sql<number>`COUNT(*)::int` })
@@ -45,6 +46,12 @@ app.get("/inbox/status", async (c) => {
     display_phone_number: cfg?.displayPhoneNumber ?? null,
     last_verified_at: cfg?.lastVerifiedAt ?? null,
     conversation_count: conversationCount,
+    // Whoami — exposes who the API actually thinks you are so empty-inbox
+    // mysteries ("admin shows 4 chats, my inbox shows 0") can be diagnosed
+    // without DevTools. Surfaced as a small debug strip in InboxPage when
+    // conversation_count is 0.
+    session_user_id: userId,
+    session_email: userEmail,
   });
 });
 

@@ -132,6 +132,19 @@ const InboxEmptyState = ({ loading }: { loading: boolean }) => {
           <MessageSquareWarning className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-[#B8651A]" />
           <span>Customers messaging your number should appear here automatically. If they're not, see <Link to="/app/settings" className="font-extrabold text-[#B8230C] hover:underline">integrations</Link>.</span>
         </div>
+
+        {/* Session whoami — exposes session.user_id + email + conversation_count
+            so "I see chats in admin but not here" mysteries can be solved by
+            comparing the user_id shown here to the user_id that admin says
+            owns the chats. */}
+        {status && (
+          <div className="mt-3 p-2.5 rounded-lg bg-foreground/5 border border-foreground/10 text-[10px] font-mono text-foreground/55 text-left max-w-sm mx-auto break-all">
+            <p className="font-extrabold text-foreground/70 text-[9px] uppercase tracking-wider mb-1 font-sans">Session debug</p>
+            <p>user_id · {status.session_user_id}</p>
+            <p>email · {status.session_email}</p>
+            <p>db conversation_count · <span className={status.conversation_count === 0 ? "text-[#D4308E] font-bold" : "text-[#0E8A4B] font-bold"}>{status.conversation_count}</span></p>
+          </div>
+        )}
       </div>
     </div>
   );

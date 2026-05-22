@@ -100,6 +100,8 @@ export const api = {
     display_phone_number: string | null;
     last_verified_at: string | null;
     conversation_count: number;
+    session_user_id: string;
+    session_email: string;
   }>("/inbox/status"),
 
   // Messages
