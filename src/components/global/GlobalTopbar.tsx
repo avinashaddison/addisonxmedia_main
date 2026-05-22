@@ -1,4 +1,4 @@
-import { Menu, RefreshCw, Search } from "lucide-react";
+import { Menu, RefreshCw, Search, Sparkles, ArrowUpRight, Crown } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -75,27 +75,26 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
         </button>
       </div>
 
-      {/* WhatsApp API status — surfaces the live connection state of the
-          Meta integration so customers know whether inbound messages can
-          actually arrive without leaving the current page. */}
-      <WhatsAppStatusPill />
-
-      {/* Resync — actually invalidates queries */}
+      {/* Status bar — chips for WhatsApp API live-state + current plan with
+          quick "Explore Plans" upsell. Brand-styled to match the AddisonX
+          yellow/red palette so they read as part of the product, not a
+          neutral utility row. */}
       <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+        <WhatsAppStatusPill />
+        <PlanStatusPill onNavigate={onNavigate} />
+
+        {/* Resync icon-only, sits at the end of the chip row */}
         <button
           onClick={handleResync}
           disabled={refreshing}
-          aria-label="Refresh workspace data"
-          title="Refresh workspace data"
-          className="group flex items-center gap-1.5 bg-muted/60 hover:bg-muted disabled:opacity-60 rounded-full px-2.5 py-1 transition-colors"
+          aria-label={refreshing ? "Refreshing" : `Synced ${syncLabel}`}
+          title={refreshing ? "Refreshing…" : `Synced ${syncLabel} · click to refresh`}
+          className="w-8 h-8 rounded-full bg-[#FFF1D6] hover:bg-[#FFE9BD] border border-[#E8B968] disabled:opacity-60 flex items-center justify-center transition-colors flex-shrink-0"
         >
           <RefreshCw className={cn(
-            "w-3 h-3 text-muted-foreground group-hover:text-foreground transition-all",
+            "w-3.5 h-3.5 text-[#B8651A]",
             refreshing && "animate-spin"
           )} />
-          <span className="text-[11px] font-semibold text-muted-foreground tabular-nums leading-none">
-            {refreshing ? "Refreshing…" : `Synced ${syncLabel}`}
-          </span>
         </button>
       </div>
 
@@ -109,20 +108,16 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
   );
 };
 
-/* WhatsApp Business API status pill.
+/* WhatsApp Business API status chip — sits in the topbar so operators see
+ * the connection state at a glance no matter what page they're on.
  *
- * Three states (in order of severity):
- *   1. Live      — meta_connected && meta_enabled
- *                  → green pill, animated emerald dot, hover shows phone
- *   2. Pending   — meta_connected && !meta_enabled
- *                  → amber pill, pulsing amber dot — Meta hasn't verified yet
- *   3. Off       — !meta_connected
- *                  → soft red pill, links to settings to start setup
+ * Style: white card with brand-colored border + heavy shadow (matches the
+ * AddisonX dashboard chip language). Hover lifts the chip slightly.
  *
- * Polls every 90s (status changes rarely — token expiry, webhook flip).
- * Used to live as a one-line note buried in settings; surfacing it in the
- * topbar means a glance tells the operator whether inbound delivery is
- * working without leaving whatever page they're on. */
+ *   Live      — emerald border, pulsing emerald dot, "LIVE" badge
+ *   Pending   — amber border, pulsing amber dot, "PENDING" badge
+ *   Off       — magenta border, solid magenta dot, "OFF" badge
+ */
 const WhatsAppStatusPill = () => {
   const { data, isLoading } = useQuery({
     queryKey: ["inbox-status-pill"],
@@ -134,10 +129,10 @@ const WhatsAppStatusPill = () => {
 
   if (isLoading || !data) {
     return (
-      <div className="hidden md:flex items-center gap-1.5 bg-muted/40 rounded-full px-2.5 py-1 flex-shrink-0">
-        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-pulse" />
-        <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground/70 leading-none">
-          WhatsApp
+      <div className="flex items-center gap-2 bg-white border-2 border-[#E8B968] rounded-full pl-2 pr-3 py-1 shadow-[0_2px_0_0_#E8B968]">
+        <span className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-pulse" />
+        <span className="text-[10px] font-extrabold uppercase tracking-wider text-foreground/40 leading-none">
+          WhatsApp API · …
         </span>
       </div>
     );
@@ -146,70 +141,149 @@ const WhatsAppStatusPill = () => {
   const isLive = data.meta_connected && data.meta_enabled;
   const isPending = data.meta_connected && !data.meta_enabled;
 
-  // ── Live: emerald, dot-pulse, phone tooltip ────────────────────────────
-  if (isLive) {
-    return (
-      <Link
-        to="/app/settings"
-        title={`WhatsApp Business: ${data.display_phone_number ?? "live"}`}
-        className="hidden md:flex items-center gap-1.5 bg-[#E6F7EE] hover:bg-[#D0EFDD] border border-[#0E8A4B]/40 rounded-full pl-1.5 pr-2.5 py-1 flex-shrink-0 transition-colors group"
-      >
-        <span className="relative flex items-center justify-center w-3 h-3">
-          <span className="absolute inset-0 rounded-full bg-[#0E8A4B] opacity-30 animate-ping" />
-          <span className="relative w-2 h-2 rounded-full bg-[#0E8A4B] shadow-[0_0_4px_rgba(14,138,75,0.6)]" />
-        </span>
-        <div className="flex flex-col leading-none">
-          <span className="text-[8px] font-extrabold uppercase tracking-wider text-[#0A6E3C]/70">
-            WhatsApp API
-          </span>
-          <span className="text-[10px] font-black text-[#0A6E3C] leading-tight">
-            Live
-          </span>
-        </div>
-      </Link>
-    );
-  }
+  const config = isLive
+    ? {
+        border: "border-[#0E8A4B]",
+        shadow: "shadow-[0_2px_0_0_#0A6E3C]",
+        hoverShadow: "hover:shadow-[0_4px_0_0_#0A6E3C]",
+        labelText: "text-foreground/60",
+        statusBg: "bg-[#0E8A4B]",
+        statusText: "text-white",
+        statusLabel: "LIVE",
+        dotColor: "bg-[#0E8A4B]",
+        animate: true,
+        tooltip: `WhatsApp Business: ${data.display_phone_number ?? "live"}`,
+      }
+    : isPending
+    ? {
+        border: "border-[#FFB020]",
+        shadow: "shadow-[0_2px_0_0_#B8651A]",
+        hoverShadow: "hover:shadow-[0_4px_0_0_#B8651A]",
+        labelText: "text-foreground/60",
+        statusBg: "bg-[#FFB020]",
+        statusText: "text-[#3D1A00]",
+        statusLabel: "PENDING",
+        dotColor: "bg-[#FFB020]",
+        animate: true,
+        tooltip: "Connected but Meta hasn't verified — click to re-test",
+      }
+    : {
+        border: "border-[#D4308E]",
+        shadow: "shadow-[0_2px_0_0_#A11A6A]",
+        hoverShadow: "hover:shadow-[0_4px_0_0_#A11A6A]",
+        labelText: "text-foreground/60",
+        statusBg: "bg-[#D4308E]",
+        statusText: "text-white",
+        statusLabel: "OFF",
+        dotColor: "bg-[#D4308E]",
+        animate: false,
+        tooltip: "WhatsApp not connected — click to set up",
+      };
 
-  // ── Pending: amber, pulsing dot ────────────────────────────────────────
-  if (isPending) {
-    return (
-      <Link
-        to="/app/settings"
-        title="Connected but not yet verified by Meta — click to re-test"
-        className="hidden md:flex items-center gap-1.5 bg-[#FFF1D6] hover:bg-[#FFE9BD] border border-[#E8B968] rounded-full pl-1.5 pr-2.5 py-1 flex-shrink-0 transition-colors group"
-      >
-        <span className="relative flex items-center justify-center w-3 h-3">
-          <span className="absolute inset-0 rounded-full bg-[#FFB020] opacity-40 animate-ping" />
-          <span className="relative w-2 h-2 rounded-full bg-[#FFB020] shadow-[0_0_4px_rgba(255,176,32,0.6)]" />
-        </span>
-        <div className="flex flex-col leading-none">
-          <span className="text-[8px] font-extrabold uppercase tracking-wider text-[#B8651A]/80">
-            WhatsApp API
-          </span>
-          <span className="text-[10px] font-black text-[#B8651A] leading-tight">
-            Pending
-          </span>
-        </div>
-      </Link>
-    );
-  }
-
-  // ── Off: soft red, faster pulse, CTA ────────────────────────────────────
   return (
     <Link
       to="/app/settings"
-      title="WhatsApp not connected — click to set up"
-      className="hidden md:flex items-center gap-1.5 bg-[#FCE5F0] hover:bg-[#F8D4E5] border border-[#D4308E]/40 rounded-full pl-1.5 pr-2.5 py-1 flex-shrink-0 transition-colors group"
+      title={config.tooltip}
+      className={cn(
+        "group flex items-center gap-2 bg-white border-2 rounded-full pl-2 pr-2 py-1 transition-all hover:-translate-y-0.5 active:translate-y-0",
+        config.border,
+        config.shadow,
+        config.hoverShadow,
+      )}
     >
-      <span className="w-2.5 h-2.5 rounded-full bg-[#D4308E] shadow-[0_0_4px_rgba(212,48,142,0.5)]" />
-      <div className="flex flex-col leading-none">
-        <span className="text-[8px] font-extrabold uppercase tracking-wider text-[#A11A6A]/80">
-          WhatsApp API
-        </span>
-        <span className="text-[10px] font-black text-[#A11A6A] leading-tight">
-          Not connected
+      <span className="relative flex items-center justify-center w-2.5 h-2.5">
+        {config.animate && (
+          <span className={cn("absolute inset-0 rounded-full opacity-50 animate-ping", config.dotColor)} />
+        )}
+        <span className={cn("relative w-2 h-2 rounded-full", config.dotColor)} />
+      </span>
+      <span className={cn("text-[10px] font-extrabold uppercase tracking-wider leading-none", config.labelText)}>
+        WhatsApp&nbsp;Business API&nbsp;Status&nbsp;:
+      </span>
+      <span className={cn(
+        "text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full leading-none",
+        config.statusBg,
+        config.statusText,
+      )}>
+        {config.statusLabel}
+      </span>
+    </Link>
+  );
+};
+
+/* Current plan + upsell — chip on the right of the WhatsApp status that
+ * shows the workspace's plan and either:
+ *   - on free/starter → "Explore Plans" CTA (yellow brand pill)
+ *   - on growth/scale/enterprise → small crown badge (no CTA, they're paying)
+ *
+ * Plan reads from /api/billing/me which already drives the upgrade card in
+ * the sidebar — cached 60s so this doesn't add a new round-trip.
+ */
+const PlanStatusPill = ({ onNavigate }: { onNavigate: (page: string) => void }) => {
+  const { data, isLoading } = useQuery({
+    queryKey: ["billing-me-pill"],
+    queryFn: () => api.getBillingMe(),
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+  });
+
+  if (isLoading || !data) {
+    return (
+      <div className="flex items-center gap-2 bg-white border-2 border-[#E8B968] rounded-full pl-2.5 pr-3 py-1 shadow-[0_2px_0_0_#E8B968]">
+        <span className="text-[10px] font-extrabold uppercase tracking-wider text-foreground/40 leading-none">
+          Plan · …
         </span>
       </div>
-    </Link>
+    );
+  }
+
+  const plan = (data.plan ?? "free").toLowerCase();
+  const isPaid = plan !== "free" && plan !== "trial";
+
+  // Surface annual savings if the upgrade request specified billing_cycle.
+  // Falls back to monthly — annual is purely cosmetic in the chip.
+  const cycle = data.pending_upgrade?.billing_cycle ?? "monthly";
+
+  const planColor =
+    plan === "enterprise" ? "text-[#7A4A00] bg-[#FFD23F]"
+    : plan === "scale"     ? "text-white bg-[#FF6A1F]"
+    : plan === "growth"    ? "text-white bg-[#0E8A4B]"
+    : plan === "starter"   ? "text-white bg-[#3C50E0]"
+    :                        "text-foreground/65 bg-[#FFF1D6] border border-[#E8B968]";
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 bg-white border-2 rounded-full pl-2.5 pr-1 py-1 shadow-[0_2px_0_0_#B8230C]",
+        isPaid ? "border-[#FFD23F]" : "border-[#E8B968]",
+      )}
+    >
+      <span className="text-[10px] font-extrabold uppercase tracking-wider text-foreground/55 leading-none">
+        Current&nbsp;Plan&nbsp;:
+      </span>
+      <span className={cn(
+        "inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full leading-none",
+        planColor,
+      )}>
+        {isPaid && <Crown className="w-2.5 h-2.5" strokeWidth={2.5} />}
+        {plan}
+        {isPaid && cycle === "annual" && <span className="opacity-80">·YR</span>}
+      </span>
+
+      <button
+        onClick={() => onNavigate("upgrade")}
+        title={isPaid ? "Manage plan" : "Upgrade for more features"}
+        className={cn(
+          "inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-full leading-none transition-all hover:-translate-y-0.5 active:translate-y-0",
+          isPaid
+            ? "bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968] hover:bg-[#FFE9BD]"
+            : "bg-gradient-to-r from-[#B8230C] to-[#7A1500] text-white shadow-[0_2px_0_0_#5A0F00] hover:from-[#A01F0A] hover:to-[#691200]",
+        )}
+      >
+        <Sparkles className="w-2.5 h-2.5" strokeWidth={2.5} />
+        {isPaid ? "Manage" : "Explore Plans"}
+        <ArrowUpRight className="w-2.5 h-2.5" strokeWidth={2.5} />
+      </button>
+    </div>
   );
 };
