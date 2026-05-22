@@ -1,10 +1,20 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminApi, AdminWorkspace } from "@/lib/admin-api";
 import { Link } from "react-router-dom";
-import { Building2, Search, Loader2, ChevronRight, IndianRupee } from "lucide-react";
+import { Building2, Search, Loader2, ChevronRight, IndianRupee, Zap, Sparkles, Rocket, Gift, Crown, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+const QUICK_PLANS: Array<{ key: string; label: string; price: string; mrr: number; icon: typeof Building2; color: string }> = [
+  { key: "free",       label: "Free",       price: "₹0",     mrr: 0,    icon: Gift,     color: "text-[#6B7280]" },
+  { key: "starter",    label: "Starter",    price: "₹999",   mrr: 999,  icon: Sparkles, color: "text-[#3C50E0]" },
+  { key: "growth",     label: "Growth",     price: "₹2,999", mrr: 2999, icon: Rocket,   color: "text-[#0E8A4B]" },
+  { key: "scale",      label: "Scale",      price: "₹7,999", mrr: 7999, icon: Zap,      color: "text-[#FF6A1F]" },
+  { key: "enterprise", label: "Enterprise", price: "Custom", mrr: 0,    icon: Crown,    color: "text-[#B8651A]" },
+];
 
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-IN") : "—");
 
@@ -18,11 +28,23 @@ const STATUS = {
 const AdminWorkspaces = () => {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
+  const qc = useQueryClient();
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["admin-workspaces", q, status],
     queryFn: () => adminApi.workspaces({ q: q || undefined, status }),
   });
+
+  const setPlan = async (id: string, planKey: string, mrr: number) => {
+    try {
+      await adminApi.updateWorkspace(id, { plan: planKey, mrrInr: mrr });
+      toast.success(`Plan set to ${planKey}`);
+      qc.invalidateQueries({ queryKey: ["admin-workspaces"] });
+      qc.invalidateQueries({ queryKey: ["admin-metrics"] });
+    } catch (e) {
+      toast.error(String(e));
+    }
+  };
 
   return (
     <div className="px-6 lg:px-10 py-6">
@@ -58,12 +80,13 @@ const AdminWorkspaces = () => {
       </div>
 
       <div className="bg-white border-2 border-[#E8B968] rounded-2xl overflow-hidden shadow-[0_4px_0_0_#E8B968]">
-        <div className="grid grid-cols-[1.6fr_120px_110px_120px_120px_60px] gap-3 px-4 py-3 border-b-2 border-[#E8B968] bg-[#FFF1D6] text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">
+        <div className="grid grid-cols-[1.6fr_120px_110px_120px_120px_44px_60px] gap-3 px-4 py-3 border-b-2 border-[#E8B968] bg-[#FFF1D6] text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">
           <div>Account</div>
           <div>Plan</div>
           <div>Status</div>
           <div>MRR</div>
           <div>Joined</div>
+          <div></div>
           <div></div>
         </div>
 
@@ -92,15 +115,14 @@ const AdminWorkspaces = () => {
         {rows.map((w: AdminWorkspace) => {
           const st = STATUS[(w.status as keyof typeof STATUS) ?? "active"] ?? STATUS.active;
           return (
-            <Link
+            <div
               key={w.id}
-              to={`/admin/workspaces/${w.id}`}
-              className="grid grid-cols-[1.6fr_120px_110px_120px_120px_60px] gap-3 px-4 py-3 border-b border-[#E8B968]/40 last:border-b-0 items-center hover:bg-[#FFF6E8] transition"
+              className="grid grid-cols-[1.6fr_120px_110px_120px_120px_44px_60px] gap-3 px-4 py-3 border-b border-[#E8B968]/40 last:border-b-0 items-center hover:bg-[#FFF6E8] transition"
             >
-              <div className="min-w-0">
+              <Link to={`/admin/workspaces/${w.id}`} className="min-w-0">
                 <p className="text-[13px] font-extrabold truncate">{w.name}</p>
                 <p className="text-[11px] text-foreground/60 font-mono truncate">{w.email}</p>
-              </div>
+              </Link>
               <span className="inline-flex px-2 py-1 rounded-full bg-[#FFF1D6] border border-[#E8B968] text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A] w-fit">
                 {w.plan}
               </span>
@@ -112,8 +134,55 @@ const AdminWorkspaces = () => {
                 {Number(w.mrrInr ?? 0).toLocaleString("en-IN")}
               </span>
               <span className="text-[12px] text-foreground/70 font-medium">{fmtDate(w.createdAt)}</span>
-              <ChevronRight className="w-4 h-4 text-foreground/40 justify-self-end" />
-            </Link>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    title="Quick set plan"
+                    className="w-9 h-9 rounded-xl bg-[#FFF1D6] border-2 border-[#E8B968] text-[#B8651A] hover:bg-[#FFD23F] hover:text-[#3D1A00] hover:-translate-y-0.5 active:translate-y-0 transition flex items-center justify-center shadow-[0_2px_0_0_#E8B968]"
+                  >
+                    <Zap className="w-4 h-4" strokeWidth={2.5} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-64 p-2">
+                  <p className="text-[10px] uppercase tracking-wider font-extrabold text-foreground/60 px-2 py-1.5">
+                    Set plan for {w.name.split(" ")[0]}
+                  </p>
+                  <div className="space-y-1">
+                    {QUICK_PLANS.map((p) => {
+                      const Icon = p.icon;
+                      const current = w.plan === p.key;
+                      return (
+                        <button
+                          key={p.key}
+                          onClick={() => setPlan(w.id, p.key, p.mrr)}
+                          disabled={current}
+                          className={cn(
+                            "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition",
+                            current ? "bg-[#FFF1D6] cursor-default" : "hover:bg-[#FFF6E8] active:scale-[0.98]"
+                          )}
+                        >
+                          <Icon className={cn("w-4 h-4 flex-shrink-0", p.color)} strokeWidth={2.5} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] font-extrabold leading-tight">{p.label}</p>
+                            <p className="text-[10px] text-foreground/55 font-medium">{p.price}{p.mrr > 0 ? " · auto-MRR" : ""}</p>
+                          </div>
+                          {current && <Check className="w-4 h-4 text-[#0E8A4B] flex-shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Link
+                    to={`/admin/workspaces/${w.id}`}
+                    className="mt-1 flex items-center justify-center gap-1 w-full px-2.5 py-1.5 rounded-lg text-[10px] uppercase tracking-wider font-extrabold text-[#B8230C] hover:bg-[#B8230C]/5 transition"
+                  >
+                    Advanced (trial, MRR override) <ChevronRight className="w-3 h-3" />
+                  </Link>
+                </PopoverContent>
+              </Popover>
+              <Link to={`/admin/workspaces/${w.id}`} className="justify-self-end">
+                <ChevronRight className="w-4 h-4 text-foreground/40" />
+              </Link>
+            </div>
           );
         })}
       </div>

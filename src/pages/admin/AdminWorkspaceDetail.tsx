@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "@/lib/admin-api";
-import { Building2, ArrowLeft, ShieldOff, ShieldCheck, Eye, Edit3, Mail, Phone, Users as UsersIcon, MessageSquare, Inbox, Trophy, IndianRupee, Loader2, CheckCircle2, AlertTriangle, Flame, CheckCheck, Clock, Send, Download } from "lucide-react";
+import { Building2, ArrowLeft, ShieldOff, ShieldCheck, Eye, Edit3, Mail, Phone, Users as UsersIcon, MessageSquare, Inbox, Trophy, IndianRupee, Loader2, CheckCircle2, AlertTriangle, Flame, CheckCheck, Clock, Send, Download, Zap, Crown, Sparkles, Rocket, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,34 @@ import { toast } from "sonner";
 const fmtINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
+type PlanKey = "free" | "starter" | "growth" | "scale" | "enterprise";
+
+const PLAN_DEFAULT_MRR: Record<string, number> = {
+  free: 0,
+  starter: 999,
+  growth: 2999,
+  scale: 7999,
+  enterprise: 0,
+};
+
+const PLAN_CATALOG: Array<{
+  key: PlanKey;
+  label: string;
+  price: string;
+  caption: string;
+  icon: typeof Building2;
+  border: string;
+  ring: string;
+  badge: string;
+  iconBg: string;
+}> = [
+  { key: "free",       label: "Free",       price: "₹0",      caption: "Trial / waiver", icon: Gift,     border: "border-[#9CA3AF]", ring: "ring-[#6B7280]", badge: "bg-[#F3F4F6] text-[#374151]", iconBg: "bg-[#6B7280]" },
+  { key: "starter",    label: "Starter",    price: "₹999",    caption: "/ month",        icon: Sparkles, border: "border-[#3C50E0]", ring: "ring-[#3C50E0]", badge: "bg-[#E4E8FF] text-[#1E40AF]", iconBg: "bg-[#3C50E0]" },
+  { key: "growth",     label: "Growth",     price: "₹2,999",  caption: "/ month",        icon: Rocket,   border: "border-[#0E8A4B]", ring: "ring-[#0E8A4B]", badge: "bg-[#E6F7EE] text-[#0A6E3C]", iconBg: "bg-[#0E8A4B]" },
+  { key: "scale",      label: "Scale",      price: "₹7,999",  caption: "/ month",        icon: Zap,      border: "border-[#FF6A1F]", ring: "ring-[#FF6A1F]", badge: "bg-[#FFEFE0] text-[#B8420A]", iconBg: "bg-[#FF6A1F]" },
+  { key: "enterprise", label: "Enterprise", price: "Custom",  caption: "Negotiated",     icon: Crown,    border: "border-[#FFD23F]", ring: "ring-[#FFD23F]", badge: "bg-[#FFF1D6] text-[#7A4A00]", iconBg: "bg-[#FFD23F] text-[#3D1A00]" },
+];
+
 const AdminWorkspaceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -23,6 +51,8 @@ const AdminWorkspaceDetail = () => {
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [plan, setPlan] = useState("");
   const [mrr, setMrr] = useState("");
+  const [trialEndsAt, setTrialEndsAt] = useState<string>("");
+  const [mrrTouched, setMrrTouched] = useState(false);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -45,18 +75,38 @@ const AdminWorkspaceDetail = () => {
   const openEdit = () => {
     setPlan(w.plan);
     setMrr(String(w.mrrInr ?? 0));
+    setTrialEndsAt(w.trialEndsAt ? new Date(w.trialEndsAt).toISOString().slice(0, 10) : "");
+    setMrrTouched(false);
     setEditOpen(true);
+  };
+
+  const pickPlan = (next: string) => {
+    setPlan(next);
+    if (!mrrTouched) {
+      const def = PLAN_DEFAULT_MRR[next];
+      if (def !== undefined) setMrr(String(def));
+    }
   };
 
   const saveEdit = async () => {
     setSubmitting(true);
     try {
-      await adminApi.updateWorkspace(id!, { plan, mrrInr: Number(mrr) });
-      toast.success("Plan updated");
+      await adminApi.updateWorkspace(id!, {
+        plan,
+        mrrInr: Number(mrr || 0),
+        trialEndsAt: trialEndsAt ? new Date(trialEndsAt).toISOString() : null,
+      });
+      toast.success(`Plan set to ${plan}`);
       setEditOpen(false);
       refresh();
     } catch (e) { toast.error(String(e)); }
     finally { setSubmitting(false); }
+  };
+
+  const extendTrialDays = (days: number) => {
+    const base = trialEndsAt ? new Date(trialEndsAt) : new Date();
+    base.setDate(base.getDate() + days);
+    setTrialEndsAt(base.toISOString().slice(0, 10));
   };
 
   const doSuspend = async () => {
@@ -134,7 +184,7 @@ const AdminWorkspaceDetail = () => {
           </div>
           <div className="flex flex-col gap-2">
             <Button variant="outline" onClick={openEdit}>
-              <Edit3 className="w-3.5 h-3.5" /> Edit plan
+              <Zap className="w-3.5 h-3.5" /> Set plan
             </Button>
             <Button onClick={() => { setReason(""); setImpersOpen(true); }}>
               <Eye className="w-3.5 h-3.5" /> Impersonate
@@ -209,33 +259,128 @@ const AdminWorkspaceDetail = () => {
       {/* Preview cards — read-only peek at customer data to reduce impersonation churn */}
       <WorkspacePreview userId={id!} />
 
-      {/* Edit plan dialog */}
+      {/* Set plan dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[640px]">
           <DialogHeader>
-            <DialogTitle>Edit plan & MRR</DialogTitle>
-            <DialogDescription>Manual override for {w.email}. Logged in audit.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 mt-2">
-            <div className="space-y-1.5">
-              <Label>Plan</Label>
-              <Select value={plan} onValueChange={setPlan}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="starter">Starter · ₹499/mo</SelectItem>
-                  <SelectItem value="growth">Growth · ₹1,999/mo</SelectItem>
-                  <SelectItem value="enterprise">Enterprise · Custom</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#B8230C] to-[#7A1500] text-white flex items-center justify-center shadow-md">
+                <Zap className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div>
+                <DialogTitle>Set plan for {w.name}</DialogTitle>
+                <DialogDescription>
+                  Instantly activate any plan. MRR auto-fills — override if discounted. Logged in audit.
+                </DialogDescription>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>MRR (₹)</Label>
-              <Input type="number" value={mrr} onChange={(e) => setMrr(e.target.value)} />
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            {/* Plan grid */}
+            <div>
+              <Label className="text-[11px] uppercase tracking-wider font-extrabold text-foreground/60">Choose plan</Label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                {PLAN_CATALOG.map((p) => {
+                  const Icon = p.icon;
+                  const selected = plan === p.key;
+                  const current = w.plan === p.key;
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => pickPlan(p.key)}
+                      className={`relative text-left p-3 rounded-xl border-2 transition-all bg-white ${
+                        selected
+                          ? `${p.border} ring-4 ${p.ring}/20 shadow-[0_3px_0_0_currentColor] -translate-y-0.5`
+                          : "border-[#E8B968]/50 hover:border-[#E8B968] hover:-translate-y-0.5"
+                      }`}
+                    >
+                      {current && (
+                        <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968]">
+                          Now
+                        </span>
+                      )}
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className={`w-8 h-8 rounded-lg ${p.iconBg} text-white flex items-center justify-center shadow-sm`}>
+                          <Icon className="w-3.5 h-3.5" strokeWidth={2.5} />
+                        </div>
+                        <p className="text-[13px] font-black">{p.label}</p>
+                      </div>
+                      <p className="text-[15px] font-black tabular-nums">{p.price}</p>
+                      <p className="text-[10px] text-foreground/60 font-medium">{p.caption}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* MRR + Trial row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>MRR (₹/month)</Label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/50" />
+                  <Input
+                    type="number"
+                    value={mrr}
+                    onChange={(e) => { setMrr(e.target.value); setMrrTouched(true); }}
+                    className="pl-9 font-mono font-bold"
+                  />
+                </div>
+                <p className="text-[10px] text-foreground/55 font-medium">
+                  {mrrTouched ? "Manual override" : `Default for ${plan}`}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Trial ends (optional)</Label>
+                <Input
+                  type="date"
+                  value={trialEndsAt}
+                  onChange={(e) => setTrialEndsAt(e.target.value)}
+                />
+                <div className="flex gap-1">
+                  <button type="button" onClick={() => extendTrialDays(7)} className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-1 rounded-md bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968] hover:scale-105 transition">
+                    +7d
+                  </button>
+                  <button type="button" onClick={() => extendTrialDays(14)} className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-1 rounded-md bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968] hover:scale-105 transition">
+                    +14d
+                  </button>
+                  <button type="button" onClick={() => extendTrialDays(30)} className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-1 rounded-md bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968] hover:scale-105 transition">
+                    +30d
+                  </button>
+                  <button type="button" onClick={() => setTrialEndsAt("")} className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-1 rounded-md bg-white text-foreground/60 border border-[#E8B968]/50 hover:scale-105 transition">
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Preview strip */}
+            <div className="rounded-xl bg-[#FFF1D6] border-2 border-[#E8B968] p-3 flex items-center gap-3">
+              <CheckCircle2 className="w-4 h-4 text-[#0E8A4B] flex-shrink-0" />
+              <div className="text-[12px] font-semibold flex-1">
+                {plan === w.plan && Number(mrr || 0) === Number(w.mrrInr ?? 0) ? (
+                  <span className="text-foreground/70">No changes — adjust plan or MRR to activate.</span>
+                ) : (
+                  <>
+                    Will set <span className="font-black uppercase">{plan}</span> at <span className="font-black tabular-nums">{fmtINR(Number(mrr || 0))}</span>/mo
+                    {trialEndsAt ? <> · trial ends <span className="font-black">{new Date(trialEndsAt).toLocaleDateString("en-IN")}</span></> : null}
+                  </>
+                )}
+              </div>
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={saveEdit} disabled={submitting}>{submitting ? "Saving…" : "Save"}</Button>
+            <Button
+              onClick={saveEdit}
+              disabled={submitting || !plan}
+              className="bg-[#0E8A4B] text-white shadow-[0_4px_0_0_#0A6E3C] hover:bg-[#0A6E3C]"
+            >
+              {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Activating…</> : <><Zap className="w-3.5 h-3.5" /> Activate plan</>}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
