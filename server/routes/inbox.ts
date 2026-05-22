@@ -20,73 +20,79 @@ app.get("/conversations", async (c) => {
   // session even though the underlying rows existed (status endpoint reported
   // count=4 for the same user_id). Hand-rolling the join eliminates the
   // relations-resolution dependency.
-  const rows = await db
-    .select({
-      // conversation columns
-      id: conversation.id,
-      ownerId: conversation.ownerId,
-      contactId: conversation.contactId,
-      status: conversation.status,
-      unreadCount: conversation.unreadCount,
-      lastMessageAt: conversation.lastMessageAt,
-      lastMessagePreview: conversation.lastMessagePreview,
-      sourceAdId: conversation.sourceAdId,
-      sourceHeadline: conversation.sourceHeadline,
-      ctwaClickId: conversation.ctwaClickId,
-      sourceType: conversation.sourceType,
-      createdAt: conversation.createdAt,
-      updatedAt: conversation.updatedAt,
-      // joined contact (nested manually below)
-      contact_id: contact.id,
-      contact_ownerId: contact.ownerId,
-      contact_name: contact.name,
-      contact_phone: contact.phone,
-      contact_email: contact.email,
-      contact_tag: contact.tag,
-      contact_score: contact.score,
-      contact_source: contact.source,
-      contact_notes: contact.notes,
-      contact_createdAt: contact.createdAt,
-      contact_updatedAt: contact.updatedAt,
-    })
-    .from(conversation)
-    .leftJoin(contact, eq(contact.id, conversation.contactId))
-    .where(eq(conversation.ownerId, c.var.userId))
-    .orderBy(sql`${conversation.lastMessageAt} DESC NULLS LAST`, desc(conversation.createdAt));
+  //
+  // NOTE: we intentionally don't select the ad-attribution columns
+  // (source_ad_id, source_headline, ctwa_click_id, source_type — migration
+  // 0010_ad_attribution.sql). They may not exist in every database yet, and
+  // the inbox list doesn't render them. Adding them back is safe once the
+  // migration has been applied everywhere.
+  try {
+    const rows = await db
+      .select({
+        id: conversation.id,
+        ownerId: conversation.ownerId,
+        contactId: conversation.contactId,
+        status: conversation.status,
+        unreadCount: conversation.unreadCount,
+        lastMessageAt: conversation.lastMessageAt,
+        lastMessagePreview: conversation.lastMessagePreview,
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt,
+        // joined contact (nested manually below)
+        contact_id: contact.id,
+        contact_ownerId: contact.ownerId,
+        contact_name: contact.name,
+        contact_phone: contact.phone,
+        contact_email: contact.email,
+        contact_tag: contact.tag,
+        contact_score: contact.score,
+        contact_source: contact.source,
+        contact_notes: contact.notes,
+        contact_createdAt: contact.createdAt,
+        contact_updatedAt: contact.updatedAt,
+      })
+      .from(conversation)
+      .leftJoin(contact, eq(contact.id, conversation.contactId))
+      .where(eq(conversation.ownerId, c.var.userId))
+      .orderBy(sql`${conversation.lastMessageAt} DESC NULLS LAST`, desc(conversation.createdAt));
 
-  // Reshape into the { ...conversation, contact: {...} } shape the frontend expects.
-  const shaped = rows.map((r) => ({
-    id: r.id,
-    ownerId: r.ownerId,
-    contactId: r.contactId,
-    status: r.status,
-    unreadCount: r.unreadCount,
-    lastMessageAt: r.lastMessageAt,
-    lastMessagePreview: r.lastMessagePreview,
-    sourceAdId: r.sourceAdId,
-    sourceHeadline: r.sourceHeadline,
-    ctwaClickId: r.ctwaClickId,
-    sourceType: r.sourceType,
-    createdAt: r.createdAt,
-    updatedAt: r.updatedAt,
-    contact: r.contact_id
-      ? {
-          id: r.contact_id,
-          ownerId: r.contact_ownerId,
-          name: r.contact_name,
-          phone: r.contact_phone,
-          email: r.contact_email,
-          tag: r.contact_tag,
-          score: r.contact_score,
-          source: r.contact_source,
-          notes: r.contact_notes,
-          createdAt: r.contact_createdAt,
-          updatedAt: r.contact_updatedAt,
-        }
-      : null,
-  }));
+    const shaped = rows.map((r) => ({
+      id: r.id,
+      ownerId: r.ownerId,
+      contactId: r.contactId,
+      status: r.status,
+      unreadCount: r.unreadCount,
+      lastMessageAt: r.lastMessageAt,
+      lastMessagePreview: r.lastMessagePreview,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      contact: r.contact_id
+        ? {
+            id: r.contact_id,
+            ownerId: r.contact_ownerId,
+            name: r.contact_name,
+            phone: r.contact_phone,
+            email: r.contact_email,
+            tag: r.contact_tag,
+            score: r.contact_score,
+            source: r.contact_source,
+            notes: r.contact_notes,
+            createdAt: r.contact_createdAt,
+            updatedAt: r.contact_updatedAt,
+          }
+        : null,
+    }));
 
-  return c.json(shaped);
+    return c.json(shaped);
+  } catch (err) {
+    // Surface the actual DB error to logs + frontend so future "500 with no
+    // detail" can be debugged in one round-trip instead of three.
+    console.error("[GET /api/conversations]", err);
+    return c.json({
+      error: "conversation_query_failed",
+      detail: (err as Error)?.message ?? String(err),
+    }, 500);
+  }
 });
 
 /* Returns the user's inbox-side health: WhatsApp connection state + tiny

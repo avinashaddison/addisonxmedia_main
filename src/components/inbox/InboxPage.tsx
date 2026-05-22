@@ -70,9 +70,15 @@ const InboxEmptyState = ({ loading }: { loading: boolean }) => {
       const t = performance.now();
       const r = await fetch("/api/conversations", { credentials: "include" });
       const ms = Math.round(performance.now() - t);
-      const ok = r.ok;
-      const body = r.ok ? await r.json().catch(() => null) : null;
-      return { ok, status: r.status, ms, count: Array.isArray(body) ? body.length : 0, firstName: Array.isArray(body) && body[0]?.contact?.name ? body[0].contact.name : null };
+      const body = await r.json().catch(() => null);
+      return {
+        ok: r.ok,
+        status: r.status,
+        ms,
+        count: Array.isArray(body) ? body.length : 0,
+        firstName: Array.isArray(body) && body[0]?.contact?.name ? body[0].contact.name : null,
+        errorDetail: !r.ok && body && typeof body === "object" ? ((body as { detail?: string; error?: string }).detail ?? (body as { error?: string }).error ?? null) : null,
+      };
     },
     staleTime: 5_000,
     refetchInterval: 8_000,
@@ -166,6 +172,7 @@ const InboxEmptyState = ({ loading }: { loading: boolean }) => {
                 <p>http · <span className={probe.ok ? "text-[#0E8A4B] font-bold" : "text-[#D4308E] font-bold"}>{probe.status}</span> · {probe.ms}ms</p>
                 <p>rows returned · <span className={probe.count === 0 ? "text-[#D4308E] font-bold" : "text-[#0E8A4B] font-bold"}>{probe.count}</span></p>
                 {probe.firstName && <p>first.contact.name · {probe.firstName}</p>}
+                {probe.errorDetail && <p className="text-[#D4308E] font-bold">error · {probe.errorDetail}</p>}
               </>
             )}
           </div>
