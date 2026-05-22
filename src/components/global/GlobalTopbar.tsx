@@ -191,12 +191,12 @@ const WhatsAppStatusPill = () => {
         config.hoverShadow,
       )}
     >
-      <span className="relative flex items-center justify-center w-3 h-3">
-        {config.animate && (
-          <span className={cn("absolute inset-0 rounded-full opacity-50 animate-ping", config.dotColor)} />
-        )}
-        <span className={cn("relative w-2.5 h-2.5 rounded-full", config.dotColor)} />
-      </span>
+      <img
+        src="https://i.ibb.co/mChFMDSm/whatsapp.png"
+        alt="WhatsApp"
+        className="w-5 h-5 flex-shrink-0"
+        loading="lazy"
+      />
       <span className={cn("text-[12px] font-extrabold uppercase tracking-wider leading-none", config.labelText)}>
         WhatsApp&nbsp;Business API&nbsp;Status&nbsp;:
       </span>
