@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/client";
-import { contact, conversation, message, metaConfig } from "../db/schema";
+import { contact, conversation, message, metaConfig, webhookOrphan } from "../db/schema";
 
 // Meta WhatsApp webhook receiver.
 //
@@ -62,7 +62,38 @@ async function processMessagesChange(value: any) {
   const [cfg] = await db.select().from(metaConfig)
     .where(eq(metaConfig.phoneNumberId, phoneNumberId)).limit(1);
   if (!cfg) {
-    console.warn(`[webhooks/meta] received message for unknown phone_number_id ${phoneNumberId}`);
+    // No meta_config for this phone → log to webhook_orphan so admin can see
+    // and retroactively claim. Each inbound message becomes its own orphan row
+    // so the admin can read previews and decide which user it belongs to.
+    const displayPhoneNumber: string | undefined = value?.metadata?.display_phone_number;
+    const contacts: any[] = value?.contacts ?? [];
+    const messages: any[] = value?.messages ?? [];
+    if (messages.length === 0) {
+      // Status updates with no matching cfg — record one breadcrumb so we know
+      // a phone is sending us status callbacks for a number we don't own.
+      await db.insert(webhookOrphan).values({
+        phoneNumberId,
+        displayPhoneNumber: displayPhoneNumber ?? null,
+        raw: value,
+      }).catch((e) => console.error("[webhook_orphan insert]", e));
+      return;
+    }
+    for (const m of messages) {
+      const fromPhone: string = m?.from ?? "";
+      const normalizedPhone = fromPhone ? (fromPhone.startsWith("+") ? fromPhone : `+${fromPhone}`) : null;
+      const profile = contacts.find((c: any) => c.wa_id === fromPhone)?.profile;
+      const fromName = profile?.name ?? null;
+      const preview = extractMessageBody(m).slice(0, 280);
+      await db.insert(webhookOrphan).values({
+        phoneNumberId,
+        displayPhoneNumber: displayPhoneNumber ?? null,
+        fromPhone: normalizedPhone,
+        fromName,
+        messagePreview: preview,
+        raw: m,
+      }).catch((e) => console.error("[webhook_orphan insert]", e));
+    }
+    console.warn(`[webhooks/meta] orphaned ${messages.length} message(s) for unknown phone_number_id ${phoneNumberId}`);
     return;
   }
   const userId = cfg.userId;

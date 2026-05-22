@@ -3,13 +3,14 @@ import {
   check,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
   text,
   timestamp,
 
-  
+
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -341,6 +342,31 @@ export const metaConfig = pgTable("meta_config", {
 }, (t) => ({
   // Webhook receiver looks up user by phone_number_id from Meta payload
   phoneNumberIdx: index("meta_config_phone_number_idx").on(t.phoneNumberId),
+}));
+
+// ============================================================
+// Webhook orphan log
+//
+// Captures inbound WhatsApp webhooks that arrived for a phone_number_id we
+// have no meta_config for. Without this, those events fall into a silent
+// console.warn and admins have no way to find out which numbers are trying
+// to reach the platform but failing to land in any inbox.
+// ============================================================
+
+export const webhookOrphan = pgTable("webhook_orphan", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  phoneNumberId: text("phone_number_id").notNull(),
+  displayPhoneNumber: text("display_phone_number"),
+  fromPhone: text("from_phone"),
+  fromName: text("from_name"),
+  messagePreview: text("message_preview"),
+  raw: jsonb("raw"),
+  claimedUserId: text("claimed_user_id").references(() => user.id, { onDelete: "set null" }),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  phoneIdx: index("webhook_orphan_phone_idx").on(t.phoneNumberId),
+  createdIdx: index("webhook_orphan_created_idx").on(t.createdAt),
 }));
 
 // ============================================================

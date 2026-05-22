@@ -4,7 +4,7 @@ import { adminApi, type AdminUpgradeRequest } from "@/lib/admin-api";
 import {
   Users, IndianRupee, Building2, Sparkles, MessageSquare, Inbox, Trophy,
   Activity, ShieldOff, AlertTriangle, Crown, Loader2, ArrowUpRight,
-  Zap, ChevronRight, Crosshair,
+  Zap, ChevronRight, Crosshair, Radio,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -289,11 +289,49 @@ const AdminDashboard = () => {
         <KPI label="Signups (7 din)"    rawValue={m?.signupsWeek ?? 0}    format="num" sub={`${m?.signups24h ?? 0} in last 24h`} icon={Sparkles} color="orange" accent />
         <KPI label="Suspended"          rawValue={m?.suspended ?? 0}      format="num" sub="Needs review" icon={ShieldOff} color="red" />
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
         <KPI label="Messages (24h)"     rawValue={m?.messages24h ?? 0}    format="num" sub="Across all workspaces" icon={MessageSquare} color="indigo" />
         <KPI label="Deals won (24h)"    rawValue={m?.dealsWon24h ?? 0}    format="num" sub="₹ value in subs view" icon={Trophy} color="emerald" />
         <KPI label="Trial accounts"     rawValue={m?.trial ?? 0}          format="num" sub="Watch for conversion" icon={AlertTriangle} color="magenta" />
         <KPI label="Pending upgrades"   rawValue={pending.length}         format="num" sub={pending.length === 0 ? "Queue clear ✓" : "Process payment links"} icon={Crosshair} color="orange" />
+      </div>
+      {/* Routing-health row — surfaces "where are my chats?" support tickets
+       *  before customers file them. Lights up red when there's drift. */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-5">
+        <Link to="/admin/diagnostics" className="block lg:col-span-2">
+          <div className={cn(
+            "h-full rounded-2xl bg-white border-2 p-4 transition-all hover:-translate-y-0.5",
+            (m?.unroutedWebhooks24h ?? 0) > 0
+              ? "border-[#FF6A1F] shadow-[0_4px_0_0_#B8420A] hover:shadow-[0_6px_0_0_#B8420A]"
+              : "border-[#0E8A4B] shadow-[0_4px_0_0_#0A6E3C] hover:shadow-[0_6px_0_0_#0A6E3C]"
+          )}>
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-md",
+                (m?.unroutedWebhooks24h ?? 0) > 0 ? "bg-[#FF6A1F]" : "bg-[#0E8A4B]"
+              )}>
+                <Radio className={cn("w-5 h-5", (m?.unroutedWebhooks24h ?? 0) > 0 && "animate-pulse")} strokeWidth={2.5} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] uppercase tracking-wider text-foreground/60 font-extrabold">Routing health (24h)</p>
+                <p className="text-[22px] font-black tabular-nums leading-none mt-0.5">
+                  {m?.unroutedWebhooks24h ?? 0}
+                  <span className="text-[12px] font-bold text-foreground/55 ml-1.5">
+                    {(m?.unroutedWebhooks24h ?? 0) === 1 ? "unrouted message" : "unrouted messages"}
+                  </span>
+                </p>
+                <p className="text-[11px] font-bold mt-0.5">
+                  {(m?.unroutedWebhooks24h ?? 0) > 0
+                    ? <span className="text-[#B8420A]">⚠ Inbound chats arriving for unknown numbers — click to investigate</span>
+                    : <span className="text-[#0A6E3C]">✓ Every inbound message is reaching an inbox</span>}
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-foreground/40" />
+            </div>
+          </div>
+        </Link>
+        <KPI label="Open conversations" rawValue={m?.conversationsOpen ?? 0} format="num" sub="Across all workspaces" icon={Inbox} color="yellow" />
+        <KPI label="MRR (active)"       rawValue={m?.mrrInr ?? 0}            format="inr" sub={`${m?.activeUsers ?? 0} paying workspaces`} icon={IndianRupee} color="emerald" />
       </div>
 
       {/* Bottom: recent activity (left) + quick links (right) */}

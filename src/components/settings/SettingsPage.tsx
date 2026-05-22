@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/PageShell";
@@ -298,6 +298,7 @@ const IntegrationsSection = () => {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [showToken, setShowToken] = useState(false);
+  const [collision, setCollision] = useState<{ maskedEmail: string; message: string } | null>(null);
 
   const isConnected = !!cfg && cfg.enabled;
   const webhookUrl = typeof window !== "undefined" ? `${window.location.origin}/api/webhooks/meta` : "";
@@ -310,26 +311,42 @@ const IntegrationsSection = () => {
     }
   }, [cfg]);
 
-  const handleSave = async () => {
-    if (!accessToken.trim() || !phoneNumberId.trim()) {
-      toast.error("Access token and phone number ID are required");
-      return;
-    }
+  const doSaveMeta = async (force = false) => {
     setSaving(true);
     try {
       const res = await api.saveMetaConfig({
         access_token: accessToken.trim(),
         phone_number_id: phoneNumberId.trim(),
         business_account_id: businessAccountId.trim() || undefined,
+        force,
       });
       toast.success(`Connected to ${res.display_phone_number ?? "WhatsApp"}`);
       setAccessToken("");
+      setCollision(null);
       qc.invalidateQueries({ queryKey: ["meta-config"] });
+      qc.invalidateQueries({ queryKey: ["inbox-status"] });
     } catch (e) {
+      // 409 collision — surface a confirm dialog instead of just a red toast
+      if (e instanceof ApiError && e.status === 409 && e.body && (e.body as { code?: string }).code === "PHONE_ALREADY_CLAIMED") {
+        const existing = (e.body as { existingAccount?: { masked_email?: string } }).existingAccount;
+        setCollision({
+          maskedEmail: existing?.masked_email ?? "another account",
+          message: typeof e.message === "string" ? e.message : "Phone already connected to another account",
+        });
+        return;
+      }
       toast.error(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = async () => {
+    if (!accessToken.trim() || !phoneNumberId.trim()) {
+      toast.error("Access token and phone number ID are required");
+      return;
+    }
+    await doSaveMeta(false);
   };
 
   const handleTest = async () => {
@@ -521,6 +538,40 @@ const IntegrationsSection = () => {
 
           {isLoading && <p className="text-[11px] text-muted-foreground mt-3">Loading config…</p>}
         </div>
+
+        {/* Collision dialog — surfaces when the WABA number is already
+         *  claimed by another account. Prevents the silent "I don't see my
+         *  chats" failure mode by asking the user to confirm transfer. */}
+        <AlertDialog open={!!collision} onOpenChange={(open) => !open && setCollision(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-[#FF6A1F]" />
+                This number is already connected
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-foreground/70 font-medium">
+                The WhatsApp number you're connecting is currently linked to <span className="font-mono font-bold text-foreground">{collision?.maskedEmail}</span>.
+                <br /><br />
+                <span className="block p-3 rounded-lg bg-[#FFF1D6] border border-[#E8B968] text-[12px] text-[#7A4A00] font-semibold mb-2">
+                  <strong className="font-extrabold">If that's also you:</strong> log in there to see your existing chats. Don't transfer — you'll lose access to them under this account.
+                </span>
+                <span className="block p-3 rounded-lg bg-[#FCE5F0] border border-[#D4308E]/40 text-[12px] text-[#9F1A6A] font-semibold">
+                  <strong className="font-extrabold">If you want to take ownership:</strong> Transferring will move the WhatsApp routing to this account. Future inbound chats land here. Existing chats on the other account are unaffected — you'd need an admin to move them.
+                </span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setCollision(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => doSaveMeta(true)}
+                disabled={saving}
+                className="bg-[#D4308E] text-white shadow-[0_4px_0_0_#A11A6A] hover:bg-[#C02680] hover:shadow-[0_2px_0_0_#A11A6A]"
+              >
+                {saving ? "Transferring…" : "Transfer to this account"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Other integrations — honest "coming soon" cards */}
         <div>

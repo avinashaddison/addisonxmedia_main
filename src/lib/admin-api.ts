@@ -27,6 +27,7 @@ export type AdminMetrics = {
   messages24h: number;
   conversationsOpen: number;
   dealsWon24h: number;
+  unroutedWebhooks24h: number;
 };
 
 export type AdminWorkspace = {
@@ -165,6 +166,22 @@ export const adminApi = {
   chatOwnership: () => adminRequest<ChatOwnershipReport>("/diagnostics/chat-ownership"),
   reassignChats: (body: { fromUserId: string; toUserId: string; includeMetaConfig?: boolean }) =>
     adminRequest<{ ok: true }>("/diagnostics/reassign-chats", { method: "POST", body: JSON.stringify(body) }),
+  webhookOrphans: (params?: { sinceDays?: number; onlyUnclaimed?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.sinceDays) qs.set("since", new Date(Date.now() - params.sinceDays * 24 * 3600 * 1000).toISOString());
+    if (params?.onlyUnclaimed) qs.set("only_unclaimed", "1");
+    return adminRequest<WebhookOrphanReport>(`/diagnostics/webhook-orphans${qs.toString() ? `?${qs}` : ""}`);
+  },
+  claimWebhookOrphans: (phoneNumberId: string, userId: string) =>
+    adminRequest<{ ok: true; claimedCount: number }>(`/diagnostics/webhook-orphans/claim`, {
+      method: "POST",
+      body: JSON.stringify({ phoneNumberId, userId }),
+    }),
+  clearWebhookOrphans: (phoneNumberId?: string) =>
+    adminRequest<{ ok: true; deletedCount: number }>(
+      `/diagnostics/webhook-orphans${phoneNumberId ? `?phone_number_id=${encodeURIComponent(phoneNumberId)}` : ""}`,
+      { method: "DELETE" }
+    ),
   health: () => adminRequest<{ checks: HealthCheck[]; timestamp: string }>("/health"),
   settings: () => adminRequest<SystemSetting[]>("/settings"),
   updateSetting: (key: string, value: string) =>
@@ -212,6 +229,33 @@ export type ChatOwnershipMetaConfig = {
 export type ChatOwnershipReport = {
   ownership: ChatOwnershipRow[];
   metaConfigs: ChatOwnershipMetaConfig[];
+  unroutedWebhooks24h: number;
+};
+
+export type WebhookOrphanGroup = {
+  phoneNumberId: string;
+  displayPhoneNumber: string | null;
+  total: number;
+  lastAt: string;
+};
+
+export type WebhookOrphanEvent = {
+  id: string;
+  phoneNumberId: string;
+  displayPhoneNumber: string | null;
+  fromPhone: string | null;
+  fromName: string | null;
+  messagePreview: string | null;
+  raw: unknown;
+  claimedUserId: string | null;
+  claimedAt: string | null;
+  createdAt: string;
+};
+
+export type WebhookOrphanReport = {
+  groups: WebhookOrphanGroup[];
+  recent: WebhookOrphanEvent[];
+  unclaimed24h: number;
 };
 
 export type SystemSetting = {

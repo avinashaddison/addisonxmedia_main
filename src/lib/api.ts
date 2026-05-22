@@ -8,9 +8,11 @@
 
 class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  body: Record<string, unknown> | null;
+  constructor(message: string, status: number, body: Record<string, unknown> | null = null) {
     super(message);
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -37,11 +39,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
+    let body: Record<string, unknown> | null = null;
     try {
-      const j = await res.json();
-      if (j?.error) message = j.error;
+      body = await res.json();
+      const jErr = (body as { error?: unknown })?.error;
+      if (typeof jErr === "string") message = jErr;
     } catch { /* not JSON */ }
-    throw new ApiError(message, res.status);
+    throw new ApiError(message, res.status, body);
   }
   if (res.status === 204) return undefined as T;
   const data = await res.json();
@@ -90,6 +94,13 @@ export const api = {
   listConversations: () => get<any[]>("/conversations"),
   createConversation: (data: any) => post<any>("/conversations", data),
   updateConversation: (id: string, data: any) => patch<any>(`/conversations/${id}`, data),
+  inboxStatus: () => get<{
+    meta_connected: boolean;
+    meta_enabled: boolean;
+    display_phone_number: string | null;
+    last_verified_at: string | null;
+    conversation_count: number;
+  }>("/inbox/status"),
 
   // Messages
   listMessages: (conversationId: string) => get<any[]>(`/conversations/${conversationId}/messages`),
@@ -135,6 +146,7 @@ export const api = {
     access_token: string;
     phone_number_id: string;
     business_account_id?: string;
+    force?: boolean;
   }) => post<any>("/integrations/meta", data),
   testMetaConfig: () => post<{ ok: boolean; display_phone_number?: string; verified_name?: string; quality_rating?: string; error?: string }>("/integrations/meta/test"),
   deleteMetaConfig: () => del("/integrations/meta"),

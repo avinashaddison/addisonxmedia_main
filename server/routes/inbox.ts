@@ -23,6 +23,31 @@ app.get("/conversations", async (c) => {
   return c.json(rows);
 });
 
+/* Returns the user's inbox-side health: WhatsApp connection state + tiny
+ * counts. Used by the inbox empty-state to decide between
+ *   - "Connect WhatsApp to receive chats"
+ *   - "Your connection is pending verification"
+ *   - "You're connected — share your number to start receiving chats"
+ * The previous empty state said "Click + above" regardless of whether the
+ * user had even connected WhatsApp, which routed them to support instead of
+ * the next correct action. */
+app.get("/inbox/status", async (c) => {
+  const userId = c.var.userId;
+  const [cfg] = await db.select().from(metaConfig).where(eq(metaConfig.userId, userId)).limit(1);
+  const [{ n: conversationCount }] = await db
+    .select({ n: sql<number>`COUNT(*)::int` })
+    .from(conversation)
+    .where(eq(conversation.ownerId, userId));
+
+  return c.json({
+    meta_connected: !!cfg,
+    meta_enabled: cfg?.enabled ?? false,
+    display_phone_number: cfg?.displayPhoneNumber ?? null,
+    last_verified_at: cfg?.lastVerifiedAt ?? null,
+    conversation_count: conversationCount,
+  });
+});
+
 app.post("/conversations", async (c) => {
   const body = await c.req.json();
   // Find or upsert the contact first by (owner_id, phone)

@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { ConversationList } from "./ConversationList";
 import { ChatWindow } from "./ChatWindow";
 import { LeadPanel } from "./LeadPanel";
 import { useConversations } from "@/hooks/useInboxData";
 import { useMuteState } from "@/hooks/useNotificationSound";
-import { MessageCircle, Loader2 } from "lucide-react";
+import { api } from "@/lib/api";
+import { MessageCircle, Loader2, Phone, AlertTriangle, CheckCircle2, ArrowRight, MessageSquareWarning } from "lucide-react";
 
 export const InboxPage = () => {
   const { data: conversations = [], isLoading } = useConversations();
@@ -41,24 +44,95 @@ export const InboxPage = () => {
           <LeadPanel contact={active.contact} conversationId={active.id} />
         </>
       ) : (
-        <div className="flex-1 flex items-center justify-center bg-card">
-          <div className="text-center max-w-sm px-6">
-            {isLoading ? (
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mx-auto" />
-            ) : (
-              <>
-                <div className="w-14 h-14 rounded-2xl bg-primary-soft flex items-center justify-center mx-auto mb-4">
-                  <MessageCircle className="w-7 h-7 text-primary" />
-                </div>
-                <h2 className="text-[16px] font-bold mb-1">No conversations yet</h2>
-                <p className="text-[13px] text-muted-foreground">
-                  Click the <span className="font-semibold text-primary">+</span> button in the chats panel to start your first conversation.
-                </p>
-              </>
-            )}
-          </div>
-        </div>
+        <InboxEmptyState loading={isLoading} />
       )}
+    </div>
+  );
+};
+
+/* Three-state empty inbox — was a single "click +" message regardless of
+ * whether WhatsApp was even connected, which sent confused users to support
+ * instead of the next correct action. */
+const InboxEmptyState = ({ loading }: { loading: boolean }) => {
+  const { data: status } = useQuery({
+    queryKey: ["inbox-status"],
+    queryFn: () => api.inboxStatus(),
+    staleTime: 30_000,
+  });
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-card">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // State A — never connected WhatsApp. Most likely to be hit by trial users.
+  if (status && !status.meta_connected) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-card px-6">
+        <div className="text-center max-w-md">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <Phone className="w-8 h-8" strokeWidth={2.5} />
+          </div>
+          <h2 className="text-[18px] font-black mb-1">Connect WhatsApp to receive chats</h2>
+          <p className="text-[13px] text-muted-foreground mb-4">
+            Your AddisonX inbox shows real-time conversations from your WhatsApp Business number. Connect Meta to start receiving chats from customers and ads.
+          </p>
+          <Link
+            to="/app/settings"
+            className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-[#0E8A4B] text-white font-extrabold text-[13px] shadow-[0_4px_0_0_#0A6E3C] hover:bg-[#0A6E3C] active:translate-y-0.5 active:shadow-[0_2px_0_0_#0A6E3C] transition"
+          >
+            <Phone className="w-4 h-4" /> Connect WhatsApp <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+          <p className="text-[11px] text-muted-foreground/80 mt-3">
+            Already connected on a different account? <Link to="/app/settings" className="text-[#B8230C] font-extrabold hover:underline">Check ownership</Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // State B — connected but not enabled/verified yet. Webhook can't deliver.
+  if (status && status.meta_connected && !status.meta_enabled) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-card px-6">
+        <div className="text-center max-w-md">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#FFD23F] to-[#E8B400] text-[#3D1A00] flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <AlertTriangle className="w-8 h-8" strokeWidth={2.5} />
+          </div>
+          <h2 className="text-[18px] font-black mb-1">WhatsApp connection pending verification</h2>
+          <p className="text-[13px] text-muted-foreground mb-4">
+            We have your credentials but Meta hasn't confirmed the number is live yet. Re-test the connection to enable inbound message delivery.
+          </p>
+          <Link
+            to="/app/settings"
+            className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-[#B8651A] text-white font-extrabold text-[13px] shadow-[0_4px_0_0_#8A4A12] hover:bg-[#8A4A12] active:translate-y-0.5 active:shadow-[0_2px_0_0_#8A4A12] transition"
+          >
+            <CheckCircle2 className="w-4 h-4" /> Re-verify connection <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // State C — connected, enabled, 0 chats. Genuine empty state.
+  return (
+    <div className="flex-1 flex items-center justify-center bg-card px-6">
+      <div className="text-center max-w-md">
+        <div className="w-16 h-16 rounded-2xl bg-primary-soft text-primary flex items-center justify-center mx-auto mb-4">
+          <MessageCircle className="w-8 h-8" />
+        </div>
+        <h2 className="text-[18px] font-black mb-1">You're connected — waiting for the first chat</h2>
+        <p className="text-[13px] text-muted-foreground mb-4">
+          Your WhatsApp Business number <span className="font-mono font-bold text-foreground/80">{status?.display_phone_number ?? ""}</span> is live. Share it on your site, in ads, or click <span className="font-bold text-primary">+</span> to send the first message yourself.
+        </p>
+        <div className="flex items-start gap-2 text-[11px] text-foreground/70 font-semibold p-3 rounded-lg bg-[#FFF1D6] border border-[#E8B968] max-w-sm mx-auto text-left">
+          <MessageSquareWarning className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-[#B8651A]" />
+          <span>Customers messaging your number should appear here automatically. If they're not, see <Link to="/app/settings" className="font-extrabold text-[#B8230C] hover:underline">integrations</Link>.</span>
+        </div>
+      </div>
     </div>
   );
 };

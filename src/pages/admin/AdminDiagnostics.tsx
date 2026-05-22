@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { adminApi, ChatOwnershipRow } from "@/lib/admin-api";
+import { adminApi, ChatOwnershipRow, WebhookOrphanGroup } from "@/lib/admin-api";
 import {
   Activity, ArrowRight, Building2, Check, Inbox, Loader2, MessageSquare, Phone,
   RefreshCw, Search, Shuffle, Users as UsersIcon, AlertTriangle, CheckCircle2,
+  Radio, Trash2, ChevronDown,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,10 @@ const AdminDiagnostics = () => {
   const [toUserId, setToUserId] = useState<string>("");
   const [includeMetaConfig, setIncludeMetaConfig] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [claimOpen, setClaimOpen] = useState(false);
+  const [claimGroup, setClaimGroup] = useState<WebhookOrphanGroup | null>(null);
+  const [claimUserId, setClaimUserId] = useState<string>("");
+  const [expandedPhone, setExpandedPhone] = useState<string | null>(null);
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["admin-chat-ownership"],
@@ -32,8 +37,16 @@ const AdminDiagnostics = () => {
     refetchInterval: 60_000,
   });
 
+  const { data: orphans, isFetching: orphansFetching, refetch: refetchOrphans } = useQuery({
+    queryKey: ["admin-webhook-orphans"],
+    queryFn: () => adminApi.webhookOrphans({ sinceDays: 7, onlyUnclaimed: true }),
+    refetchInterval: 60_000,
+  });
+
   const ownership = data?.ownership ?? [];
   const metaConfigs = data?.metaConfigs ?? [];
+  const orphanGroups = orphans?.groups ?? [];
+  const orphanRecent = orphans?.recent ?? [];
   const filtered = useMemo(() => {
     if (!q) return ownership;
     const needle = q.toLowerCase();
@@ -58,6 +71,44 @@ const AdminDiagnostics = () => {
     setToUserId("");
     setIncludeMetaConfig(true);
     setReassignOpen(true);
+  };
+
+  const openClaim = (group: WebhookOrphanGroup) => {
+    setClaimGroup(group);
+    setClaimUserId("");
+    setClaimOpen(true);
+  };
+
+  const doClaim = async () => {
+    if (!claimGroup || !claimUserId) return;
+    setSubmitting(true);
+    try {
+      const res = await adminApi.claimWebhookOrphans(claimGroup.phoneNumberId, claimUserId);
+      toast.success(`Claimed ${res.claimedCount} orphan event(s) to user`);
+      setClaimOpen(false);
+      qc.invalidateQueries({ queryKey: ["admin-webhook-orphans"] });
+      qc.invalidateQueries({ queryKey: ["admin-chat-ownership"] });
+      qc.invalidateQueries({ queryKey: ["admin-metrics"] });
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const doClearOrphans = async (phoneNumberId?: string) => {
+    if (!confirm(phoneNumberId
+      ? `Delete all orphan rows for ${phoneNumberId}? Cannot be undone.`
+      : "Delete ALL orphan rows? This wipes the entire log. Cannot be undone."
+    )) return;
+    try {
+      const res = await adminApi.clearWebhookOrphans(phoneNumberId);
+      toast.success(`Deleted ${res.deletedCount} orphan row(s)`);
+      qc.invalidateQueries({ queryKey: ["admin-webhook-orphans"] });
+      qc.invalidateQueries({ queryKey: ["admin-metrics"] });
+    } catch (e) {
+      toast.error(String(e));
+    }
   };
 
   const doReassign = async () => {
@@ -104,6 +155,107 @@ const AdminDiagnostics = () => {
         <TotalCard label="Total contacts" value={totals.contacts} icon={UsersIcon} color="indigo" />
         <TotalCard label="Total messages" value={totals.messages} icon={MessageSquare} color="magenta" />
         <TotalCard label="Workspaces with data" value={ownership.length} icon={Building2} color="orange" />
+      </div>
+
+      {/* Unrouted webhooks (orphans) — surface FIRST since this is the early
+       *  warning signal for "where are my chats?" tickets. */}
+      <div className={cn(
+        "bg-white border-2 rounded-2xl mb-4 overflow-hidden",
+        orphanGroups.length > 0
+          ? "border-[#FF6A1F] shadow-[0_4px_0_0_#B8420A]"
+          : "border-[#E8B968]/60 shadow-[0_3px_0_0_#E8B968]/60"
+      )}>
+        <div className={cn(
+          "flex items-center gap-2.5 px-4 py-3 border-b-2 flex-wrap",
+          orphanGroups.length > 0 ? "bg-[#FFEFE0] border-[#FF6A1F]" : "bg-[#FFF6E8] border-[#E8B968]/60"
+        )}>
+          <Radio className={cn("w-4 h-4", orphanGroups.length > 0 ? "text-[#FF6A1F] animate-pulse" : "text-foreground/50")} />
+          <p className="text-[13px] font-black flex-1 min-w-0">
+            Unrouted webhooks · WhatsApp messages with no destination account
+            {orphans?.unclaimed24h ? (
+              <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FF6A1F] text-white text-[10px] font-extrabold uppercase tracking-wider">
+                {orphans.unclaimed24h} in 24h
+              </span>
+            ) : null}
+          </p>
+          <Button variant="outline" className="h-8" onClick={() => refetchOrphans()} disabled={orphansFetching}>
+            <RefreshCw className={cn("w-3 h-3", orphansFetching && "animate-spin")} /> Reload
+          </Button>
+          {orphanGroups.length > 0 && (
+            <Button variant="ghost" className="h-8 text-[#D4308E] hover:text-[#D4308E] hover:bg-[#FCE5F0]" onClick={() => doClearOrphans()}>
+              <Trash2 className="w-3 h-3" /> Clear all
+            </Button>
+          )}
+        </div>
+
+        {orphanGroups.length === 0 ? (
+          <div className="p-6 text-center">
+            <CheckCircle2 className="w-6 h-6 mx-auto text-[#0E8A4B] mb-2" />
+            <p className="text-[13px] font-extrabold">No unrouted webhooks — every inbound message is landing in an account</p>
+            <p className="text-[11px] text-foreground/60 mt-1">If a customer reports missing chats, the issue is account-mismatch, not delivery.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-[#E8B968]/30">
+            {orphanGroups.map((g) => {
+              const expanded = expandedPhone === g.phoneNumberId;
+              const sampleEvents = orphanRecent.filter((e) => e.phoneNumberId === g.phoneNumberId).slice(0, 5);
+              return (
+                <div key={g.phoneNumberId}>
+                  <div className="grid grid-cols-[1fr_140px_180px_120px_220px] gap-3 px-4 py-3 items-center hover:bg-[#FFF6E8]">
+                    <button
+                      onClick={() => setExpandedPhone(expanded ? null : g.phoneNumberId)}
+                      className="flex items-center gap-2 min-w-0 text-left"
+                    >
+                      <ChevronDown className={cn("w-3.5 h-3.5 flex-shrink-0 text-foreground/50 transition-transform", expanded && "rotate-180")} />
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-extrabold truncate flex items-center gap-1.5">
+                          {g.displayPhoneNumber || "(unknown number)"}
+                          <span className="text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#FCE5F0] text-[#D4308E] border border-[#D4308E]/30">
+                            unrouted
+                          </span>
+                        </p>
+                        <p className="text-[10px] font-mono text-foreground/60 truncate">{g.phoneNumberId}</p>
+                      </div>
+                    </button>
+                    <span className="text-[14px] font-black tabular-nums text-[#FF6A1F]">{g.total}</span>
+                    <p className="text-[11px] text-foreground/65 font-medium">last {fmtDate(g.lastAt)}</p>
+                    <Button variant="outline" className="h-8" onClick={() => openClaim(g)}>
+                      <Check className="w-3 h-3" /> Claim to user
+                    </Button>
+                    <Button variant="ghost" className="h-8 text-[#D4308E] hover:text-[#D4308E] hover:bg-[#FCE5F0] justify-self-start" onClick={() => doClearOrphans(g.phoneNumberId)}>
+                      <Trash2 className="w-3 h-3" /> Delete events
+                    </Button>
+                  </div>
+                  {expanded && (
+                    <div className="bg-[#FFF6E8] px-4 pb-3 pt-1">
+                      <p className="text-[10px] uppercase tracking-wider font-extrabold text-foreground/60 mb-1.5">Recent events</p>
+                      {sampleEvents.length === 0 ? (
+                        <p className="text-[11px] text-foreground/55 italic">No sample events in cache (open the panel sooner after they arrive).</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {sampleEvents.map((e) => (
+                            <div key={e.id} className="bg-white border border-[#E8B968]/40 rounded-lg p-2.5">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <p className="text-[11px] font-extrabold truncate">{e.fromName || "(unknown sender)"}</p>
+                                <p className="text-[10px] font-mono text-foreground/55">{e.fromPhone || "—"}</p>
+                                <p className="text-[10px] text-foreground/55 ml-auto">{fmtDate(e.createdAt)}</p>
+                              </div>
+                              {e.messagePreview && (
+                                <p className="text-[11px] text-foreground/80 italic truncate" title={e.messagePreview}>
+                                  "{e.messagePreview}"
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Meta config routing panel */}
@@ -211,6 +363,52 @@ const AdminDiagnostics = () => {
           </>
         )}
       </div>
+
+      {/* Claim orphan dialog */}
+      <Dialog open={claimOpen} onOpenChange={setClaimOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#B8420A] text-white flex items-center justify-center shadow-md">
+                <Radio className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div>
+                <DialogTitle>Claim orphan messages</DialogTitle>
+                <DialogDescription>
+                  Tags these events to a user account so admin reporting shows resolution. Note: doesn't replay the messages — the user still needs to connect Meta to receive future inbound.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {claimGroup && (
+            <div className="space-y-3 mt-2">
+              <div className="rounded-xl bg-[#FFEFE0] border-2 border-[#FF6A1F] p-3">
+                <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#B8420A]">Phone</p>
+                <p className="text-[13px] font-black">{claimGroup.displayPhoneNumber || "(unknown)"}</p>
+                <p className="text-[11px] font-mono text-foreground/65">{claimGroup.phoneNumberId}</p>
+                <p className="text-[11px] font-extrabold text-[#FF6A1F] mt-1">{claimGroup.total} unrouted event(s)</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[11px] uppercase tracking-wider font-extrabold text-foreground/60">Claim to user</Label>
+                <TargetPicker excludeUserId="" value={claimUserId} onChange={setClaimUserId} />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClaimOpen(false)}>Cancel</Button>
+            <Button
+              onClick={doClaim}
+              disabled={submitting || !claimUserId}
+              className="bg-[#FF6A1F] text-white shadow-[0_4px_0_0_#B8420A] hover:bg-[#B8420A]"
+            >
+              {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Claiming…</> : <><Check className="w-3.5 h-3.5" /> Claim {claimGroup?.total ?? 0}</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reassign dialog */}
       <Dialog open={reassignOpen} onOpenChange={setReassignOpen}>

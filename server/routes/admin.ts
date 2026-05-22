@@ -3,8 +3,9 @@ import { db } from "../db/client";
 import {
   user, contact, conversation, message, deal, campaign, broadcast, task,
   adminAuditLog, impersonationSession, metaConfig, systemSetting, upgradeRequest,
+  webhookOrphan,
 } from "../db/schema";
-import { eq, desc, sql, and, gt, isNull, or, ilike, count } from "drizzle-orm";
+import { eq, desc, sql, and, gt, isNull, or, ilike, count, inArray } from "drizzle-orm";
 import { requireAdmin, auditLog, type AdminVariables } from "../middleware/admin";
 import { sendMail } from "../lib/mailer";
 import { staffInviteTemplate, suspensionTemplate, refundTemplate } from "../lib/email-templates";
@@ -62,6 +63,8 @@ admin.get("/api/admin/metrics", async (c) => {
   const [msgs] = await db.select({ n: count() }).from(message).where(gt(message.createdAt, today));
   const [convosOpen] = await db.select({ n: count() }).from(conversation).where(eq(conversation.status, "open"));
   const [dealsWon24h] = await db.select({ n: count() }).from(deal).where(and(eq(deal.stage, "won"), gt(deal.closedAt, today)));
+  const [orphans24h] = await db.select({ n: count() }).from(webhookOrphan)
+    .where(and(gt(webhookOrphan.createdAt, today), isNull(webhookOrphan.claimedUserId)));
 
   return c.json({
     users: users.n,
@@ -75,6 +78,7 @@ admin.get("/api/admin/metrics", async (c) => {
     messages24h: msgs.n,
     conversationsOpen: convosOpen.n,
     dealsWon24h: dealsWon24h.n,
+    unroutedWebhooks24h: orphans24h.n,
   });
 });
 
@@ -809,7 +813,101 @@ admin.get("/api/admin/diagnostics/chat-ownership", requireAdmin(["super_admin", 
     .leftJoin(user, eq(user.id, metaConfig.userId))
     .orderBy(desc(metaConfig.lastVerifiedAt));
 
-  return c.json({ ownership, metaConfigs: metaRows });
+  // Unrouted-webhooks KPI for the diagnostic header
+  const since24h = new Date(Date.now() - 24 * 3600 * 1000);
+  const [{ c: orphan24h }] = await db
+    .select({ c: count(webhookOrphan.id) })
+    .from(webhookOrphan)
+    .where(and(gt(webhookOrphan.createdAt, since24h), isNull(webhookOrphan.claimedUserId)));
+
+  return c.json({ ownership, metaConfigs: metaRows, unroutedWebhooks24h: Number(orphan24h) });
+});
+
+/* Webhook orphans — inbound messages that arrived for a phone_number_id we
+ * have no meta_config for. Without this UI, those events were lost to a
+ * console.warn. With this UI, admin can see the long-tail of "where are my
+ * chats?" tickets, find the orphan messages, and claim them to a user. */
+admin.get("/api/admin/diagnostics/webhook-orphans", requireAdmin(["super_admin", "moderator", "billing"]), async (c) => {
+  const sinceParam = c.req.query("since"); // ISO date — default 7 days
+  const since = sinceParam ? new Date(sinceParam) : new Date(Date.now() - 7 * 24 * 3600 * 1000);
+  const onlyUnclaimed = c.req.query("only_unclaimed") === "1";
+
+  // Per-phone aggregates so admin sees "X numbers, Y total events"
+  const groupRows = await db
+    .select({
+      phoneNumberId: webhookOrphan.phoneNumberId,
+      displayPhoneNumber: webhookOrphan.displayPhoneNumber,
+      total: count(webhookOrphan.id),
+      lastAt: sql<string>`max(${webhookOrphan.createdAt})`,
+    })
+    .from(webhookOrphan)
+    .where(
+      onlyUnclaimed
+        ? and(gt(webhookOrphan.createdAt, since), isNull(webhookOrphan.claimedUserId))
+        : gt(webhookOrphan.createdAt, since)
+    )
+    .groupBy(webhookOrphan.phoneNumberId, webhookOrphan.displayPhoneNumber)
+    .orderBy(desc(sql`max(${webhookOrphan.createdAt})`));
+
+  // Recent flat events (capped 50)
+  const recent = await db
+    .select()
+    .from(webhookOrphan)
+    .where(
+      onlyUnclaimed
+        ? and(gt(webhookOrphan.createdAt, since), isNull(webhookOrphan.claimedUserId))
+        : gt(webhookOrphan.createdAt, since)
+    )
+    .orderBy(desc(webhookOrphan.createdAt))
+    .limit(50);
+
+  // 24h count (for KPI tile)
+  const since24h = new Date(Date.now() - 24 * 3600 * 1000);
+  const [{ c: count24h }] = await db
+    .select({ c: count(webhookOrphan.id) })
+    .from(webhookOrphan)
+    .where(and(gt(webhookOrphan.createdAt, since24h), isNull(webhookOrphan.claimedUserId)));
+
+  return c.json({
+    groups: groupRows,
+    recent,
+    unclaimed24h: Number(count24h),
+  });
+});
+
+admin.post("/api/admin/diagnostics/webhook-orphans/claim", requireAdmin(["super_admin"]), async (c) => {
+  const body = await c.req.json<{ phoneNumberId: string; userId: string }>();
+  if (!body.phoneNumberId || !body.userId) return c.json({ error: "phoneNumberId and userId required" }, 400);
+
+  const [u] = await db.select().from(user).where(eq(user.id, body.userId)).limit(1);
+  if (!u) return c.json({ error: "userId not found" }, 404);
+
+  const result = await db.update(webhookOrphan)
+    .set({ claimedUserId: body.userId, claimedAt: new Date() })
+    .where(and(eq(webhookOrphan.phoneNumberId, body.phoneNumberId), isNull(webhookOrphan.claimedUserId)))
+    .returning({ id: webhookOrphan.id });
+
+  await auditLog(c, "claim_webhook_orphans", body.userId, {
+    phoneNumberId: body.phoneNumberId,
+    userEmail: u.email,
+    claimedCount: result.length,
+  });
+
+  return c.json({ ok: true, claimedCount: result.length });
+});
+
+admin.delete("/api/admin/diagnostics/webhook-orphans", requireAdmin(["super_admin"]), async (c) => {
+  const phoneNumberId = c.req.query("phone_number_id");
+  const result = phoneNumberId
+    ? await db.delete(webhookOrphan).where(eq(webhookOrphan.phoneNumberId, phoneNumberId)).returning({ id: webhookOrphan.id })
+    : await db.delete(webhookOrphan).returning({ id: webhookOrphan.id });
+
+  await auditLog(c, "delete_webhook_orphans", null, {
+    phoneNumberId: phoneNumberId ?? "ALL",
+    deletedCount: result.length,
+  });
+
+  return c.json({ ok: true, deletedCount: result.length });
 });
 
 admin.post("/api/admin/diagnostics/reassign-chats", requireAdmin(["super_admin"]), async (c) => {
