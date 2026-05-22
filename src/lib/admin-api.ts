@@ -161,6 +161,10 @@ export const adminApi = {
     adminRequest<AdminUpgradeRequest>(`/upgrade-requests/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   activateUpgrade: (id: string, body: { mrr_inr?: number; admin_notes?: string; razorpay_payment_id?: string }) =>
     adminRequest<{ ok: true; plan: string }>(`/upgrade-requests/${id}/activate`, { method: "POST", body: JSON.stringify(body) }),
+  // Chat-ownership diagnostics — "where are my chats?"
+  chatOwnership: () => adminRequest<ChatOwnershipReport>("/diagnostics/chat-ownership"),
+  reassignChats: (body: { fromUserId: string; toUserId: string; includeMetaConfig?: boolean }) =>
+    adminRequest<{ ok: true }>("/diagnostics/reassign-chats", { method: "POST", body: JSON.stringify(body) }),
   health: () => adminRequest<{ checks: HealthCheck[]; timestamp: string }>("/health"),
   settings: () => adminRequest<SystemSetting[]>("/settings"),
   updateSetting: (key: string, value: string) =>
@@ -182,6 +186,32 @@ export type AdminUpgradeRequest = {
   userName: string | null;
   currentPlan: string | null;
   currentMrr: string | null;
+};
+
+export type ChatOwnershipRow = {
+  userId: string;
+  email: string;
+  name: string;
+  plan: string | null;
+  conversations: number;
+  contacts: number;
+  messages: number;
+};
+
+export type ChatOwnershipMetaConfig = {
+  id: string;
+  userId: string;
+  phoneNumberId: string;
+  displayPhoneNumber: string | null;
+  enabled: boolean;
+  lastVerifiedAt: string | null;
+  email: string | null;
+  name: string | null;
+};
+
+export type ChatOwnershipReport = {
+  ownership: ChatOwnershipRow[];
+  metaConfigs: ChatOwnershipMetaConfig[];
 };
 
 export type SystemSetting = {

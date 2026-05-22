@@ -34,6 +34,7 @@ const AdminStaff = lazy(() => import("./pages/admin/AdminStaff.tsx"));
 const AdminHealth = lazy(() => import("./pages/admin/AdminHealth.tsx"));
 const AdminSettings = lazy(() => import("./pages/admin/AdminSettings.tsx"));
 const AdminSecurity = lazy(() => import("./pages/admin/AdminSecurity.tsx"));
+const AdminDiagnostics = lazy(() => import("./pages/admin/AdminDiagnostics.tsx"));
 
 // Sensible global defaults — was using vanilla `new QueryClient()` which means
 // staleTime: 0 (refetch on every mount) + refetchOnWindowFocus: true (refetch
@@ -111,6 +112,7 @@ const App = () => (
                 <Route path="health" element={<AdminHealth />} />
                 <Route path="settings" element={<AdminSettings />} />
                 <Route path="security" element={<AdminSecurity />} />
+                <Route path="diagnostics" element={<AdminDiagnostics />} />
               </Route>
 
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -3,7 +3,7 @@ import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Building2, Users, CreditCard, ScrollText, ShieldCheck,
   Activity, Settings, LogOut, ChevronsLeft, ChevronsRight, Loader2,
-  Crown, Lock,
+  Crown, Lock, Shuffle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -54,6 +54,7 @@ const GROUPS: NavGroup[] = [
     color: "text-[#B8651A]",
     items: [
       { icon: Activity, label: "Health", path: "/admin/health" },
+      { icon: Shuffle, label: "Chat ownership", path: "/admin/diagnostics" },
       { icon: Settings, label: "Settings", path: "/admin/settings" },
     ],
   },

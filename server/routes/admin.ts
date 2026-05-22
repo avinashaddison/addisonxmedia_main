@@ -740,4 +740,121 @@ admin.get("/api/admin/health", async (c) => {
   });
 });
 
+/* ─────────────────────────────────────────────────────────────────────────
+ *  Chat-ownership diagnostics
+ *
+ *  Inbound WhatsApp messages are routed to the user_id stored in meta_config
+ *  for the given phone_number_id. If a customer wonders "why am I not seeing
+ *  my chats?" the answer is almost always: those chats are owned by a
+ *  DIFFERENT user account (likely the one that originally connected the WABA
+ *  phone). These endpoints expose that mapping and let an admin reassign
+ *  ownership in a single transactional sweep.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+admin.get("/api/admin/diagnostics/chat-ownership", requireAdmin(["super_admin", "moderator", "billing"]), async (c) => {
+  // Per-user counts (only users with at least one row in any of the 3 tables)
+  const convCounts = await db
+    .select({ ownerId: conversation.ownerId, n: count(conversation.id) })
+    .from(conversation)
+    .groupBy(conversation.ownerId);
+  const contactCounts = await db
+    .select({ ownerId: contact.ownerId, n: count(contact.id) })
+    .from(contact)
+    .groupBy(contact.ownerId);
+  const messageCounts = await db
+    .select({ ownerId: message.ownerId, n: count(message.id) })
+    .from(message)
+    .groupBy(message.ownerId);
+
+  const byUser = new Map<string, { conversations: number; contacts: number; messages: number }>();
+  const bump = (id: string | null | undefined, key: "conversations" | "contacts" | "messages", n: number) => {
+    if (!id) return;
+    const row = byUser.get(id) ?? { conversations: 0, contacts: 0, messages: 0 };
+    row[key] = Number(n);
+    byUser.set(id, row);
+  };
+  for (const r of convCounts) bump(r.ownerId, "conversations", r.n);
+  for (const r of contactCounts) bump(r.ownerId, "contacts", r.n);
+  for (const r of messageCounts) bump(r.ownerId, "messages", r.n);
+
+  const userIds = Array.from(byUser.keys());
+  const users = userIds.length
+    ? await db.select({ id: user.id, name: user.name, email: user.email, plan: user.plan }).from(user).where(or(...userIds.map((id) => eq(user.id, id))))
+    : [];
+  const userById = new Map(users.map((u) => [u.id, u]));
+
+  const ownership = Array.from(byUser.entries())
+    .map(([userId, counts]) => ({
+      userId,
+      email: userById.get(userId)?.email ?? "(deleted user)",
+      name: userById.get(userId)?.name ?? "—",
+      plan: userById.get(userId)?.plan ?? null,
+      ...counts,
+    }))
+    .sort((a, b) => b.conversations - a.conversations);
+
+  // meta_config → user mapping (which account is the webhook routing to?)
+  const metaRows = await db
+    .select({
+      id: metaConfig.id,
+      userId: metaConfig.userId,
+      phoneNumberId: metaConfig.phoneNumberId,
+      displayPhoneNumber: metaConfig.displayPhoneNumber,
+      enabled: metaConfig.enabled,
+      lastVerifiedAt: metaConfig.lastVerifiedAt,
+      email: user.email,
+      name: user.name,
+    })
+    .from(metaConfig)
+    .leftJoin(user, eq(user.id, metaConfig.userId))
+    .orderBy(desc(metaConfig.lastVerifiedAt));
+
+  return c.json({ ownership, metaConfigs: metaRows });
+});
+
+admin.post("/api/admin/diagnostics/reassign-chats", requireAdmin(["super_admin"]), async (c) => {
+  const body = await c.req.json<{
+    fromUserId: string;
+    toUserId: string;
+    includeMetaConfig?: boolean;
+  }>();
+  if (!body.fromUserId || !body.toUserId) return c.json({ error: "fromUserId and toUserId required" }, 400);
+  if (body.fromUserId === body.toUserId) return c.json({ error: "fromUserId and toUserId must differ" }, 400);
+
+  // Confirm both users exist
+  const [fromU] = await db.select().from(user).where(eq(user.id, body.fromUserId)).limit(1);
+  const [toU] = await db.select().from(user).where(eq(user.id, body.toUserId)).limit(1);
+  if (!fromU) return c.json({ error: "fromUserId not found" }, 404);
+  if (!toU) return c.json({ error: "toUserId not found" }, 404);
+
+  // Single transaction so partial reassignment can't happen
+  const result = await db.transaction(async (tx) => {
+    const conv = await tx.update(conversation).set({ ownerId: body.toUserId }).where(eq(conversation.ownerId, body.fromUserId));
+    const cont = await tx.update(contact).set({ ownerId: body.toUserId }).where(eq(contact.ownerId, body.fromUserId));
+    const msg  = await tx.update(message).set({ ownerId: body.toUserId }).where(eq(message.ownerId, body.fromUserId));
+
+    let meta: unknown = null;
+    if (body.includeMetaConfig) {
+      // metaConfig.user_id has UNIQUE constraint — if target already has a row, delete the source row
+      const [targetMeta] = await tx.select().from(metaConfig).where(eq(metaConfig.userId, body.toUserId)).limit(1);
+      if (targetMeta) {
+        meta = await tx.delete(metaConfig).where(eq(metaConfig.userId, body.fromUserId));
+      } else {
+        meta = await tx.update(metaConfig).set({ userId: body.toUserId }).where(eq(metaConfig.userId, body.fromUserId));
+      }
+    }
+    return { conv, cont, msg, meta };
+  });
+
+  await auditLog(c, "reassign_chats", body.toUserId, {
+    fromUserId: body.fromUserId,
+    toUserId: body.toUserId,
+    fromEmail: fromU.email,
+    toEmail: toU.email,
+    includeMetaConfig: !!body.includeMetaConfig,
+  });
+
+  return c.json({ ok: true, result });
+});
+
 export default admin;
