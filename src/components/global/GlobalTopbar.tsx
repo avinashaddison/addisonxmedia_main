@@ -198,7 +198,7 @@ const WhatsAppStatusPill = () => {
         loading="lazy"
       />
       <span className={cn("text-[12px] font-extrabold uppercase tracking-wider leading-none", config.labelText)}>
-        WhatsApp&nbsp;Business API&nbsp;Status&nbsp;:
+        WhatsApp&nbsp;API&nbsp;Status&nbsp;:
       </span>
       <span className={cn(
         "text-[11px] font-black uppercase tracking-wider px-2 py-1 rounded-full leading-none",
