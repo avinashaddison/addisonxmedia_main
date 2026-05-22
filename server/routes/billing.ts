@@ -207,26 +207,50 @@ app.post("/billing/cashfree/create-order", async (c) => {
   const returnUrl = `${origin}/app/upgrade/return?order_id={order_id}`;
   const notifyUrl = `${origin}/api/webhooks/cashfree`;
 
-  const order = await cfCreateOrder({
-    order_id: orderId,
-    order_amount: amount,
-    order_currency: "INR",
-    customer_details: {
-      customer_id: userId,
-      customer_email: u.email ?? userEmail,
-      customer_phone: customerPhone,
-      customer_name: u.name ?? undefined,
-    },
-    order_meta: { return_url: returnUrl, notify_url: notifyUrl },
-    order_note: `AddisonX ${plan} · ${cycle}`,
-    order_tags: { plan, cycle, user_id: userId },
-  }).catch((err) => {
+  // Cashfree requires:
+  //  - customer_id ≤ 50 chars, alphanumeric + _- only
+  //  - customer_phone: 10-digit Indian mobile (no country code prefix in
+  //    v2023-08-01 unless explicitly with +91). Strip everything that isn't
+  //    a digit, take the LAST 10 digits so "+919876543210" → "9876543210".
+  const cleanedDigits = customerPhone.replace(/\D/g, "");
+  const tenDigit = cleanedDigits.slice(-10);
+  const safeCustomerId = `u_${userId}`.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 50);
+
+  let order;
+  try {
+    order = await cfCreateOrder({
+      order_id: orderId,
+      order_amount: amount,
+      order_currency: "INR",
+      customer_details: {
+        customer_id: safeCustomerId,
+        customer_email: u.email ?? userEmail,
+        customer_phone: tenDigit || "9999999999",
+        customer_name: u.name ?? undefined,
+      },
+      order_meta: { return_url: returnUrl, notify_url: notifyUrl },
+      order_note: `AddisonX ${plan} · ${cycle}`,
+      order_tags: { plan, cycle, user_id: userId.slice(0, 30) },
+    });
+  } catch (err) {
+    // Cashfree error — surface the actual message so the customer (and us
+    // looking at logs) can see what's wrong instead of a generic 502.
+    const e = err as { message?: string; code?: string; type?: string; status?: number; raw?: unknown };
     console.error("[cashfree create-order]", err);
-    return null;
-  });
+    return c.json({
+      error: "cashfree_create_failed",
+      message: e?.message ?? "Cashfree rejected the order",
+      code: e?.code ?? null,
+      type: e?.type ?? null,
+      cashfreeStatus: e?.status ?? null,
+      hint: e?.code === "invalid_phone_number" || e?.message?.toLowerCase().includes("phone")
+        ? "Add a valid 10-digit Indian mobile in /app/settings → Profile, then retry."
+        : null,
+    }, 502);
+  }
 
   if (!order || !order.payment_session_id) {
-    return c.json({ error: "Failed to create Cashfree order — check server logs" }, 502);
+    return c.json({ error: "Cashfree returned no payment_session_id" }, 502);
   }
 
   // Cancel any prior pending upgrade_request — keep only the latest paid attempt

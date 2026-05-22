@@ -124,8 +124,20 @@ export const UpgradePage = () => {
 
     // Cashfree path — checkout in modal, server activates plan on success.
     if (cashfreeStatus?.configured) {
+      let order;
       try {
-        const order = await api.cashfreeCreateOrder(plan, cycle);
+        order = await api.cashfreeCreateOrder(plan, cycle);
+      } catch (e) {
+        // Server returned 502 with a structured body that includes Cashfree's
+        // real error message. Show it instead of "Request failed (502)".
+        const err = e as { body?: { message?: string; hint?: string; code?: string; type?: string }; message?: string };
+        const msg = err?.body?.message || err?.message || "Cashfree request failed";
+        const hint = err?.body?.hint;
+        toast.error(hint ? `${msg} · ${hint}` : msg, { duration: 7000 });
+        setPendingPlan(null);
+        return;
+      }
+      try {
         const { openCashfreeCheckout } = await import("@/lib/cashfree");
         const result = await openCashfreeCheckout({
           paymentSessionId: order.paymentSessionId,
