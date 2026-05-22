@@ -318,13 +318,15 @@ export const api = {
 
   // ─── Billing & plan upgrades ──────────────────────────────────────────────
   // Cashfree Payment Gateway — paid upgrade flow.
+  // NOTE: response types are snake_case because request<T>() runs toSnake()
+  // on every response body. Server returns camelCase; the wrapper converts.
   cashfreeStatus: () => get<{ configured: boolean; mode: "sandbox" | "production" }>("/billing/cashfree/status"),
   cashfreeCreateOrder: (plan: string, cycle: "monthly" | "annual") =>
-    post<{ paymentSessionId: string; orderId: string; mode: "sandbox" | "production"; amountInr: number }>(
+    post<{ payment_session_id: string; order_id: string; mode: "sandbox" | "production"; amount_inr: number }>(
       "/billing/cashfree/create-order", { plan, cycle }
     ),
   cashfreeVerify: (orderId: string) =>
-    get<{ orderId: string; cashfreeStatus: string; upgradeStatus: string; plan: string | null }>(
+    get<{ order_id: string; cashfree_status: string; upgrade_status: string; plan: string | null }>(
       `/billing/cashfree/verify/${encodeURIComponent(orderId)}`
     ),
 

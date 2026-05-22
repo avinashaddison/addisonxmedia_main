@@ -150,7 +150,7 @@ export const UpgradePage = () => {
       try {
         const { openCashfreeCheckout } = await import("@/lib/cashfree");
         const result = await openCashfreeCheckout({
-          paymentSessionId: order.paymentSessionId,
+          paymentSessionId: order.payment_session_id,
           mode: order.mode,
           returnUrl: `${window.location.origin}/app/upgrade/return?order_id={order_id}`,
         });
@@ -162,8 +162,8 @@ export const UpgradePage = () => {
         // Modal closed — could be success or user dismissal. Hit verify to
         // confirm; if PAID, plan flip happens server-side and billing-me
         // refetches will show the new badge.
-        const verify = await api.cashfreeVerify(order.orderId);
-        if (verify.cashfreeStatus === "PAID") {
+        const verify = await api.cashfreeVerify(order.order_id);
+        if (verify.cashfree_status === "PAID") {
           toast.success(`Welcome to ${plan} 🎉`);
         } else {
           toast.info("Payment not completed — you can retry anytime");

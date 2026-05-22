@@ -19,7 +19,9 @@ import { api } from "@/lib/api";
 import { CheckCircle2, AlertTriangle, Loader2, ArrowRight, Crown, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-type VerifyResult = { orderId: string; cashfreeStatus: string; upgradeStatus: string; plan: string | null };
+// toSnake() in api.ts converts the server's camelCase response, so the
+// frontend sees snake_case fields here.
+type VerifyResult = { order_id: string; cashfree_status: string; upgrade_status: string; plan: string | null };
 
 const UpgradeReturn = () => {
   const [params] = useSearchParams();
@@ -42,7 +44,7 @@ const UpgradeReturn = () => {
         const result = await api.cashfreeVerify(orderId);
         if (cancelled) return;
         setVerify(result);
-        if (result.cashfreeStatus === "PAID") {
+        if (result.cashfree_status === "PAID") {
           qc.invalidateQueries({ queryKey: ["billing-me"] });
           qc.invalidateQueries({ queryKey: ["billing-me-pill"] });
         }
@@ -61,7 +63,7 @@ const UpgradeReturn = () => {
     return () => { cancelled = true; window.clearTimeout(intervalA); window.clearTimeout(intervalB); };
   }, [orderId, qc]);
 
-  const status = verify?.cashfreeStatus;
+  const status = verify?.cashfree_status;
   const isPaid = status === "PAID";
   const isPending = !verify || status === "ACTIVE";
   const isFailed = status === "EXPIRED" || status === "TERMINATED" || status === "TERMINATION_REQUESTED";
