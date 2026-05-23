@@ -385,11 +385,13 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           </div>
           );
         })}
+      </nav>
 
-        {/* Primary-mode only: Launch Website mode-switch CTA. Big visual break
-            from the regular nav items because tapping it flips the entire
-            sidebar to website-management mode. */}
-        {mode === "primary" && (
+      {/* Pinned 'Launch Website' CTA — lives OUTSIDE the scrollable nav so
+          it's always visible no matter how long the nav list grows. Sits just
+          above the upgrade card as a sibling flex-shrink-0 section. */}
+      {mode === "primary" && (
+        <div className="px-2.5 pt-2 pb-1 flex-shrink-0">
           <button
             onClick={() => handleNavigate("site")}
             onMouseEnter={() => prefetchPage("site")}
@@ -420,8 +422,8 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
               </span>
             )}
           </button>
-        )}
-      </nav>
+        </div>
+      )}
 
       {/* Plan-aware Upgrade card — replaces the static "Addison AI / Online" card.
           - Free / Starter → big saffron CTA pushing toward the next tier
