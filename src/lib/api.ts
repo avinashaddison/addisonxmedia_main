@@ -370,6 +370,24 @@ export const api = {
     fired_at: string;
   }>>("/meta/capi/events"),
 
+  // Addison AI — ad copy generator (Growth+ plan)
+  generateAdCopy: (body: {
+    description: string;
+    language?: "english" | "hinglish" | "hindi";
+    objective?: "ctw" | "sales" | "leads" | "awareness" | "traffic";
+    audience?: string;
+  }) =>
+    post<{
+      ok: true;
+      campaign_name: string;
+      variants: Array<{ label: string; headline: string; primary_text: string; icebreaker: string }>;
+      targeting_interests: string[];
+      budget_inr_daily: number;
+      budget_reasoning: string;
+      cta_label: string;
+      meta: { model: string; tokens: { input: number; output: number }; cost_inr: number };
+    }>("/ai/ad-copy", body),
+
   // Cashfree Payment Gateway — paid upgrade flow.
   // NOTE: response types are snake_case because request<T>() runs toSnake()
   // on every response body. Server returns camelCase; the wrapper converts.

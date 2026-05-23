@@ -182,6 +182,46 @@ export const CreateCampaignPage = () => {
   const [adLinkUrl, setAdLinkUrl]       = useState("");
   const [icebreaker, setIcebreaker]     = useState("");
 
+  // ── AI Compose state ──────────────────────────────────────────────────
+  // The big "describe what you're promoting" textbox at the top of the
+  // wizard. One call returns 3 ad-copy variants + targeting + budget
+  // suggestions. Clicking a variant auto-fills the wizard.
+  const [aiOpen, setAiOpen]             = useState(true);
+  const [aiDescription, setAiDescription] = useState("");
+  type AiAdCopyResult = Awaited<ReturnType<typeof api.generateAdCopy>>;
+  const [aiResult, setAiResult]         = useState<AiAdCopyResult | null>(null);
+  const generateAdCopyMut = useMutation({
+    mutationFn: (input: { description: string }) =>
+      api.generateAdCopy({
+        description: input.description,
+        objective: objective === "ctw" ? "ctw" : "sales",
+        language: language === "en" ? "english" : language === "hi" ? "hindi" : "hinglish",
+      }),
+    onSuccess: (data) => {
+      setAiResult(data);
+      toast.success(`Generated 3 ad variants · ₹${data.meta.cost_inr.toFixed(4)} spent`);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "AI generation failed"),
+  });
+  const applyAiVariant = (v: AiAdCopyResult["variants"][number]) => {
+    if (!aiResult) return;
+    setName(aiResult.campaign_name);
+    setAdHeadline(v.headline);
+    setAdBody(v.primary_text);
+    setIcebreaker(v.icebreaker);
+    setBudget(String(aiResult.budget_inr_daily));
+    // Pre-load suggested interests as targeting chips — the customer can
+    // refine/remove in Step 2. Each chip needs an id; we use the name itself
+    // as a temporary id, then the existing typeahead resolver will replace
+    // it with Meta's real interest_id when the customer searches.
+    setInterestChips(
+      aiResult.targeting_interests.slice(0, 5).map((name) => ({ id: `ai:${name}`, name })),
+    );
+    toast.success(`Applied "${v.label}" — review in steps 2-3 and launch`);
+    // Jump to step 2 so they can review the auto-filled fields
+    setStep(2);
+  };
+
   const objectiveObj = OBJECTIVES.find((o) => o.id === objective)!;
   const isCTW = objective === "ctw";
 
@@ -437,6 +477,150 @@ export const CreateCampaignPage = () => {
         <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-6 grid lg:grid-cols-[1fr_360px] gap-6">
           {/* ─── FORM ─── */}
           <div className="space-y-4 min-w-0">
+            {/* ── AI Compose panel — shown only on Step 1 so we don't
+                  re-prompt as customer refines downstream steps. Customer
+                  describes their offer once → 3 polished ad-copy variants +
+                  targeting + budget → click to auto-fill the rest of the
+                  wizard. */}
+            {step === 1 && (
+              <div className={cn(
+                "rounded-2xl border-2 shadow-[0_4px_0_0_currentColor] mb-4 overflow-hidden transition-all",
+                aiOpen ? "border-[#3C50E0] text-[#2533A8]" : "border-[#E8B968] text-[#B8651A]"
+              )}>
+                <div className={cn(
+                  "px-4 py-3 flex items-center gap-3 flex-wrap",
+                  aiOpen ? "bg-gradient-to-r from-[#E4E8FF] via-[#F0E9FF] to-[#E4E8FF]" : "bg-[#FFF1D6]"
+                )}>
+                  <div className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center shadow-md flex-shrink-0",
+                    aiOpen ? "bg-gradient-to-br from-[#3C50E0] to-[#1E40AF] text-white" : "bg-[#FFD23F] text-[#3D1A00]"
+                  )}>
+                    <Brain className="w-5 h-5" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-black text-foreground tracking-tight">
+                      Addison AI Compose
+                    </p>
+                    <p className="text-[11px] text-foreground/65 font-medium">
+                      Apna offer ek line mein batayein · AI 3 ad versions banayega · targeting + budget bhi suggest karega
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setAiOpen(!aiOpen)}
+                    className="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-md bg-white border border-current hover:bg-current hover:text-white transition"
+                  >
+                    {aiOpen ? "Hide" : "Try AI"}
+                  </button>
+                </div>
+
+                {aiOpen && (
+                  <div className="p-4 bg-white space-y-3">
+                    <div>
+                      <label className="text-[11px] uppercase tracking-wider font-extrabold text-foreground/60 mb-1.5 block">
+                        Describe what you're promoting
+                      </label>
+                      <textarea
+                        value={aiDescription}
+                        onChange={(e) => setAiDescription(e.target.value)}
+                        placeholder="e.g. Diwali pickle gift box, ₹999 with free home delivery, hand-made by my mom in Ranchi. Want orders from women 28-45 across India."
+                        rows={3}
+                        className="w-full rounded-xl border-2 border-[#E8B968] bg-[#FFF6E8] px-3 py-2.5 text-[13px] font-medium placeholder:text-foreground/40 focus:outline-none focus:border-[#3C50E0] focus:bg-white transition"
+                        maxLength={600}
+                      />
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-[10px] text-foreground/50 font-medium">
+                          {aiDescription.length}/600 · the more specific, the better the copy
+                        </p>
+                        <Button
+                          onClick={() => generateAdCopyMut.mutate({ description: aiDescription.trim() })}
+                          disabled={aiDescription.trim().length < 10 || generateAdCopyMut.isPending}
+                          className="bg-gradient-to-r from-[#3C50E0] to-[#1E40AF] text-white shadow-[0_3px_0_0_#2533A8] hover:from-[#2533A8] hover:to-[#1A3590]"
+                        >
+                          {generateAdCopyMut.isPending ? (
+                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</>
+                          ) : (
+                            <><Sparkles className="w-3.5 h-3.5" /> Generate</>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Results panel */}
+                    {aiResult && (
+                      <div className="pt-3 border-t border-[#E8B968]/40 space-y-3">
+                        {/* Suggested campaign name + budget summary */}
+                        <div className="flex items-center gap-3 flex-wrap text-[11px] font-extrabold">
+                          <span className="px-2 py-1 rounded-md bg-[#E4E8FF] text-[#2533A8]">
+                            📌 {aiResult.campaign_name}
+                          </span>
+                          <span className="px-2 py-1 rounded-md bg-[#FFF1D6] text-[#B8651A]">
+                            💰 ₹{aiResult.budget_inr_daily}/day
+                          </span>
+                          <span className="px-2 py-1 rounded-md bg-[#E6F7EE] text-[#0A6E3C]">
+                            🎯 {aiResult.cta_label.replace(/_/g, " ").toLowerCase()}
+                          </span>
+                          <span className="text-foreground/55 font-medium">
+                            {aiResult.budget_reasoning}
+                          </span>
+                        </div>
+
+                        {/* 3 variants */}
+                        <div className="grid md:grid-cols-3 gap-2.5">
+                          {aiResult.variants.map((v, i) => (
+                            <div
+                              key={i}
+                              className="rounded-xl border-2 border-[#E8B968] bg-[#FFF6E8] p-3 flex flex-col gap-2 hover:border-[#3C50E0] hover:shadow-[0_3px_0_0_#2533A8] transition-all"
+                            >
+                              <span className="self-start text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#3C50E0] text-white">
+                                {v.label}
+                              </span>
+                              <p className="text-[13px] font-black text-foreground leading-tight">
+                                {v.headline}
+                              </p>
+                              <p className="text-[11px] text-foreground/75 leading-snug">
+                                {v.primary_text}
+                              </p>
+                              <div className="rounded-lg bg-[#E6F7EE] border border-[#0E8A4B]/30 px-2 py-1.5">
+                                <p className="text-[9px] font-extrabold uppercase tracking-wider text-[#0A6E3C] mb-0.5">
+                                  WhatsApp opener
+                                </p>
+                                <p className="text-[11px] text-foreground/85 italic">"{v.icebreaker}"</p>
+                              </div>
+                              <Button
+                                onClick={() => applyAiVariant(v)}
+                                className="mt-1 bg-[#0E8A4B] text-white shadow-[0_3px_0_0_#0A6E3C] hover:bg-[#0A6E3C] w-full"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Use this
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Suggested interests */}
+                        {aiResult.targeting_interests.length > 0 && (
+                          <div className="rounded-lg bg-[#FFF1D6] border border-[#E8B968] p-2.5">
+                            <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#B8651A] mb-1.5">
+                              Suggested targeting interests (auto-applied when you pick a variant)
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {aiResult.targeting_interests.map((name) => (
+                                <span
+                                  key={name}
+                                  className="px-2 py-0.5 rounded-full bg-white border border-[#E8B968] text-[10px] font-extrabold text-foreground/75"
+                                >
+                                  {name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {step === 1 && <StepObjective objective={objective} setObjective={setObjective} />}
 
             {step === 2 && (

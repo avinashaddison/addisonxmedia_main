@@ -288,4 +288,174 @@ app.post("/ai/ping", async (c) => {
   }
 });
 
+// ─── Ad copy generator ──────────────────────────────────────────────────────
+//
+// POST /ai/ad-copy { description, language?, objective?, audience? }
+//
+// Customer types ONE sentence about what they're promoting; we return three
+// fully-formed ad-copy bundles plus campaign-name, targeting interests and a
+// budget recommendation. Click any bundle → auto-fills the Create Campaign
+// wizard.
+//
+// Plan-gated to Growth + Enterprise (Starter doesn't get ad_copy — see
+// PLAN_FEATURES in lib/ai-usage.ts). Weighted 5 because the prompt is large
+// (multi-variant JSON) and we want it to count meaningfully vs reply
+// suggestions.
+
+type AdCopyResult = {
+  campaign_name: string;
+  variants: Array<{
+    label: string;          // "Bold", "Friendly", "Urgent" — short style tag
+    headline: string;       // ≤40 chars
+    primary_text: string;   // ≤125 chars (Meta ads body limit)
+    icebreaker: string;     // WhatsApp prefill for CTW
+  }>;
+  targeting_interests: string[]; // 5-7 Meta-style interest names
+  budget_inr_daily: number;
+  budget_reasoning: string;      // 1-line explanation
+  cta_label: "LEARN_MORE" | "SHOP_NOW" | "SIGN_UP" | "CONTACT_US" | "GET_OFFER" | "BOOK_NOW" | "ORDER_NOW";
+};
+
+app.post("/ai/ad-copy", async (c) => {
+  if (!isAiConfigured()) return c.json({ error: "AI not configured on server" }, 503);
+
+  type AdCopyBody = {
+    description?: string;
+    language?: "english" | "hinglish" | "hindi";
+    objective?: "ctw" | "sales" | "leads" | "awareness" | "traffic";
+    audience?: string;
+  };
+  const body = await c.req.json<AdCopyBody>().catch(() => ({} as AdCopyBody));
+
+  const description = (body.description ?? "").trim();
+  if (description.length < 10) {
+    return c.json({ error: "Describe what you're promoting in at least 10 characters" }, 400);
+  }
+  if (description.length > 600) {
+    return c.json({ error: "Description too long — keep it under 600 characters" }, 400);
+  }
+
+  // Persona feeds tone preferences if the workspace has configured one
+  const persona = await getPersonaWithDefaults(c.var.userId);
+  const language: "english" | "hinglish" | "hindi" =
+    body.language ?? (persona.response_language as "english" | "hinglish" | "hindi") ?? "hinglish";
+  const objective: "ctw" | "sales" | "leads" | "awareness" | "traffic" = body.objective ?? "ctw";
+
+  // Cap + plan gate (ad_copy weight=5, Growth+ only)
+  const gate = await checkAiCap(c.var.userId, "ad_copy");
+  if (!gate.allowed) return c.json({ error: gate.reason, code: gate.code }, 429);
+
+  // ── Prompt: one system message + one user message. Constrained to JSON.
+  const objectiveHint = {
+    ctw:       "Click-to-WhatsApp ad — primary text should make the reader want to chat. Use phrases like 'WhatsApp karein', 'message us', 'aaj hi puchein'.",
+    sales:     "Direct sales — push toward purchase with urgency or value.",
+    leads:     "Lead generation — invite them to fill a form or learn more.",
+    awareness: "Brand awareness — memorable, emotional, simple message.",
+    traffic:   "Drive clicks to a website — compelling reason to visit.",
+  }[objective];
+
+  const languageHint = {
+    hinglish: "Hinglish (roman-script Hindi/English mix). Examples: 'Diwali ke liye special offer', 'Sirf 3 din ke liye'. Sound like a friendly Indian SMB owner, not a corporate.",
+    hindi:    "Pure Hindi in Devanagari script (हिन्दी).",
+    english:  "Indian-English. Crisp, professional, no jargon.",
+  }[language];
+
+  const messages = [
+    {
+      role: "system" as const,
+      content:
+        `You are an expert Meta Ads copywriter for Indian small businesses (D2C brands, kirana, ` +
+        `clinics, coaching, salons). Write copy that converts on Facebook + Instagram + WhatsApp ` +
+        `for the Indian market. Always be specific, concrete, and emotional — never generic. ` +
+        `${languageHint} ${objectiveHint}`,
+    },
+    {
+      role: "user" as const,
+      content:
+        `Product/service description (from the business owner):\n"""\n${description}\n"""\n\n` +
+        (body.audience ? `Target audience the owner has in mind: ${body.audience}\n\n` : ``) +
+        `Generate a JSON response with this exact shape (no extra fields):\n` +
+        `{\n` +
+        `  "campaign_name": "<short 3-6 word internal campaign name>",\n` +
+        `  "variants": [\n` +
+        `    { "label": "Bold",     "headline": "<≤40 chars>", "primary_text": "<≤125 chars>", "icebreaker": "<≤120 chars WhatsApp opener the customer will see>" },\n` +
+        `    { "label": "Friendly", "headline": "<≤40 chars>", "primary_text": "<≤125 chars>", "icebreaker": "<≤120 chars>" },\n` +
+        `    { "label": "Urgent",   "headline": "<≤40 chars>", "primary_text": "<≤125 chars>", "icebreaker": "<≤120 chars>" }\n` +
+        `  ],\n` +
+        `  "targeting_interests": ["<5-7 Meta-style interest names — real things like 'Online shopping', 'Food and drink', 'Indian wedding', not vague categories>"],\n` +
+        `  "budget_inr_daily": <integer, conservative recommendation between 300 and 3000 based on product price>,\n` +
+        `  "budget_reasoning": "<1 short sentence why this budget>",\n` +
+        `  "cta_label": "<one of: LEARN_MORE | SHOP_NOW | SIGN_UP | CONTACT_US | GET_OFFER | BOOK_NOW | ORDER_NOW>"\n` +
+        `}\n\n` +
+        `Hard constraints:\n` +
+        `- headline ≤ 40 chars (Meta's hard limit)\n` +
+        `- primary_text ≤ 125 chars\n` +
+        `- icebreaker should sound like the CUSTOMER messaging the business — first person, 1-2 sentences\n` +
+        `- 3 variants must feel distinctly different — not just rephrasings\n` +
+        `- targeting_interests must be real Meta interest categories, not vague generic terms\n` +
+        `- budget_inr_daily for low-margin/price products ≤ ₹500 → 300-500/day; ₹500-2000 → 500-1000/day; >₹2000 → 1000-3000/day`,
+    },
+  ];
+
+  try {
+    const result = await chatJson<AdCopyResult>(messages, {
+      model: "gpt-4o-mini",
+      temperature: 0.85,  // higher for creative variation
+      maxTokens: 1100,    // 3 variants + targeting + budget reasoning needs room
+    });
+
+    // Defensive: trim oversize fields rather than rejecting Meta's accepted output
+    const trimmed: AdCopyResult = {
+      campaign_name: (result.json.campaign_name ?? "Untitled campaign").slice(0, 80),
+      variants: (result.json.variants ?? []).slice(0, 3).map((v) => ({
+        label: (v.label ?? "Variant").slice(0, 20),
+        headline: (v.headline ?? "").slice(0, 40),
+        primary_text: (v.primary_text ?? "").slice(0, 125),
+        icebreaker: (v.icebreaker ?? "").slice(0, 200),
+      })),
+      targeting_interests: (result.json.targeting_interests ?? []).slice(0, 7),
+      budget_inr_daily: Math.max(300, Math.min(5000, Math.round(Number(result.json.budget_inr_daily ?? 500)))),
+      budget_reasoning: (result.json.budget_reasoning ?? "").slice(0, 200),
+      cta_label: result.json.cta_label ?? (objective === "ctw" ? "LEARN_MORE" : "SHOP_NOW"),
+    };
+
+    if (trimmed.variants.length === 0) {
+      return c.json({ error: "AI returned no variants — try a different description" }, 502);
+    }
+
+    await logAiUsage({
+      userId: c.var.userId,
+      feature: "ad_copy",
+      model: result.model,
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      costInr: result.costInr,
+      ok: true,
+    });
+
+    return c.json({
+      ok: true,
+      ...trimmed,
+      meta: {
+        model: result.model,
+        tokens: { input: result.promptTokens, output: result.completionTokens },
+        cost_inr: result.costInr,
+      },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await logAiUsage({
+      userId: c.var.userId,
+      feature: "ad_copy",
+      model: "gpt-4o-mini",
+      promptTokens: 0,
+      completionTokens: 0,
+      costInr: 0,
+      ok: false,
+      errorMessage: msg,
+    });
+    return c.json({ error: "AI generation failed", detail: msg }, 502);
+  }
+});
+
 export default app;
