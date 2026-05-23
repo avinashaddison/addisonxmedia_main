@@ -79,28 +79,25 @@ export const InboxPage = () => {
   const showLeadFullscreen = viewport === "mobile" && isLeadView;
 
   // CSS Grid layout — explicit column tracks make the panel widths independent
-  // of content. Long-chat content used to push the conv-list and lead-panel
-  // off-screen because a flex item's intrinsic min-width is its content's
-  // min-content size; even with min-w-0 some descendant was still claiming
-  // space. Grid tracks are sized by `grid-template-columns`, not by content.
-  //
-  //   mobile  → '1fr'                  (only the active panel renders)
-  //   tablet  → '340px 1fr'             (list + chat)
-  //   desktop → '340px 1fr 340px'       (list + chat + lead)
+  // of content. The middle track uses `minmax(0, 1fr)` so descendant content
+  // can NEVER widen the cell beyond its share (a plain `1fr` would still grow
+  // to fit min-content). Same trick on rows so the messages list (overflow-y-
+  // auto) gets a constrained height; without minmax(0,..) the row tries to be
+  // at least min-content tall, which uncaps the chat panel and breaks scroll.
   const gridTemplate =
-    viewport === "mobile"  ? "1fr"
-  : viewport === "tablet"  ? "340px 1fr"
-                           : "340px 1fr 340px";
+    viewport === "mobile"  ? "minmax(0, 1fr)"
+  : viewport === "tablet"  ? "340px minmax(0, 1fr)"
+                           : "340px minmax(0, 1fr) 340px";
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative">
       <div
         className="flex-1 min-h-0 overflow-hidden grid"
-        style={{ gridTemplateColumns: gridTemplate, gridTemplateRows: "100%" }}
+        style={{ gridTemplateColumns: gridTemplate, gridTemplateRows: "minmax(0, 1fr)" }}
       >
         {/* ── ConversationList ── */}
         {showList && (
-          <div className="min-w-0 min-h-0 flex overflow-hidden">
+          <div className="h-full min-w-0 min-h-0 flex overflow-hidden">
             <ConversationList
               conversations={conversations}
               activeId={activeId}
@@ -114,7 +111,7 @@ export const InboxPage = () => {
 
         {/* ── ChatWindow ── */}
         {showChat && (
-          <div className="min-w-0 min-h-0 flex flex-col overflow-hidden">
+          <div className="h-full min-w-0 min-h-0 flex flex-col overflow-hidden">
             {active ? (
               <ChatWindow
                 conversation={active}
@@ -132,7 +129,7 @@ export const InboxPage = () => {
 
         {/* ── LeadPanel: inline on desktop ── */}
         {active && showLeadInline && (
-          <div className="min-w-0 min-h-0 flex overflow-hidden">
+          <div className="h-full min-w-0 min-h-0 flex overflow-hidden">
             <LeadPanel
               contact={active.contact}
               conversationId={active.id}
