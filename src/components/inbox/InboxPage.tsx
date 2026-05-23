@@ -93,7 +93,7 @@ export const InboxPage = () => {
                            : "340px 1fr 340px";
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full overflow-hidden relative">
+    <div className="flex flex-col h-full w-full overflow-hidden relative">
       <div
         className="flex-1 min-h-0 overflow-hidden grid"
         style={{ gridTemplateColumns: gridTemplate, gridTemplateRows: "100%" }}
