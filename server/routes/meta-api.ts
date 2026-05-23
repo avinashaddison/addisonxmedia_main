@@ -225,38 +225,24 @@ app.patch("/meta/capi/settings", async (c) => {
 });
 
 /** Fire a dummy Lead event so customer can verify their Pixel + token wiring.
- *  Use Meta's Test Events tab in Events Manager (pass a test_event_code first). */
+ *  Routes through meta-capi.fireTestEvent so the event lands in the
+ *  Recent events table (the old inline implementation forgot to persist,
+ *  leaving customers staring at "Recent events (0)" after a successful fire). */
 app.post("/meta/capi/test-fire", async (c) => {
-  const creds = await loadCreds(c.var.userId);
-  if (!creds) return c.json({ error: "Meta not connected" }, 404);
-  if (!creds.pixelId) return c.json({ error: "Set pixel_id first" }, 400);
-
-  const event: CapiEvent = {
-    event_name: "Lead",
-    event_time: Math.floor(Date.now() / 1000),
-    event_id: `test-${Date.now()}`,
-    action_source: "system_generated",
-    user_data: buildCapiUserData({
-      email: "test+capi@addisonxmedia.com",
-      phone: "919999999999",
-      name: "CAPI Test",
-      externalId: c.var.userId,
-    }),
-    custom_data: { content_name: "CAPI test event", content_category: "diagnostic" },
-  };
-
-  try {
-    const resp = await sendCapiEvent({
-      pixelId: creds.pixelId,
-      accessToken: creds.accessToken,
-      events: [event],
-      testEventCode: creds.capiTestEventCode ?? undefined,
-    });
-    return c.json({ ok: true, response: resp });
-  } catch (err) {
-    const e = err as MetaApiError;
-    return c.json({ error: e.message, status: e.status, meta: e.meta }, 502);
+  const { fireTestEvent } = await import("../lib/meta-capi");
+  const outcome = await fireTestEvent(c.var.userId);
+  if (!outcome.fired) {
+    return c.json({
+      ok: false,
+      error: outcome.reason ?? "fire_failed",
+      hint: outcome.reason === "no_pixel_id"     ? "Set pixel_id first"
+          : outcome.reason === "capi_disabled"   ? "Toggle CAPI enabled first"
+          : outcome.reason === "no_meta_config"  ? "Connect Meta first"
+          : outcome.reason === "no_access_token" ? "Meta token is missing"
+          : null,
+    }, 502);
   }
+  return c.json({ ok: true, eventId: outcome.eventId, responseCode: outcome.responseCode });
 });
 
 app.get("/meta/capi/events", async (c) => {

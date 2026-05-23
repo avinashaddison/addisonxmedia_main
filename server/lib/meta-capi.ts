@@ -174,6 +174,44 @@ export async function firePurchaseEvent(ownerId: string, dealId: string): Promis
   }
 }
 
+/** Diagnostic test event — fires a fake "Lead" with synthetic match keys
+ *  so the customer can verify the Pixel + token wiring without needing a
+ *  real lead. Persists to meta_capi_event like real fires so it shows up
+ *  in the admin Recent events table. */
+export async function fireTestEvent(ownerId: string): Promise<CapiOutcome> {
+  const creds = await loadCapiCreds(ownerId);
+  if (!creds.ok) return { fired: false, reason: creds.reason };
+
+  const event: CapiEvent = {
+    event_name: "Lead",
+    event_time: Math.floor(Date.now() / 1000),
+    event_id: `test-${ownerId.slice(0, 8)}-${Date.now()}`,
+    action_source: "system_generated",
+    user_data: buildCapiUserData({
+      email: "test+capi@addisonxmedia.com",
+      phone: "919999999999",
+      name: "CAPI Test",
+      externalId: ownerId,
+    }),
+    custom_data: { content_name: "CAPI test event", content_category: "diagnostic" },
+  };
+
+  try {
+    const resp = await sendCapiEvent({
+      pixelId: creds.pixelId,
+      accessToken: creds.token,
+      events: [event],
+      testEventCode: creds.testCode,
+    });
+    await persistEvent({ ownerId, event, sourceType: "test_fire", sourceId: ownerId, responseCode: 200, responseBody: resp });
+    return { fired: true, eventId: event.event_id, responseCode: 200 };
+  } catch (err) {
+    const e = err as { status?: number; message?: string; meta?: unknown };
+    await persistEvent({ ownerId, event, sourceType: "test_fire", sourceId: ownerId, responseCode: e.status ?? 500, responseBody: { error: e.message, meta: e.meta } });
+    return { fired: false, reason: e.message ?? "send_failed" };
+  }
+}
+
 /** Helper that swallows errors — call from non-critical hook sites where
  *  we don't want CAPI failures to break the actual user-facing operation. */
 export async function fireCapiSafely(fn: () => Promise<CapiOutcome>, label: string): Promise<void> {
