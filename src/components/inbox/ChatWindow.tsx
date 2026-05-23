@@ -420,7 +420,7 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-white min-w-0 relative">
+    <div className="h-full w-full flex flex-col bg-white min-w-0 min-h-0 relative overflow-hidden">
       {/* Chat header */}
       <div className="h-16 flex items-center justify-between px-3 sm:px-5 border-b-2 border-[#E8B968] flex-shrink-0 z-10 relative bg-[#0E8A4B] text-white">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">

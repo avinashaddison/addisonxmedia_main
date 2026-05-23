@@ -95,46 +95,57 @@ export const InboxPage = () => {
         className="flex-1 min-h-0 overflow-hidden grid"
         style={{ gridTemplateColumns: gridTemplate, gridTemplateRows: "minmax(0, 1fr)" }}
       >
+        {/* Each grid item uses `relative` + an absolute-inset child to GUARANTEE
+            the inner panel fills the cell exactly — eliminates every flex/grid
+            sizing inheritance edge case that was clipping the chat header and
+            composer when content was tall. */}
+
         {/* ── ConversationList ── */}
         {showList && (
-          <div className="h-full min-w-0 min-h-0 flex overflow-hidden">
-            <ConversationList
-              conversations={conversations}
-              activeId={activeId}
-              onSelect={handleSelect}
-              loading={isLoading}
-              muted={muted}
-              onToggleMuted={toggleMuted}
-            />
+          <div className="relative min-w-0 overflow-hidden">
+            <div className="absolute inset-0 flex">
+              <ConversationList
+                conversations={conversations}
+                activeId={activeId}
+                onSelect={handleSelect}
+                loading={isLoading}
+                muted={muted}
+                onToggleMuted={toggleMuted}
+              />
+            </div>
           </div>
         )}
 
         {/* ── ChatWindow ── */}
         {showChat && (
-          <div className="h-full min-w-0 min-h-0 flex flex-col overflow-hidden">
-            {active ? (
-              <ChatWindow
-                conversation={active}
-                onMobileBack={() => setMobileView("list")}
-                onShowLead={() => {
-                  if (viewport === "mobile") setMobileView("lead");
-                  else if (viewport === "tablet") setLeadOpenTablet(true);
-                }}
-              />
-            ) : (
-              <InboxEmptyState loading={isLoading} />
-            )}
+          <div className="relative min-w-0 overflow-hidden">
+            <div className="absolute inset-0 flex flex-col">
+              {active ? (
+                <ChatWindow
+                  conversation={active}
+                  onMobileBack={() => setMobileView("list")}
+                  onShowLead={() => {
+                    if (viewport === "mobile") setMobileView("lead");
+                    else if (viewport === "tablet") setLeadOpenTablet(true);
+                  }}
+                />
+              ) : (
+                <InboxEmptyState loading={isLoading} />
+              )}
+            </div>
           </div>
         )}
 
         {/* ── LeadPanel: inline on desktop ── */}
         {active && showLeadInline && (
-          <div className="h-full min-w-0 min-h-0 flex overflow-hidden">
-            <LeadPanel
-              contact={active.contact}
-              conversationId={active.id}
-              onClose={() => setLeadOpenTablet(false)}
-            />
+          <div className="relative min-w-0 overflow-hidden">
+            <div className="absolute inset-0 flex">
+              <LeadPanel
+                contact={active.contact}
+                conversationId={active.id}
+                onClose={() => setLeadOpenTablet(false)}
+              />
+            </div>
           </div>
         )}
       </div>
