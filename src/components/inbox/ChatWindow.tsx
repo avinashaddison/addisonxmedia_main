@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { SendProductDialog, type ProductDeliveryPayload } from "./SendProductDialog";
 import { ProductDeliveryCard, decodeProductDelivery, encodeProductDelivery } from "./ProductDeliveryCard";
 import { api } from "@/lib/api";
+import { useCloudinaryConfig, useCloudinaryUpload } from "@/hooks/useCloudinaryUpload";
 
 type Props = {
   conversation: ConversationWithContact;
@@ -132,6 +133,59 @@ export const ChatWindow = ({ conversation }: Props) => {
   const [input, setInput] = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
+
+  // Pending media attachment (uploaded but not sent yet)
+  type Attachment = {
+    url: string;
+    type: "image" | "video" | "audio" | "document";
+    filename: string;
+    sizeBytes: number;
+  };
+  const [attachment, setAttachment] = useState<Attachment | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Cloudinary config + upload helper (browser-direct upload, with progress)
+  const cloudCfg = useCloudinaryConfig();
+  const { upload, progress: uploadProgress, uploading, error: uploadError } = useCloudinaryUpload();
+
+  // Classify a File into the right WhatsApp media bucket
+  const classifyFile = (f: File): Attachment["type"] => {
+    if (f.type.startsWith("image/")) return "image";
+    if (f.type.startsWith("video/")) return "video";
+    if (f.type.startsWith("audio/")) return "audio";
+    return "document";
+  };
+
+  const onPickFile = async (file: File) => {
+    if (!cloudCfg.data?.enabled || !cloudCfg.data.cloudName || !cloudCfg.data.uploadPreset) {
+      toast.error("Media uploads not enabled — set CLOUDINARY env vars on the server");
+      return;
+    }
+    const type = classifyFile(file);
+    const maxMb = type === "video" ? cloudCfg.data.maxVideoMb : cloudCfg.data.maxImageMb;
+    if (file.size > maxMb * 1024 * 1024) {
+      toast.error(`${type} too large — max ${maxMb} MB`);
+      return;
+    }
+    try {
+      // Cloudinary "image" resource handles images; everything else uses "video"
+      // resource which also accepts audio + documents. (Yes, Cloudinary calls
+      // it "video" — it's their generic non-image endpoint.)
+      const resource = type === "image" ? "image" : "video";
+      const result = await upload(file, {
+        cloudName: cloudCfg.data.cloudName,
+        uploadPreset: cloudCfg.data.uploadPreset,
+      }, resource);
+      setAttachment({
+        url: result.secure_url,
+        type,
+        filename: file.name,
+        sizeBytes: result.bytes,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    }
+  };
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const qc = useQueryClient();
@@ -180,6 +234,7 @@ export const ChatWindow = ({ conversation }: Props) => {
     textareaRef.current?.focus();
     setInput("");
     setShowTemplates(false);
+    setAttachment(null);
   }, [conversation.id]);
 
   // Mark as read on view (clears unread_count once user has the chat open).
@@ -205,10 +260,19 @@ export const ChatWindow = ({ conversation }: Props) => {
   const noInboundYet = lastInboundAt === 0;
 
   const handleSend = () => {
-    if (!input.trim()) return;
+    // Either text or attachment must be present
+    if (!input.trim() && !attachment) return;
     const body = input;
+    const att = attachment;
     setInput("");
-    sendMut.mutate({ conversationId: conversation.id, body });
+    setAttachment(null);
+    sendMut.mutate({
+      conversationId: conversation.id,
+      body,
+      media_url: att?.url ?? null,
+      media_type: att?.type ?? null,
+      media_filename: att?.filename ?? null,
+    });
   };
 
   const handleRetry = (failedBody: string) => {
@@ -629,8 +693,90 @@ export const ChatWindow = ({ conversation }: Props) => {
             input.length > 0 ? "border-[#0E8A4B] shadow-[0_3px_0_0_#0A6E3C]" : "border-[#E8B968]"
           )}
         >
+          {/* Hidden file input — triggered by the Attach button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,text/plain,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void onPickFile(f);
+              // Reset so picking the same file twice still fires onChange
+              if (fileInputRef.current) fileInputRef.current.value = "";
+            }}
+          />
+
+          {/* Pending attachment preview (shown above the chip row) */}
+          {attachment && (
+            <div className="mx-2.5 mt-2 mb-1 flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-[#FFF1D6] border-2 border-[#E8B968]">
+              <div className="w-10 h-10 rounded-md bg-white border border-[#E8B968] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {attachment.type === "image" ? (
+                  <img src={attachment.url} alt="" className="w-full h-full object-cover" />
+                ) : attachment.type === "video" ? (
+                  <Film className="w-5 h-5 text-[#B8651A]" />
+                ) : attachment.type === "audio" ? (
+                  <Mic className="w-5 h-5 text-[#B8651A]" />
+                ) : (
+                  <FileText className="w-5 h-5 text-[#B8651A]" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-extrabold truncate">{attachment.filename}</p>
+                <p className="text-[10px] text-foreground/55 font-mono">
+                  {(attachment.sizeBytes / 1024).toFixed(0)} KB · {attachment.type}
+                </p>
+              </div>
+              <button
+                onClick={() => setAttachment(null)}
+                aria-label="Remove attachment"
+                className="w-7 h-7 rounded-md hover:bg-[#FFE9BD] flex items-center justify-center text-[#B8651A] transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Upload-in-progress strip */}
+          {uploading && (
+            <div className="mx-2.5 mt-2 mb-1 flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-[#E4E8FF] border-2 border-[#3C50E0]">
+              <Loader2 className="w-4 h-4 animate-spin text-[#3C50E0] flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-extrabold text-[#3C50E0]">Uploading… {uploadProgress}%</p>
+                <div className="w-full h-1.5 bg-white rounded-full overflow-hidden mt-1 border border-[#3C50E0]/30">
+                  <div className="h-full bg-[#3C50E0] transition-all" style={{ width: `${uploadProgress}%` }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Upload error */}
+          {uploadError && !uploading && (
+            <div className="mx-2.5 mt-2 mb-1 px-2.5 py-1.5 rounded-lg bg-[#FCE5F0] border border-[#D4308E]/30 text-[11px] font-semibold text-[#A11A6A] flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+              {uploadError}
+            </div>
+          )}
+
           {/* Top row: action chips */}
           <div className="flex items-center gap-1.5 px-2.5 pt-2 pb-1 flex-wrap">
+            {/* Attach (paperclip) — opens hidden file input */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className={cn(
+                "h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider transition-all border",
+                attachment
+                  ? "bg-[#E4E8FF] text-[#3C50E0] border-[#3C50E0]/50 shadow-[0_2px_0_0_#2533A8]"
+                  : "bg-[#FFF1D6] text-[#B8651A] border-[#E8B968] hover:bg-[#FFE9BD] hover:-translate-y-0.5 disabled:opacity-50"
+              )}
+              aria-label="Attach photo, video, or document"
+              title="Attach photo / video / document / audio"
+            >
+              <Paperclip className="w-3 h-3" strokeWidth={2.5} />
+              {attachment ? "Attached" : "Attach"}
+            </button>
+
             <button
               onClick={() => setShowTemplates(!showTemplates)}
               className={cn(
@@ -686,11 +832,11 @@ export const ChatWindow = ({ conversation }: Props) => {
             </div>
             <button
               onClick={handleSend}
-              disabled={!input.trim() || sendMut.isPending}
+              disabled={(!input.trim() && !attachment) || sendMut.isPending || uploading}
               aria-label="Send message"
               className={cn(
                 "w-11 h-11 rounded-xl flex items-center justify-center transition-all flex-shrink-0 border-2",
-                input.trim() && !sendMut.isPending
+                (input.trim() || attachment) && !sendMut.isPending && !uploading
                   ? "bg-[#0E8A4B] text-white border-[#0A6E3C] shadow-[0_3px_0_0_#0A6E3C] hover:-translate-y-0.5 hover:bg-[#0A6E3C] active:translate-y-0 active:shadow-[0_1px_0_0_#0A6E3C]"
                   : "bg-[#FFF1D6] text-foreground/35 border-[#E8B968]/50 shadow-[0_2px_0_0_#E8B968]/50"
               )}

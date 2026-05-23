@@ -3,7 +3,10 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { contact, conversation, message, metaConfig } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
-import { sendTextMessage, MetaApiError } from "../integrations/meta";
+import {
+  sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage,
+  MetaApiError,
+} from "../integrations/meta";
 import { toCamel } from "../utils";
 import { decrypt } from "../crypto";
 
@@ -322,15 +325,35 @@ app.post("/conversations/:id/messages", async (c) => {
       if (!recipient) return c.json({ error: "Contact not found" }, 404);
 
       try {
-        const sent = await sendTextMessage(
-          {
-            accessToken: decrypt(meta.accessToken),
-            phoneNumberId: meta.phoneNumberId,
-            businessAccountId: meta.businessAccountId,
-          },
-          recipient.phone.replace(/^\+/, ""), // Meta wants E.164 without "+"
-          String(body.body)
-        );
+        const creds = {
+          accessToken: decrypt(meta.accessToken),
+          phoneNumberId: meta.phoneNumberId,
+          businessAccountId: meta.businessAccountId,
+        };
+        const to = recipient.phone.replace(/^\+/, ""); // Meta wants E.164 without "+"
+
+        // Dispatch to the right Meta endpoint based on media type. Meta has
+        // separate /messages calls per media kind — same endpoint URL, but
+        // different `type` + body fields. Caption travels with image/video/
+        // document; audio doesn't support captions per Meta spec.
+        const mediaType: string | null = body.media_type ?? null;
+        const mediaUrl: string | null = body.media_url ?? null;
+        const caption: string = body.body ? String(body.body) : "";
+        const filename: string | null = body.media_filename ?? null;
+
+        let sent: { messages: Array<{ id: string }> };
+        if (mediaUrl && mediaType === "image") {
+          sent = await sendImageMessage(creds, to, mediaUrl, caption || undefined);
+        } else if (mediaUrl && mediaType === "video") {
+          sent = await sendVideoMessage(creds, to, mediaUrl, caption || undefined);
+        } else if (mediaUrl && mediaType === "document") {
+          sent = await sendDocumentMessage(creds, to, mediaUrl, filename || undefined, caption || undefined);
+        } else if (mediaUrl && mediaType === "audio") {
+          sent = await sendAudioMessage(creds, to, mediaUrl);
+        } else {
+          sent = await sendTextMessage(creds, to, caption);
+        }
+
         metaMessageId = sent.messages?.[0]?.id ?? null;
         initialStatus = "sent";
       } catch (err) {
@@ -343,7 +366,8 @@ app.post("/conversations/:id/messages", async (c) => {
           ownerId: userId,
           senderId: userId,
           direction: "outbound",
-          body: body.body,
+          body: body.body ?? "",
+          mediaUrl: body.media_url ?? null,
           status: "failed",
           isAiGenerated: body.is_ai_generated ?? false,
         }).returning();
@@ -353,12 +377,23 @@ app.post("/conversations/:id/messages", async (c) => {
     // If no Meta config, status stays "sent" (dry-run mode for development).
   }
 
+  // For media messages with no caption, the conversation preview shows a
+  // type-aware emoji+label instead of empty text. Keeps the chat list useful.
+  const previewForMedia = (mt: string | null) =>
+    mt === "image"    ? "📷 Photo"
+    : mt === "video"  ? "🎥 Video"
+    : mt === "audio"  ? "🎤 Voice"
+    : mt === "document" ? `📄 ${body.media_filename ?? "Document"}`
+    : "";
+  const bodyText = body.body ?? "";
+  const previewText = bodyText || previewForMedia(body.media_type ?? null);
+
   const [msg] = await db.insert(message).values({
     conversationId,
     ownerId: userId,
     senderId: userId,
     direction,
-    body: body.body,
+    body: bodyText,
     mediaUrl: body.media_url ?? null,
     status: initialStatus,
     twilioSid: metaMessageId, // Repurposed for Meta message id
@@ -368,7 +403,7 @@ app.post("/conversations/:id/messages", async (c) => {
   // Update conversation preview + clear unread (since the user just replied).
   await db.update(conversation).set({
     lastMessageAt: msg.createdAt,
-    lastMessagePreview: String(body.body).slice(0, 200),
+    lastMessagePreview: previewText.slice(0, 200),
     unreadCount: 0,
     updatedAt: new Date(),
   }).where(and(eq(conversation.id, conversationId), eq(conversation.ownerId, userId)));

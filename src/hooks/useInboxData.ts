@@ -40,15 +40,30 @@ export const useMessages = (conversationId: string | null) => {
 };
 
 // =====================
-// SEND MESSAGE (outbound)
+// SEND MESSAGE (outbound) — optionally with media attachment
 // =====================
+type SendMessageVars = {
+  conversationId: string;
+  body: string;
+  media_url?: string | null;
+  media_type?: "image" | "video" | "audio" | "document" | null;
+  media_filename?: string | null;
+};
+
 export const useSendMessage = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: ({ conversationId, body }: { conversationId: string; body: string }) =>
-      api.sendMessage(conversationId, { body, direction: "outbound", status: "sent" }),
+    mutationFn: (vars: SendMessageVars) =>
+      api.sendMessage(vars.conversationId, {
+        body: vars.body,
+        direction: "outbound",
+        status: "sent",
+        media_url: vars.media_url ?? null,
+        media_type: vars.media_type ?? null,
+        media_filename: vars.media_filename ?? null,
+      }),
     onSuccess: (_msg, vars) => {
       qc.invalidateQueries({ queryKey: ["messages", vars.conversationId] });
       qc.invalidateQueries({ queryKey: ["conversations", user?.id] });

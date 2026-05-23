@@ -103,6 +103,72 @@ export async function sendImageMessage(
   });
 }
 
+// Send a video. Same shape as image — public HTTPS URL Meta downloads + re-hosts.
+// Supported: mp4, 3gpp. Max 16 MB. Caption optional.
+export async function sendVideoMessage(
+  creds: MetaCredentials,
+  to: string,
+  videoUrl: string,
+  caption?: string,
+): Promise<{ messages: Array<{ id: string }> }> {
+  return metaFetch(`/${creds.phoneNumberId}/messages`, {
+    method: "POST",
+    token: creds.accessToken,
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "video",
+      video: { link: videoUrl, ...(caption ? { caption } : {}) },
+    }),
+  });
+}
+
+// Send a document (PDF, DOCX, XLSX, etc.). Max 100 MB. Filename optional —
+// shown to the recipient if provided, otherwise WhatsApp derives from URL.
+export async function sendDocumentMessage(
+  creds: MetaCredentials,
+  to: string,
+  documentUrl: string,
+  filename?: string,
+  caption?: string,
+): Promise<{ messages: Array<{ id: string }> }> {
+  return metaFetch(`/${creds.phoneNumberId}/messages`, {
+    method: "POST",
+    token: creds.accessToken,
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "document",
+      document: {
+        link: documentUrl,
+        ...(filename ? { filename } : {}),
+        ...(caption ? { caption } : {}),
+      },
+    }),
+  });
+}
+
+// Send audio (voice note style — no caption support). Supported: aac, mp4, mpeg, amr, ogg.
+export async function sendAudioMessage(
+  creds: MetaCredentials,
+  to: string,
+  audioUrl: string,
+): Promise<{ messages: Array<{ id: string }> }> {
+  return metaFetch(`/${creds.phoneNumberId}/messages`, {
+    method: "POST",
+    token: creds.accessToken,
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "audio",
+      audio: { link: audioUrl },
+    }),
+  });
+}
+
 // Send an approved template message (works outside 24h window). Used for broadcasts.
 export async function sendTemplateMessage(
   creds: MetaCredentials,
