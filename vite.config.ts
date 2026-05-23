@@ -18,6 +18,12 @@ export default defineConfig(({ mode }) => ({
         target: "http://localhost:4001",
         changeOrigin: true,
       },
+      // Public website renderer lives on Hono (server-rendered HTML), not in
+      // the Vite SPA — proxy it through in dev so /biz/<slug> Just Works.
+      "/biz": {
+        target: "http://localhost:4001",
+        changeOrigin: true,
+      },
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),

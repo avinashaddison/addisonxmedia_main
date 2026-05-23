@@ -549,3 +549,31 @@ export const upgradeRequest = pgTable("upgrade_request", {
 }));
 
 export type UpgradeRequest = typeof upgradeRequest.$inferSelect;
+
+// ============================================================
+// SITE — website / storefront builder (Phase 1)
+// ============================================================
+
+export const site = pgTable("site", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull().unique().references(() => user.id, { onDelete: "cascade" }),
+  slug: text("slug").notNull().unique(),
+  template: text("template").notNull().default("kirana"),                   // 'kirana' | 'salon' | 'restaurant' | 'services'
+  status: text("status").notNull().default("draft"),                       // 'draft' | 'published'
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  theme: jsonb("theme").notNull().default(sql`'{}'::jsonb`),               // { primary, secondary, font, logo_url }
+  copy: jsonb("copy").notNull().default(sql`'{}'::jsonb`),                 // { hero_headline, hero_sub, about, ... }
+  seoTitle: text("seo_title"),
+  seoDescription: text("seo_description"),
+  seoOgImage: text("seo_og_image"),
+  customDomain: text("custom_domain").unique(),
+  customDomainVerified: boolean("custom_domain_verified").notNull().default(false),
+  viewCount: integer("view_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  slugIdx: index("site_slug_idx").on(t.slug),
+  statusIdx: index("site_status_idx").on(t.status),
+}));
+
+export type Site = typeof site.$inferSelect;

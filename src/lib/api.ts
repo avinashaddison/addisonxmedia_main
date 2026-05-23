@@ -464,6 +464,24 @@ export const api = {
   getReplySuggestions: (conversationId: string) =>
     post<ReplySuggestionsResult>("/ai/reply-suggestions", { conversation_id: conversationId }),
 
+  // ─── Website / storefront builder (Phase 1) ─────────────────────────────
+  getSite: () => get<SiteDto>("/site/me"),
+  updateSite: (data: {
+    slug?: string;
+    template?: string;
+    theme?: Record<string, unknown>;
+    copy?: Record<string, unknown>;
+    seo_title?: string | null;
+    seo_description?: string | null;
+    seo_og_image?: string | null;
+  }) => patch<SiteDto>("/site/me", data),
+  publishSite: () => post<SiteDto>("/site/me/publish"),
+  unpublishSite: () => post<SiteDto>("/site/me/unpublish"),
+  checkSiteSlug: (slug: string) =>
+    get<{ slug: string; available: boolean; mine?: boolean }>(
+      `/site/slug/check?slug=${encodeURIComponent(slug)}`
+    ),
+
   // Meta BSP cost estimate (this month) — what Meta will bill the workspace.
   getMetaCostEstimate: () => get<{
     month_start: string;
@@ -474,6 +492,25 @@ export const api = {
     rates: { marketing: number; utility: number; authentication: number };
     note: string;
   }>("/billing/meta-estimate"),
+};
+
+export type SiteDto = {
+  id: string;
+  user_id: string;
+  slug: string;
+  template: string;
+  status: "draft" | "published";
+  published_at: string | null;
+  theme: Record<string, string>;
+  copy: Record<string, string>;
+  seo_title: string | null;
+  seo_description: string | null;
+  seo_og_image: string | null;
+  custom_domain: string | null;
+  custom_domain_verified: boolean;
+  view_count: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type ReplySuggestion = {

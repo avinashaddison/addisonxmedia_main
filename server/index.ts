@@ -23,6 +23,8 @@ import adsRoutes from "./routes/ads";
 import paymentsRoutes from "./routes/payments";
 import aiRoutes from "./routes/ai";
 import billingRoutes from "./routes/billing";
+import siteRoutes from "./routes/site";
+import sitePublicRoutes from "./routes/site-public";
 import { getSeoSettings, injectSeo, buildSitemapXml, buildRobotsTxt } from "./lib/seo";
 
 const app = new Hono();
@@ -101,6 +103,11 @@ app.route("/api", adsRoutes);
 app.route("/api", paymentsRoutes);
 app.route("/api", aiRoutes);
 app.route("/api", billingRoutes);
+app.route("/api", siteRoutes);
+
+// Public website renderer — no /api prefix. /biz/:slug is the public URL
+// customers share, so it lives next to /sitemap.xml as a top-level route.
+app.route("/", sitePublicRoutes);
 
 // /sitemap.xml + /robots.txt are dynamic — driven by admin settings, available
 // in both dev and prod so SEO checks work the same locally.
