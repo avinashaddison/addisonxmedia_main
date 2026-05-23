@@ -559,6 +559,27 @@ export const api = {
   }>) => patch<CouponDto>(`/coupons/${id}`, data),
   deleteCoupon: (id: string) => del(`/coupons/${id}`),
 
+  // Shipping zones
+  getShippingZones: () => get<ShippingZoneDto[]>("/shipping-zones"),
+  createShippingZone: (data: {
+    name: string;
+    pincode_prefixes?: string;
+    rate_inr?: number;
+    free_above_inr?: number | null;
+    eta_days?: number | null;
+    active?: boolean;
+  }) => post<ShippingZoneDto>("/shipping-zones", data),
+  updateShippingZone: (id: string, data: Partial<{
+    name: string;
+    pincode_prefixes: string;
+    rate_inr: number;
+    free_above_inr: number | null;
+    eta_days: number | null;
+    active: boolean;
+    sort_order: number;
+  }>) => patch<ShippingZoneDto>(`/shipping-zones/${id}`, data),
+  deleteShippingZone: (id: string) => del(`/shipping-zones/${id}`),
+
   // Site analytics
   getSiteAnalyticsSummary: (days = 30) =>
     get<{ days: number; current: AnalyticsCounters; previous: AnalyticsCounters }>(`/site/analytics/summary?days=${days}`),
@@ -612,6 +633,20 @@ export type OrderDto = {
   source: "website" | "whatsapp" | "manual";
   notes: string | null;
   contact_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ShippingZoneDto = {
+  id: string;
+  owner_id: string;
+  name: string;
+  pincode_prefixes: string;
+  rate_inr: string;
+  free_above_inr: string | null;
+  eta_days: number | null;
+  active: boolean;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 };

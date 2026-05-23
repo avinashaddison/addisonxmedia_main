@@ -642,6 +642,9 @@ export const orderTbl = pgTable("customer_order", {
   contactId: uuid("contact_id"),
   couponId: uuid("coupon_id"),
   couponCode: text("coupon_code"),
+  shippingZoneId: uuid("shipping_zone_id"),
+  shippingZoneName: text("shipping_zone_name"),
+  customerPincode: text("customer_pincode"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -706,3 +709,21 @@ export const coupon = pgTable("coupon", {
 }));
 
 export type Coupon = typeof coupon.$inferSelect;
+
+export const shippingZone = pgTable("shipping_zone", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  pincodePrefixes: text("pincode_prefixes").notNull().default(""),
+  rateInr: numeric("rate_inr", { precision: 10, scale: 2 }).notNull().default("0"),
+  freeAboveInr: numeric("free_above_inr", { precision: 10, scale: 2 }),
+  etaDays: integer("eta_days"),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerIdx: index("shipping_zone_owner_idx").on(t.ownerId, t.sortOrder),
+}));
+
+export type ShippingZone = typeof shippingZone.$inferSelect;

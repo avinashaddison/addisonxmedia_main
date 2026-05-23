@@ -23,6 +23,7 @@ import { db } from "../db/client";
 import { site, siteLead, contact, profile, metaConfig, product, orderTbl, orderItem, siteAnalyticsEvent, coupon, user } from "../db/schema";
 import { nextOrderNumber } from "./order";
 import { validateCoupon } from "./coupon";
+import { pickShippingQuote } from "./shipping";
 
 /** Derive a referrer host bucket from the Referer header. */
 const refHostBucket = (referer: string | null | undefined): string => {
@@ -313,6 +314,12 @@ ${products.length > 0 ? `
              class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[14px] font-mono" style="border-color: ${esc(theme.primary)}33" />
       <textarea name="customer_address" rows="2" maxlength="500" placeholder="Delivery address"
                 class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[13px] resize-none" style="border-color: ${esc(theme.primary)}33"></textarea>
+      <div class="flex gap-2">
+        <input id="ax-pincode-input" name="customer_pincode" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit pincode"
+               oninput="window.AxCart.onPincodeInput()"
+               class="flex-1 px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[13px] font-mono font-bold tracking-wider" style="border-color: ${esc(theme.primary)}33" />
+      </div>
+      <p id="ax-shipping-status" class="text-[11px] font-bold hidden"></p>
       <textarea name="notes" rows="2" maxlength="500" placeholder="Any special instructions?"
                 class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[13px] resize-none" style="border-color: ${esc(theme.primary)}33"></textarea>
       <div>
@@ -351,6 +358,10 @@ ${products.length > 0 ? `
           <span class="text-[12.5px] font-bold">Discount <span id="ax-cart-coupon-code" class="text-[10px] uppercase font-extrabold ml-1 px-1.5 py-0.5 rounded bg-[#E6F7EE]"></span></span>
           <span id="ax-cart-discount" class="text-[13px] font-extrabold tabular-nums">−₹0</span>
         </div>
+        <div id="ax-cart-shipping-row" class="hidden flex items-center justify-between">
+          <span class="text-[12.5px] font-bold text-gray-600">Shipping <span id="ax-cart-shipping-zone" class="text-[10px] font-extrabold ml-1 px-1.5 py-0.5 rounded bg-foreground/5"></span></span>
+          <span id="ax-cart-shipping" class="text-[13px] font-extrabold tabular-nums">₹0</span>
+        </div>
         <div class="flex items-center justify-between pt-1 border-t" style="border-color: ${esc(theme.primary)}22">
           <span class="text-[14px] font-extrabold">Total</span>
           <span id="ax-cart-total-out" class="text-[18px] font-black tabular-nums" style="color: ${esc(theme.primary)}">₹0</span>
@@ -384,7 +395,7 @@ ${products.length > 0 ? `
   var STORAGE_KEY = 'ax-cart-${esc(slug)}';
   var fmt = function(n){ return '₹' + (Math.round(n)).toLocaleString('en-IN'); };
   var $ = function(id){ return document.getElementById(id); };
-  var state = { items: {}, step: 'cart', coupon: null };  // coupon: {code, discount_inr} | null
+  var state = { items: {}, step: 'cart', coupon: null, shipping: null };  // shipping: {zone_name, rate_inr, eta_days, free} | null
 
   try { state.items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch(e){}
 
@@ -393,7 +404,8 @@ ${products.length > 0 ? `
   function count(){ return lines().reduce(function(s, l){ return s + l.qty; }, 0); }
   function subtotal(){ return lines().reduce(function(s, l){ return s + l.qty * l.price; }, 0); }
   function discountAmt(){ return state.coupon ? Math.min(subtotal(), state.coupon.discount_inr || 0) : 0; }
-  function total(){ return Math.max(0, subtotal() - discountAmt()); }
+  function shippingAmt(){ return state.shipping ? Number(state.shipping.rate_inr) || 0 : 0; }
+  function total(){ return Math.max(0, subtotal() - discountAmt() + shippingAmt()); }
 
   function renderBtn(){
     var btn = $('ax-cart-btn'); if (!btn) return;
@@ -414,8 +426,15 @@ ${products.length > 0 ? `
     } else {
       dRow.classList.add('hidden'); dRow.classList.remove('flex');
     }
+    var sRow = $('ax-cart-shipping-row');
+    if (state.shipping) {
+      sRow.classList.remove('hidden'); sRow.classList.add('flex');
+      $('ax-cart-shipping').textContent = state.shipping.free ? 'FREE' : fmt(shippingAmt());
+      $('ax-cart-shipping-zone').textContent = state.shipping.zone_name;
+    } else {
+      sRow.classList.add('hidden'); sRow.classList.remove('flex');
+    }
     $('ax-cart-total-out').textContent = fmt(total());
-    // Show coupon row when there's anything in the cart
     var couponRow = $('ax-coupon-row');
     if (lines().length > 0) { couponRow.classList.remove('hidden'); couponRow.classList.add('flex'); }
     else { couponRow.classList.add('hidden'); couponRow.classList.remove('flex'); }
@@ -500,6 +519,34 @@ ${products.length > 0 ? `
       var m = $('ax-order-success'); m.classList.add('hidden'); m.classList.remove('flex');
       window.AxCart.close();
     },
+    onPincodeInput: function(){
+      var inp = $('ax-pincode-input'); if (!inp) return;
+      var pin = (inp.value || '').replace(/\\D+/g, '').slice(0, 6);
+      inp.value = pin;
+      var st = $('ax-shipping-status');
+      if (pin.length !== 6) { state.shipping = null; renderTotals(); st.classList.add('hidden'); return; }
+      st.textContent = 'Checking delivery…'; st.className = 'text-[11px] font-bold text-gray-500';
+      fetch('/biz/${esc(slug)}/shipping/quote', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ pincode: pin, cart_subtotal_inr: subtotal() - discountAmt() })
+      }).then(function(r){ return r.json(); }).then(function(j){
+        if (j.ok) {
+          state.shipping = j;
+          st.textContent = (j.free ? '✓ Free delivery' : '✓ Delivery ' + fmt(j.rate_inr)) + (j.eta_days ? ' · ' + j.eta_days + ' days' : '') + ' (' + j.zone_name + ')';
+          st.className = 'text-[11px] font-bold text-[#0E8A4B]';
+          renderTotals();
+          if (state.step === 'checkout') $('ax-checkout-btn').textContent = 'Place order — ' + fmt(total());
+        } else {
+          state.shipping = null;
+          st.textContent = j.reason || 'No delivery';
+          st.className = 'text-[11px] font-bold text-rose-600';
+          renderTotals();
+        }
+      }).catch(function(){
+        state.shipping = null; renderTotals();
+        st.textContent = 'Network error'; st.className = 'text-[11px] font-bold text-rose-600';
+      });
+    },
     applyCoupon: function(){
       var inp = $('ax-coupon-input'); var st = $('ax-coupon-status'); var btn = $('ax-coupon-apply');
       var code = (inp.value || '').trim();
@@ -546,6 +593,7 @@ ${products.length > 0 ? `
       customer_name: fd.get('customer_name'),
       customer_phone: fd.get('customer_phone'),
       customer_address: fd.get('customer_address'),
+      customer_pincode: fd.get('customer_pincode'),
       notes: fd.get('notes'),
       payment_method: fd.get('payment_method'),
       coupon_code: state.coupon ? state.coupon.code : null,
@@ -556,7 +604,7 @@ ${products.length > 0 ? `
     }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
     .then(function(res){
       if (res.ok) {
-        state.items = {}; state.coupon = null; save(); renderBtn(); renderTotals();
+        state.items = {}; state.coupon = null; state.shipping = null; save(); renderBtn(); renderTotals();
         $('ax-order-number').textContent = 'Order #' + res.j.order_number;
         var s = $('ax-order-success'); s.classList.remove('hidden'); s.classList.add('flex');
         btn.disabled = false; btn.textContent = 'Checkout';
@@ -889,6 +937,7 @@ app.post("/biz/:slug/order", async (c) => {
     customer_phone?: string;
     customer_email?: string;
     customer_address?: string;
+    customer_pincode?: string;
     notes?: string;
     payment_method?: string;     // 'upi' | 'cod'
     coupon_code?: string;
@@ -899,6 +948,7 @@ app.post("/biz/:slug/order", async (c) => {
   const phone = (body.customer_phone || "").trim().slice(0, 30) || null;
   const email = (body.customer_email || "").trim().slice(0, 200) || null;
   const address = (body.customer_address || "").trim().slice(0, 500) || null;
+  const pincode = (body.customer_pincode || "").replace(/\D+/g, "").slice(0, 6) || null;
   const notes = (body.notes || "").trim().slice(0, 500) || null;
   const paymentMethod = ["upi", "cod"].includes(body.payment_method ?? "") ? body.payment_method! : null;
 
@@ -954,7 +1004,21 @@ app.post("/biz/:slug/order", async (c) => {
     couponCode = result.coupon.code;
   }
 
-  const total = Math.max(0, subtotal - discountInr);
+  // Calculate shipping from zone (server-side re-validation; cart UI passes
+  // the pincode it already quoted).
+  let shippingInr = 0;
+  let shippingZoneId: string | null = null;
+  let shippingZoneName: string | null = null;
+  if (pincode) {
+    const quote = await pickShippingQuote(row.userId, pincode, subtotal - discountInr);
+    if (quote) {
+      shippingInr = quote.rateInr;
+      shippingZoneId = quote.zoneId;
+      shippingZoneName = quote.zoneName;
+    }
+  }
+
+  const total = Math.max(0, subtotal - discountInr + shippingInr);
 
   // Try a few times to allocate a unique order_number under race
   let order: typeof orderTbl.$inferSelect | undefined;
@@ -969,8 +1033,9 @@ app.post("/biz/:slug/order", async (c) => {
         customerPhone: phone,
         customerEmail: email,
         customerAddress: address,
+        customerPincode: pincode,
         subtotalInr: String(subtotal),
-        shippingInr: "0",
+        shippingInr: String(shippingInr),
         discountInr: String(discountInr),
         totalInr: String(total),
         status: "new",
@@ -980,6 +1045,8 @@ app.post("/biz/:slug/order", async (c) => {
         notes,
         couponId,
         couponCode,
+        shippingZoneId,
+        shippingZoneName,
       }).returning();
       order = created;
       break;
@@ -1034,6 +1101,30 @@ app.post("/biz/:slug/order", async (c) => {
     order_id: order.id,
     order_number: order.orderNumber,
     total_inr: Number(order.totalInr),
+  });
+});
+
+/** POST /biz/:slug/shipping/quote — cart calls this once the user types a
+ *  pincode. Returns the matched zone, rate, ETA. Cart includes rate in total. */
+app.post("/biz/:slug/shipping/quote", async (c) => {
+  const slug = (c.req.param("slug") || "").toLowerCase().trim();
+  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
+  if (!row) return c.json({ ok: false, reason: "Site not found" }, 404);
+
+  const body = await c.req.json<{ pincode?: string; cart_subtotal_inr?: number }>().catch(() => ({}));
+  const pin = String(body.pincode || "").trim();
+  if (!pin) return c.json({ ok: false, reason: "Enter a pincode" });
+  if (!/^\d{6}$/.test(pin)) return c.json({ ok: false, reason: "Pincode must be 6 digits" });
+
+  const quote = await pickShippingQuote(row.userId, pin, Math.max(0, Number(body.cart_subtotal_inr) || 0));
+  if (!quote) return c.json({ ok: false, reason: "No delivery to this pincode yet — contact us on WhatsApp" });
+  return c.json({
+    ok: true,
+    zone_id: quote.zoneId,
+    zone_name: quote.zoneName,
+    rate_inr: quote.rateInr,
+    eta_days: quote.etaDays,
+    free: quote.free,
   });
 });
 
