@@ -337,11 +337,48 @@ export const metaConfig = pgTable("meta_config", {
   adAccountCurrency: text("ad_account_currency"),
   adsConnectedAt: timestamp("ads_connected_at", { withTimezone: true }),
   adsLastVerifiedAt: timestamp("ads_last_verified_at", { withTimezone: true }),
+  // ── Catalog (Commerce API) — verified-business unlock ───────────────────
+  catalogId: text("catalog_id"),
+  // ── Conversions API (CAPI) — closes the ad → revenue feedback loop ──────
+  pixelId: text("pixel_id"),
+  capiEnabled: boolean("capi_enabled").notNull().default(false),
+  capiTestEventCode: text("capi_test_event_code"),
+  // ── Messaging tier cache (refreshed by /api/meta/refresh-tier) ───────────
+  messagingLimitTier: text("messaging_limit_tier"),
+  qualityRating: text("quality_rating"),
+  tierRefreshedAt: timestamp("tier_refreshed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   // Webhook receiver looks up user by phone_number_id from Meta payload
   phoneNumberIdx: index("meta_config_phone_number_idx").on(t.phoneNumberId),
+}));
+
+// ============================================================
+// Meta CAPI event log — every server-side conversion event we fire to
+// Meta's Conversions API gets a row here. Dedup index on event_id prevents
+// double-firing on retries; admin diagnostics can also visualize fire
+// volume + Meta's response codes for debugging match-rate.
+// ============================================================
+
+export const metaCapiEvent = pgTable("meta_capi_event", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  eventName: text("event_name").notNull(),           // 'Lead' | 'Purchase' | ...
+  eventId: text("event_id").notNull(),               // dedupe key
+  eventTime: timestamp("event_time", { withTimezone: true }).notNull().defaultNow(),
+  sourceType: text("source_type"),                   // 'deal_won' | 'contact_created'
+  sourceId: text("source_id"),                       // related row id
+  valueInr: numeric("value_inr", { precision: 10, scale: 2 }),
+  currency: text("currency").default("INR"),
+  userData: jsonb("user_data"),
+  customData: jsonb("custom_data"),
+  responseCode: integer("response_code"),
+  responseBody: jsonb("response_body"),
+  firedAt: timestamp("fired_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerIdx: index("meta_capi_event_owner_idx").on(t.ownerId, t.firedAt),
+  eventIdUnq: uniqueIndex("meta_capi_event_id_unq").on(t.eventId),
 }));
 
 // ============================================================

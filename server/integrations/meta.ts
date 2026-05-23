@@ -225,4 +225,195 @@ export async function updateBusinessProfile(
   });
 }
 
+// ─── Meta API capability probes for the diagnostics panel ──────────────────
+
+/** Lists every permission the access token currently holds. Used by
+ *  /api/admin/diagnostics/meta-permissions to show admins which Advanced
+ *  Access permissions they already have (vs which need an App Review). */
+export async function listAccessTokenPermissions(accessToken: string): Promise<{
+  data: Array<{ permission: string; status: "granted" | "declined" }>;
+}> {
+  return metaFetch("/me/permissions", { method: "GET", token: accessToken });
+}
+
+/** Reads the WABA's messaging tier (e.g. TIER_1K, TIER_10K, TIER_100K, UNLIMITED)
+ *  + quality rating. Surfaced in the topbar so the operator knows their
+ *  current daily-message allowance without leaving the app. */
+export async function getWabaMessagingTier(creds: MetaCredentials): Promise<{
+  messaging_limit_tier?: string;
+  quality_score?: { score?: string };
+  display_phone_number?: string;
+  verified_name?: string;
+}> {
+  return metaFetch(`/${creds.phoneNumberId}?fields=messaging_limit_tier,quality_score,display_phone_number,verified_name`,
+    { method: "GET", token: creds.accessToken });
+}
+
+// ─── WhatsApp Catalog (Commerce API) ───────────────────────────────────────
+//
+// Verified-business unlock. Customer browses your products inside the
+// WhatsApp chat itself ("single product message" or "multi product message")
+// instead of clicking a link card to a website.
+
+export type CatalogProduct = {
+  id: string;
+  retailer_id: string;
+  name: string;
+  description?: string;
+  price?: string;
+  currency?: string;
+  url?: string;
+  image_url?: string;
+  availability?: "in stock" | "out of stock";
+};
+
+/** Lists products in a catalog. */
+export async function listCatalogProducts(
+  catalogId: string,
+  accessToken: string,
+  options?: { limit?: number; after?: string }
+): Promise<{ data: CatalogProduct[]; paging?: { cursors?: { after?: string }; next?: string } }> {
+  const params = new URLSearchParams({
+    fields: "id,retailer_id,name,description,price,currency,url,image_url,availability",
+    limit: String(options?.limit ?? 20),
+  });
+  if (options?.after) params.set("after", options.after);
+  return metaFetch(`/${catalogId}/products?${params}`, { method: "GET", token: accessToken });
+}
+
+/** Sends a single-product message — image + price + "View" button in chat. */
+export async function sendSingleProductMessage(
+  creds: MetaCredentials,
+  params: { to: string; catalogId: string; productRetailerId: string; bodyText?: string; footerText?: string }
+): Promise<{ messages: Array<{ id: string }> }> {
+  return metaFetch(`/${creds.phoneNumberId}/messages`, {
+    method: "POST",
+    token: creds.accessToken,
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: params.to,
+      type: "interactive",
+      interactive: {
+        type: "product",
+        body: params.bodyText ? { text: params.bodyText } : undefined,
+        footer: params.footerText ? { text: params.footerText } : undefined,
+        action: {
+          catalog_id: params.catalogId,
+          product_retailer_id: params.productRetailerId,
+        },
+      },
+    }),
+  });
+}
+
+/** Multi-product carousel — up to 30 items split across up to 10 sections. */
+export async function sendMultiProductMessage(
+  creds: MetaCredentials,
+  params: {
+    to: string;
+    catalogId: string;
+    headerText: string;
+    bodyText: string;
+    sections: Array<{ title: string; productRetailerIds: string[] }>;
+    footerText?: string;
+  }
+): Promise<{ messages: Array<{ id: string }> }> {
+  return metaFetch(`/${creds.phoneNumberId}/messages`, {
+    method: "POST",
+    token: creds.accessToken,
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: params.to,
+      type: "interactive",
+      interactive: {
+        type: "product_list",
+        header: { type: "text", text: params.headerText },
+        body: { text: params.bodyText },
+        footer: params.footerText ? { text: params.footerText } : undefined,
+        action: {
+          catalog_id: params.catalogId,
+          sections: params.sections.map((s) => ({
+            title: s.title,
+            product_items: s.productRetailerIds.map((id) => ({ product_retailer_id: id })),
+          })),
+        },
+      },
+    }),
+  });
+}
+
+// ─── Meta Conversions API (CAPI) ──────────────────────────────────────────
+//
+// Sends server-side conversion events to Meta's Pixel/Dataset so the algorithm
+// can optimize Click-to-WhatsApp ads on actual revenue (not just message
+// volume). PII is SHA-256 hashed per Meta's matching-key format.
+
+import crypto from "node:crypto";
+
+const sha = (s: string) => crypto.createHash("sha256").update(s.trim().toLowerCase()).digest("hex");
+
+export type CapiEvent = {
+  event_name: "Lead" | "Purchase" | "CompleteRegistration" | "Subscribe" | "Contact";
+  event_time: number;
+  event_id: string;
+  action_source: "system_generated" | "website" | "business_messaging";
+  user_data: {
+    em?: string[];
+    ph?: string[];
+    fn?: string[];
+    ln?: string[];
+    external_id?: string[];
+    client_ip_address?: string;
+    client_user_agent?: string;
+    fbc?: string;
+    fbp?: string;
+  };
+  custom_data?: {
+    currency?: string;
+    value?: number;
+    content_name?: string;
+    content_category?: string;
+    content_ids?: string[];
+  };
+};
+
+export const hashForCapi = (raw: string): string => sha(raw);
+
+export function buildCapiUserData(input: {
+  email?: string | null;
+  phone?: string | null;
+  name?: string | null;
+  externalId?: string | null;
+  ctwaClickId?: string | null;
+}): CapiEvent["user_data"] {
+  const data: CapiEvent["user_data"] = {};
+  if (input.email) data.em = [sha(input.email)];
+  if (input.phone) data.ph = [sha(input.phone.replace(/\D/g, ""))];
+  if (input.name) {
+    const parts = input.name.trim().split(/\s+/);
+    data.fn = [sha(parts[0] ?? "")];
+    if (parts.length > 1) data.ln = [sha(parts.slice(1).join(" "))];
+  }
+  if (input.externalId) data.external_id = [sha(input.externalId)];
+  if (input.ctwaClickId) data.fbc = `fb.1.${Date.now()}.${input.ctwaClickId}`;
+  return data;
+}
+
+export async function sendCapiEvent(params: {
+  pixelId: string;
+  accessToken: string;
+  events: CapiEvent[];
+  testEventCode?: string;
+}): Promise<{ events_received: number; messages: unknown[]; fbtrace_id?: string }> {
+  const body: Record<string, unknown> = { data: params.events };
+  if (params.testEventCode) body.test_event_code = params.testEventCode;
+  return metaFetch(`/${params.pixelId}/events`, {
+    method: "POST",
+    token: params.accessToken,
+    body: JSON.stringify(body),
+  });
+}
+
 export { MetaApiError };

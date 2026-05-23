@@ -55,6 +55,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { icon: Activity, label: "Health", path: "/admin/health" },
       { icon: Shuffle, label: "Chat ownership", path: "/admin/diagnostics" },
+      { icon: ShieldCheck, label: "Meta API", path: "/admin/meta-api" },
       { icon: Settings, label: "Settings", path: "/admin/settings" },
     ],
   },

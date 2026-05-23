@@ -184,11 +184,28 @@ app.post("/deals", async (c) => {
 app.patch("/deals/:id", async (c) => {
   const id = c.req.param("id");
   const body = toCamel<Record<string, any>>(await c.req.json());
+
+  // Snapshot previous stage so we can detect won-transitions and fire
+  // a Meta Conversions API Purchase event server-side.
+  const [prev] = await db.select({ stage: deal.stage })
+    .from(deal)
+    .where(and(eq(deal.id, id), eq(deal.ownerId, c.var.userId)))
+    .limit(1);
+
   const [row] = await db.update(deal)
     .set({ ...body, updatedAt: new Date() })
     .where(and(eq(deal.id, id), eq(deal.ownerId, c.var.userId)))
     .returning();
   if (!row) return c.json({ error: "Not found" }, 404);
+
+  // Fire CAPI Purchase on transition into 'won'. Async, never blocks
+  // the response — failures only show up in /meta/capi/events.
+  if (prev && prev.stage !== "won" && row.stage === "won") {
+    void import("../lib/meta-capi").then((m) =>
+      m.fireCapiSafely(() => m.firePurchaseEvent(c.var.userId, row.id), `deal_won:${row.id}`)
+    );
+  }
+
   return c.json(row);
 });
 

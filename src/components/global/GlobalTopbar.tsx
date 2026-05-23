@@ -207,7 +207,44 @@ const WhatsAppStatusPill = () => {
       )}>
         {config.statusLabel}
       </span>
+      {/* Live messaging tier badge — only shown when connected. Refresh via
+          /api/meta/refresh-tier (admin can trigger from settings). */}
+      {isLive && <MessagingTierBadge />}
     </Link>
+  );
+};
+
+/* Messaging tier — e.g. TIER_10K, TIER_100K, UNLIMITED. Reads from the
+ * cached value on meta_config (refreshed periodically via /meta/refresh-tier).
+ * Displays as a compact pill: "10K/day" or "UNLIMITED" with a quality dot. */
+const MessagingTierBadge = () => {
+  const { data } = useQuery({
+    queryKey: ["meta-tier"],
+    queryFn: () => api.metaGetTier(),
+    staleTime: 5 * 60_000,
+  });
+  if (!data?.messaging_limit_tier) return null;
+
+  const tierLabel = data.messaging_limit_tier
+    .replace("TIER_", "")
+    .replace("K", "K/day")
+    .replace("UNLIMITED", "∞");
+
+  const quality = data.quality_rating?.toUpperCase();
+  const qualityColor =
+    quality === "GREEN" ? "bg-[#0E8A4B]" :
+    quality === "YELLOW" ? "bg-[#FFB020]" :
+    quality === "RED" ? "bg-[#D4308E]" :
+    "bg-foreground/30";
+
+  return (
+    <span
+      title={`Messaging tier · ${data.messaging_limit_tier}${quality ? ` · quality ${quality}` : ""}`}
+      className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full leading-none bg-white border border-[#0A6E3C]/30 text-[#0A6E3C]"
+    >
+      <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", qualityColor)} />
+      {tierLabel}
+    </span>
   );
 };
 

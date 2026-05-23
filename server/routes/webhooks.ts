@@ -202,6 +202,16 @@ async function handleInboundMessage(userId: string, contacts: any[], m: any) {
       await db.update(contact).set({ source: "Meta Ad", tag: "warm", updatedAt: new Date() })
         .where(eq(contact.id, ctc.id));
     }
+
+    // Fire CAPI Lead event for the new contact, ideally with the CTWA click
+    // id so Meta can attribute back to the originating ad. Server-to-server,
+    // never blocks inbound message ingestion.
+    void import("../lib/meta-capi").then((m) =>
+      m.fireCapiSafely(
+        () => m.fireLeadEvent(userId, ctc.id, { ctwaClickId: referral?.ctwa_clid ?? null }),
+        `new_lead:${ctc.id}`
+      )
+    );
   }
 
   await db.insert(message).values({

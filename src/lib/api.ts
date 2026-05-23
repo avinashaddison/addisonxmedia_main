@@ -324,6 +324,52 @@ export const api = {
   updateAiPersona: (data: Partial<AiPersona>) => patch<AiPersona>("/ai/persona", data),
 
   // ─── Billing & plan upgrades ──────────────────────────────────────────────
+  // ── Meta API expansion (verified-business unlocks) ─────────────────
+  metaPermissions: () => get<{
+    permissions: Array<{ permission: string; status: "granted" | "declined" }>;
+    summary: {
+      has_waba_management: boolean;
+      has_waba_messaging: boolean;
+      has_ads_management: boolean;
+      has_catalog: boolean;
+      has_instagram_msg: boolean;
+      has_leads_retrieval: boolean;
+    };
+  }>("/meta/permissions"),
+  metaRefreshTier: () => post<{
+    messaging_limit_tier: string | null;
+    quality_rating: string | null;
+    display_phone_number: string | null;
+    verified_name: string | null;
+    refreshed_at: string;
+  }>("/meta/refresh-tier"),
+  metaGetTier: () => get<{ messaging_limit_tier: string | null; quality_rating: string | null; tier_refreshed_at: string | null } | null>("/meta/tier"),
+
+  // Catalog
+  metaCatalogSettings: (catalog_id: string | null) =>
+    request("/meta/catalog/settings", { method: "PATCH", body: JSON.stringify({ catalog_id }) }),
+  metaCatalogProducts: (after?: string) =>
+    get<{ data: Array<{ id: string; retailer_id: string; name: string; price?: string; image_url?: string; availability?: string }>; paging?: { cursors?: { after?: string } } }>(
+      `/meta/catalog/products${after ? `?after=${encodeURIComponent(after)}` : ""}`
+    ),
+
+  // CAPI
+  metaCapiGetSettings: () => get<{ pixel_id: string | null; capi_enabled: boolean; capi_test_event_code: string | null }>("/meta/capi/settings"),
+  metaCapiPatchSettings: (body: { pixel_id?: string | null; capi_enabled?: boolean; capi_test_event_code?: string | null }) =>
+    request("/meta/capi/settings", { method: "PATCH", body: JSON.stringify(body) }),
+  metaCapiTestFire: () => post<{ ok: boolean; response: unknown }>("/meta/capi/test-fire"),
+  metaCapiEvents: () => get<Array<{
+    id: string;
+    event_name: string;
+    event_id: string;
+    event_time: string;
+    source_type: string | null;
+    source_id: string | null;
+    value_inr: string | null;
+    response_code: number | null;
+    fired_at: string;
+  }>>("/meta/capi/events"),
+
   // Cashfree Payment Gateway — paid upgrade flow.
   // NOTE: response types are snake_case because request<T>() runs toSnake()
   // on every response body. Server returns camelCase; the wrapper converts.
