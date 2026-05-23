@@ -621,6 +621,7 @@ import { CouponsPage } from "./pages/CouponsPage";
 import { ShippingPage } from "./pages/ShippingPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { PagesPage } from "./pages/PagesPage";
+import { WebsiteStorePage } from "./pages/WebsiteStorePage";
 
 export const SitePage = ({ subPath }: Props) => {
   const key = (subPath || "").toLowerCase();
@@ -640,6 +641,7 @@ export const SitePage = ({ subPath }: Props) => {
     case "payments": return <PaymentsPage />;
     case "pages":    return <PagesPage />;
     case "sections": return <PagesPage />;
+    case "store":    return <WebsiteStorePage />;
     default:         return <SiteSubPagePlaceholder pageKey={key} />;
   }
 };

@@ -1319,4 +1319,127 @@ app.post("/biz/:slug/lead", async (c) => {
   return c.json({ ok: true, lead_id: lead.id });
 });
 
+/** GET /biz-demo/:template — public preview using canned sample data.
+ *  No DB lookup — lets visitors see what each template looks like before
+ *  applying it to their own site. Mounted from the Template Store. */
+app.get("/biz-demo/:template", (c) => {
+  const template = (c.req.param("template") || "kirana").toLowerCase();
+  const allowed = new Set(["kirana", "salon", "restaurant", "services"]);
+  if (!allowed.has(template)) return c.html(renderNotFound(), 404);
+
+  const demo = DEMO_DATA[template] ?? DEMO_DATA.kirana;
+  const input: RenderInput = {
+    template,
+    business: {
+      name: demo.businessName,
+      tagline: demo.tagline,
+      about: demo.about,
+      phone: "+91 9999000000",
+      whatsapp: "https://wa.me/919999000000?text=" + encodeURIComponent(`Hi ${demo.businessName}, this is a demo enquiry.`),
+      upiVpa: "demo@upi",
+      upiName: demo.businessName,
+      instagram: "https://instagram.com/demo",
+      facebook: null,
+      address: demo.address,
+      hours: demo.hours,
+    },
+    theme: demo.theme,
+    seo: { title: `${demo.businessName} — demo template`, description: demo.tagline, ogImage: null },
+    slug: `demo-${template}`,
+    products: demo.products,
+    cashfree: { enabled: false, mode: "sandbox" },
+  };
+
+  c.header("Cache-Control", "public, max-age=300");
+  // Wrap rendered HTML with a "demo banner" injected at the top so visitors
+  // know this is a preview.
+  const html = renderKirana(input).replace(
+    "<body class=\"text-gray-900 bg-white\">",
+    `<body class="text-gray-900 bg-white">
+<div style="position:sticky;top:0;z-index:100;background:linear-gradient(90deg,#0E8A4B,#FFD23F);color:white;padding:8px 12px;text-align:center;font-weight:800;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;">
+  Template demo · <a href="/app/site/store" style="color:#fff;text-decoration:underline;">← back to Template Store</a>
+</div>`,
+  );
+  return c.html(html);
+});
+
+// ─── Canned demo data per template ────────────────────────────────────────
+
+type DemoData = {
+  businessName: string;
+  tagline: string;
+  about: string;
+  address: string;
+  hours: string;
+  theme: { primary: string; accent: string; font: string };
+  products: ProductRender[];
+};
+
+const DEMO_DATA: Record<string, DemoData> = {
+  kirana: {
+    businessName: "Sharma General Store",
+    tagline: "Fresh groceries delivered in 30 minutes across Patna.",
+    about: "Family-run since 1987. Daily-fresh vegetables, branded staples, household essentials — all at the best prices in town. Free delivery on orders above ₹500.",
+    address: "Shop 12, Boring Road, Patna 800001",
+    hours: "Mon–Sat: 7 am – 10 pm\nSunday: 8 am – 9 pm",
+    theme: { primary: "#0E8A4B", accent: "#FFD23F", font: "Inter" },
+    products: [
+      { id: "demo-1", name: "Basmati Rice (5 kg)",      description: "Premium long-grain, aged 12 months", priceInr: 599, photoUrl: "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-2", name: "Toor Dal (1 kg)",          description: "Hand-picked, no polish",            priceInr: 159, photoUrl: "https://images.unsplash.com/photo-1612257999756-99ff3d6a9012?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-3", name: "Sunflower Oil (5L)",       description: "Cold-pressed, no preservatives",    priceInr: 749, photoUrl: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-4", name: "Atta (10 kg)",              description: "Chakki-fresh whole wheat flour",    priceInr: 449, photoUrl: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-5", name: "Tea (500 g)",               description: "Premium Assam loose-leaf",          priceInr: 289, photoUrl: "https://images.unsplash.com/photo-1564890369478-c89ca6d9cde9?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-6", name: "Sugar (5 kg)",              description: "Refined crystal sugar",             priceInr: 249, photoUrl: "https://images.unsplash.com/photo-1610545487565-89c0bcfdfaa3?w=400&h=400&fit=crop", inStock: true },
+    ],
+  },
+  salon: {
+    businessName: "Glow Salon & Spa",
+    tagline: "Hair, skin and nails — done right by award-winning stylists.",
+    about: "8 years of pampering Bangalore. Trained at L'Oréal Academy, certified in all major brands. Walk-ins welcome but appointments preferred — book on WhatsApp in 10 seconds.",
+    address: "Indiranagar 100ft Road, Bengaluru 560038",
+    hours: "Tue–Sun: 10 am – 9 pm\nMonday: Closed",
+    theme: { primary: "#D4308E", accent: "#FFD23F", font: "Manrope" },
+    products: [
+      { id: "demo-1", name: "Hair Cut & Style",         description: "Senior stylist · 45 min",  priceInr: 599,  photoUrl: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-2", name: "Hair Color (Global)",      description: "Premium ammonia-free · 90 min", priceInr: 2499, photoUrl: "https://images.unsplash.com/photo-1522338242992-e1a54906a8da?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-3", name: "Manicure & Pedicure",      description: "Combo · spa treatment",    priceInr: 1299, photoUrl: "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-4", name: "Facial — Hydrating",       description: "60 min · all skin types",  priceInr: 1799, photoUrl: "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-5", name: "Bridal Package",           description: "4 hr · trial included",    priceInr: 12999, photoUrl: "https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-6", name: "Hair Spa",                 description: "Deep conditioning · 60 min", priceInr: 899, photoUrl: "https://images.unsplash.com/photo-1633681926022-84c23e8cb6db?w=400&h=400&fit=crop", inStock: true },
+    ],
+  },
+  restaurant: {
+    businessName: "Spice Route Kitchen",
+    tagline: "Authentic North Indian — home-style, no MSG, ready in 25 minutes.",
+    about: "Run by Chef Anita, recipes passed down 3 generations. We use only fresh ingredients sourced daily from Crawford Market. Free delivery within 5 km.",
+    address: "Linking Road, Bandra West, Mumbai 400050",
+    hours: "Daily: 11 am – 11 pm",
+    theme: { primary: "#FF6A1F", accent: "#FFD23F", font: "Poppins" },
+    products: [
+      { id: "demo-1", name: "Butter Chicken",           description: "Half · serves 1",         priceInr: 320, photoUrl: "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-2", name: "Paneer Tikka Masala",      description: "Tandoor-fired paneer",    priceInr: 280, photoUrl: "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-3", name: "Garlic Naan",              description: "Fresh tandoor · 2 pcs",   priceInr: 80,  photoUrl: "https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-4", name: "Dal Makhani",              description: "Slow-cooked overnight",   priceInr: 240, photoUrl: "https://images.unsplash.com/photo-1626777553635-d23a4dba0a02?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-5", name: "Hyderabadi Biryani",       description: "Dum-cooked · serves 1",   priceInr: 380, photoUrl: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-6", name: "Gulab Jamun",              description: "Pack of 4 · warm",        priceInr: 120, photoUrl: "https://images.unsplash.com/photo-1601303516534-bf749e3e7f7c?w=400&h=400&fit=crop", inStock: true },
+    ],
+  },
+  services: {
+    businessName: "ProFix Home Services",
+    tagline: "Plumbing, electrical, AC repair — verified pros, fair prices, 1-hour ETA.",
+    about: "5+ years serving Hyderabad. All technicians background-checked and trained. 30-day workmanship warranty on every job. Pay only after work is done.",
+    address: "HITEC City, Hyderabad 500081",
+    hours: "Daily: 8 am – 10 pm\nSame-day service available",
+    theme: { primary: "#3C50E0", accent: "#FFD23F", font: "DM Sans" },
+    products: [
+      { id: "demo-1", name: "Plumbing Visit",          description: "Diagnosis + small repair", priceInr: 299,  photoUrl: "https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-2", name: "AC Service",              description: "Deep cleaning · all brands", priceInr: 599, photoUrl: "https://images.unsplash.com/photo-1631545806609-46d3edae9c5f?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-3", name: "Electrician Visit",       description: "Wiring / switch / fixture", priceInr: 349, photoUrl: "https://images.unsplash.com/photo-1621905251918-48416bd8575a?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-4", name: "Deep Cleaning",           description: "2-3 BHK · full kitchen + 2 bathrooms", priceInr: 2499, photoUrl: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-5", name: "Carpenter Visit",         description: "Furniture repair / install", priceInr: 399, photoUrl: "https://images.unsplash.com/photo-1504148455328-c376907d081c?w=400&h=400&fit=crop", inStock: true },
+      { id: "demo-6", name: "Pest Control",            description: "1 BHK · 6-month warranty", priceInr: 1499, photoUrl: "https://images.unsplash.com/photo-1582719188393-bb71ca45dbb9?w=400&h=400&fit=crop", inStock: true },
+    ],
+  },
+};
+
 export default app;

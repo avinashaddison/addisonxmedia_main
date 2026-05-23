@@ -24,6 +24,10 @@ export default defineConfig(({ mode }) => ({
         target: "http://localhost:4001",
         changeOrigin: true,
       },
+      "/biz-demo": {
+        target: "http://localhost:4001",
+        changeOrigin: true,
+      },
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
