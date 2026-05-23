@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ConversationWithContact, formatTime, initialsFor, splitTextWithLinks } from "@/lib/inbox-types";
+import { ConversationWithContact, formatTime, initialsFor, splitTextWithLinks, tokenizeWhatsAppFormatting } from "@/lib/inbox-types";
 import type { MessageStatus as MsgStatus } from "@/lib/api-types";
 import { useMessages, useSendMessage } from "@/hooks/useInboxData";
 import { toast } from "sonner";
@@ -69,22 +69,64 @@ const MediaBubble = ({
   onExpand?: () => void;
 }) => {
   if (type === "image" || type === "sticker") {
+    // QR codes (we generate them via api.qrserver.com) need different
+    // treatment from regular photos: they should NOT use object-cover (which
+    // crops corners and breaks the scan pattern), should sit on a white
+    // background (better contrast), and should be smaller (200px is plenty
+    // for a customer to scan from a phone screen — the 280×320 max we use
+    // for product photos makes QRs feel overwhelming in the chat).
+    const isQr = typeof src === "string" && src.includes("api.qrserver.com");
     return (
       <div>
         <button
           onClick={onExpand}
-          className="block rounded-xl overflow-hidden bg-muted/40 hover:opacity-95 transition cursor-zoom-in"
-          aria-label="Open full size"
+          className={cn(
+            "block rounded-xl overflow-hidden hover:opacity-95 transition cursor-zoom-in",
+            isQr ? "bg-white border border-foreground/10 p-2" : "bg-muted/40"
+          )}
+          aria-label={isQr ? "Open QR full size" : "Open full size"}
         >
           <img
             src={src}
-            alt={caption || "WhatsApp image"}
-            className="max-w-[280px] max-h-[320px] object-cover w-full block"
+            alt={caption || (isQr ? "Payment QR code" : "WhatsApp image")}
+            className={cn(
+              "block",
+              isQr
+                ? "w-[200px] h-[200px] object-contain"
+                : "max-w-[280px] max-h-[320px] object-cover w-full"
+            )}
             loading="lazy"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
           />
         </button>
-        {caption && <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-foreground mt-1.5">{caption}</p>}
+        {caption && (
+          <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-foreground mt-1.5">
+            {splitTextWithLinks(caption).map((seg, i) =>
+              seg.kind === "link" ? (
+                <a
+                  key={i}
+                  href={seg.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="underline decoration-2 underline-offset-2 font-semibold text-[#0E8A4B] hover:text-[#0A6E3C] break-all"
+                >
+                  {seg.label}
+                </a>
+              ) : (
+                <span key={i}>
+                  {tokenizeWhatsAppFormatting(seg.value).map((t, j) => {
+                    if (t.kind === "bold")   return <strong key={j} className="font-bold">{t.value}</strong>;
+                    if (t.kind === "italic") return <em key={j} className="italic">{t.value}</em>;
+                    if (t.kind === "strike") return <s key={j} className="opacity-70">{t.value}</s>;
+                    if (t.kind === "code")   return <code key={j} className="font-mono text-[12px] px-1 py-0.5 rounded bg-foreground/8 border border-foreground/10">{t.value}</code>;
+                    return <span key={j}>{t.value}</span>;
+                  })}
+                </span>
+              )
+            )}
+          </p>
+        )}
       </div>
     );
   }
@@ -612,7 +654,19 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
                             {seg.label}
                           </a>
                         ) : (
-                          <span key={i}>{seg.value}</span>
+                          // Render WhatsApp-style inline formatting (*bold*,
+                          // _italic_, `code`, ~strike~). The raw markers
+                          // shouldn't appear in the rendered chat — they're
+                          // confusing to customers who copied a template.
+                          <span key={i}>
+                            {tokenizeWhatsAppFormatting(seg.value).map((t, j) => {
+                              if (t.kind === "bold")   return <strong key={j} className="font-bold">{t.value}</strong>;
+                              if (t.kind === "italic") return <em key={j} className="italic">{t.value}</em>;
+                              if (t.kind === "strike") return <s key={j} className="opacity-70">{t.value}</s>;
+                              if (t.kind === "code")   return <code key={j} className="font-mono text-[12.5px] px-1 py-0.5 rounded bg-foreground/8 border border-foreground/10">{t.value}</code>;
+                              return <span key={j}>{t.value}</span>;
+                            })}
+                          </span>
                         )
                       )}
                     </p>

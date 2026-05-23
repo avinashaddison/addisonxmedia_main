@@ -115,7 +115,11 @@ app.post("/payments/upi/send", async (c) => {
     cu: "INR",
   });
   const upiLink = `upi://pay?${params.toString()}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=${encodeURIComponent(upiLink)}`;
+  // 280×280 source — chat bubble renders at 200px with object-contain, so we
+  // ship a slightly higher native res for retina without dominating the
+  // bubble. The old 400×400 produced an over-sized image that scrolled
+  // half the chat off-screen.
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=${encodeURIComponent(upiLink)}`;
 
   // Short caption — what customers see next to the QR. We deliberately
   // DON'T include the raw upi://pay?... link because it looks ugly with
