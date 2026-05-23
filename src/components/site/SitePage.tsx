@@ -573,8 +573,21 @@ const SiteSubPagePlaceholder = ({ pageKey }: { pageKey: string }) => {
 
 // ─── Router ────────────────────────────────────────────────────────────────
 
+import { ThemePage } from "./pages/ThemePage";
+import { SeoPage } from "./pages/SeoPage";
+import { DomainPage } from "./pages/DomainPage";
+import { SettingsPage as SiteSettingsPage } from "./pages/SettingsPage";
+import { LeadsPage } from "./pages/LeadsPage";
+
 export const SitePage = ({ subPath }: Props) => {
   const key = (subPath || "").toLowerCase();
-  if (!key) return <SiteOverview />;
-  return <SiteSubPagePlaceholder pageKey={key} />;
+  switch (key) {
+    case "": return <SiteOverview />;
+    case "theme":    return <ThemePage />;
+    case "seo":      return <SeoPage />;
+    case "domain":   return <DomainPage />;
+    case "settings": return <SiteSettingsPage />;
+    case "leads":    return <LeadsPage />;
+    default:         return <SiteSubPagePlaceholder pageKey={key} />;
+  }
 };

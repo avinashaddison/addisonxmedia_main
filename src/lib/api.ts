@@ -481,6 +481,10 @@ export const api = {
     get<{ slug: string; available: boolean; mine?: boolean }>(
       `/site/slug/check?slug=${encodeURIComponent(slug)}`
     ),
+  updateSiteDomain: (custom_domain: string | null) =>
+    patch<SiteDto>("/site/me/domain", { custom_domain }),
+  verifySiteDomain: () => post<SiteDto>("/site/me/domain/verify"),
+  getSiteLeads: () => get<SiteLeadDto[]>("/site/leads"),
 
   // Meta BSP cost estimate (this month) — what Meta will bill the workspace.
   getMetaCostEstimate: () => get<{
@@ -492,6 +496,22 @@ export const api = {
     rates: { marketing: number; utility: number; authentication: number };
     note: string;
   }>("/billing/meta-estimate"),
+};
+
+export type SiteLeadDto = {
+  id: string;
+  site_id: string;
+  owner_id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  message: string | null;
+  source_path: string | null;
+  user_agent: string | null;
+  ip_hash: string | null;
+  contact_id: string | null;
+  contacted_at: string | null;
+  created_at: string;
 };
 
 export type SiteDto = {

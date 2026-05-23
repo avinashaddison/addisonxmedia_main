@@ -18,8 +18,9 @@
 
 import { Hono } from "hono";
 import { eq, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { db } from "../db/client";
-import { site, profile, metaConfig, user } from "../db/schema";
+import { site, siteLead, contact, profile, metaConfig, user } from "../db/schema";
 
 const app = new Hono();
 
@@ -51,7 +52,9 @@ type RenderInput = {
     upiVpa: string | null;
     upiName: string | null;
     instagram: string | null;
-    address?: string;
+    facebook: string | null;
+    address: string | null;
+    hours: string | null;
   };
   theme: {
     primary: string;                  // hex
@@ -176,6 +179,23 @@ ${JSON.stringify({
   </div>
 </section>
 
+<!-- ── Hours + Address (if set) ── -->
+${business.hours || business.address ? `
+<section class="py-10 px-4 bg-gray-50/50">
+  <div class="max-w-3xl mx-auto grid sm:grid-cols-2 gap-4">
+    ${business.hours ? `
+    <div class="p-5 rounded-2xl bg-white border-2" style="border-color: ${esc(theme.primary)}22">
+      <p class="text-[11px] font-extrabold uppercase tracking-wider mb-2" style="color: ${esc(theme.primary)}">🕐 Hours</p>
+      <p class="text-[13px] font-medium whitespace-pre-line leading-relaxed">${esc(business.hours)}</p>
+    </div>` : ""}
+    ${business.address ? `
+    <div class="p-5 rounded-2xl bg-white border-2" style="border-color: ${esc(theme.primary)}22">
+      <p class="text-[11px] font-extrabold uppercase tracking-wider mb-2" style="color: ${esc(theme.primary)}">📍 Visit us</p>
+      <p class="text-[13px] font-medium whitespace-pre-line leading-relaxed">${esc(business.address)}</p>
+    </div>` : ""}
+  </div>
+</section>` : ""}
+
 <!-- ── Contact ── -->
 <section class="py-12 sm:py-16 px-4">
   <div class="max-w-3xl mx-auto">
@@ -209,7 +229,7 @@ ${JSON.stringify({
       </div>` : ""}
       ${business.instagram ? `
       <a href="${esc(business.instagram)}" target="_blank" rel="noopener noreferrer"
-         class="block p-5 rounded-2xl bg-white border-2 transition hover:-translate-y-0.5 hover:shadow-lg sm:col-span-2"
+         class="block p-5 rounded-2xl bg-white border-2 transition hover:-translate-y-0.5 hover:shadow-lg"
          style="border-color: ${esc(theme.primary)}33">
         <div class="flex items-center gap-3">
           <div class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-[18px] flex-shrink-0 bg-gradient-to-br from-fuchsia-500 to-orange-400">📷</div>
@@ -219,9 +239,105 @@ ${JSON.stringify({
           </div>
         </div>
       </a>` : ""}
+      ${business.facebook ? `
+      <a href="${esc(business.facebook)}" target="_blank" rel="noopener noreferrer"
+         class="block p-5 rounded-2xl bg-white border-2 transition hover:-translate-y-0.5 hover:shadow-lg"
+         style="border-color: ${esc(theme.primary)}33">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-[18px] flex-shrink-0 bg-blue-600">📘</div>
+          <div class="min-w-0">
+            <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">Facebook</p>
+            <p class="text-[14px] font-extrabold truncate">${esc(business.facebook.replace(/^https?:\/\/(www\.)?/, ""))}</p>
+          </div>
+        </div>
+      </a>` : ""}
     </div>
   </div>
 </section>
+
+<!-- ── Lead form ── -->
+<section class="py-12 sm:py-16 px-4 bg-gray-50">
+  <div class="max-w-xl mx-auto">
+    <div class="text-center mb-7">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(theme.primary)}">Get in touch</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">Leave us a message</h3>
+      <p class="text-[13px] text-gray-600 mt-2">We'll get back to you on WhatsApp.</p>
+    </div>
+    <form id="ax-lead-form" class="bg-white rounded-2xl border-2 p-5 sm:p-6 space-y-3 shadow-sm" style="border-color: ${esc(theme.primary)}33"
+          data-slug="${esc(slug)}">
+      <div>
+        <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600">Your name *</label>
+        <input name="name" required maxlength="100"
+               class="w-full mt-1 px-3 py-2.5 rounded-lg bg-white border-2 focus:outline-none text-[14px] font-medium"
+               style="border-color: ${esc(theme.primary)}33"
+               placeholder="e.g. Priya Sharma" />
+      </div>
+      <div>
+        <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600">WhatsApp number</label>
+        <input name="phone" type="tel" maxlength="20"
+               class="w-full mt-1 px-3 py-2.5 rounded-lg bg-white border-2 focus:outline-none text-[14px] font-mono"
+               style="border-color: ${esc(theme.primary)}33"
+               placeholder="+91 9XXXXXXXXX" />
+      </div>
+      <div>
+        <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600">Message</label>
+        <textarea name="message" rows="3" maxlength="500"
+                  class="w-full mt-1 px-3 py-2.5 rounded-lg bg-white border-2 focus:outline-none text-[14px] resize-none"
+                  style="border-color: ${esc(theme.primary)}33"
+                  placeholder="What would you like to know?"></textarea>
+      </div>
+      <button type="submit"
+              id="ax-lead-submit"
+              class="w-full h-12 rounded-xl text-white font-extrabold text-[14px] shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50"
+              style="background: ${esc(theme.primary)}">
+        Send message
+      </button>
+      <p id="ax-lead-status" class="text-[12px] text-center font-bold hidden"></p>
+    </form>
+  </div>
+</section>
+
+<script>
+(function(){
+  var f = document.getElementById('ax-lead-form');
+  if (!f) return;
+  f.addEventListener('submit', function(e){
+    e.preventDefault();
+    var btn = document.getElementById('ax-lead-submit');
+    var status = document.getElementById('ax-lead-status');
+    var fd = new FormData(f);
+    btn.disabled = true; btn.textContent = 'Sending…';
+    status.className = 'text-[12px] text-center font-bold hidden';
+    fetch('/biz/' + f.dataset.slug + '/lead', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: fd.get('name'),
+        phone: fd.get('phone'),
+        message: fd.get('message')
+      })
+    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+      .then(function(res){
+        if (res.ok) {
+          f.reset();
+          btn.textContent = '✓ Message sent';
+          status.textContent = 'Thanks! We will be in touch on WhatsApp shortly.';
+          status.className = 'text-[12px] text-center font-bold text-emerald-700';
+          setTimeout(function(){ btn.disabled = false; btn.textContent = 'Send message'; }, 4000);
+        } else {
+          btn.disabled = false; btn.textContent = 'Send message';
+          status.textContent = (res.j && res.j.error) || 'Could not send — please try again.';
+          status.className = 'text-[12px] text-center font-bold text-rose-700';
+        }
+      })
+      .catch(function(){
+        btn.disabled = false; btn.textContent = 'Send message';
+        status.textContent = 'Network error — please try again.';
+        status.className = 'text-[12px] text-center font-bold text-rose-700';
+      });
+  });
+})();
+</script>
 
 <!-- ── Footer ── -->
 <footer class="py-8 px-4 border-t" style="border-color: ${esc(theme.primary)}22">
@@ -303,6 +419,9 @@ app.get("/biz/:slug", async (c) => {
       upiVpa: pf?.upiVpa || null,
       upiName: pf?.upiDisplayName || pf?.displayName || null,
       instagram: pf?.instagramUrl || null,
+      facebook: pf?.facebookUrl || null,
+      address: copy.address || null,
+      hours: copy.hours || null,
     },
     theme: {
       primary: theme.primary || "#0E8A4B",
@@ -330,6 +449,70 @@ app.get("/biz/:slug", async (c) => {
 
   c.header("Cache-Control", "public, max-age=60, s-maxage=60");
   return c.html(html);
+});
+
+/** POST /biz/:slug/lead — public lead capture from the rendered form.
+ *  Validates, inserts into site_lead + the existing contact table so the
+ *  lead shows up in the CRM inbox flow. */
+app.post("/biz/:slug/lead", async (c) => {
+  const slug = (c.req.param("slug") || "").toLowerCase().trim();
+  if (!slug) return c.json({ error: "Not found" }, 404);
+
+  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
+  if (!row) return c.json({ error: "Site not found" }, 404);
+  if (row.status !== "published") return c.json({ error: "Site is not published" }, 400);
+
+  const body = await c.req.json<{ name?: string; phone?: string; email?: string; message?: string }>()
+    .catch(() => ({} as { name?: string; phone?: string; email?: string; message?: string }));
+
+  const name = (body.name || "").trim().slice(0, 100);
+  const phone = (body.phone || "").trim().slice(0, 30) || null;
+  const email = (body.email || "").trim().slice(0, 200) || null;
+  const message = (body.message || "").trim().slice(0, 500) || null;
+
+  if (!name) return c.json({ error: "Name is required" }, 400);
+  if (!phone && !email) return c.json({ error: "Please provide a WhatsApp number or email" }, 400);
+
+  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ua = c.req.header("user-agent") || null;
+  const ipHash = createHash("sha256").update(ip).digest("hex").slice(0, 32);
+
+  const [lead] = await db.insert(siteLead).values({
+    siteId: row.id,
+    ownerId: row.userId,
+    name, phone, email, message,
+    sourcePath: `/biz/${slug}`,
+    userAgent: ua,
+    ipHash,
+  }).returning();
+
+  // Also push to the CRM contact table so the lead shows up in the inbox flow.
+  // Phone is the de-dupe key — if a contact already exists with this phone for
+  // this owner, link to it instead of creating a duplicate.
+  if (phone) {
+    const normalizedPhone = phone.replace(/[^\d+]/g, "");
+    const [existing] = await db.select({ id: contact.id }).from(contact)
+      .where(and(eq(contact.ownerId, row.userId), eq(contact.phone, normalizedPhone))).limit(1);
+
+    let contactId: string;
+    if (existing) {
+      contactId = existing.id;
+    } else {
+      const [c2] = await db.insert(contact).values({
+        ownerId: row.userId,
+        name,
+        phone: normalizedPhone,
+        email,
+        source: `website:${slug}`,
+        tag: "warm",
+        notes: message ? `Lead form: ${message}` : null,
+      }).returning({ id: contact.id });
+      contactId = c2.id;
+    }
+    await db.update(siteLead).set({ contactId }).where(eq(siteLead.id, lead.id));
+  }
+
+  return c.json({ ok: true, lead_id: lead.id });
 });
 
 export default app;

@@ -577,3 +577,24 @@ export const site = pgTable("site", {
 }));
 
 export type Site = typeof site.$inferSelect;
+
+export const siteLead = pgTable("site_lead", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  message: text("message"),
+  sourcePath: text("source_path"),
+  userAgent: text("user_agent"),
+  ipHash: text("ip_hash"),
+  contactId: uuid("contact_id"),
+  contactedAt: timestamp("contacted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerIdx: index("site_lead_owner_idx").on(t.ownerId, t.createdAt),
+  siteIdx: index("site_lead_site_idx").on(t.siteId, t.createdAt),
+}));
+
+export type SiteLead = typeof siteLead.$inferSelect;

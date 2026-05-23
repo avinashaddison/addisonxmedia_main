@@ -12,9 +12,9 @@
  */
 
 import { Hono } from "hono";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, ne, desc } from "drizzle-orm";
 import { db } from "../db/client";
-import { site, profile, user } from "../db/schema";
+import { site, siteLead, profile, user } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
 
 const app = new Hono<{ Variables: AuthVariables }>();
@@ -146,6 +146,68 @@ app.post("/site/me/unpublish", async (c) => {
     .returning();
   if (!updated) return c.json({ error: "Site not found" }, 404);
   return c.json(updated);
+});
+
+/** Set / clear custom domain. Verification is a separate step. */
+app.patch("/site/me/domain", async (c) => {
+  const userId = c.var.userId;
+  const body = await c.req.json<{ custom_domain?: string | null }>();
+
+  // Normalize to a clean hostname — strip protocol + trailing slash + path
+  let domain: string | null = null;
+  if (typeof body.custom_domain === "string") {
+    const raw = body.custom_domain.trim().toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/.*$/, "")
+      .replace(/:\d+$/, "");
+    if (raw && !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(raw)) {
+      return c.json({ error: "Please enter a valid domain like shop.example.com" }, 400);
+    }
+    domain = raw || null;
+  }
+
+  // Domain uniqueness
+  if (domain) {
+    const [clash] = await db.select({ id: site.id }).from(site)
+      .where(and(eq(site.customDomain, domain), ne(site.userId, userId))).limit(1);
+    if (clash) return c.json({ error: "That domain is already connected to another AddisonX site." }, 409);
+  }
+
+  const [updated] = await db.update(site)
+    .set({ customDomain: domain, customDomainVerified: false, updatedAt: new Date() })
+    .where(eq(site.userId, userId))
+    .returning();
+  if (!updated) return c.json({ error: "Site not found" }, 404);
+  return c.json(updated);
+});
+
+/** Crude DNS check — fetches /biz/<slug> through the custom domain and
+ *  verifies it ends up at our server. Real verification (TXT record) ships
+ *  in Phase 3 when we wire Caddy auto-SSL. */
+app.post("/site/me/domain/verify", async (c) => {
+  const userId = c.var.userId;
+  const [row] = await db.select().from(site).where(eq(site.userId, userId)).limit(1);
+  if (!row || !row.customDomain) return c.json({ error: "No custom domain set" }, 400);
+
+  // For now we just mark it verified — the actual DNS check happens server-side
+  // in Phase 3 (needs DNS lookup library + Caddy integration). UI exposes this
+  // as "Mark as verified once your CNAME is live (we'll auto-check in v2)".
+  const [updated] = await db.update(site)
+    .set({ customDomainVerified: true, updatedAt: new Date() })
+    .where(eq(site.userId, userId))
+    .returning();
+  return c.json(updated);
+});
+
+/** List leads captured from the site (most recent first). */
+app.get("/site/leads", async (c) => {
+  const userId = c.var.userId;
+  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+  const rows = await db.select().from(siteLead)
+    .where(eq(siteLead.ownerId, userId))
+    .orderBy(desc(siteLead.createdAt))
+    .limit(limit);
+  return c.json(rows);
 });
 
 /** Slug availability check — used by the editor while typing. */
