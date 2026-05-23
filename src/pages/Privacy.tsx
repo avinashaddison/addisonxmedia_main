@@ -35,6 +35,7 @@ const TOC = [
   { id: "transfers", label: "International data transfers" },
   { id: "security", label: "Security measures" },
   { id: "rights", label: "Your rights (DPDP Act)" },
+  { id: "data-deletion", label: "Data deletion" },
   { id: "cookies", label: "Cookies & tracking" },
   { id: "children", label: "Children's privacy" },
   { id: "changes", label: "Changes to this policy" },
@@ -134,7 +135,7 @@ const Privacy = () => {
               This Privacy Policy explains how <strong>AddisonX Media Pvt. Ltd.</strong>
               (CIN under registration, "AddisonX", "we", "us", or "our") collects, uses, stores,
               shares and protects information when you use our WhatsApp Business CRM platform
-              available at <Link to="/" className="text-[#FF6A1F] font-bold underline underline-offset-2">addisonx.in</Link>
+              available at <Link to="/" className="text-[#FF6A1F] font-bold underline underline-offset-2">addisonxmedia.com</Link>
               {" "}and at the application accessible under the same domain (the "Service").
             </p>
             <p className="mt-3">
@@ -299,7 +300,56 @@ const Privacy = () => {
             </p>
           </Section>
 
-          <Section id="cookies" n={11} title="Cookies & tracking">
+          <Section id="data-deletion" n={11} title="Data deletion instructions">
+            <p>
+              You have the right to delete your data at any time. AddisonX provides
+              three independent ways to request deletion, in compliance with the
+              DPDP Act 2023 and Meta Platform Terms.
+            </p>
+
+            <h3 className="text-[14px] font-extrabold text-foreground mt-5 mb-2">a) Self-service in app (instant)</h3>
+            <ul className="list-disc pl-5 space-y-1.5">
+              <li>Sign in to your workspace at <a href="https://addisonxmedia.com/app/settings" className="text-[#FF6A1F] font-bold underline underline-offset-2">addisonxmedia.com/app/settings</a></li>
+              <li>Go to <strong>Account → Delete account</strong></li>
+              <li>Confirm deletion. Your account is queued for deletion within 24 hours.</li>
+              <li>All workspace data (contacts, conversations, messages, Meta tokens) is permanently erased within 30 days.</li>
+            </ul>
+
+            <h3 className="text-[14px] font-extrabold text-foreground mt-5 mb-2">b) Email request</h3>
+            <ul className="list-disc pl-5 space-y-1.5">
+              <li>Email <a href="mailto:Contact@addisonxmedia.com?subject=Data%20deletion%20request" className="text-[#FF6A1F] font-bold underline underline-offset-2">Contact@addisonxmedia.com</a> from the address associated with your account</li>
+              <li>Subject line: <em>"Data deletion request"</em></li>
+              <li>We confirm receipt within 48 hours and complete deletion within 30 days, as required by the DPDP Act</li>
+            </ul>
+
+            <h3 className="text-[14px] font-extrabold text-foreground mt-5 mb-2">c) Meta-initiated deletion (Facebook Login users)</h3>
+            <ul className="list-disc pl-5 space-y-1.5">
+              <li>If you signed in with Facebook Login and choose to remove AddisonX in your Facebook Settings, Meta automatically notifies us via a Data Deletion Callback</li>
+              <li>Upon receipt of that callback we delete all Platform Data associated with your Facebook user ID within 30 days</li>
+              <li>You may verify the status of the deletion at any time by contacting our Grievance Officer (see Section 14)</li>
+            </ul>
+
+            <h3 className="text-[14px] font-extrabold text-foreground mt-5 mb-2">What gets deleted</h3>
+            <ul className="list-disc pl-5 space-y-1.5">
+              <li>Workspace records: contacts, conversations, messages, deals, tasks, campaigns, broadcasts, templates</li>
+              <li>Meta integration credentials: encrypted access tokens, phone_number_id, business_account_id, instagram_business_account, ad account links, catalog_id</li>
+              <li>Profile information: name, email, phone, avatar, social links</li>
+              <li>Authentication records: sessions, password hashes</li>
+            </ul>
+
+            <h3 className="text-[14px] font-extrabold text-foreground mt-5 mb-2">What is retained (and why)</h3>
+            <ul className="list-disc pl-5 space-y-1.5">
+              <li><strong>Invoice and tax records</strong> — 8 years, as required by the Indian Income Tax Act and GST Act</li>
+              <li><strong>Anonymized audit logs</strong> — required by Section 9 of the DPDP Act for breach-disclosure compliance. No personal data is retained in these logs after the 30-day deletion window.</li>
+            </ul>
+
+            <Callout color="primary">
+              Deletion requests are processed within 30 days. You may track the
+              status by emailing the Grievance Officer at any time.
+            </Callout>
+          </Section>
+
+          <Section id="cookies" n={12} title="Cookies & tracking">
             <p>We use minimal cookies, strictly for:</p>
             <ul className="list-disc pl-5 space-y-1.5 mt-2">
               <li><strong>Authentication</strong> — keeping you signed in (BetterAuth session cookie, httpOnly, secure, SameSite=Lax)</li>
@@ -313,7 +363,7 @@ const Privacy = () => {
             </p>
           </Section>
 
-          <Section id="children" n={12} title="Children's privacy">
+          <Section id="children" n={13} title="Children's privacy">
             <p>
               The Service is not directed to children under <strong>18 years</strong>. We do not knowingly
               collect personal data from minors. If you believe a minor has provided us with personal
@@ -321,7 +371,7 @@ const Privacy = () => {
             </p>
           </Section>
 
-          <Section id="changes" n={13} title="Changes to this policy">
+          <Section id="changes" n={14} title="Changes to this policy">
             <p>
               We may update this policy from time to time. When we make material changes we will notify
               you via email and in-app banner at least <strong>30 days before</strong> the changes take effect.
@@ -329,7 +379,7 @@ const Privacy = () => {
             </p>
           </Section>
 
-          <Section id="contact" n={14} title="Grievance Officer & Data Protection Officer">
+          <Section id="contact" n={15} title="Grievance Officer & Data Protection Officer">
             <p>
               In compliance with the Information Technology Rules, 2011 and the DPDP Act 2023, we have
               appointed a Grievance Officer and Data Protection Officer based in our Ranchi office:
