@@ -49,18 +49,46 @@ export const InboxPage = () => {
     setMobileView("chat");
   };
 
-  // h-[100dvh] handles mobile browser chrome (Safari/Chrome bottom bar)
-  // better than h-screen — keeps the composer above the URL bar reliably.
+  // The earlier responsive layout combined `transition-all` with switching
+  // between `w-0` and `md:w-[340px]` based on a single mobileView state, which
+  // collapsed the conversation list AND the lead panel on long chats at
+  // tablet/desktop widths. New approach: render the three panels with
+  // breakpoint-only Tailwind classes (no `mobileView`-driven width manipulation
+  // at md+). Mobile uses display:hidden vs display:flex; desktop never hides.
+  //
+  // Visibility matrix:
+  //
+  //                              <md (mobile)       md (tablet)    lg (desktop)
+  //   ConversationList   list   flex (w-full)      flex (340)     flex (340)
+  //                      chat   hidden             flex (340)     flex (340)
+  //                      lead   hidden             flex (340)     flex (340)
+  //
+  //   ChatWindow         list   hidden             flex (1)       flex (1)
+  //                      chat   flex (1)           flex (1)       flex (1)
+  //                      lead   hidden             flex (1)       flex (1)
+  //
+  //   LeadPanel          list   hidden             hidden (drawer)flex (340)
+  //                      chat   hidden (info btn)  hidden (drawer)flex (340)
+  //                      lead   flex (w-full)      flex (drawer)  flex (340)
+  //
+  // The drawer-on-tablet is opt-in via the info button → leadOpenTablet=true,
+  // overlays the chat with a fixed right-side panel and a backdrop. On desktop
+  // the lead panel is always inline so leadOpenTablet is irrelevant there.
+
+  const isListView = mobileView === "list";
+  const isChatView = mobileView === "chat";
+  const isLeadView = mobileView === "lead";
+
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden relative">
       {/* ── ConversationList ── */}
-      <div className={cn(
-        "flex-shrink-0 transition-all",
-        // Desktop / tablet: 340px column always visible.
-        // Mobile: full-width when 'list', hidden when not.
-        "lg:w-[340px] md:w-[340px]",
-        mobileView === "list" ? "w-full" : "w-0 md:w-[340px] overflow-hidden",
-      )}>
+      <div
+        className={cn(
+          "md:w-[340px] md:flex-shrink-0 md:flex",
+          // mobile: full-width on list view, hidden everywhere else
+          isListView ? "w-full flex" : "hidden",
+        )}
+      >
         <ConversationList
           conversations={conversations}
           activeId={activeId}
@@ -71,67 +99,70 @@ export const InboxPage = () => {
         />
       </div>
 
-      {/* ── ChatWindow + LeadPanel area ── */}
-      <div className={cn(
-        "flex-1 flex min-w-0",
-        mobileView === "list" ? "hidden md:flex" : "flex",
-      )}>
+      {/* ── ChatWindow ── */}
+      <div
+        className={cn(
+          "flex-1 min-w-0 md:flex md:flex-col",
+          // mobile: visible on chat view only. lead view replaces it; list view
+          // means the conv list takes the whole screen.
+          isChatView ? "flex flex-col" : "hidden",
+        )}
+      >
         {active ? (
-          <>
-            {/* Chat — visible whenever NOT on the lead view on mobile */}
-            <div className={cn(
-              "flex-1 min-w-0",
-              mobileView === "lead" ? "hidden md:flex md:flex-col" : "flex flex-col",
-            )}>
-              <ChatWindow
-                conversation={active}
-                onMobileBack={() => setMobileView("list")}
-                onShowLead={() => {
-                  // On mobile: switch to full-screen lead.
-                  // On tablet: slide-over drawer (overlay).
-                  // On desktop: panel is already visible — no-op.
-                  if (window.innerWidth < 768) setMobileView("lead");
-                  else if (window.innerWidth < 1024) setLeadOpenTablet(true);
-                }}
-              />
-            </div>
-
-            {/* LeadPanel:
-                - <md (mobile): full-width when mobileView==='lead'
-                - md-lg (tablet): slide-over from right when leadOpenTablet
-                - lg+ (desktop): always visible to the right of chat
-            */}
-            <div className={cn(
-              // Mobile fullscreen
-              mobileView === "lead" ? "flex w-full md:hidden" : "hidden",
-              // Tablet drawer
-              leadOpenTablet ? "md:flex md:fixed md:inset-y-0 md:right-0 md:z-30 md:shadow-2xl lg:static lg:shadow-none lg:z-auto" : "md:hidden lg:flex",
-              // Desktop static (always shown when chat is active)
-              "lg:flex",
-            )}>
-              <LeadPanel
-                contact={active.contact}
-                conversationId={active.id}
-                onClose={() => {
-                  if (window.innerWidth < 768) setMobileView("chat");
-                  else setLeadOpenTablet(false);
-                }}
-              />
-            </div>
-
-            {/* Backdrop for tablet drawer */}
-            {leadOpenTablet && (
-              <button
-                onClick={() => setLeadOpenTablet(false)}
-                aria-label="Close lead panel"
-                className="hidden md:block lg:hidden fixed inset-0 z-20 bg-black/30 backdrop-blur-sm"
-              />
-            )}
-          </>
+          <ChatWindow
+            conversation={active}
+            onMobileBack={() => setMobileView("list")}
+            onShowLead={() => {
+              // On mobile: switch to full-screen lead.
+              // On tablet: slide-over drawer (overlay).
+              // On desktop: panel is already inline.
+              if (typeof window !== "undefined") {
+                if (window.innerWidth < 768) setMobileView("lead");
+                else if (window.innerWidth < 1024) setLeadOpenTablet(true);
+              }
+            }}
+          />
         ) : (
           <InboxEmptyState loading={isLoading} />
         )}
       </div>
+
+      {/* ── LeadPanel ── */}
+      {active && (
+        <>
+          <div
+            className={cn(
+              "lg:w-[340px] lg:flex-shrink-0 lg:flex lg:static lg:shadow-none lg:z-auto",
+              // mobile fullscreen on lead view
+              isLeadView ? "w-full flex" : "hidden",
+              // tablet drawer when explicitly opened via info button
+              leadOpenTablet &&
+                "md:flex md:fixed md:inset-y-0 md:right-0 md:w-[340px] md:z-30 md:shadow-2xl",
+            )}
+          >
+            <LeadPanel
+              contact={active.contact}
+              conversationId={active.id}
+              onClose={() => {
+                if (typeof window !== "undefined" && window.innerWidth < 768) {
+                  setMobileView("chat");
+                } else {
+                  setLeadOpenTablet(false);
+                }
+              }}
+            />
+          </div>
+
+          {/* Backdrop only when the tablet drawer is open */}
+          {leadOpenTablet && (
+            <button
+              onClick={() => setLeadOpenTablet(false)}
+              aria-label="Close lead panel"
+              className="hidden md:block lg:hidden fixed inset-0 z-20 bg-black/30 backdrop-blur-sm"
+            />
+          )}
+        </>
+      )}
     </div>
   );
 };
