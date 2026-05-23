@@ -7,7 +7,6 @@ import { LeadPanel } from "./LeadPanel";
 import { useConversations } from "@/hooks/useInboxData";
 import { useMuteState } from "@/hooks/useNotificationSound";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { MessageCircle, Loader2, Phone, AlertTriangle, CheckCircle2, ArrowRight, MessageSquareWarning } from "lucide-react";
 
 /* Mobile-aware 3-pane layout:
@@ -49,38 +48,7 @@ export const InboxPage = () => {
     setMobileView("chat");
   };
 
-  // The earlier responsive layout combined `transition-all` with switching
-  // between `w-0` and `md:w-[340px]` based on a single mobileView state, which
-  // collapsed the conversation list AND the lead panel on long chats at
-  // tablet/desktop widths. New approach: render the three panels with
-  // breakpoint-only Tailwind classes (no `mobileView`-driven width manipulation
-  // at md+). Mobile uses display:hidden vs display:flex; desktop never hides.
-  //
-  // Visibility matrix:
-  //
-  //                              <md (mobile)       md (tablet)    lg (desktop)
-  //   ConversationList   list   flex (w-full)      flex (340)     flex (340)
-  //                      chat   hidden             flex (340)     flex (340)
-  //                      lead   hidden             flex (340)     flex (340)
-  //
-  //   ChatWindow         list   hidden             flex (1)       flex (1)
-  //                      chat   flex (1)           flex (1)       flex (1)
-  //                      lead   hidden             flex (1)       flex (1)
-  //
-  //   LeadPanel          list   hidden             hidden (drawer)flex (340)
-  //                      chat   hidden (info btn)  hidden (drawer)flex (340)
-  //                      lead   flex (w-full)      flex (drawer)  flex (340)
-  //
-  // The drawer-on-tablet is opt-in via the info button → leadOpenTablet=true,
-  // overlays the chat with a fixed right-side panel and a backdrop. On desktop
-  // the lead panel is always inline so leadOpenTablet is irrelevant there.
-
-  // Track the live viewport via matchMedia so the layout decision is made in
-  // JS, not via fragile Tailwind class precedence. The earlier pure-CSS
-  // approach kept hitting edge cases where `hidden` + `md:flex` would resolve
-  // to display:none on long chats — a known issue when an arbitrary-value
-  // utility (md:w-[340px]) hasn't been generated yet during a hot-reload
-  // session. JS-driven layout sidesteps the entire class-precedence mess.
+  // Track viewport tier in JS so the layout decision is unambiguous.
   const [viewport, setViewport] = useState<"mobile" | "tablet" | "desktop">(() => {
     if (typeof window === "undefined") return "desktop";
     const w = window.innerWidth;
@@ -104,87 +72,75 @@ export const InboxPage = () => {
   const isChatView = mobileView === "chat";
   const isLeadView = mobileView === "lead";
 
-  // Decide which panels are visible at this viewport. Mobile = ONE at a time
-  // driven by mobileView. Tablet = list + chat (+ lead as drawer). Desktop =
-  // all three inline. No CSS-class trickery — pure JS conditional rendering.
   const showList = viewport === "desktop" || viewport === "tablet" || (viewport === "mobile" && isListView);
   const showChat = viewport === "desktop" || viewport === "tablet" || (viewport === "mobile" && isChatView);
   const showLeadInline = viewport === "desktop";
   const showLeadDrawer = viewport === "tablet" && leadOpenTablet;
   const showLeadFullscreen = viewport === "mobile" && isLeadView;
 
-  // Visible debug strip — kept until the user confirms the layout works. Lets
-  // them take a screenshot showing exactly what the JS thinks the viewport
-  // looks like + which panels should render. Tag it with the current commit
-  // so we can verify the latest build is actually loaded.
-  const BUILD_TAG = "inbox-layout-r4-debug";
-  const innerWidth = typeof window !== "undefined" ? window.innerWidth : 0;
+  // CSS Grid layout — explicit column tracks make the panel widths independent
+  // of content. Long-chat content used to push the conv-list and lead-panel
+  // off-screen because a flex item's intrinsic min-width is its content's
+  // min-content size; even with min-w-0 some descendant was still claiming
+  // space. Grid tracks are sized by `grid-template-columns`, not by content.
+  //
+  //   mobile  → '1fr'                  (only the active panel renders)
+  //   tablet  → '340px 1fr'             (list + chat)
+  //   desktop → '340px 1fr 340px'       (list + chat + lead)
+  const gridTemplate =
+    viewport === "mobile"  ? "1fr"
+  : viewport === "tablet"  ? "340px 1fr"
+                           : "340px 1fr 340px";
 
   return (
     <div className="flex flex-col h-[100dvh] w-full overflow-hidden relative">
-      {/* TEMPORARY DEBUG — REMOVE ONCE CONFIRMED WORKING */}
-      <div className="flex-shrink-0 bg-[#3D1A00] text-[#FFD23F] text-[10px] font-mono px-3 py-1 flex items-center gap-3 flex-wrap border-b-2 border-[#FFD23F]/40">
-        <span className="font-extrabold uppercase tracking-wider">debug</span>
-        <span>build: <b className="text-white">{BUILD_TAG}</b></span>
-        <span>vw: <b className="text-white">{innerWidth}px</b></span>
-        <span>tier: <b className="text-white">{viewport}</b></span>
-        <span>view: <b className="text-white">{mobileView}</b></span>
-        <span>showList: <b className={showList ? "text-[#0E8A4B]" : "text-[#D4308E]"}>{String(showList)}</b></span>
-        <span>showChat: <b className={showChat ? "text-[#0E8A4B]" : "text-[#D4308E]"}>{String(showChat)}</b></span>
-        <span>showLead: <b className={showLeadInline ? "text-[#0E8A4B]" : "text-[#D4308E]"}>{String(showLeadInline)}</b></span>
-        <span>active: <b className="text-white">{active ? "yes" : "no"}</b></span>
-      </div>
-
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-      {/* ── ConversationList ── */}
-      {showList && (
-        <div
-          style={viewport === "mobile" ? undefined : { width: 340, flexShrink: 0 }}
-          className={cn(
-            "flex",
-            viewport === "mobile" && "w-full",
-          )}
-        >
-          <ConversationList
-            conversations={conversations}
-            activeId={activeId}
-            onSelect={handleSelect}
-            loading={isLoading}
-            muted={muted}
-            onToggleMuted={toggleMuted}
-          />
-        </div>
-      )}
-
-      {/* ── ChatWindow ── */}
-      {showChat && (
-        <div className="flex-1 min-w-0 flex flex-col">
-          {active ? (
-            <ChatWindow
-              conversation={active}
-              onMobileBack={() => setMobileView("list")}
-              onShowLead={() => {
-                if (viewport === "mobile") setMobileView("lead");
-                else if (viewport === "tablet") setLeadOpenTablet(true);
-                // desktop: panel already inline, button hidden
-              }}
+      <div
+        className="flex-1 min-h-0 overflow-hidden grid"
+        style={{ gridTemplateColumns: gridTemplate, gridTemplateRows: "100%" }}
+      >
+        {/* ── ConversationList ── */}
+        {showList && (
+          <div className="min-w-0 min-h-0 flex overflow-hidden">
+            <ConversationList
+              conversations={conversations}
+              activeId={activeId}
+              onSelect={handleSelect}
+              loading={isLoading}
+              muted={muted}
+              onToggleMuted={toggleMuted}
             />
-          ) : (
-            <InboxEmptyState loading={isLoading} />
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* ── LeadPanel: inline on desktop ── */}
-      {active && showLeadInline && (
-        <div style={{ width: 340, flexShrink: 0 }} className="flex">
-          <LeadPanel
-            contact={active.contact}
-            conversationId={active.id}
-            onClose={() => setLeadOpenTablet(false)}
-          />
-        </div>
-      )}
+        {/* ── ChatWindow ── */}
+        {showChat && (
+          <div className="min-w-0 min-h-0 flex flex-col overflow-hidden">
+            {active ? (
+              <ChatWindow
+                conversation={active}
+                onMobileBack={() => setMobileView("list")}
+                onShowLead={() => {
+                  if (viewport === "mobile") setMobileView("lead");
+                  else if (viewport === "tablet") setLeadOpenTablet(true);
+                }}
+              />
+            ) : (
+              <InboxEmptyState loading={isLoading} />
+            )}
+          </div>
+        )}
+
+        {/* ── LeadPanel: inline on desktop ── */}
+        {active && showLeadInline && (
+          <div className="min-w-0 min-h-0 flex overflow-hidden">
+            <LeadPanel
+              contact={active.contact}
+              conversationId={active.id}
+              onClose={() => setLeadOpenTablet(false)}
+            />
+          </div>
+        )}
+      </div>
 
       {/* ── LeadPanel: tablet drawer (slide-over) ── */}
       {active && showLeadDrawer && (
@@ -217,7 +173,6 @@ export const InboxPage = () => {
           />
         </div>
       )}
-      </div>
     </div>
   );
 };
