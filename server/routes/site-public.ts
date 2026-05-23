@@ -24,6 +24,7 @@ import { site, siteLead, contact, profile, metaConfig, product, orderTbl, orderI
 import { nextOrderNumber } from "./order";
 import { validateCoupon } from "./coupon";
 import { pickShippingQuote } from "./shipping";
+import { cashfreeIsConfigured, cashfreeMode } from "../integrations/cashfree";
 
 /** Derive a referrer host bucket from the Referer header. */
 const refHostBucket = (referer: string | null | undefined): string => {
@@ -93,6 +94,7 @@ type ProductRender = {
 };
 
 type RenderInput = {
+  cashfree: { enabled: boolean; mode: string };
   business: {
     name: string;
     tagline: string;
@@ -118,7 +120,7 @@ type RenderInput = {
 
 /** The Kirana / Local Shop template — single page, mobile-first, fast. */
 const renderKirana = (input: RenderInput): string => {
-  const { business, theme, seo, slug, products } = input;
+  const { business, theme, seo, slug, products, cashfree } = input;
   const waOrderLink = business.whatsapp || "#";
   const upiPayLink = business.upiVpa
     ? `upi://pay?pa=${encodeURIComponent(business.upiVpa)}&pn=${encodeURIComponent(business.upiName || business.name)}&cu=INR`
@@ -140,6 +142,7 @@ ${seo.ogImage ? `<meta property="og:image" content="${esc(seo.ogImage)}" />` : "
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=${esc(theme.font.replace(/ /g, "+"))}:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
+${cashfree.enabled ? `<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>` : ""}
 <script>
   tailwind.config = {
     theme: {
@@ -324,14 +327,19 @@ ${products.length > 0 ? `
                 class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[13px] resize-none" style="border-color: ${esc(theme.primary)}33"></textarea>
       <div>
         <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-1.5">Payment</p>
-        <div class="grid grid-cols-2 gap-2">
-          ${business.upiVpa ? `
-          <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition hover:bg-gray-50 has-[:checked]:border-2" style="border-color: ${esc(theme.primary)}33">
-            <input type="radio" name="payment_method" value="upi" checked class="w-4 h-4 accent-[${esc(theme.primary)}]" />
-            <span class="text-[12px] font-extrabold">💳 UPI</span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          ${cashfree.enabled ? `
+          <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition hover:bg-gray-50" style="border-color: ${esc(theme.primary)}33">
+            <input type="radio" name="payment_method" value="online" checked class="w-4 h-4" />
+            <span class="text-[12px] font-extrabold">💳 Card / UPI / Netbanking</span>
+          </label>` : ""}
+          ${business.upiVpa && !cashfree.enabled ? `
+          <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition hover:bg-gray-50" style="border-color: ${esc(theme.primary)}33">
+            <input type="radio" name="payment_method" value="upi" checked class="w-4 h-4" />
+            <span class="text-[12px] font-extrabold">💳 UPI (manual)</span>
           </label>` : ""}
           <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition hover:bg-gray-50" style="border-color: ${esc(theme.primary)}33">
-            <input type="radio" name="payment_method" value="cod" ${business.upiVpa ? "" : "checked"} class="w-4 h-4" />
+            <input type="radio" name="payment_method" value="cod" ${(cashfree.enabled || business.upiVpa) ? "" : "checked"} class="w-4 h-4" />
             <span class="text-[12px] font-extrabold">💵 Cash on delivery</span>
           </label>
         </div>
@@ -604,8 +612,38 @@ ${products.length > 0 ? `
     }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
     .then(function(res){
       if (res.ok) {
+        var orderId = res.j.order_id;
+        var orderNum = res.j.order_number;
+        var paymentMethod = payload.payment_method;
+
+        // For online payments, launch Cashfree drop-in BEFORE clearing cart
+        if (paymentMethod === 'online' && window.Cashfree) {
+          btn.textContent = 'Opening payment…';
+          fetch('/biz/${esc(slug)}/pay/' + orderId + '/start', { method: 'POST' })
+            .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+            .then(function(payRes){
+              if (!payRes.ok || !payRes.j.payment_session_id) {
+                btn.disabled = false; btn.textContent = 'Place order — ' + fmt(total());
+                status.textContent = (payRes.j && payRes.j.error) || 'Could not start payment.';
+                status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
+                return;
+              }
+              try {
+                var cf = window.Cashfree({ mode: payRes.j.mode === 'production' ? 'production' : 'sandbox' });
+                cf.checkout({ paymentSessionId: payRes.j.payment_session_id, redirectTarget: '_self' });
+              } catch (e) {
+                btn.disabled = false; btn.textContent = 'Place order — ' + fmt(total());
+                status.textContent = 'Payment failed to open.';
+                status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
+              }
+              // Cart will redirect to /biz/pay/return after payment
+            });
+          return;
+        }
+
+        // COD / UPI-manual flow — show success immediately
         state.items = {}; state.coupon = null; state.shipping = null; save(); renderBtn(); renderTotals();
-        $('ax-order-number').textContent = 'Order #' + res.j.order_number;
+        $('ax-order-number').textContent = 'Order #' + orderNum;
         var s = $('ax-order-success'); s.classList.remove('hidden'); s.classList.add('flex');
         btn.disabled = false; btn.textContent = 'Checkout';
         form.reset();
@@ -890,6 +928,7 @@ app.get("/biz/:slug", async (c) => {
       photoUrl: p.photoUrl,
       inStock: p.stock == null || Number(p.stock) > 0,
     })),
+    cashfree: { enabled: cashfreeIsConfigured(), mode: cashfreeMode() },
   };
 
   // Bump view counter + log analytics event (fire-and-forget).

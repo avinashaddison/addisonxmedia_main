@@ -30,6 +30,7 @@ import orderRoutes from "./routes/order";
 import siteAnalyticsRoutes from "./routes/site-analytics";
 import couponRoutes from "./routes/coupon";
 import shippingRoutes from "./routes/shipping";
+import orderPaymentRoutes from "./routes/order-payment";
 import { getSeoSettings, injectSeo, buildSitemapXml, buildRobotsTxt } from "./lib/seo";
 
 const app = new Hono();
@@ -114,6 +115,9 @@ app.route("/api", orderRoutes);
 app.route("/api", siteAnalyticsRoutes);
 app.route("/api", couponRoutes);
 app.route("/api", shippingRoutes);
+// Order payment routes — mounted at root because /biz/... + /api/cashfree/order-webhook
+// span both public and API surfaces.
+app.route("/", orderPaymentRoutes);
 
 // Public website renderer — no /api prefix. /biz/:slug is the public URL
 // customers share, so it lives next to /sitemap.xml as a top-level route.
