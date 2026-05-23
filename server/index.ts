@@ -25,6 +25,7 @@ import aiRoutes from "./routes/ai";
 import billingRoutes from "./routes/billing";
 import siteRoutes from "./routes/site";
 import sitePublicRoutes from "./routes/site-public";
+import productRoutes from "./routes/product";
 import { getSeoSettings, injectSeo, buildSitemapXml, buildRobotsTxt } from "./lib/seo";
 
 const app = new Hono();
@@ -104,6 +105,7 @@ app.route("/api", paymentsRoutes);
 app.route("/api", aiRoutes);
 app.route("/api", billingRoutes);
 app.route("/api", siteRoutes);
+app.route("/api", productRoutes);
 
 // Public website renderer — no /api prefix. /biz/:slug is the public URL
 // customers share, so it lives next to /sitemap.xml as a top-level route.

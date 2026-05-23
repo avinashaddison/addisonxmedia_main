@@ -486,6 +486,30 @@ export const api = {
   verifySiteDomain: () => post<SiteDto>("/site/me/domain/verify"),
   getSiteLeads: () => get<SiteLeadDto[]>("/site/leads"),
 
+  // Products (catalog)
+  getProducts: () => get<ProductDto[]>("/products"),
+  createProduct: (data: {
+    name: string;
+    description?: string | null;
+    price_inr?: number;
+    photo_url?: string | null;
+    stock?: number | null;
+    category?: string | null;
+    status?: "active" | "draft" | "archived";
+  }) => post<ProductDto>("/products", data),
+  updateProduct: (id: string, data: Partial<{
+    name: string;
+    description: string | null;
+    price_inr: number;
+    photo_url: string | null;
+    stock: number | null;
+    category: string | null;
+    status: "active" | "draft" | "archived";
+  }>) => patch<ProductDto>(`/products/${id}`, data),
+  deleteProduct: (id: string) => del(`/products/${id}`),
+  reorderProducts: (items: Array<{ id: string; sort_order: number }>) =>
+    post<{ ok: true; updated: number }>("/products/reorder", { items }),
+
   // Meta BSP cost estimate (this month) — what Meta will bill the workspace.
   getMetaCostEstimate: () => get<{
     month_start: string;
@@ -496,6 +520,21 @@ export const api = {
     rates: { marketing: number; utility: number; authentication: number };
     note: string;
   }>("/billing/meta-estimate"),
+};
+
+export type ProductDto = {
+  id: string;
+  owner_id: string;
+  name: string;
+  description: string | null;
+  price_inr: string;
+  photo_url: string | null;
+  stock: number | null;
+  category: string | null;
+  status: "active" | "draft" | "archived";
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type SiteLeadDto = {

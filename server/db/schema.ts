@@ -598,3 +598,23 @@ export const siteLead = pgTable("site_lead", {
 }));
 
 export type SiteLead = typeof siteLead.$inferSelect;
+
+export const product = pgTable("product", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  priceInr: numeric("price_inr", { precision: 10, scale: 2 }).notNull().default("0"),
+  photoUrl: text("photo_url"),
+  stock: integer("stock"),
+  category: text("category"),
+  status: text("status").notNull().default("active"),  // 'active' | 'draft' | 'archived'
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerIdx: index("product_owner_idx").on(t.ownerId, t.sortOrder),
+  statusIdx: index("product_status_idx").on(t.ownerId, t.status),
+}));
+
+export type Product = typeof product.$inferSelect;

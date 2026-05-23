@@ -17,10 +17,10 @@
  */
 
 import { Hono } from "hono";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, asc } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { db } from "../db/client";
-import { site, siteLead, contact, profile, metaConfig, user } from "../db/schema";
+import { site, siteLead, contact, profile, metaConfig, product, user } from "../db/schema";
 
 const app = new Hono();
 
@@ -40,6 +40,15 @@ const waLink = (phone: string | null | undefined, message?: string): string | nu
   if (!digits) return null;
   const m = message ? `?text=${encodeURIComponent(message)}` : "";
   return `https://wa.me/${digits}${m}`;
+};
+
+type ProductRender = {
+  id: string;
+  name: string;
+  description: string | null;
+  priceInr: number;
+  photoUrl: string | null;
+  inStock: boolean;
 };
 
 type RenderInput = {
@@ -63,11 +72,12 @@ type RenderInput = {
   };
   seo: { title: string; description: string; ogImage: string | null };
   slug: string;
+  products: ProductRender[];
 };
 
 /** The Kirana / Local Shop template — single page, mobile-first, fast. */
 const renderKirana = (input: RenderInput): string => {
-  const { business, theme, seo, slug } = input;
+  const { business, theme, seo, slug, products } = input;
   const waOrderLink = business.whatsapp || "#";
   const upiPayLink = business.upiVpa
     ? `upi://pay?pa=${encodeURIComponent(business.upiVpa)}&pn=${encodeURIComponent(business.upiName || business.name)}&cu=INR`
@@ -178,6 +188,48 @@ ${JSON.stringify({
     </p>
   </div>
 </section>
+
+<!-- ── Products (if any) ── -->
+${products.length > 0 ? `
+<section id="products" class="py-12 sm:py-16 px-4">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-8">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(theme.primary)}">Our offerings</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">Browse products</h3>
+      <p class="text-[13px] text-gray-600 mt-2">Tap "Order on WhatsApp" — we'll confirm and arrange delivery.</p>
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
+      ${products.map((p) => {
+        const orderText = `Hi ${business.name}, I'd like to order:\n• ${p.name}${p.priceInr > 0 ? ` — ₹${p.priceInr.toLocaleString("en-IN")}` : ""}`;
+        const orderLink = business.whatsapp
+          ? `${business.whatsapp.split("?")[0]}?text=${encodeURIComponent(orderText)}`
+          : null;
+        return `
+        <article class="bg-white rounded-2xl border-2 overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg" style="border-color: ${esc(theme.primary)}22">
+          ${p.photoUrl
+            ? `<div class="aspect-square bg-gray-50 overflow-hidden"><img src="${esc(p.photoUrl)}" alt="${esc(p.name)}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'" /></div>`
+            : `<div class="aspect-square bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center text-gray-300 text-[36px]">📦</div>`
+          }
+          <div class="p-3 sm:p-4">
+            <h4 class="font-extrabold text-[13px] sm:text-[14px] leading-tight line-clamp-2">${esc(p.name)}</h4>
+            ${p.description ? `<p class="text-[11px] text-gray-600 mt-1 line-clamp-2 leading-snug">${esc(p.description)}</p>` : ""}
+            <div class="mt-2.5 flex items-center justify-between gap-2">
+              ${p.priceInr > 0
+                ? `<span class="text-[15px] sm:text-[16px] font-black tabular-nums" style="color: ${esc(theme.primary)}">₹${p.priceInr.toLocaleString("en-IN")}</span>`
+                : `<span class="text-[11px] font-bold text-gray-500">Price on request</span>`
+              }
+              ${orderLink
+                ? `<a href="${esc(orderLink)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg text-white shadow-sm hover:opacity-90 transition flex-shrink-0" style="background: ${esc(theme.primary)}" aria-label="Order ${esc(p.name)} on WhatsApp" title="Order on WhatsApp">💬</a>`
+                : ""
+              }
+            </div>
+            ${!p.inStock ? `<p class="mt-1.5 text-[10px] font-bold text-rose-600 uppercase tracking-wider">Out of stock</p>` : ""}
+          </div>
+        </article>`;
+      }).join("")}
+    </div>
+  </div>
+</section>` : ""}
 
 <!-- ── Hours + Address (if set) ── -->
 ${business.hours || business.address ? `
@@ -394,11 +446,14 @@ app.get("/biz/:slug", async (c) => {
   // The owner can still preview via /biz/<slug>?preview=1 (Phase 2 — TODO).
   if (row.status !== "published") return c.html(renderDraftHolding(slug), 200);
 
-  // Pull owner profile + meta config in parallel for auto-fill
+  // Pull owner profile + meta config + active products in parallel for auto-fill
   const [pf] = await db.select().from(profile).where(eq(profile.userId, row.userId)).limit(1);
   const [mc] = await db.select({ displayPhoneNumber: metaConfig.displayPhoneNumber })
     .from(metaConfig).where(eq(metaConfig.userId, row.userId)).limit(1);
   const [u] = await db.select({ name: user.name }).from(user).where(eq(user.id, row.userId)).limit(1);
+  const productRows = await db.select().from(product)
+    .where(and(eq(product.ownerId, row.userId), eq(product.status, "active")))
+    .orderBy(asc(product.sortOrder), asc(product.createdAt));
 
   const copy = (row.copy ?? {}) as Record<string, string>;
   const theme = (row.theme ?? {}) as Record<string, string>;
@@ -434,6 +489,14 @@ app.get("/biz/:slug", async (c) => {
       ogImage: row.seoOgImage || null,
     },
     slug,
+    products: productRows.map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      priceInr: Number(p.priceInr) || 0,
+      photoUrl: p.photoUrl,
+      inStock: p.stock == null || Number(p.stock) > 0,
+    })),
   };
 
   // Bump view counter (fire and forget — don't block the response).
