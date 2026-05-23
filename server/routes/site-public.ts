@@ -20,8 +20,46 @@ import { Hono } from "hono";
 import { eq, sql, and, asc, inArray } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { db } from "../db/client";
-import { site, siteLead, contact, profile, metaConfig, product, orderTbl, orderItem, user } from "../db/schema";
+import { site, siteLead, contact, profile, metaConfig, product, orderTbl, orderItem, siteAnalyticsEvent, user } from "../db/schema";
 import { nextOrderNumber } from "./order";
+
+/** Derive a referrer host bucket from the Referer header. */
+const refHostBucket = (referer: string | null | undefined): string => {
+  if (!referer) return "direct";
+  try {
+    const h = new URL(referer).hostname.replace(/^www\./, "").toLowerCase();
+    if (/google\./.test(h)) return "google";
+    if (/(facebook|fb)\./.test(h)) return "facebook";
+    if (/instagram\./.test(h)) return "instagram";
+    if (/whatsapp\./.test(h) || h === "wa.me" || h === "api.whatsapp.com") return "whatsapp";
+    if (/youtube\./.test(h) || h === "youtu.be") return "youtube";
+    if (/(twitter|x)\.com/.test(h)) return "twitter";
+    return h;
+  } catch { return "direct"; }
+};
+
+/** Best-effort, non-blocking analytics event recording. */
+const logEvent = (params: {
+  siteId: string;
+  ownerId: string;
+  eventType: string;
+  path?: string | null;
+  referrerHost?: string | null;
+  valueInr?: number | null;
+  sessionHash?: string | null;
+  userAgent?: string | null;
+}) => {
+  void db.insert(siteAnalyticsEvent).values({
+    siteId: params.siteId,
+    ownerId: params.ownerId,
+    eventType: params.eventType,
+    path: params.path ?? null,
+    referrerHost: params.referrerHost ?? null,
+    valueInr: params.valueInr != null ? String(params.valueInr) : null,
+    sessionHash: params.sessionHash ?? null,
+    userAgent: params.userAgent ?? null,
+  }).catch((e) => console.error("[analytics] insert failed", e));
+};
 
 const app = new Hono();
 
@@ -742,8 +780,21 @@ app.get("/biz/:slug", async (c) => {
     })),
   };
 
-  // Bump view counter (fire and forget — don't block the response).
+  // Bump view counter + log analytics event (fire-and-forget).
   void db.update(site).set({ viewCount: sql`${site.viewCount} + 1` }).where(eq(site.id, row.id)).catch(() => {});
+
+  const ipForView = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const dayBucket = new Date().toISOString().slice(0, 10);   // crude 24h-rotating salt
+  const viewSession = createHash("sha256").update(`${ipForView}|${dayBucket}|${row.id}`).digest("hex").slice(0, 32);
+  logEvent({
+    siteId: row.id,
+    ownerId: row.userId,
+    eventType: "view",
+    path: `/biz/${slug}`,
+    referrerHost: refHostBucket(c.req.header("referer")),
+    sessionHash: viewSession,
+    userAgent: c.req.header("user-agent") || null,
+  });
 
   let html: string;
   switch (row.template) {
@@ -881,6 +932,16 @@ app.post("/biz/:slug/order", async (c) => {
   }
   await db.update(orderTbl).set({ contactId }).where(eq(orderTbl.id, order.id));
 
+  logEvent({
+    siteId: row.id,
+    ownerId: row.userId,
+    eventType: "order",
+    path: `/biz/${slug}`,
+    referrerHost: refHostBucket(c.req.header("referer")),
+    valueInr: Number(order.totalInr),
+    userAgent: c.req.header("user-agent") || null,
+  });
+
   return c.json({
     ok: true,
     order_id: order.id,
@@ -949,6 +1010,15 @@ app.post("/biz/:slug/lead", async (c) => {
     }
     await db.update(siteLead).set({ contactId }).where(eq(siteLead.id, lead.id));
   }
+
+  logEvent({
+    siteId: row.id,
+    ownerId: row.userId,
+    eventType: "lead",
+    path: `/biz/${slug}`,
+    referrerHost: refHostBucket(c.req.header("referer")),
+    userAgent: ua,
+  });
 
   return c.json({ ok: true, lead_id: lead.id });
 });

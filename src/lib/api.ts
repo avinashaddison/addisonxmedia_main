@@ -535,6 +535,16 @@ export const api = {
   // Customers (derived from orders)
   getCustomers: () => get<CustomerDto[]>("/customers"),
 
+  // Site analytics
+  getSiteAnalyticsSummary: (days = 30) =>
+    get<{ days: number; current: AnalyticsCounters; previous: AnalyticsCounters }>(`/site/analytics/summary?days=${days}`),
+  getSiteAnalyticsTimeseries: (days = 30) =>
+    get<Array<{ day: string; views: string; leads: string; orders: string; revenue: string }>>(`/site/analytics/timeseries?days=${days}`),
+  getSiteAnalyticsSources: (days = 30) =>
+    get<Array<{ source: string; views: string }>>(`/site/analytics/sources?days=${days}`),
+  getSiteAnalyticsTopPages: (days = 30) =>
+    get<Array<{ path: string; views: string }>>(`/site/analytics/top-pages?days=${days}`),
+
   // Meta BSP cost estimate (this month) — what Meta will bill the workspace.
   getMetaCostEstimate: () => get<{
     month_start: string;
@@ -580,6 +590,15 @@ export type OrderDto = {
   contact_id: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type AnalyticsCounters = {
+  views: string;
+  leads: string;
+  cart_adds?: string;
+  orders: string;
+  revenue: string;
+  unique_visitors?: string;
 };
 
 export type CustomerDto = {

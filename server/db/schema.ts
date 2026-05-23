@@ -665,3 +665,21 @@ export const orderItem = pgTable("order_item", {
 }));
 
 export type OrderItem = typeof orderItem.$inferSelect;
+
+export const siteAnalyticsEvent = pgTable("site_analytics_event", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  eventType: text("event_type").notNull(),       // 'view' | 'lead' | 'cart_add' | 'order'
+  path: text("path"),
+  referrerHost: text("referrer_host"),
+  valueInr: numeric("value_inr", { precision: 10, scale: 2 }),
+  sessionHash: text("session_hash"),
+  userAgent: text("user_agent"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerIdx: index("site_analytics_owner_idx").on(t.ownerId, t.occurredAt),
+  typeIdx: index("site_analytics_type_idx").on(t.ownerId, t.eventType, t.occurredAt),
+}));
+
+export type SiteAnalyticsEvent = typeof siteAnalyticsEvent.$inferSelect;
