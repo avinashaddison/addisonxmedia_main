@@ -21,6 +21,7 @@ const PREFETCHERS: Record<string, () => Promise<unknown>> = {
   activity: () => import("@/components/activity/ActivityPage"),
   integrations: () => import("@/components/integrations/IntegrationsPage"),
   settings: () => import("@/components/settings/SettingsPage"),
+  site: () => import("@/components/site/SitePage"),
   admin: () => import("@/components/admin/AdminShell"),
 };
 

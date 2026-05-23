@@ -1,4 +1,4 @@
-import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, ChevronRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X, Bot, Workflow, Target, Shield, ScrollText, Crown, Loader2 } from "lucide-react";
+import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, ChevronRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X, Bot, Workflow, Target, Shield, ScrollText, Crown, Loader2, Rocket, ArrowLeft, Palette, LayoutGrid, Package, ShoppingCart, CreditCard, Truck, Ticket, ClipboardList, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AddisonMark, AddisonLogo } from "@/components/brand/AddisonLogo";
@@ -13,7 +13,7 @@ import {
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { prefetchPage } from "@/lib/prefetch";
 import { useConversations } from "@/hooks/useInboxData";
@@ -79,6 +79,47 @@ const groups: { label: string; items: NavItem[] }[] = [
   },
 ];
 
+// Website mode — sidebar swaps to this when the user is on /app/site/*.
+// Item ids encode the route segment after /app/site, so onNavigate("site/pages")
+// resolves to /app/site/pages via Index.tsx's existing routing logic.
+const websiteGroups: { label: string; items: NavItem[] }[] = [
+  {
+    label: "Website",
+    items: [
+      { icon: Globe,      label: "My Website", id: "site",          hint: "Overview & launch" },
+      { icon: FileText,   label: "Pages",      id: "site/pages",    hint: "Add / edit pages" },
+      { icon: Palette,    label: "Theme",      id: "site/theme",    hint: "Colors, fonts, logo" },
+      { icon: LayoutGrid, label: "Sections",   id: "site/sections", hint: "Section library" },
+    ],
+  },
+  {
+    label: "Store",
+    items: [
+      { icon: Package,      label: "Products",  id: "site/products",  hint: "Inventory & catalog" },
+      { icon: ShoppingCart, label: "Orders",    id: "site/orders",    hint: "Order pipeline" },
+      { icon: UsersRound,   label: "Customers", id: "site/customers", hint: "Buyers & LTV" },
+      { icon: CreditCard,   label: "Payments",  id: "site/payments",  hint: "UPI + Cashfree" },
+      { icon: Truck,        label: "Shipping",  id: "site/shipping",  hint: "Delhivery / Shiprocket" },
+      { icon: Ticket,       label: "Coupons",   id: "site/coupons",   hint: "Discount codes" },
+    ],
+  },
+  {
+    label: "Growth",
+    items: [
+      { icon: ClipboardList, label: "Lead forms", id: "site/leads",     hint: "Site → CRM" },
+      { icon: Search,        label: "SEO",        id: "site/seo",       hint: "Meta tags + sitemap" },
+      { icon: BarChart3,     label: "Analytics",  id: "site/analytics", hint: "Views, leads, sales" },
+    ],
+  },
+  {
+    label: "Setup",
+    items: [
+      { icon: Globe,    label: "Domain",   id: "site/domain",   hint: "Subdomain + custom" },
+      { icon: Settings, label: "Settings", id: "site/settings", hint: "Tax, returns, GST" },
+    ],
+  },
+];
+
 // Tasks-only badge query. The inbox badge is derived from useConversations()
 // below so it updates at the same 5s cadence as the chats list — instead of
 // the 30s sidebar poll which used to lag visibly behind reality.
@@ -105,6 +146,19 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
   });
+
+  // Route-aware mode swap. When the user navigates into /app/site/*, the
+  // sidebar flips its menu to the Website-management one. Going back to any
+  // primary route (or hitting the back arrow) returns to the default menu.
+  // Deriving mode from the URL (not local state) means deep-links land in the
+  // right mode without an effect chain.
+  const location = useLocation();
+  const mode: "primary" | "website" = location.pathname.startsWith("/app/site") ? "website" : "primary";
+  const activeGroups = mode === "website" ? websiteGroups : groups;
+  // For website-mode items, `active` is the sub-route ("pages", "theme", …) or
+  // empty for the overview. We rebuild the id the menu compares against.
+  const websiteSubPath = location.pathname.replace(/^\/app\/site\/?/, "");
+  const activeId = mode === "website" ? (websiteSubPath ? `site/${websiteSubPath}` : "site") : active;
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
@@ -224,13 +278,37 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
 
       {/* Nav */}
       <nav className="relative flex-1 overflow-y-auto py-3 px-2.5 space-y-5">
-        {groups.map((group) => {
+        {/* Website mode — back arrow returns to primary sidebar */}
+        {mode === "website" && (
+          <button
+            onClick={() => handleNavigate("dashboard")}
+            title={collapsed ? "Back to main menu" : undefined}
+            className={cn(
+              "w-full h-11 rounded-xl flex items-center gap-2.5 px-2.5 transition-all bg-white border-2 border-[#E8B968] text-[#0A3D24] font-extrabold shadow-[0_2px_0_0_#E8B968] hover:bg-[#FFE8C7] active:translate-y-0.5 active:shadow-[0_1px_0_0_#E8B968] group",
+              collapsed && "justify-center px-0",
+            )}
+          >
+            <ArrowLeft className="w-4 h-4 flex-shrink-0 group-hover:-translate-x-0.5 transition" strokeWidth={2.5} />
+            {!collapsed && <span className="flex-1 text-left text-[12.5px]">Back to main</span>}
+            {collapsed && (
+              <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
+                Back to main menu
+              </span>
+            )}
+          </button>
+        )}
+
+        {activeGroups.map((group) => {
           const groupColors: Record<string, string> = {
             Sales: "text-[#0E8A4B]",
             Marketing: "text-[#FF6A1F]",
             Automation: "text-[#D4308E]",
             AI: "text-[#3C50E0]",
             System: "text-[#B8651A]",
+            Website: "text-[#0E8A4B]",
+            Store: "text-[#FF6A1F]",
+            Growth: "text-[#D4308E]",
+            Setup: "text-[#B8651A]",
           };
           return (
           <div key={group.label} className="space-y-1">
@@ -240,7 +318,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
               </p>
             )}
             {group.items.map((item) => {
-              const isActive = item.id === active;
+              const isActive = item.id === activeId;
               const badgeValue = item.badgeKey ? badges?.[item.badgeKey] : 0;
               return (
                 <button
@@ -307,6 +385,42 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           </div>
           );
         })}
+
+        {/* Primary-mode only: Launch Website mode-switch CTA. Big visual break
+            from the regular nav items because tapping it flips the entire
+            sidebar to website-management mode. */}
+        {mode === "primary" && (
+          <button
+            onClick={() => handleNavigate("site")}
+            onMouseEnter={() => prefetchPage("site")}
+            title={collapsed ? "Launch Website" : undefined}
+            className={cn(
+              "relative w-full rounded-xl flex items-center gap-2.5 px-2.5 transition-all group overflow-hidden border-2 border-[#7A4A00] shadow-[0_3px_0_0_#7A4A00] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[0_1px_0_0_#7A4A00] bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white font-extrabold",
+              collapsed ? "h-11 justify-center px-0" : "h-12",
+            )}
+          >
+            <span className="absolute -top-3 -right-3 w-10 h-10 bg-[#FFD23F]/25 rounded-full blur-lg pointer-events-none" />
+            <span className="relative w-7 h-7 rounded-lg bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center flex-shrink-0 shadow-[0_2px_0_0_#B8860B]">
+              <Rocket className="w-4 h-4" strokeWidth={2.5} />
+            </span>
+            {!collapsed && (
+              <span className="relative flex-1 text-left">
+                <span className="block text-[12.5px] leading-tight">Launch Website</span>
+                <span className="block text-[9.5px] font-bold text-[#FFD23F] uppercase tracking-wider">
+                  Site + Store builder
+                </span>
+              </span>
+            )}
+            {!collapsed && (
+              <ChevronRight className="relative w-4 h-4 text-[#FFD23F] group-hover:translate-x-0.5 transition flex-shrink-0" strokeWidth={2.5} />
+            )}
+            {collapsed && (
+              <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
+                Launch Website
+              </span>
+            )}
+          </button>
+        )}
       </nav>
 
       {/* Plan-aware Upgrade card — replaces the static "Addison AI / Online" card.
