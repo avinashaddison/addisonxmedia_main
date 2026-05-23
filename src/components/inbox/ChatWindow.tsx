@@ -4,7 +4,7 @@ import {
   CreditCard, Sparkles, Phone, Loader2, Bot,
   ChevronDown, Image as ImageIcon, Wand2, AlertTriangle,
   Package, RotateCcw, ShieldOff, FileText, Mic, Film, X,
-  Brain, RefreshCcw, ShieldAlert, EyeOff,
+  Brain, RefreshCcw, ShieldAlert, EyeOff, ArrowLeft, Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +19,11 @@ import { useCloudinaryConfig, useCloudinaryUpload } from "@/hooks/useCloudinaryU
 
 type Props = {
   conversation: ConversationWithContact;
+  // Mobile-only navigation:
+  //   onMobileBack — back to the conversation list (rendered on <md)
+  //   onShowLead   — switch to / open the LeadPanel (mobile fullscreen, tablet drawer)
+  onMobileBack?: () => void;
+  onShowLead?: () => void;
 };
 
 type MessageStatus = MsgStatus;
@@ -129,7 +134,7 @@ const QUICK_TEMPLATES = [
 
 const CUSTOMER_SERVICE_WINDOW_HOURS = 24;
 
-export const ChatWindow = ({ conversation }: Props) => {
+export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) => {
   const [input, setInput] = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
@@ -374,8 +379,20 @@ export const ChatWindow = ({ conversation }: Props) => {
   return (
     <div className="flex-1 flex flex-col bg-white min-w-0 relative">
       {/* Chat header */}
-      <div className="h-16 flex items-center justify-between px-5 border-b-2 border-[#E8B968] flex-shrink-0 z-10 relative bg-[#0E8A4B] text-white">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="h-16 flex items-center justify-between px-3 sm:px-5 border-b-2 border-[#E8B968] flex-shrink-0 z-10 relative bg-[#0E8A4B] text-white">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {/* Mobile back arrow — returns to the conversation list. Only
+              rendered when parent passes onMobileBack (i.e. inside the
+              mobile state machine in InboxPage). */}
+          {onMobileBack && (
+            <button
+              onClick={onMobileBack}
+              aria-label="Back to chats"
+              className="md:hidden w-9 h-9 -ml-1 rounded-lg hover:bg-white/15 flex items-center justify-center text-white transition"
+            >
+              <ArrowLeft className="w-5 h-5" strokeWidth={2.5} />
+            </button>
+          )}
           <div className="relative flex-shrink-0">
             <div className={cn(
               "w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-extrabold text-white shadow-md ring-2 ring-white/20",
@@ -420,6 +437,18 @@ export const ChatWindow = ({ conversation }: Props) => {
               <ShieldOff className="w-3 h-3" />
               Dry-run · not connected
             </a>
+          )}
+          {/* Lead info — opens LeadPanel on mobile/tablet where it isn't
+              permanently visible. Hidden on lg+ where LeadPanel sits inline. */}
+          {onShowLead && (
+            <button
+              onClick={onShowLead}
+              aria-label="Show lead details"
+              title="Lead details"
+              className="lg:hidden w-9 h-9 rounded-lg hover:bg-white/15 flex items-center justify-center text-white transition"
+            >
+              <Info className="w-4 h-4" strokeWidth={2.5} />
+            </button>
           )}
           <button className="w-9 h-9 rounded-lg hover:bg-white/15 flex items-center justify-center text-white transition" aria-label="More options">
             <MoreVertical className="w-4 h-4" />
@@ -791,15 +820,7 @@ export const ChatWindow = ({ conversation }: Props) => {
               Templates
               <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", showTemplates && "rotate-180")} />
             </button>
-            <button
-              onClick={() => setProductOpen(true)}
-              className="h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968] hover:bg-[#FFE9BD] hover:-translate-y-0.5 transition-all"
-              aria-label="Send digital product"
-              title="Deliver a digital product"
-            >
-              <Package className="w-3 h-3" strokeWidth={2.5} />
-              Send product
-            </button>
+            {/* Send Product moved to the LeadPanel → 'Digital Product' tab. */}
 
             <div className="flex-1" />
 
@@ -847,13 +868,7 @@ export const ChatWindow = ({ conversation }: Props) => {
         </div>
       </div>
 
-      {/* Send Product Dialog */}
-      <SendProductDialog
-        open={productOpen}
-        onOpenChange={setProductOpen}
-        contactName={contact.name}
-        onDeliver={handleDeliverProduct}
-      />
+      {/* SendProductDialog moved to LeadPanel → Digital Product tab. */}
 
       {/* Image lightbox — click outside or X to close */}
       {lightboxSrc && (

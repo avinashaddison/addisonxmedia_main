@@ -7,12 +7,29 @@ import { LeadPanel } from "./LeadPanel";
 import { useConversations } from "@/hooks/useInboxData";
 import { useMuteState } from "@/hooks/useNotificationSound";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { MessageCircle, Loader2, Phone, AlertTriangle, CheckCircle2, ArrowRight, MessageSquareWarning } from "lucide-react";
+
+/* Mobile-aware 3-pane layout:
+ *   - lg (≥1024px): all three panels visible side-by-side (classic desktop)
+ *   - md (768-1023px): conversation list + chat (lead panel slides over)
+ *   - <md (<768px):  ONE panel at a time, like WhatsApp on phone
+ *
+ * On mobile, `mobileView` drives which panel is on screen. Tapping a chat
+ * jumps from 'list' → 'chat'. The chat header has a back button on mobile
+ * that returns to 'list', and an info button that switches to 'lead'.
+ */
+type MobileView = "list" | "chat" | "lead";
 
 export const InboxPage = () => {
   const { data: conversations = [], isLoading } = useConversations();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [muted, toggleMuted] = useMuteState();
+  const [mobileView, setMobileView] = useState<MobileView>("list");
+  // Tablet: lead panel slides as an overlay drawer (not full-screen). On
+  // desktop it sits inline. State is separate from mobileView so behavior
+  // is predictable at each breakpoint.
+  const [leadOpenTablet, setLeadOpenTablet] = useState(false);
 
   // Auto-select the first conversation when the list loads / changes
   useEffect(() => {
@@ -27,25 +44,94 @@ export const InboxPage = () => {
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
 
-  return (
-    <div className="flex h-screen w-full overflow-hidden">
-      <ConversationList
-        conversations={conversations}
-        activeId={activeId}
-        onSelect={setActiveId}
-        loading={isLoading}
-        muted={muted}
-        onToggleMuted={toggleMuted}
-      />
+  const handleSelect = (id: string) => {
+    setActiveId(id);
+    setMobileView("chat");
+  };
 
-      {active ? (
-        <>
-          <ChatWindow conversation={active} />
-          <LeadPanel contact={active.contact} conversationId={active.id} />
-        </>
-      ) : (
-        <InboxEmptyState loading={isLoading} />
-      )}
+  // h-[100dvh] handles mobile browser chrome (Safari/Chrome bottom bar)
+  // better than h-screen — keeps the composer above the URL bar reliably.
+  return (
+    <div className="flex h-[100dvh] w-full overflow-hidden relative">
+      {/* ── ConversationList ── */}
+      <div className={cn(
+        "flex-shrink-0 transition-all",
+        // Desktop / tablet: 340px column always visible.
+        // Mobile: full-width when 'list', hidden when not.
+        "lg:w-[340px] md:w-[340px]",
+        mobileView === "list" ? "w-full" : "w-0 md:w-[340px] overflow-hidden",
+      )}>
+        <ConversationList
+          conversations={conversations}
+          activeId={activeId}
+          onSelect={handleSelect}
+          loading={isLoading}
+          muted={muted}
+          onToggleMuted={toggleMuted}
+        />
+      </div>
+
+      {/* ── ChatWindow + LeadPanel area ── */}
+      <div className={cn(
+        "flex-1 flex min-w-0",
+        mobileView === "list" ? "hidden md:flex" : "flex",
+      )}>
+        {active ? (
+          <>
+            {/* Chat — visible whenever NOT on the lead view on mobile */}
+            <div className={cn(
+              "flex-1 min-w-0",
+              mobileView === "lead" ? "hidden md:flex md:flex-col" : "flex flex-col",
+            )}>
+              <ChatWindow
+                conversation={active}
+                onMobileBack={() => setMobileView("list")}
+                onShowLead={() => {
+                  // On mobile: switch to full-screen lead.
+                  // On tablet: slide-over drawer (overlay).
+                  // On desktop: panel is already visible — no-op.
+                  if (window.innerWidth < 768) setMobileView("lead");
+                  else if (window.innerWidth < 1024) setLeadOpenTablet(true);
+                }}
+              />
+            </div>
+
+            {/* LeadPanel:
+                - <md (mobile): full-width when mobileView==='lead'
+                - md-lg (tablet): slide-over from right when leadOpenTablet
+                - lg+ (desktop): always visible to the right of chat
+            */}
+            <div className={cn(
+              // Mobile fullscreen
+              mobileView === "lead" ? "flex w-full md:hidden" : "hidden",
+              // Tablet drawer
+              leadOpenTablet ? "md:flex md:fixed md:inset-y-0 md:right-0 md:z-30 md:shadow-2xl lg:static lg:shadow-none lg:z-auto" : "md:hidden lg:flex",
+              // Desktop static (always shown when chat is active)
+              "lg:flex",
+            )}>
+              <LeadPanel
+                contact={active.contact}
+                conversationId={active.id}
+                onClose={() => {
+                  if (window.innerWidth < 768) setMobileView("chat");
+                  else setLeadOpenTablet(false);
+                }}
+              />
+            </div>
+
+            {/* Backdrop for tablet drawer */}
+            {leadOpenTablet && (
+              <button
+                onClick={() => setLeadOpenTablet(false)}
+                aria-label="Close lead panel"
+                className="hidden md:block lg:hidden fixed inset-0 z-20 bg-black/30 backdrop-blur-sm"
+              />
+            )}
+          </>
+        ) : (
+          <InboxEmptyState loading={isLoading} />
+        )}
+      </div>
     </div>
   );
 };

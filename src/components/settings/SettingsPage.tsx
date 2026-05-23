@@ -618,7 +618,7 @@ const IntegrationsSection = () => {
  * is display-only for now (Meta requires a Resumable Upload handle, not a URL,
  * which is a multi-step flow we'll wire later). */
 
-const WhatsAppProfileCard = () => {
+export const WhatsAppProfileCard = () => {
   const qc = useQueryClient();
   const { data: profile, isLoading, error } = useQuery({
     queryKey: ["meta-profile"],

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Loader2, Menu } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { GlobalTopbar } from "@/components/global/GlobalTopbar";
+import { MobileBottomNav } from "@/components/global/MobileBottomNav";
 import { AddisonLogo } from "@/components/brand/AddisonLogo";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 import { useConversations } from "@/hooks/useInboxData";
@@ -122,6 +123,16 @@ const Index = () => {
             {page === "upgrade" && <UpgradePage />}
           </Suspense>
         </div>
+
+        {/* Mobile bottom navigation — 5 key destinations. Hidden on md+
+            (sidebar visible) and on inbox (which manages its own mobile
+            layout and needs full vertical space). */}
+        <MobileBottomNav
+          active={page}
+          onNavigate={handleNavigate}
+          onOpenMore={() => setMobileNavOpen(true)}
+          hidden={page === "inbox"}
+        />
       </div>
       </div>
     </div>

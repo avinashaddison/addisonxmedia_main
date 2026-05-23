@@ -1,8 +1,16 @@
-import { Search, Bell, BellOff, Trash2, CheckCheck, Flame, Snowflake, Copy, ExternalLink, MessageCircleOff } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { Search, Bell, BellOff, Trash2, CheckCheck, Flame, Snowflake, Copy, ExternalLink, MessageCircleOff, Building2, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { ConversationWithContact, tagLabel, initialsFor, formatRelative, splitTextWithLinks } from "@/lib/inbox-types";
 import { NewConversationDialog } from "./NewConversationDialog";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
+} from "@/components/ui/sheet";
+// Lazy-load so the heavy SettingsPage bundle isn't pulled in on every
+// inbox mount — only when the user actually opens the profile sheet.
+const WhatsAppProfileCardLazy = lazy(() =>
+  import("@/components/settings/SettingsPage").then((m) => ({ default: m.WhatsAppProfileCard }))
+);
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem,
   ContextMenuSeparator, ContextMenuTrigger, ContextMenuLabel,
@@ -40,6 +48,7 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
   const [filter, setFilter] = useState<string>("All");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ConversationWithContact | null>(null);
+  const [profileSheetOpen, setProfileSheetOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   const qc = useQueryClient();
@@ -111,6 +120,47 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
 
   return (
     <div className={cn("w-full md:w-[340px] h-full bg-white border-r-2 border-[#E8B968] flex flex-col flex-shrink-0 relative", className)}>
+
+      {/* Business Profile bar — top of the panel, opens a side sheet with
+          the full Meta WhatsApp Business Profile editor. Lets the user fix
+          their public 'About', address, vertical etc. without leaving the
+          inbox. Same editor as in Settings → Integrations. */}
+      <button
+        onClick={() => setProfileSheetOpen(true)}
+        className="group h-10 w-full px-3 flex items-center gap-2 bg-gradient-to-r from-[#0E8A4B] to-[#0A6E3C] text-white border-b-2 border-[#073D22] flex-shrink-0 hover:from-[#0A6E3C] hover:to-[#073D22] transition"
+        title="Edit your public WhatsApp Business Profile"
+      >
+        <Building2 className="w-3.5 h-3.5" strokeWidth={2.5} />
+        <span className="text-[10px] uppercase tracking-wider font-extrabold flex-1 text-left">
+          WhatsApp Business Profile
+        </span>
+        <span className="text-[10px] font-extrabold opacity-80 group-hover:opacity-100">
+          Edit →
+        </span>
+      </button>
+
+      {/* Business Profile slide-out sheet */}
+      <Sheet open={profileSheetOpen} onOpenChange={setProfileSheetOpen}>
+        <SheetContent className="w-full sm:max-w-xl overflow-y-auto p-4">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-[#0E8A4B]" />
+              WhatsApp Business Profile
+            </SheetTitle>
+            <SheetDescription>
+              What customers see on your WhatsApp number — about, description, address, email, website, industry.
+              Saved instantly to Meta.
+            </SheetDescription>
+          </SheetHeader>
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-5 h-5 animate-spin text-[#0E8A4B]" />
+            </div>
+          }>
+            <WhatsAppProfileCardLazy />
+          </Suspense>
+        </SheetContent>
+      </Sheet>
 
       {/* Header */}
       <div className="relative h-16 flex items-center justify-between px-4 border-b-2 border-[#E8B968] bg-[#FFF6E8] flex-shrink-0">

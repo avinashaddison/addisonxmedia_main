@@ -3,9 +3,12 @@ import {
   Phone, Mail, Tag, StickyNote, X, Flame, Snowflake, CircleDot,
   Save, Trophy, Plus, Loader2, Globe, Bell, IndianRupee,
   MessageCircle, Instagram, Link2, Facebook, Send, Settings as SettingsIcon, ExternalLink,
+  Package, Sparkles,
 } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
 import { SendPaymentDialog } from "./SendPaymentDialog";
+import { SendProductDialog, type ProductDeliveryPayload } from "./SendProductDialog";
+import { encodeProductDelivery } from "./ProductDeliveryCard";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Contact, initialsFor, formatRelative } from "@/lib/inbox-types";
@@ -38,6 +41,57 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
   const [notes, setNotes] = useState(contact.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [productOpen, setProductOpen] = useState(false);
+
+  // ── Top-level tab state — "Leads" view (default) or "Digital Product"
+  //    delivery view. Both tabs sit above the contact details. The Digital
+  //    Product tab replaces the old composer-bar 'Send Product' button — same
+  //    SendProductDialog, just sourced from here so the chat composer stays
+  //    focused on messaging actions only.
+  const [activeTab, setActiveTab] = useState<"leads" | "product">("leads");
+
+  const handleDeliverProduct = async (payload: ProductDeliveryPayload, autoCloseDeal: boolean) => {
+    if (!conversationId) {
+      toast.error("Open a conversation first to deliver a product");
+      return;
+    }
+    try {
+      await api.sendMessage(conversationId, {
+        body: encodeProductDelivery(payload),
+        direction: "outbound",
+        status: "sent",
+      });
+      toast.success(`${payload.productName} delivered to ${contact.name}`);
+      qc.invalidateQueries({ queryKey: ["messages", conversationId] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+
+      if (autoCloseDeal) {
+        try {
+          const all = await api.listDeals();
+          const open = all.filter(
+            (d: Deal) => d.conversation_id === conversationId && d.stage !== "won" && d.stage !== "lost"
+          );
+          await Promise.all(
+            open.map((d: Deal) =>
+              api.updateDeal(d.id, {
+                stage: "won",
+                probability: 100,
+                closed_at: new Date().toISOString(),
+              })
+            )
+          );
+          if (open.length > 0) {
+            toast.success(`${open.length} deal${open.length > 1 ? "s" : ""} marked as won 🎉`);
+            qc.invalidateQueries({ queryKey: ["deals"] });
+          }
+        } catch (e) {
+          console.error("Auto-close failed", e);
+        }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to deliver product");
+    }
+  };
 
   // Reset editor state when switching contacts
   useEffect(() => {
@@ -116,10 +170,12 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
   };
 
   return (
-    <div className="w-[340px] h-full bg-white border-l-2 border-[#E8B968] flex flex-col flex-shrink-0 overflow-hidden">
+    <div className="w-full lg:w-[340px] h-full bg-white border-l-2 border-[#E8B968] flex flex-col flex-shrink-0 overflow-hidden">
       {/* Header */}
       <div className="h-16 flex items-center justify-between px-4 border-b-2 border-[#E8B968] bg-[#FFF6E8] flex-shrink-0">
-        <h3 className="text-[14px] font-black tracking-tight">Lead ki details</h3>
+        <h3 className="text-[14px] font-black tracking-tight">
+          {activeTab === "leads" ? "Lead ki details" : "Digital product"}
+        </h3>
         {onClose && (
           <button
             onClick={onClose}
@@ -131,7 +187,34 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      {/* Tab segmented control */}
+      <div className="flex-shrink-0 px-3 pt-3 pb-2 border-b border-[#E8B968]/40 bg-[#FFF6E8]/40">
+        <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white border-2 border-[#E8B968] shadow-[0_2px_0_0_#E8B968]">
+          {([
+            { id: "leads" as const,   label: "Leads",          Icon: Tag },
+            { id: "product" as const, label: "Digital product", Icon: Package },
+          ]).map((t) => {
+            const active = activeTab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={cn(
+                  "h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider transition-all",
+                  active
+                    ? "bg-[#FF6A1F] text-white shadow-[0_2px_0_0_#B8420A]"
+                    : "text-foreground/55 hover:bg-[#FFF1D6] hover:text-foreground"
+                )}
+              >
+                <t.Icon className="w-3 h-3" strokeWidth={2.5} />
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto" hidden={activeTab !== "leads"}>
         {/* Profile + contact info */}
         <div className="p-4">
           <div className="flex items-center gap-3 mb-4">
@@ -414,6 +497,93 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
           contactName={contact.name}
         />
       )}
+
+      {/* ── Tab 2: Digital Product Delivery ─────────────────────────── */}
+      <div className="flex-1 overflow-y-auto" hidden={activeTab !== "product"}>
+        <div className="p-4 space-y-4">
+          {/* Hero card */}
+          <div className="rounded-2xl bg-gradient-to-br from-[#7E22CE] via-[#9333EA] to-[#A855F7] text-white p-4 shadow-[0_4px_0_0_#5B189E]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center shadow-md">
+                <Package className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div>
+                <p className="text-[11px] font-extrabold uppercase tracking-wider text-white/80">
+                  Digital product delivery
+                </p>
+                <p className="text-[13px] font-black leading-tight">
+                  Send to {contact.name}
+                </p>
+              </div>
+            </div>
+            <p className="text-[11px] text-white/85 font-medium leading-snug">
+              Deliver a course link, e-book, software license, or download. Auto-marks the deal won when delivered.
+            </p>
+          </div>
+
+          {/* Primary action */}
+          <button
+            onClick={() => setProductOpen(true)}
+            disabled={!conversationId}
+            className="w-full h-12 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] text-white font-extrabold text-[13px] flex items-center justify-center gap-2 shadow-[0_4px_0_0_#B8420A] hover:shadow-[0_2px_0_0_#B8420A] hover:translate-y-[2px] active:translate-y-[3px] disabled:opacity-50 disabled:cursor-not-allowed transition"
+          >
+            <Sparkles className="w-4 h-4" strokeWidth={2.5} />
+            Send digital product
+          </button>
+          {!conversationId && (
+            <p className="text-[10px] text-foreground/55 font-medium text-center italic">
+              Open a conversation first to enable delivery
+            </p>
+          )}
+
+          {/* Supported types */}
+          <div className="rounded-xl bg-[#FFF1D6] border-2 border-[#E8B968] p-3">
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#B8651A] mb-2">
+              Supported delivery types
+            </p>
+            <ul className="space-y-1.5 text-[11px] text-foreground/80 font-medium">
+              <li className="flex items-start gap-1.5">
+                <span className="text-[#0E8A4B] font-extrabold">✓</span>
+                <span><strong>Course / video link</strong> — Vimeo, YouTube, your hosted course</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <span className="text-[#0E8A4B] font-extrabold">✓</span>
+                <span><strong>E-book / PDF</strong> — direct download link or Drive share</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <span className="text-[#0E8A4B] font-extrabold">✓</span>
+                <span><strong>Software license key</strong> — copy-paste a serial or activation</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <span className="text-[#0E8A4B] font-extrabold">✓</span>
+                <span><strong>Membership / portal access</strong> — login URL + temporary password</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* How it works */}
+          <div className="rounded-xl bg-[#E4E8FF] border-2 border-[#3C50E0]/30 p-3">
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#3C50E0] mb-1.5">
+              How delivery works
+            </p>
+            <ol className="space-y-1 text-[11px] text-foreground/80 font-medium list-decimal pl-4">
+              <li>Click <strong>Send digital product</strong> above</li>
+              <li>Fill product name, link/key, and price</li>
+              <li>Optional: toggle <strong>auto-mark deal won</strong></li>
+              <li>Customer receives a polished card in WhatsApp with the link</li>
+              <li>Deal auto-closes · CAPI fires Purchase event to Meta</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      {/* Send Product dialog (same as the chat composer used to host) */}
+      <SendProductDialog
+        open={productOpen}
+        onOpenChange={setProductOpen}
+        contactName={contact.name}
+        onDeliver={handleDeliverProduct}
+      />
     </div>
   );
 };
