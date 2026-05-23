@@ -14,6 +14,7 @@ import { useMessages, useSendMessage } from "@/hooks/useInboxData";
 import { toast } from "sonner";
 import { SendProductDialog, type ProductDeliveryPayload } from "./SendProductDialog";
 import { ProductDeliveryCard, decodeProductDelivery, encodeProductDelivery } from "./ProductDeliveryCard";
+import { PaymentRequestCard, parsePaymentRequest } from "./PaymentRequestCard";
 import { api } from "@/lib/api";
 import { useCloudinaryConfig, useCloudinaryUpload } from "@/hooks/useCloudinaryUpload";
 
@@ -558,12 +559,32 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
           const media = parseMediaUrl(msg.media_url ?? null, msg.id);
           const hasMedia = !!media;
           const isImage = media?.type === "image" || media?.type === "sticker";
+          // Detect old + new UPI payment messages by body pattern. Renders
+          // them as a compact card (280px) instead of a giant QR + caption
+          // bubble that was ballooning to 70% of viewport width.
+          const paymentPayload = parsePaymentRequest(msg.body, msg.media_url ?? null);
 
           if (productPayload) {
             return (
               <div key={row.key} className={cn("flex animate-bubble-pop", isOutbound ? "justify-end" : "justify-start", !row.isGroupTail && "mb-0.5")}>
                 <div className="relative">
                   <ProductDeliveryCard payload={productPayload} />
+                  {row.isGroupTail && (
+                    <div className={cn("flex items-center gap-1 mt-1", isOutbound ? "justify-end" : "justify-start")}>
+                      <span className="text-[10px] text-muted-foreground">{formatTime(msg.created_at)}</span>
+                      {isOutbound && <StatusIcon status={msg.status} />}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          if (paymentPayload) {
+            return (
+              <div key={row.key} className={cn("flex animate-bubble-pop", isOutbound ? "justify-end" : "justify-start", !row.isGroupTail && "mb-0.5")}>
+                <div className="relative">
+                  <PaymentRequestCard payment={paymentPayload} outbound={isOutbound} />
                   {row.isGroupTail && (
                     <div className={cn("flex items-center gap-1 mt-1", isOutbound ? "justify-end" : "justify-start")}>
                       <span className="text-[10px] text-muted-foreground">{formatTime(msg.created_at)}</span>
