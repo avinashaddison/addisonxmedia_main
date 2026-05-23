@@ -618,3 +618,50 @@ export const product = pgTable("product", {
 }));
 
 export type Product = typeof product.$inferSelect;
+
+// `order` is reserved in SQL — table named `customer_order`. Alias `orderTbl`
+// inside the codebase to avoid colliding with the desc()/asc() helpers.
+export const orderTbl = pgTable("customer_order", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  siteId: uuid("site_id").references(() => site.id, { onDelete: "set null" }),
+  orderNumber: integer("order_number").notNull(),
+  customerName: text("customer_name").notNull(),
+  customerPhone: text("customer_phone"),
+  customerEmail: text("customer_email"),
+  customerAddress: text("customer_address"),
+  subtotalInr: numeric("subtotal_inr", { precision: 10, scale: 2 }).notNull().default("0"),
+  shippingInr: numeric("shipping_inr", { precision: 10, scale: 2 }).notNull().default("0"),
+  discountInr: numeric("discount_inr", { precision: 10, scale: 2 }).notNull().default("0"),
+  totalInr: numeric("total_inr", { precision: 10, scale: 2 }).notNull().default("0"),
+  status: text("status").notNull().default("new"),          // new | confirmed | shipped | delivered | cancelled
+  paymentMethod: text("payment_method"),                    // upi | cod | cashfree
+  paymentStatus: text("payment_status").notNull().default("pending"),  // pending | paid | refunded
+  source: text("source").notNull().default("website"),      // website | whatsapp | manual
+  notes: text("notes"),
+  contactId: uuid("contact_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerNumberUnq: uniqueIndex("customer_order_owner_number_idx").on(t.ownerId, t.orderNumber),
+  ownerIdx: index("customer_order_owner_idx").on(t.ownerId, t.createdAt),
+  statusIdx: index("customer_order_status_idx").on(t.ownerId, t.status, t.createdAt),
+}));
+
+export type CustomerOrder = typeof orderTbl.$inferSelect;
+
+export const orderItem = pgTable("order_item", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: uuid("order_id").notNull().references(() => orderTbl.id, { onDelete: "cascade" }),
+  productId: uuid("product_id").references(() => product.id, { onDelete: "set null" }),
+  productName: text("product_name").notNull(),
+  productPhotoUrl: text("product_photo_url"),
+  unitPriceInr: numeric("unit_price_inr", { precision: 10, scale: 2 }).notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  lineTotalInr: numeric("line_total_inr", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orderIdx: index("order_item_order_idx").on(t.orderId),
+}));
+
+export type OrderItem = typeof orderItem.$inferSelect;

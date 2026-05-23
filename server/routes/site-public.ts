@@ -17,10 +17,11 @@
  */
 
 import { Hono } from "hono";
-import { eq, sql, and, asc } from "drizzle-orm";
+import { eq, sql, and, asc, inArray } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { db } from "../db/client";
-import { site, siteLead, contact, profile, metaConfig, product, user } from "../db/schema";
+import { site, siteLead, contact, profile, metaConfig, product, orderTbl, orderItem, user } from "../db/schema";
+import { nextOrderNumber } from "./order";
 
 const app = new Hono();
 
@@ -196,21 +197,19 @@ ${products.length > 0 ? `
     <div class="text-center mb-8">
       <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(theme.primary)}">Our offerings</p>
       <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">Browse products</h3>
-      <p class="text-[13px] text-gray-600 mt-2">Tap "Order on WhatsApp" — we'll confirm and arrange delivery.</p>
+      <p class="text-[13px] text-gray-600 mt-2">Add to cart and checkout in 30 seconds — pay via UPI or cash on delivery.</p>
     </div>
     <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
       ${products.map((p) => {
-        const orderText = `Hi ${business.name}, I'd like to order:\n• ${p.name}${p.priceInr > 0 ? ` — ₹${p.priceInr.toLocaleString("en-IN")}` : ""}`;
-        const orderLink = business.whatsapp
-          ? `${business.whatsapp.split("?")[0]}?text=${encodeURIComponent(orderText)}`
-          : null;
+        const waText = `Hi ${business.name}, I'd like to order:\n• ${p.name}${p.priceInr > 0 ? ` — ₹${p.priceInr.toLocaleString("en-IN")}` : ""}`;
+        const waLink = business.whatsapp ? `${business.whatsapp.split("?")[0]}?text=${encodeURIComponent(waText)}` : null;
         return `
-        <article class="bg-white rounded-2xl border-2 overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg" style="border-color: ${esc(theme.primary)}22">
+        <article class="bg-white rounded-2xl border-2 overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg flex flex-col" style="border-color: ${esc(theme.primary)}22">
           ${p.photoUrl
             ? `<div class="aspect-square bg-gray-50 overflow-hidden"><img src="${esc(p.photoUrl)}" alt="${esc(p.name)}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'" /></div>`
             : `<div class="aspect-square bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center text-gray-300 text-[36px]">📦</div>`
           }
-          <div class="p-3 sm:p-4">
+          <div class="p-3 sm:p-4 flex flex-col flex-1">
             <h4 class="font-extrabold text-[13px] sm:text-[14px] leading-tight line-clamp-2">${esc(p.name)}</h4>
             ${p.description ? `<p class="text-[11px] text-gray-600 mt-1 line-clamp-2 leading-snug">${esc(p.description)}</p>` : ""}
             <div class="mt-2.5 flex items-center justify-between gap-2">
@@ -218,18 +217,262 @@ ${products.length > 0 ? `
                 ? `<span class="text-[15px] sm:text-[16px] font-black tabular-nums" style="color: ${esc(theme.primary)}">₹${p.priceInr.toLocaleString("en-IN")}</span>`
                 : `<span class="text-[11px] font-bold text-gray-500">Price on request</span>`
               }
-              ${orderLink
-                ? `<a href="${esc(orderLink)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg text-white shadow-sm hover:opacity-90 transition flex-shrink-0" style="background: ${esc(theme.primary)}" aria-label="Order ${esc(p.name)} on WhatsApp" title="Order on WhatsApp">💬</a>`
-                : ""
-              }
             </div>
             ${!p.inStock ? `<p class="mt-1.5 text-[10px] font-bold text-rose-600 uppercase tracking-wider">Out of stock</p>` : ""}
+            <div class="mt-3 flex gap-2">
+              ${p.inStock && p.priceInr > 0 ? `
+              <button
+                type="button"
+                onclick="window.AxCart.add('${esc(p.id)}', ${JSON.stringify(p.name).replace(/"/g, '&quot;')}, ${p.priceInr}, ${JSON.stringify(p.photoUrl).replace(/"/g, '&quot;')})"
+                class="flex-1 inline-flex items-center justify-center gap-1.5 h-9 rounded-lg text-white text-[12px] font-extrabold hover:opacity-90 transition"
+                style="background: ${esc(theme.primary)}">
+                🛒 Add
+              </button>` : ""}
+              ${waLink ? `
+              <a href="${esc(waLink)}" target="_blank" rel="noopener noreferrer"
+                 class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white border-2 hover:bg-gray-50 transition flex-shrink-0"
+                 style="border-color: ${esc(theme.primary)}33; color: ${esc(theme.primary)}"
+                 aria-label="Order ${esc(p.name)} on WhatsApp" title="Quick order on WhatsApp">💬</a>` : ""}
+            </div>
           </div>
         </article>`;
       }).join("")}
     </div>
   </div>
 </section>` : ""}
+
+<!-- ── Floating cart button (rendered always — hides when empty) ── -->
+${products.length > 0 ? `
+<button
+  id="ax-cart-btn"
+  type="button"
+  onclick="window.AxCart.open()"
+  class="hidden fixed bottom-5 left-5 z-40 h-14 rounded-full px-5 text-white font-extrabold shadow-xl transition hover:scale-105 items-center gap-2"
+  style="background: ${esc(theme.primary)}">
+  <span class="text-[18px]">🛒</span>
+  <span id="ax-cart-count" class="text-[14px]">0</span>
+  <span class="text-[12px] opacity-85">·</span>
+  <span id="ax-cart-total" class="text-[13px] tabular-nums">₹0</span>
+</button>
+
+<!-- ── Cart + Checkout modal ── -->
+<div id="ax-cart-modal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm items-end sm:items-center justify-center p-0 sm:p-4">
+  <div class="bg-white w-full sm:max-w-md max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl">
+    <div class="sticky top-0 z-10 bg-white border-b-2 px-5 py-3 flex items-center justify-between" style="border-color: ${esc(theme.primary)}33">
+      <h2 id="ax-cart-title" class="text-[16px] font-black">Your cart</h2>
+      <button type="button" onclick="window.AxCart.close()" class="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center text-[16px]">✕</button>
+    </div>
+
+    <!-- Items list -->
+    <div id="ax-cart-items" class="p-4 space-y-2"></div>
+
+    <!-- Checkout form (hidden until "Checkout" tapped) -->
+    <form id="ax-checkout-form" class="hidden p-5 pt-2 space-y-3 border-t" style="border-color: ${esc(theme.primary)}22" data-slug="${esc(slug)}">
+      <input name="customer_name" required maxlength="100" placeholder="Your name *"
+             class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[14px] font-bold" style="border-color: ${esc(theme.primary)}33" />
+      <input name="customer_phone" required type="tel" maxlength="20" placeholder="WhatsApp number * (e.g. +91 9XXXXXXXXX)"
+             class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[14px] font-mono" style="border-color: ${esc(theme.primary)}33" />
+      <textarea name="customer_address" rows="2" maxlength="500" placeholder="Delivery address"
+                class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[13px] resize-none" style="border-color: ${esc(theme.primary)}33"></textarea>
+      <textarea name="notes" rows="2" maxlength="500" placeholder="Any special instructions?"
+                class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[13px] resize-none" style="border-color: ${esc(theme.primary)}33"></textarea>
+      <div>
+        <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-1.5">Payment</p>
+        <div class="grid grid-cols-2 gap-2">
+          ${business.upiVpa ? `
+          <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition hover:bg-gray-50 has-[:checked]:border-2" style="border-color: ${esc(theme.primary)}33">
+            <input type="radio" name="payment_method" value="upi" checked class="w-4 h-4 accent-[${esc(theme.primary)}]" />
+            <span class="text-[12px] font-extrabold">💳 UPI</span>
+          </label>` : ""}
+          <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition hover:bg-gray-50" style="border-color: ${esc(theme.primary)}33">
+            <input type="radio" name="payment_method" value="cod" ${business.upiVpa ? "" : "checked"} class="w-4 h-4" />
+            <span class="text-[12px] font-extrabold">💵 Cash on delivery</span>
+          </label>
+        </div>
+      </div>
+    </form>
+
+    <!-- Footer: subtotal + CTA -->
+    <div id="ax-cart-footer" class="sticky bottom-0 bg-white border-t-2 p-4" style="border-color: ${esc(theme.primary)}33">
+      <div id="ax-cart-summary" class="flex items-center justify-between mb-3">
+        <span class="text-[13px] font-bold text-gray-600">Subtotal</span>
+        <span id="ax-cart-subtotal" class="text-[18px] font-black tabular-nums" style="color: ${esc(theme.primary)}">₹0</span>
+      </div>
+      <button id="ax-checkout-btn" type="button" onclick="window.AxCart.checkoutStep()"
+              class="w-full h-12 rounded-xl text-white font-extrabold text-[14px] shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50"
+              style="background: ${esc(theme.primary)}">
+        Checkout
+      </button>
+      <p id="ax-cart-status" class="text-[12px] text-center font-bold mt-2 hidden"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Success modal ── -->
+<div id="ax-order-success" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm items-center justify-center p-4">
+  <div class="bg-white max-w-sm w-full rounded-3xl shadow-2xl p-6 text-center">
+    <div class="w-16 h-16 mx-auto rounded-full flex items-center justify-center text-white text-[28px] mb-3" style="background: ${esc(theme.primary)}">✓</div>
+    <h2 class="text-[22px] font-black">Order placed!</h2>
+    <p class="text-[13px] text-gray-600 mt-1">We'll confirm on WhatsApp shortly.</p>
+    <p id="ax-order-number" class="text-[14px] font-extrabold mt-3 px-3 py-2 bg-gray-50 rounded-lg inline-block"></p>
+    <button type="button" onclick="window.AxCart.successClose()"
+            class="mt-5 w-full h-11 rounded-xl text-white font-extrabold text-[13px]"
+            style="background: ${esc(theme.primary)}">Continue shopping</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var STORAGE_KEY = 'ax-cart-${esc(slug)}';
+  var fmt = function(n){ return '₹' + (Math.round(n)).toLocaleString('en-IN'); };
+  var $ = function(id){ return document.getElementById(id); };
+  var state = { items: {}, step: 'cart' };  // step: 'cart' | 'checkout'
+
+  try { state.items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch(e){}
+
+  function save(){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items)); } catch(e){} }
+  function lines(){ return Object.values(state.items); }
+  function count(){ return lines().reduce(function(s, l){ return s + l.qty; }, 0); }
+  function subtotal(){ return lines().reduce(function(s, l){ return s + l.qty * l.price; }, 0); }
+
+  function renderBtn(){
+    var btn = $('ax-cart-btn'); if (!btn) return;
+    var c = count();
+    if (c === 0) { btn.classList.add('hidden'); btn.classList.remove('flex'); }
+    else { btn.classList.remove('hidden'); btn.classList.add('flex'); }
+    $('ax-cart-count').textContent = c;
+    $('ax-cart-total').textContent = fmt(subtotal());
+  }
+
+  function renderItems(){
+    var box = $('ax-cart-items'); if (!box) return;
+    var ls = lines();
+    if (ls.length === 0) {
+      box.innerHTML = '<p class="text-center py-8 text-[13px] text-gray-500">Your cart is empty.</p>';
+      $('ax-checkout-btn').setAttribute('disabled', 'true');
+      return;
+    }
+    $('ax-checkout-btn').removeAttribute('disabled');
+    box.innerHTML = ls.map(function(l){
+      var safe = function(s){ return String(s||'').replace(/[<>"'&]/g, function(c){ return '&#'+c.charCodeAt(0)+';'; }); };
+      var photo = l.photo ? '<img src="'+safe(l.photo)+'" class="w-14 h-14 rounded-lg object-cover flex-shrink-0" onerror="this.style.display=\\'none\\'" />' : '<div class="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center text-[20px] flex-shrink-0">📦</div>';
+      return '<div class="flex items-center gap-3 p-2.5 rounded-xl border" style="border-color: ${esc(theme.primary)}22">' +
+        photo +
+        '<div class="flex-1 min-w-0">' +
+          '<p class="text-[13px] font-extrabold truncate">' + safe(l.name) + '</p>' +
+          '<p class="text-[12px] font-bold tabular-nums" style="color: ${esc(theme.primary)}">' + fmt(l.price) + ' × ' + l.qty + ' = ' + fmt(l.price * l.qty) + '</p>' +
+        '</div>' +
+        '<div class="flex items-center gap-1 flex-shrink-0">' +
+          '<button type="button" onclick="window.AxCart.dec(\\''+safe(l.id)+'\\')" class="w-7 h-7 rounded-md bg-gray-100 hover:bg-gray-200 text-[14px] font-bold">−</button>' +
+          '<span class="w-6 text-center text-[12px] font-bold tabular-nums">' + l.qty + '</span>' +
+          '<button type="button" onclick="window.AxCart.inc(\\''+safe(l.id)+'\\')" class="w-7 h-7 rounded-md text-white text-[14px] font-bold" style="background: ${esc(theme.primary)}">+</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    $('ax-cart-subtotal').textContent = fmt(subtotal());
+  }
+
+  function setStep(step){
+    state.step = step;
+    var modal = $('ax-cart-modal');
+    var title = $('ax-cart-title');
+    var form = $('ax-checkout-form');
+    var btn = $('ax-checkout-btn');
+    if (step === 'checkout') {
+      title.textContent = 'Checkout';
+      form.classList.remove('hidden');
+      btn.textContent = 'Place order — ' + fmt(subtotal());
+    } else {
+      title.textContent = 'Your cart';
+      form.classList.add('hidden');
+      btn.textContent = 'Checkout';
+    }
+  }
+
+  window.AxCart = {
+    add: function(id, name, price, photo){
+      if (!state.items[id]) state.items[id] = { id: id, name: name, price: price, photo: photo, qty: 0 };
+      state.items[id].qty += 1;
+      save(); renderBtn(); renderItems();
+    },
+    inc: function(id){ if (state.items[id]) { state.items[id].qty += 1; save(); renderBtn(); renderItems(); } },
+    dec: function(id){
+      if (!state.items[id]) return;
+      state.items[id].qty -= 1;
+      if (state.items[id].qty <= 0) delete state.items[id];
+      save(); renderBtn(); renderItems();
+    },
+    open: function(){
+      renderItems();
+      setStep('cart');
+      var m = $('ax-cart-modal'); m.classList.remove('hidden'); m.classList.add('flex');
+      document.body.style.overflow = 'hidden';
+    },
+    close: function(){
+      var m = $('ax-cart-modal'); m.classList.add('hidden'); m.classList.remove('flex');
+      document.body.style.overflow = '';
+    },
+    checkoutStep: function(){
+      if (count() === 0) return;
+      if (state.step === 'cart') {
+        setStep('checkout');
+      } else {
+        submitOrder();
+      }
+    },
+    successClose: function(){
+      var m = $('ax-order-success'); m.classList.add('hidden'); m.classList.remove('flex');
+      window.AxCart.close();
+    },
+  };
+
+  function submitOrder(){
+    var form = $('ax-checkout-form');
+    var btn = $('ax-checkout-btn');
+    var status = $('ax-cart-status');
+    var fd = new FormData(form);
+    if (!fd.get('customer_name') || !String(fd.get('customer_name')).trim()) {
+      status.textContent = 'Please enter your name'; status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
+      return;
+    }
+    if (!fd.get('customer_phone') || !String(fd.get('customer_phone')).trim()) {
+      status.textContent = 'Please enter your WhatsApp number'; status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Placing order…';
+    status.className = 'hidden';
+    var payload = {
+      customer_name: fd.get('customer_name'),
+      customer_phone: fd.get('customer_phone'),
+      customer_address: fd.get('customer_address'),
+      notes: fd.get('notes'),
+      payment_method: fd.get('payment_method'),
+      items: lines().map(function(l){ return { product_id: l.id, quantity: l.qty }; }),
+    };
+    fetch('/biz/' + form.dataset.slug + '/order', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
+    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+    .then(function(res){
+      if (res.ok) {
+        state.items = {}; save(); renderBtn();
+        $('ax-order-number').textContent = 'Order #' + res.j.order_number;
+        var s = $('ax-order-success'); s.classList.remove('hidden'); s.classList.add('flex');
+        btn.disabled = false; btn.textContent = 'Checkout';
+        form.reset();
+        setStep('cart');
+      } else {
+        btn.disabled = false; btn.textContent = 'Place order — ' + fmt(subtotal());
+        status.textContent = (res.j && res.j.error) || 'Could not place order.'; status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
+      }
+    }).catch(function(){
+      btn.disabled = false; btn.textContent = 'Place order — ' + fmt(subtotal());
+      status.textContent = 'Network error.'; status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
+    });
+  }
+
+  renderBtn();
+})();
+</script>` : ""}
 
 <!-- ── Hours + Address (if set) ── -->
 ${business.hours || business.address ? `
@@ -512,6 +755,138 @@ app.get("/biz/:slug", async (c) => {
 
   c.header("Cache-Control", "public, max-age=60, s-maxage=60");
   return c.html(html);
+});
+
+/** POST /biz/:slug/order — public cart checkout. Receives a list of items
+ *  (id + qty), validates against live product prices, creates the order +
+ *  order_items + (optionally) a CRM contact. Returns order_number to display
+ *  on the success screen. */
+app.post("/biz/:slug/order", async (c) => {
+  const slug = (c.req.param("slug") || "").toLowerCase().trim();
+  if (!slug) return c.json({ error: "Not found" }, 404);
+
+  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
+  if (!row) return c.json({ error: "Site not found" }, 404);
+  if (row.status !== "published") return c.json({ error: "Site is not published" }, 400);
+
+  const body = await c.req.json<{
+    customer_name?: string;
+    customer_phone?: string;
+    customer_email?: string;
+    customer_address?: string;
+    notes?: string;
+    payment_method?: string;     // 'upi' | 'cod'
+    items?: Array<{ product_id: string; quantity: number }>;
+  }>().catch(() => ({} as { customer_name?: string }));
+
+  const name = (body.customer_name || "").trim().slice(0, 100);
+  const phone = (body.customer_phone || "").trim().slice(0, 30) || null;
+  const email = (body.customer_email || "").trim().slice(0, 200) || null;
+  const address = (body.customer_address || "").trim().slice(0, 500) || null;
+  const notes = (body.notes || "").trim().slice(0, 500) || null;
+  const paymentMethod = ["upi", "cod"].includes(body.payment_method ?? "") ? body.payment_method! : null;
+
+  if (!name) return c.json({ error: "Name is required" }, 400);
+  if (!phone) return c.json({ error: "WhatsApp number is required" }, 400);
+  const items = Array.isArray(body.items) ? body.items.filter((i) => i?.product_id && Number(i.quantity) > 0) : [];
+  if (items.length === 0) return c.json({ error: "Cart is empty" }, 400);
+  if (items.length > 50) return c.json({ error: "Too many items in one order" }, 400);
+
+  // Re-fetch products from DB so the customer can't tamper with prices
+  const ids = items.map((i) => i.product_id);
+  const prods = await db.select().from(product)
+    .where(and(eq(product.ownerId, row.userId), inArray(product.id, ids)));
+  if (prods.length === 0) return c.json({ error: "Products in cart no longer available" }, 400);
+  const prodById = new Map(prods.map((p) => [p.id, p]));
+
+  const lineRows: Array<{
+    productId: string;
+    productName: string;
+    productPhotoUrl: string | null;
+    unitPriceInr: string;
+    quantity: number;
+    lineTotalInr: string;
+  }> = [];
+  let subtotal = 0;
+  for (const it of items) {
+    const p = prodById.get(it.product_id);
+    if (!p || p.status !== "active") continue;
+    const qty = Math.max(1, Math.min(Math.floor(Number(it.quantity)), 99));
+    const price = Number(p.priceInr) || 0;
+    const line = price * qty;
+    subtotal += line;
+    lineRows.push({
+      productId: p.id,
+      productName: p.name,
+      productPhotoUrl: p.photoUrl,
+      unitPriceInr: String(price),
+      quantity: qty,
+      lineTotalInr: String(line),
+    });
+  }
+  if (lineRows.length === 0) return c.json({ error: "Selected products are no longer available" }, 400);
+
+  // Try a few times to allocate a unique order_number under race
+  let order: typeof orderTbl.$inferSelect | undefined;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const orderNumber = await nextOrderNumber(row.userId);
+      const [created] = await db.insert(orderTbl).values({
+        ownerId: row.userId,
+        siteId: row.id,
+        orderNumber,
+        customerName: name,
+        customerPhone: phone,
+        customerEmail: email,
+        customerAddress: address,
+        subtotalInr: String(subtotal),
+        shippingInr: "0",
+        discountInr: "0",
+        totalInr: String(subtotal),
+        status: "new",
+        paymentMethod,
+        paymentStatus: "pending",
+        source: "website",
+        notes,
+      }).returning();
+      order = created;
+      break;
+    } catch (e) {
+      // Likely the unique index — retry with a fresh allocation
+      if (attempt === 4) throw e;
+    }
+  }
+  if (!order) return c.json({ error: "Could not place order — please try again" }, 500);
+
+  await db.insert(orderItem).values(lineRows.map((r) => ({ ...r, orderId: order!.id })));
+
+  // Mirror to CRM contact (dedupe by phone) so the seller can WhatsApp them
+  const normalizedPhone = phone.replace(/[^\d+]/g, "");
+  const [existing] = await db.select({ id: contact.id }).from(contact)
+    .where(and(eq(contact.ownerId, row.userId), eq(contact.phone, normalizedPhone))).limit(1);
+  let contactId: string;
+  if (existing) {
+    contactId = existing.id;
+  } else {
+    const [c2] = await db.insert(contact).values({
+      ownerId: row.userId,
+      name,
+      phone: normalizedPhone,
+      email,
+      source: `website-order:${slug}`,
+      tag: "hot",
+      notes: notes ? `First order note: ${notes}` : null,
+    }).returning({ id: contact.id });
+    contactId = c2.id;
+  }
+  await db.update(orderTbl).set({ contactId }).where(eq(orderTbl.id, order.id));
+
+  return c.json({
+    ok: true,
+    order_id: order.id,
+    order_number: order.orderNumber,
+    total_inr: Number(order.totalInr),
+  });
 });
 
 /** POST /biz/:slug/lead — public lead capture from the rendered form.

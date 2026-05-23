@@ -579,6 +579,8 @@ import { DomainPage } from "./pages/DomainPage";
 import { SettingsPage as SiteSettingsPage } from "./pages/SettingsPage";
 import { LeadsPage } from "./pages/LeadsPage";
 import { ProductsPage } from "./pages/ProductsPage";
+import { OrdersPage } from "./pages/OrdersPage";
+import { CustomersPage } from "./pages/CustomersPage";
 
 export const SitePage = ({ subPath }: Props) => {
   const key = (subPath || "").toLowerCase();
@@ -590,6 +592,8 @@ export const SitePage = ({ subPath }: Props) => {
     case "settings": return <SiteSettingsPage />;
     case "leads":    return <LeadsPage />;
     case "products": return <ProductsPage />;
+    case "orders":   return <OrdersPage />;
+    case "customers": return <CustomersPage />;
     default:         return <SiteSubPagePlaceholder pageKey={key} />;
   }
 };

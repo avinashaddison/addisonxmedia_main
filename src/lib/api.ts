@@ -510,6 +510,31 @@ export const api = {
   reorderProducts: (items: Array<{ id: string; sort_order: number }>) =>
     post<{ ok: true; updated: number }>("/products/reorder", { items }),
 
+  // Orders
+  getOrders: (status?: string) => get<OrderDto[]>(`/orders${status ? `?status=${status}` : ""}`),
+  getOrder: (id: string) => get<OrderDto & { items: OrderItemDto[] }>(`/orders/${id}`),
+  updateOrder: (id: string, data: Partial<{
+    status: "new" | "confirmed" | "shipped" | "delivered" | "cancelled";
+    payment_status: "pending" | "paid" | "refunded";
+    payment_method: string | null;
+    notes: string | null;
+  }>) => patch<OrderDto>(`/orders/${id}`, data),
+  createManualOrder: (data: {
+    customer_name: string;
+    customer_phone?: string | null;
+    customer_email?: string | null;
+    customer_address?: string | null;
+    items: Array<{ product_id?: string | null; name: string; price_inr: number; quantity: number; photo_url?: string | null }>;
+    shipping_inr?: number;
+    discount_inr?: number;
+    payment_method?: string | null;
+    payment_status?: "pending" | "paid";
+    notes?: string | null;
+  }) => post<{ ok: true; id: string; order_number: number }>("/orders", data),
+
+  // Customers (derived from orders)
+  getCustomers: () => get<CustomerDto[]>("/customers"),
+
   // Meta BSP cost estimate (this month) — what Meta will bill the workspace.
   getMetaCostEstimate: () => get<{
     month_start: string;
@@ -520,6 +545,52 @@ export const api = {
     rates: { marketing: number; utility: number; authentication: number };
     note: string;
   }>("/billing/meta-estimate"),
+};
+
+export type OrderItemDto = {
+  id: string;
+  order_id: string;
+  product_id: string | null;
+  product_name: string;
+  product_photo_url: string | null;
+  unit_price_inr: string;
+  quantity: number;
+  line_total_inr: string;
+  created_at: string;
+};
+
+export type OrderDto = {
+  id: string;
+  owner_id: string;
+  site_id: string | null;
+  order_number: number;
+  customer_name: string;
+  customer_phone: string | null;
+  customer_email: string | null;
+  customer_address: string | null;
+  subtotal_inr: string;
+  shipping_inr: string;
+  discount_inr: string;
+  total_inr: string;
+  status: "new" | "confirmed" | "shipped" | "delivered" | "cancelled";
+  payment_method: string | null;
+  payment_status: "pending" | "paid" | "refunded";
+  source: "website" | "whatsapp" | "manual";
+  notes: string | null;
+  contact_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CustomerDto = {
+  customer_name: string;
+  customer_phone: string | null;
+  customer_email: string | null;
+  last_address: string | null;
+  order_count: string;       // postgres returns bigint as string
+  total_spent_inr: string;
+  last_order_at: string;
+  first_order_at: string;
 };
 
 export type ProductDto = {
