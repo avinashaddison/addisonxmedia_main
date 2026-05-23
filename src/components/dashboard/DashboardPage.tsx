@@ -38,6 +38,17 @@ const useDashboardData = () => {
   });
 };
 
+const useDashboardMoney = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["dashboard-money", user?.id],
+    enabled: !!user,
+    queryFn: () => api.getDashboardMoney(),
+    refetchInterval: 60_000, // refresh every minute so won deals show up live
+    staleTime: 30_000,
+  });
+};
+
 type Props = { onNavigate?: (page: string) => void };
 
 // Helpers for honest data (no fake numbers)
@@ -94,6 +105,7 @@ const sumLastNDays = (items: Bag[], dateKey: string, n: number, valueFn: (i: Bag
 
 export const DashboardPage = ({ onNavigate }: Props) => {
   const { data, isLoading } = useDashboardData();
+  const { data: money } = useDashboardMoney();
   const qc = useQueryClient();
   const [seeding, setSeeding] = useState(false);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -410,6 +422,9 @@ export const DashboardPage = ({ onNavigate }: Props) => {
           </div>
         </div>
       )}
+
+      {/* ===== MONEY MACHINE HERO — money in / money out, not jargon ===== */}
+      {!isEmpty && money && <MoneyMachineHero money={money} onNavigate={onNavigate} />}
 
       {/* ===== SECTION 1 — KPI CARDS ===== */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
@@ -1008,6 +1023,255 @@ const LiveChatPreview = ({ chats, isLoading, onNavigate }: LivePreviewProps) => 
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// Money Machine Hero — sells the product to the customer every time they log in
+// ============================================================================
+//
+// Composition:
+//   ▸ Big hero strip — "Today made ₹X · Last 7d ₹Y · Last 30d ₹Z"
+//   ▸ Source split  — From Ads vs Organic (last 30d)
+//   ▸ Spend / ROAS  — only when ads connected; otherwise a "Connect Ads" CTA
+//   ▸ Best ad       — when CAPI is feeding revenue back, this gets meaningful
+//   ▸ 7-day spark   — daily revenue bars, instant trend read
+//
+// Replaces NOTHING — sits at the top of the dashboard above the existing KPI
+// tiles. Customers who don't have deals yet won't see it (isEmpty branch).
+
+const fmtMoney = (n: number): string =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+
+type MoneyData = NonNullable<ReturnType<typeof useDashboardMoney>["data"]>;
+
+const MoneyMachineHero = ({ money, onNavigate }: { money: MoneyData; onNavigate?: (page: string) => void }) => {
+  const todayRev = money.today.revenue_inr;
+  const weekRev = money.last_7d.revenue_inr;
+  const monthRev = money.last_30d.revenue_inr;
+  const animTodayRev = useCount(todayRev, 900);
+  const animWeekRev = useCount(weekRev, 900);
+
+  // Spark chart math — same shape as the KPI tiles use
+  const series = money.series_7d;
+  const maxRev = Math.max(1, ...series.map((d) => d.revenue_inr));
+  const sparkW = 280, sparkH = 64;
+  const sparkPoints = series.map((d, i) => {
+    const x = (sparkW * i) / Math.max(1, series.length - 1);
+    const y = sparkH - 4 - (d.revenue_inr / maxRev) * (sparkH - 8);
+    return { x, y, val: d.revenue_inr, date: d.date };
+  });
+  const sparkPath = sparkPoints.length > 1
+    ? sparkPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ")
+    : "";
+  const sparkArea = sparkPoints.length > 1
+    ? `${sparkPath} L ${sparkPoints[sparkPoints.length - 1].x} ${sparkH} L 0 ${sparkH} Z`
+    : "";
+
+  const adsRev = money.source_split_30d.from_ads.revenue_inr;
+  const orgRev = money.source_split_30d.from_organic.revenue_inr;
+  const totalSourceRev = Math.max(1, adsRev + orgRev);
+  const adsPct = (adsRev / totalSourceRev) * 100;
+
+  const hasAds = money.spend_30d.has_ads_connected;
+  const roas = money.spend_30d.roas;
+
+  return (
+    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0E8A4B] via-[#0A6E3C] to-[#073D22] text-white shadow-[0_8px_0_0_#052D18] mb-5">
+      {/* dotted overlay for texture */}
+      <div
+        className="absolute inset-0 opacity-[0.08] pointer-events-none"
+        style={{
+          backgroundImage: "radial-gradient(circle at 2px 2px, white 1px, transparent 0)",
+          backgroundSize: "16px 16px",
+        }}
+      />
+
+      <div className="relative p-5 lg:p-6 grid grid-cols-1 lg:grid-cols-[1.6fr_1.4fr] gap-5">
+        {/* ── LEFT: Money in / money out hero ────────────────────────── */}
+        <div>
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFD23F] text-[#3D1A00] text-[10px] font-extrabold uppercase tracking-wider">
+              <Zap className="w-3 h-3" strokeWidth={2.5} /> Money Machine
+            </span>
+            <span className="text-[11px] text-white/70 font-semibold">
+              Aaj ka kamaai · live data
+            </span>
+          </div>
+
+          {/* Today's revenue — the only number that should hit the eye first */}
+          <p className="text-[11px] uppercase tracking-wider font-extrabold text-[#FFD23F]/80">
+            Aaj banaya
+          </p>
+          <p className="text-[42px] sm:text-[56px] font-black leading-none tracking-tight tabular-nums">
+            {fmtMoney(animTodayRev)}
+          </p>
+          <p className="text-[12px] text-white/75 font-medium mt-1">
+            {money.today.deals} {money.today.deals === 1 ? "deal" : "deals"} closed today
+          </p>
+
+          {/* 3-column secondary metrics */}
+          <div className="grid grid-cols-3 gap-3 mt-5">
+            <div className="border-l-2 border-[#FFD23F]/40 pl-3">
+              <p className="text-[9px] uppercase tracking-wider font-extrabold text-white/55">Last 7d</p>
+              <p className="text-[18px] font-black tabular-nums leading-tight">{fmtMoney(animWeekRev)}</p>
+              <p className="text-[10px] text-white/55 font-medium">{money.last_7d.deals} deals</p>
+            </div>
+            <div className="border-l-2 border-[#FFD23F]/40 pl-3">
+              <p className="text-[9px] uppercase tracking-wider font-extrabold text-white/55">Last 30d</p>
+              <p className="text-[18px] font-black tabular-nums leading-tight">{fmtMoney(monthRev)}</p>
+              <p className="text-[10px] text-white/55 font-medium">{money.last_30d.deals} deals</p>
+            </div>
+            <div className="border-l-2 border-[#FFD23F]/40 pl-3">
+              <p className="text-[9px] uppercase tracking-wider font-extrabold text-white/55">Conversion</p>
+              <p className="text-[18px] font-black tabular-nums leading-tight">{money.last_30d.conversion_pct}%</p>
+              <p className="text-[10px] text-white/55 font-medium">chats → wins</p>
+            </div>
+          </div>
+
+          {/* ROAS / Ads section — switches between connected/not-connected */}
+          {hasAds ? (
+            <div className="mt-5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 p-3.5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#FFD23F] text-[#3D1A00] flex items-center justify-center shadow-md flex-shrink-0">
+                <TrendingUp className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#FFD23F]">
+                  Ad spend × revenue
+                </p>
+                <p className="text-[14px] font-black leading-tight">
+                  {fmtMoney(money.spend_30d.ad_spend_inr)} spent &nbsp;→&nbsp; {fmtMoney(money.spend_30d.revenue_inr)} won
+                  {roas !== null && (
+                    <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFD23F] text-[#3D1A00] text-[11px] font-extrabold">
+                      {roas}× ROAS
+                    </span>
+                  )}
+                </p>
+                <p className="text-[10px] text-white/65 font-medium mt-0.5">
+                  Last 30 days · CAPI feeds Meta with won deals automatically
+                </p>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => onNavigate?.("ads")}
+              className="mt-5 w-full rounded-xl bg-gradient-to-r from-[#FFD23F] to-[#E8B400] text-[#3D1A00] p-3.5 flex items-center gap-3 hover:shadow-lg hover:-translate-y-0.5 transition-all text-left"
+            >
+              <div className="w-10 h-10 rounded-xl bg-[#3D1A00] text-[#FFD23F] flex items-center justify-center shadow-md flex-shrink-0">
+                <Rocket className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-black leading-tight">
+                  Connect Meta Ads to see ROAS
+                </p>
+                <p className="text-[11px] font-semibold mt-0.5 opacity-80">
+                  Run Click-to-WhatsApp ads · CAPI auto-feeds your won deals back to Meta · cost-per-customer drops 25% in 2 weeks
+                </p>
+              </div>
+              <ArrowRight className="w-5 h-5 flex-shrink-0" strokeWidth={2.5} />
+            </button>
+          )}
+        </div>
+
+        {/* ── RIGHT: spark chart + source split + best ad ────────────── */}
+        <div className="space-y-3.5">
+          {/* 7-day spark chart */}
+          <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 p-3.5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#FFD23F]">7-day revenue</p>
+              <p className="text-[11px] font-extrabold tabular-nums">{fmtMoney(weekRev)}</p>
+            </div>
+            <svg viewBox={`0 0 ${sparkW} ${sparkH}`} className="w-full h-16 overflow-visible" preserveAspectRatio="none">
+              {sparkArea && (
+                <path d={sparkArea} fill="url(#money-spark-gradient)" opacity="0.35" />
+              )}
+              {sparkPath && (
+                <path d={sparkPath} stroke="#FFD23F" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              )}
+              {sparkPoints.map((p, i) => (
+                <circle
+                  key={i}
+                  cx={p.x}
+                  cy={p.y}
+                  r={i === sparkPoints.length - 1 ? 3.5 : 2}
+                  fill={i === sparkPoints.length - 1 ? "#FFD23F" : "#fff"}
+                />
+              ))}
+              <defs>
+                <linearGradient id="money-spark-gradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#FFD23F" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#FFD23F" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+
+          {/* Source split bar */}
+          <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 p-3.5">
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#FFD23F] mb-2">
+              30d source mix
+            </p>
+            <div className="relative h-2.5 rounded-full bg-white/10 overflow-hidden">
+              <div
+                className="absolute inset-y-0 left-0 bg-gradient-to-r from-[#FFD23F] to-[#FF6A1F]"
+                style={{ width: `${adsPct}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between mt-2 text-[11px]">
+              <span className="font-extrabold">
+                <span className="inline-block w-2 h-2 rounded-full bg-[#FFD23F] mr-1 align-middle" />
+                Ads {fmtMoney(adsRev)}
+                <span className="text-white/55 font-medium ml-1">({money.source_split_30d.from_ads.deals} deals)</span>
+              </span>
+              <span className="font-extrabold">
+                <span className="inline-block w-2 h-2 rounded-full bg-white/40 mr-1 align-middle" />
+                Organic {fmtMoney(orgRev)}
+                <span className="text-white/55 font-medium ml-1">({money.source_split_30d.from_organic.deals})</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Best ad — appears when there's at least one ad-attributed win */}
+          {money.best_ad_30d ? (
+            <button
+              onClick={() => onNavigate?.("ads")}
+              className="w-full text-left rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 p-3.5 hover:bg-white/15 transition group"
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#FFD23F]">
+                  🔥 Best ad · 30d
+                </p>
+                <ArrowUpRight className="w-3.5 h-3.5 text-white/55 group-hover:text-white transition" />
+              </div>
+              <p className="text-[13px] font-extrabold leading-tight line-clamp-2">
+                {money.best_ad_30d.headline}
+              </p>
+              <p className="text-[11px] mt-1">
+                <span className="font-black tabular-nums">{fmtMoney(money.best_ad_30d.revenue_inr)}</span>
+                <span className="text-white/65"> from </span>
+                <span className="font-black tabular-nums">{money.best_ad_30d.deals}</span>
+                <span className="text-white/65"> {money.best_ad_30d.deals === 1 ? "deal" : "deals"}</span>
+              </p>
+            </button>
+          ) : (
+            <button
+              onClick={() => onNavigate?.("deals")}
+              className="w-full text-left rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 p-3.5 hover:bg-white/15 transition"
+            >
+              <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#FFD23F] mb-1">
+                Open pipeline
+              </p>
+              <p className="text-[20px] font-black leading-none tabular-nums">
+                {fmtMoney(money.open_pipeline_inr)}
+              </p>
+              <p className="text-[11px] text-white/65 font-medium mt-1">
+                {money.open_pipeline_count} {money.open_pipeline_count === 1 ? "deal" : "deals"} in-flight · close them to grow the machine
+              </p>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

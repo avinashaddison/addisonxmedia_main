@@ -75,6 +75,28 @@ export const api = {
   // Sidebar / dashboard
   getSidebarBadges: () => get<{ inbox: number; tasks: number }>("/sidebar/badges"),
   getDashboard: () => get<any>("/dashboard"),
+  // Money Machine view — "₹X spent → ₹Y won → Z× ROAS". Joins deals +
+  // conversation attribution + ad spend snapshot. Designed for non-technical
+  // owners — no impressions, no CPM, just money in / money out.
+  getDashboardMoney: () => get<{
+    today: { revenue_inr: number; deals: number };
+    last_7d: { revenue_inr: number; deals: number };
+    last_30d: { revenue_inr: number; deals: number; conversion_pct: number };
+    source_split_30d: {
+      from_ads:     { revenue_inr: number; deals: number };
+      from_organic: { revenue_inr: number; deals: number };
+    };
+    spend_30d: {
+      ad_spend_inr: number;
+      revenue_inr: number;
+      roas: number | null;
+      has_ads_connected: boolean;
+    };
+    best_ad_30d: { ad_id: string; headline: string; revenue_inr: number; deals: number } | null;
+    open_pipeline_inr: number;
+    open_pipeline_count: number;
+    series_7d: Array<{ date: string; revenue_inr: number; deals: number }>;
+  }>("/dashboard/money"),
   getAnalytics: () => get<any>("/analytics"),
   search: (q: string) => get<any>(`/search?q=${encodeURIComponent(q)}`),
   seed: () => post<{ seeded?: boolean; skipped?: boolean }>("/seed"),
