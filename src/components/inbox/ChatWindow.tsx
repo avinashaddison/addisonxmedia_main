@@ -511,9 +511,11 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
         </div>
       )}
 
-      {/* Messages */}
+      {/* Messages — min-h-0 is critical: without it the flex child inherits
+          min-height:auto (= its own content height) which makes overflow-y-auto
+          a no-op and lets the whole ChatWindow balloon past the grid cell. */}
       <div
-        className="flex-1 overflow-y-auto px-5 py-5 space-y-1 relative"
+        className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-1 relative"
         style={{
           // Subtle WhatsApp-style wallpaper: warm cream base + tiny dot pattern
           // overlaid via repeating-radial-gradient. Looks closer to a real chat
