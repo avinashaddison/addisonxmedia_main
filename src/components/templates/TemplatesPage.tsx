@@ -1,12 +1,23 @@
 import { useMemo, useState } from "react";
 import {
   Copy, Search, Sparkles, MessageSquare, Tag, Send, RefreshCw, ExternalLink,
-  ShieldCheck, AlertTriangle, Inbox, FileText, Loader2,
+  ShieldCheck, AlertTriangle, Inbox, FileText, Loader2, Plus, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -114,6 +125,76 @@ export const TemplatesPage = () => {
     toast.success("Refreshed from Meta");
   };
 
+  // ── Create template dialog state + mutation ─────────────────────────────
+  const [createOpen, setCreateOpen] = useState(false);
+  const [tName, setTName] = useState("");
+  const [tCategory, setTCategory] = useState<"MARKETING" | "UTILITY" | "AUTHENTICATION">("MARKETING");
+  const [tLanguage, setTLanguage] = useState("en");
+  const [tBody, setTBody] = useState("");
+  const [tFooter, setTFooter] = useState("");
+
+  const resetCreateForm = () => {
+    setTName("");
+    setTCategory("MARKETING");
+    setTLanguage("en");
+    setTBody("");
+    setTFooter("");
+  };
+
+  // Count placeholders in body (e.g. "Hi {{1}}, your order {{2}}" → 2).
+  // Meta uses this to validate the variable count when broadcasts fill the
+  // template. Surfaced in the preview so the customer sees how many they need.
+  const placeholderCount = useMemo(() => {
+    const m = tBody.match(/\{\{(\d+)\}\}/g);
+    if (!m) return 0;
+    const nums = m.map((s) => Number(s.slice(2, -2)));
+    return nums.length ? Math.max(...nums) : 0;
+  }, [tBody]);
+
+  const createMut = useMutation({
+    mutationFn: () =>
+      api.createMetaTemplate({
+        name: tName,
+        category: tCategory,
+        language: tLanguage,
+        components: [
+          { type: "BODY" as const, text: tBody },
+          ...(tFooter.trim() ? [{ type: "FOOTER" as const, text: tFooter.trim() }] : []),
+        ],
+      }),
+    onSuccess: (data) => {
+      toast.success(`Submitted "${data.name_submitted}" — status: ${data.status}`, {
+        description: data.status === "APPROVED"
+          ? "Already approved — ready to use in broadcasts!"
+          : "Meta usually approves in 10-60 minutes. Refresh this page to check status.",
+        duration: 7000,
+      });
+      qc.invalidateQueries({ queryKey: ["meta-templates"] });
+      resetCreateForm();
+      setCreateOpen(false);
+    },
+    onError: (err) => {
+      const e = err as { body?: { error?: string; hint?: string }; message?: string };
+      const msg = e?.body?.error || e?.message || "Template submission failed";
+      const hint = e?.body?.hint;
+      toast.error(hint ? `${msg} · ${hint}` : msg, { duration: 9000 });
+    },
+  });
+
+  // ── Delete template ──────────────────────────────────────────────────────
+  const [deleteTarget, setDeleteTarget] = useState<MetaTemplate | null>(null);
+  const deleteMut = useMutation({
+    mutationFn: (name: string) => api.deleteMetaTemplate(name),
+    onSuccess: (_d, name) => {
+      toast.success(`Deleted "${name}"`);
+      qc.invalidateQueries({ queryKey: ["meta-templates"] });
+      setDeleteTarget(null);
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    },
+  });
+
   const businessAccountId = metaCfg?.business_account_id;
   const metaTemplatesUrl = businessAccountId
     ? `https://business.facebook.com/wa/manage/message-templates/?business_id=&waba_id=${businessAccountId}`
@@ -218,11 +299,19 @@ export const TemplatesPage = () => {
             <RefreshCw className={cn("w-4 h-4", isFetching && "animate-spin")} />
             {isFetching ? "Syncing…" : "Sync from Meta"}
           </Button>
+          <Button
+            onClick={() => setCreateOpen(true)}
+            size="sm"
+            className="gap-1.5 bg-[#0E8A4B] text-white shadow-[0_3px_0_0_#0A6E3C] hover:bg-[#0A6E3C]"
+          >
+            <Plus className="w-4 h-4" strokeWidth={2.5} />
+            Create template
+          </Button>
           <a
             href={metaTemplatesUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[12px] inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition font-semibold"
+            className="text-[12px] inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted hover:bg-muted/70 text-foreground transition font-semibold"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             Manage in Meta
@@ -328,7 +417,7 @@ export const TemplatesPage = () => {
                     className="flex-1 h-8 text-[11px] gap-1"
                   >
                     <Copy className="w-3 h-3" />
-                    Copy body
+                    Copy
                   </Button>
                   <Link
                     to="/app/broadcasts"
@@ -338,12 +427,202 @@ export const TemplatesPage = () => {
                     <Send className="w-3 h-3" />
                     Broadcast
                   </Link>
+                  <Button
+                    onClick={() => setDeleteTarget(t)}
+                    size="sm"
+                    variant="outline"
+                    className="h-8 px-2 text-[#D4308E] border-[#D4308E]/40 hover:bg-[#FCE5F0] hover:text-[#A11A6A]"
+                    title="Delete template"
+                    aria-label="Delete template"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
                 </div>
               </div>
             );
           })}
         </div>
       )}
+
+      {/* ── Create-template dialog ─────────────────────────────────────── */}
+      <Dialog open={createOpen} onOpenChange={(v) => { setCreateOpen(v); if (!v) resetCreateForm(); }}>
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white flex items-center justify-center shadow-md">
+                <Plus className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div>
+                <DialogTitle>Create WhatsApp template</DialogTitle>
+                <DialogDescription>
+                  Submitted to Meta for approval. Usually approved within 10-60 min. Use {`{{1}}`}, {`{{2}}`} for variables.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Template name</Label>
+                <Input
+                  value={tName}
+                  onChange={(e) => setTName(e.target.value)}
+                  placeholder="diwali_offer_2026"
+                  className="font-mono text-[12px]"
+                  maxLength={120}
+                />
+                <p className="text-[10px] text-foreground/55">
+                  lowercase, snake_case, ≤ 120 chars
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Category</Label>
+                <Select value={tCategory} onValueChange={(v) => setTCategory(v as typeof tCategory)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MARKETING">Marketing (promotional)</SelectItem>
+                    <SelectItem value="UTILITY">Utility (order/booking updates)</SelectItem>
+                    <SelectItem value="AUTHENTICATION">Authentication (OTP)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-foreground/55">
+                  Marketing ₹0.78 · Utility/Auth ₹0.13 per message
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Language</Label>
+              <Select value={tLanguage} onValueChange={setTLanguage}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="en_US">English (US)</SelectItem>
+                  <SelectItem value="hi">Hindi</SelectItem>
+                  <SelectItem value="mr">Marathi</SelectItem>
+                  <SelectItem value="ta">Tamil</SelectItem>
+                  <SelectItem value="te">Telugu</SelectItem>
+                  <SelectItem value="gu">Gujarati</SelectItem>
+                  <SelectItem value="bn">Bengali</SelectItem>
+                  <SelectItem value="kn">Kannada</SelectItem>
+                  <SelectItem value="ml">Malayalam</SelectItem>
+                  <SelectItem value="pa">Punjabi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Message body
+                {placeholderCount > 0 && (
+                  <span className="ml-2 text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#FFD23F] text-[#3D1A00]">
+                    {placeholderCount} variable{placeholderCount === 1 ? "" : "s"}
+                  </span>
+                )}
+              </Label>
+              <textarea
+                value={tBody}
+                onChange={(e) => setTBody(e.target.value)}
+                rows={5}
+                placeholder="Hi {{1}}, your order #{{2}} is confirmed 🎉 Track here: {{3}}"
+                className="w-full rounded-xl border-2 border-[#E8B968] bg-[#FFF6E8] px-3 py-2.5 text-[13px] font-medium placeholder:text-foreground/40 focus:outline-none focus:border-[#0E8A4B] focus:bg-white transition"
+                maxLength={1024}
+              />
+              <p className="text-[10px] text-foreground/55">
+                {tBody.length}/1024 chars · use {`{{1}}`}, {`{{2}}`} etc for variables to personalize each broadcast
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Footer (optional)</Label>
+              <Input
+                value={tFooter}
+                onChange={(e) => setTFooter(e.target.value)}
+                placeholder="Reply STOP to unsubscribe"
+                maxLength={60}
+              />
+              <p className="text-[10px] text-foreground/55">
+                Short legal/contact line shown below the body · ≤ 60 chars
+              </p>
+            </div>
+
+            {/* Preview */}
+            {tBody && (
+              <div className="rounded-xl bg-[#E6F7EE] border-2 border-[#0E8A4B]/40 p-3">
+                <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#0A6E3C] mb-1.5">
+                  WhatsApp preview
+                </p>
+                <div className="rounded-lg bg-white p-3 border border-[#0E8A4B]/30">
+                  <p className="text-[13px] whitespace-pre-wrap leading-relaxed">{tBody}</p>
+                  {tFooter && (
+                    <p className="text-[10px] text-foreground/50 mt-2 italic">{tFooter}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-start gap-2 text-[11px] text-[#B8420A] font-semibold p-2.5 rounded-lg bg-[#FFEFE0] border border-[#FF6A1F]/40">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>
+                Meta reviews each template. Most approve in 10-60 min. Common rejections:
+                vague body, ALL CAPS shouting, missing context, looks like spam.
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setCreateOpen(false); resetCreateForm(); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createMut.mutate()}
+              disabled={
+                createMut.isPending
+                || !tName.trim()
+                || !tBody.trim()
+                || tBody.trim().length < 5
+              }
+              className="bg-[#0E8A4B] text-white shadow-[0_4px_0_0_#0A6E3C] hover:bg-[#0A6E3C]"
+            >
+              {createMut.isPending ? (
+                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Submitting…</>
+              ) : (
+                <><Plus className="w-3.5 h-3.5" /> Submit to Meta</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete confirmation ────────────────────────────────────────── */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget && (
+                <>
+                  Removes <span className="font-bold">{deleteTarget.name}</span> (all languages) from Meta.
+                  <br /><br />
+                  Broadcasts using this template will fail until you create a new one.
+                  <br /><br />
+                  <span className="text-[#B8420A] font-semibold">This cannot be undone.</span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[#D4308E] text-white shadow-[0_4px_0_0_#A11A6A] hover:bg-[#C02680]"
+              onClick={() => { if (deleteTarget) deleteMut.mutate(deleteTarget.name); }}
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageWrapper>
   );
 };

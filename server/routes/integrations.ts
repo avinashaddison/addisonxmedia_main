@@ -6,8 +6,12 @@ import { requireAuth, type AuthVariables } from "../middleware/auth";
 import {
   verifyCredentials,
   listTemplates as listMetaTemplates,
+  createMessageTemplate,
+  deleteMessageTemplate,
   getBusinessProfile,
   updateBusinessProfile,
+  type TemplateCategory,
+  type TemplateComponent,
   MetaApiError,
 } from "../integrations/meta";
 import { encrypt, decrypt } from "../crypto";
@@ -306,6 +310,101 @@ app.get("/integrations/meta/templates", async (c) => {
       businessAccountId: row.businessAccountId,
     });
     return c.json(out);
+  } catch (err) {
+    if (err instanceof MetaApiError) {
+      const status = err.status >= 400 && err.status < 600 ? (err.status as 400 | 401 | 403 | 404 | 500) : 500;
+      return c.json({ error: err.message }, status);
+    }
+    throw err;
+  }
+});
+
+/* Create a message template — submits to Meta for review.
+ *
+ * Customer flow:
+ *   1. Customer fills the create-template form on /app/templates
+ *   2. We POST to {waba_id}/message_templates with the body
+ *   3. Meta returns { id, status, category } — usually status=PENDING
+ *   4. Within 10-60 min Meta approves/rejects — customer refreshes to see
+ *
+ * Validation here is intentionally light — Meta is the source of truth and
+ * returns clear errors (e.g. "name must be lowercase", "body too long").
+ * We surface those errors verbatim so the customer knows what to fix.
+ */
+app.post("/integrations/meta/templates", async (c) => {
+  const [row] = await db.select().from(metaConfig)
+    .where(eq(metaConfig.userId, c.var.userId)).limit(1);
+  if (!row) return c.json({ error: "No Meta config saved" }, 404);
+  if (!row.businessAccountId) return c.json({ error: "business_account_id not set" }, 400);
+
+  type CreateBody = {
+    name?: string;
+    category?: TemplateCategory;
+    language?: string;
+    components?: TemplateComponent[];
+  };
+  const body = await c.req.json<CreateBody>().catch(() => ({} as CreateBody));
+  if (!body.name || !body.category || !body.language || !body.components?.length) {
+    return c.json({
+      error: "Required: name, category, language, components[]",
+    }, 400);
+  }
+
+  // Meta requires template names to be lowercase + snake_case (no spaces).
+  // Pre-normalize so a copy-paste of a friendly name doesn't get rejected.
+  const normalizedName = body.name.toLowerCase().trim().replace(/[^a-z0-9_]/g, "_").slice(0, 512);
+
+  try {
+    const out = await createMessageTemplate(
+      {
+        accessToken: decrypt(row.accessToken),
+        phoneNumberId: row.phoneNumberId,
+        businessAccountId: row.businessAccountId,
+      },
+      {
+        name: normalizedName,
+        category: body.category,
+        language: body.language,
+        components: body.components,
+      },
+    );
+    return c.json({ ok: true, ...out, name_submitted: normalizedName });
+  } catch (err) {
+    if (err instanceof MetaApiError) {
+      const status = err.status >= 400 && err.status < 600 ? (err.status as 400 | 401 | 403 | 404 | 500) : 500;
+      return c.json({
+        error: err.message,
+        // Common Meta error helpers — let the frontend toast suggest the fix
+        hint: err.message.toLowerCase().includes("name") ? "Template names must be lowercase, snake_case, ≤ 512 chars."
+            : err.message.toLowerCase().includes("body") ? "Body must include text + the right placeholder count {{1}}, {{2}}, etc."
+            : err.message.toLowerCase().includes("category") ? "Pick MARKETING (promotional), UTILITY (transactional), or AUTHENTICATION (OTP)."
+            : null,
+      }, status);
+    }
+    throw err;
+  }
+});
+
+/* Delete a template by name. Meta deletes ALL languages of that name. */
+app.delete("/integrations/meta/templates/:name", async (c) => {
+  const [row] = await db.select().from(metaConfig)
+    .where(eq(metaConfig.userId, c.var.userId)).limit(1);
+  if (!row) return c.json({ error: "No Meta config saved" }, 404);
+  if (!row.businessAccountId) return c.json({ error: "business_account_id not set" }, 400);
+
+  const templateName = c.req.param("name");
+  if (!templateName) return c.json({ error: "name required" }, 400);
+
+  try {
+    await deleteMessageTemplate(
+      {
+        accessToken: decrypt(row.accessToken),
+        phoneNumberId: row.phoneNumberId,
+        businessAccountId: row.businessAccountId,
+      },
+      templateName,
+    );
+    return c.json({ ok: true });
   } catch (err) {
     if (err instanceof MetaApiError) {
       const status = err.status >= 400 && err.status < 600 ? (err.status as 400 | 401 | 403 | 404 | 500) : 500;

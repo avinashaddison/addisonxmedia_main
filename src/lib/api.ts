@@ -155,6 +155,27 @@ export const api = {
   deleteMetaConfig: () => del("/integrations/meta"),
   listMetaTemplates: () => get<{ data: Array<{ name: string; language: string; status: string; category: string; components: any[] }> }>("/integrations/meta/templates"),
 
+  // Create a new WhatsApp message template — submitted to Meta for review.
+  createMetaTemplate: (body: {
+    name: string;
+    category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
+    language: string;          // e.g. "en", "en_US", "hi"
+    components: Array<
+      | { type: "HEADER"; format: "TEXT"; text: string }
+      | { type: "BODY"; text: string }
+      | { type: "FOOTER"; text: string }
+      | { type: "BUTTONS"; buttons: Array<{ type: "QUICK_REPLY" | "URL" | "PHONE_NUMBER"; text: string; url?: string; phone_number?: string }> }
+    >;
+  }) =>
+    post<{ ok: true; id: string; status: string; category: string; name_submitted: string }>(
+      "/integrations/meta/templates",
+      body,
+    ),
+
+  // Delete a template by name (Meta deletes all languages of that name)
+  deleteMetaTemplate: (name: string) =>
+    del(`/integrations/meta/templates/${encodeURIComponent(name)}`),
+
   // WhatsApp Business Profile (public info: about / address / description /
   // email / websites / vertical / profile photo URL — photo is read-only for
   // now; upload requires Meta's Resumable Upload API which isn't wired yet).

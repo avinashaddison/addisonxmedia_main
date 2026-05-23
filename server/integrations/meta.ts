@@ -215,6 +215,66 @@ export async function markMessageRead(
   });
 }
 
+// Create a message template — submits to Meta for review. Response includes
+// a template id and initial status (usually PENDING; sometimes APPROVED
+// instantly if the body is simple + matches a known pattern).
+//
+// Meta's approval typically takes 10-60 minutes for utility/marketing,
+// faster for authentication. Rejected templates can be resubmitted after
+// fixing the rejection reason (which appears on the template detail page
+// in WhatsApp Manager).
+//
+// Body placeholders use {{1}}, {{2}}, etc. Meta requires the body to start
+// with a placeholder OR a clear identifier (else they flag it as
+// "low-quality"). We don't enforce that here — the customer learns by doing.
+export type TemplateCategory = "MARKETING" | "UTILITY" | "AUTHENTICATION";
+
+export type TemplateComponent =
+  | { type: "HEADER"; format: "TEXT"; text: string }
+  | { type: "BODY"; text: string }
+  | { type: "FOOTER"; text: string }
+  | { type: "BUTTONS"; buttons: Array<{ type: "QUICK_REPLY" | "URL" | "PHONE_NUMBER"; text: string; url?: string; phone_number?: string }> };
+
+export type CreateTemplateRequest = {
+  name: string;            // lowercase, snake_case, ≤ 512 chars
+  category: TemplateCategory;
+  language: string;        // e.g. "en", "en_US", "hi"
+  components: TemplateComponent[];
+};
+
+export async function createMessageTemplate(
+  creds: MetaCredentials,
+  req: CreateTemplateRequest,
+): Promise<{ id: string; status: string; category: string }> {
+  if (!creds.businessAccountId) {
+    throw new MetaApiError("businessAccountId is required to create templates", 400);
+  }
+  return metaFetch(
+    `/${creds.businessAccountId}/message_templates`,
+    {
+      method: "POST",
+      token: creds.accessToken,
+      body: JSON.stringify(req),
+    },
+  );
+}
+
+export async function deleteMessageTemplate(
+  creds: MetaCredentials,
+  templateName: string,
+): Promise<{ success: boolean }> {
+  if (!creds.businessAccountId) {
+    throw new MetaApiError("businessAccountId is required to delete templates", 400);
+  }
+  return metaFetch(
+    `/${creds.businessAccountId}/message_templates?name=${encodeURIComponent(templateName)}`,
+    {
+      method: "DELETE",
+      token: creds.accessToken,
+    },
+  );
+}
+
 // List approved message templates from a WABA. Requires businessAccountId.
 export async function listTemplates(
   creds: MetaCredentials
