@@ -391,7 +391,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           it's always visible no matter how long the nav list grows. Sits just
           above the upgrade card as a sibling flex-shrink-0 section. */}
       {mode === "primary" && (
-        <div className="px-2.5 pt-2 pb-1 flex-shrink-0">
+        <div className="px-2.5 pt-3 pb-3 flex-shrink-0">
           <button
             onClick={() => handleNavigate("site")}
             onMouseEnter={() => prefetchPage("site")}
