@@ -20,8 +20,9 @@ import { Hono } from "hono";
 import { eq, sql, and, asc, inArray } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { db } from "../db/client";
-import { site, siteLead, contact, profile, metaConfig, product, orderTbl, orderItem, siteAnalyticsEvent, user } from "../db/schema";
+import { site, siteLead, contact, profile, metaConfig, product, orderTbl, orderItem, siteAnalyticsEvent, coupon, user } from "../db/schema";
 import { nextOrderNumber } from "./order";
+import { validateCoupon } from "./coupon";
 
 /** Derive a referrer host bucket from the Referer header. */
 const refHostBucket = (referer: string | null | undefined): string => {
@@ -330,11 +331,30 @@ ${products.length > 0 ? `
       </div>
     </form>
 
-    <!-- Footer: subtotal + CTA -->
+    <!-- Footer: coupon + totals + CTA -->
     <div id="ax-cart-footer" class="sticky bottom-0 bg-white border-t-2 p-4" style="border-color: ${esc(theme.primary)}33">
-      <div id="ax-cart-summary" class="flex items-center justify-between mb-3">
-        <span class="text-[13px] font-bold text-gray-600">Subtotal</span>
-        <span id="ax-cart-subtotal" class="text-[18px] font-black tabular-nums" style="color: ${esc(theme.primary)}">₹0</span>
+      <div id="ax-coupon-row" class="hidden mb-2.5 flex items-center gap-2">
+        <input id="ax-coupon-input" type="text" placeholder="Coupon code"
+               class="flex-1 px-3 py-2 rounded-lg border-2 focus:outline-none text-[12.5px] font-mono uppercase font-bold tracking-wider"
+               style="border-color: ${esc(theme.primary)}33" />
+        <button id="ax-coupon-apply" type="button" onclick="window.AxCart.applyCoupon()"
+                class="h-9 px-3 rounded-lg text-white text-[12px] font-extrabold transition"
+                style="background: ${esc(theme.primary)}">Apply</button>
+      </div>
+      <p id="ax-coupon-status" class="hidden text-[11px] font-bold mb-2"></p>
+      <div id="ax-cart-summary" class="space-y-1.5 mb-3">
+        <div class="flex items-center justify-between">
+          <span class="text-[12.5px] font-bold text-gray-600">Subtotal</span>
+          <span id="ax-cart-subtotal" class="text-[13px] font-extrabold tabular-nums">₹0</span>
+        </div>
+        <div id="ax-cart-discount-row" class="hidden flex items-center justify-between text-[#0E8A4B]">
+          <span class="text-[12.5px] font-bold">Discount <span id="ax-cart-coupon-code" class="text-[10px] uppercase font-extrabold ml-1 px-1.5 py-0.5 rounded bg-[#E6F7EE]"></span></span>
+          <span id="ax-cart-discount" class="text-[13px] font-extrabold tabular-nums">−₹0</span>
+        </div>
+        <div class="flex items-center justify-between pt-1 border-t" style="border-color: ${esc(theme.primary)}22">
+          <span class="text-[14px] font-extrabold">Total</span>
+          <span id="ax-cart-total-out" class="text-[18px] font-black tabular-nums" style="color: ${esc(theme.primary)}">₹0</span>
+        </div>
       </div>
       <button id="ax-checkout-btn" type="button" onclick="window.AxCart.checkoutStep()"
               class="w-full h-12 rounded-xl text-white font-extrabold text-[14px] shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50"
@@ -364,7 +384,7 @@ ${products.length > 0 ? `
   var STORAGE_KEY = 'ax-cart-${esc(slug)}';
   var fmt = function(n){ return '₹' + (Math.round(n)).toLocaleString('en-IN'); };
   var $ = function(id){ return document.getElementById(id); };
-  var state = { items: {}, step: 'cart' };  // step: 'cart' | 'checkout'
+  var state = { items: {}, step: 'cart', coupon: null };  // coupon: {code, discount_inr} | null
 
   try { state.items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch(e){}
 
@@ -372,6 +392,8 @@ ${products.length > 0 ? `
   function lines(){ return Object.values(state.items); }
   function count(){ return lines().reduce(function(s, l){ return s + l.qty; }, 0); }
   function subtotal(){ return lines().reduce(function(s, l){ return s + l.qty * l.price; }, 0); }
+  function discountAmt(){ return state.coupon ? Math.min(subtotal(), state.coupon.discount_inr || 0) : 0; }
+  function total(){ return Math.max(0, subtotal() - discountAmt()); }
 
   function renderBtn(){
     var btn = $('ax-cart-btn'); if (!btn) return;
@@ -379,7 +401,24 @@ ${products.length > 0 ? `
     if (c === 0) { btn.classList.add('hidden'); btn.classList.remove('flex'); }
     else { btn.classList.remove('hidden'); btn.classList.add('flex'); }
     $('ax-cart-count').textContent = c;
-    $('ax-cart-total').textContent = fmt(subtotal());
+    $('ax-cart-total').textContent = fmt(total());
+  }
+
+  function renderTotals(){
+    $('ax-cart-subtotal').textContent = fmt(subtotal());
+    var dRow = $('ax-cart-discount-row');
+    if (state.coupon && discountAmt() > 0) {
+      dRow.classList.remove('hidden'); dRow.classList.add('flex');
+      $('ax-cart-discount').textContent = '−' + fmt(discountAmt());
+      $('ax-cart-coupon-code').textContent = state.coupon.code;
+    } else {
+      dRow.classList.add('hidden'); dRow.classList.remove('flex');
+    }
+    $('ax-cart-total-out').textContent = fmt(total());
+    // Show coupon row when there's anything in the cart
+    var couponRow = $('ax-coupon-row');
+    if (lines().length > 0) { couponRow.classList.remove('hidden'); couponRow.classList.add('flex'); }
+    else { couponRow.classList.add('hidden'); couponRow.classList.remove('flex'); }
   }
 
   function renderItems(){
@@ -407,19 +446,18 @@ ${products.length > 0 ? `
         '</div>' +
       '</div>';
     }).join('');
-    $('ax-cart-subtotal').textContent = fmt(subtotal());
+    renderTotals();
   }
 
   function setStep(step){
     state.step = step;
-    var modal = $('ax-cart-modal');
     var title = $('ax-cart-title');
     var form = $('ax-checkout-form');
     var btn = $('ax-checkout-btn');
     if (step === 'checkout') {
       title.textContent = 'Checkout';
       form.classList.remove('hidden');
-      btn.textContent = 'Place order — ' + fmt(subtotal());
+      btn.textContent = 'Place order — ' + fmt(total());
     } else {
       title.textContent = 'Your cart';
       form.classList.add('hidden');
@@ -462,6 +500,31 @@ ${products.length > 0 ? `
       var m = $('ax-order-success'); m.classList.add('hidden'); m.classList.remove('flex');
       window.AxCart.close();
     },
+    applyCoupon: function(){
+      var inp = $('ax-coupon-input'); var st = $('ax-coupon-status'); var btn = $('ax-coupon-apply');
+      var code = (inp.value || '').trim();
+      if (!code) { st.textContent = 'Enter a code'; st.className = 'text-[11px] font-bold mb-2 text-rose-600'; st.classList.remove('hidden'); return; }
+      btn.disabled = true; btn.textContent = '…';
+      fetch('/biz/${esc(slug)}/coupon/check', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ code: code, cart_subtotal_inr: subtotal() })
+      }).then(function(r){ return r.json(); }).then(function(j){
+        btn.disabled = false; btn.textContent = 'Apply';
+        if (j.ok) {
+          state.coupon = { code: j.code, discount_inr: j.discount_inr };
+          st.textContent = 'Applied · saving ' + fmt(j.discount_inr);
+          st.className = 'text-[11px] font-bold mb-2 text-[#0E8A4B]'; st.classList.remove('hidden');
+          renderTotals(); renderBtn();
+          if (state.step === 'checkout') $('ax-checkout-btn').textContent = 'Place order — ' + fmt(total());
+        } else {
+          state.coupon = null; renderTotals(); renderBtn();
+          st.textContent = j.reason || 'Invalid coupon'; st.className = 'text-[11px] font-bold mb-2 text-rose-600'; st.classList.remove('hidden');
+        }
+      }).catch(function(){
+        btn.disabled = false; btn.textContent = 'Apply';
+        st.textContent = 'Network error'; st.className = 'text-[11px] font-bold mb-2 text-rose-600'; st.classList.remove('hidden');
+      });
+    },
   };
 
   function submitOrder(){
@@ -485,6 +548,7 @@ ${products.length > 0 ? `
       customer_address: fd.get('customer_address'),
       notes: fd.get('notes'),
       payment_method: fd.get('payment_method'),
+      coupon_code: state.coupon ? state.coupon.code : null,
       items: lines().map(function(l){ return { product_id: l.id, quantity: l.qty }; }),
     };
     fetch('/biz/' + form.dataset.slug + '/order', {
@@ -492,18 +556,18 @@ ${products.length > 0 ? `
     }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
     .then(function(res){
       if (res.ok) {
-        state.items = {}; save(); renderBtn();
+        state.items = {}; state.coupon = null; save(); renderBtn(); renderTotals();
         $('ax-order-number').textContent = 'Order #' + res.j.order_number;
         var s = $('ax-order-success'); s.classList.remove('hidden'); s.classList.add('flex');
         btn.disabled = false; btn.textContent = 'Checkout';
         form.reset();
         setStep('cart');
       } else {
-        btn.disabled = false; btn.textContent = 'Place order — ' + fmt(subtotal());
+        btn.disabled = false; btn.textContent = 'Place order — ' + fmt(total());
         status.textContent = (res.j && res.j.error) || 'Could not place order.'; status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
       }
     }).catch(function(){
-      btn.disabled = false; btn.textContent = 'Place order — ' + fmt(subtotal());
+      btn.disabled = false; btn.textContent = 'Place order — ' + fmt(total());
       status.textContent = 'Network error.'; status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
     });
   }
@@ -827,6 +891,7 @@ app.post("/biz/:slug/order", async (c) => {
     customer_address?: string;
     notes?: string;
     payment_method?: string;     // 'upi' | 'cod'
+    coupon_code?: string;
     items?: Array<{ product_id: string; quantity: number }>;
   }>().catch(() => ({} as { customer_name?: string }));
 
@@ -877,6 +942,20 @@ app.post("/biz/:slug/order", async (c) => {
   }
   if (lineRows.length === 0) return c.json({ error: "Selected products are no longer available" }, 400);
 
+  // Apply coupon if provided
+  let discountInr = 0;
+  let couponId: string | null = null;
+  let couponCode: string | null = null;
+  if (body.coupon_code && String(body.coupon_code).trim()) {
+    const result = await validateCoupon(row.userId, String(body.coupon_code), subtotal);
+    if (!result.ok) return c.json({ error: result.reason }, 400);
+    discountInr = result.discountInr;
+    couponId = result.coupon.id;
+    couponCode = result.coupon.code;
+  }
+
+  const total = Math.max(0, subtotal - discountInr);
+
   // Try a few times to allocate a unique order_number under race
   let order: typeof orderTbl.$inferSelect | undefined;
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -892,13 +971,15 @@ app.post("/biz/:slug/order", async (c) => {
         customerAddress: address,
         subtotalInr: String(subtotal),
         shippingInr: "0",
-        discountInr: "0",
-        totalInr: String(subtotal),
+        discountInr: String(discountInr),
+        totalInr: String(total),
         status: "new",
         paymentMethod,
         paymentStatus: "pending",
         source: "website",
         notes,
+        couponId,
+        couponCode,
       }).returning();
       order = created;
       break;
@@ -910,6 +991,12 @@ app.post("/biz/:slug/order", async (c) => {
   if (!order) return c.json({ error: "Could not place order — please try again" }, 500);
 
   await db.insert(orderItem).values(lineRows.map((r) => ({ ...r, orderId: order!.id })));
+
+  // Bump coupon used_count atomically
+  if (couponId) {
+    void db.update(coupon).set({ usedCount: sql`${coupon.usedCount} + 1`, updatedAt: new Date() })
+      .where(eq(coupon.id, couponId)).catch(() => {});
+  }
 
   // Mirror to CRM contact (dedupe by phone) so the seller can WhatsApp them
   const normalizedPhone = phone.replace(/[^\d+]/g, "");
@@ -947,6 +1034,31 @@ app.post("/biz/:slug/order", async (c) => {
     order_id: order.id,
     order_number: order.orderNumber,
     total_inr: Number(order.totalInr),
+  });
+});
+
+/** POST /biz/:slug/coupon/check — public, used by the cart drawer to apply a
+ *  discount code before submitting the order. Returns the calculated discount
+ *  amount; cart UI then re-computes the total on screen. Doesn't increment
+ *  used_count — only successful checkout does that. */
+app.post("/biz/:slug/coupon/check", async (c) => {
+  const slug = (c.req.param("slug") || "").toLowerCase().trim();
+  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
+  if (!row) return c.json({ ok: false, reason: "Site not found" }, 404);
+  if (row.status !== "published") return c.json({ ok: false, reason: "Site not published" }, 400);
+
+  const body = await c.req.json<{ code?: string; cart_subtotal_inr?: number }>().catch(() => ({}));
+  const cartSubtotal = Math.max(0, Number(body.cart_subtotal_inr) || 0);
+  const code = String(body.code || "");
+
+  const result = await validateCoupon(row.userId, code, cartSubtotal);
+  if (!result.ok) return c.json({ ok: false, reason: result.reason });
+  return c.json({
+    ok: true,
+    discount_inr: result.discountInr,
+    code: result.coupon.code,
+    type: result.coupon.discountType,
+    value: Number(result.coupon.discountValue),
   });
 });
 

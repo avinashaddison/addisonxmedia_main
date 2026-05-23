@@ -640,6 +640,8 @@ export const orderTbl = pgTable("customer_order", {
   source: text("source").notNull().default("website"),      // website | whatsapp | manual
   notes: text("notes"),
   contactId: uuid("contact_id"),
+  couponId: uuid("coupon_id"),
+  couponCode: text("coupon_code"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -683,3 +685,24 @@ export const siteAnalyticsEvent = pgTable("site_analytics_event", {
 }));
 
 export type SiteAnalyticsEvent = typeof siteAnalyticsEvent.$inferSelect;
+
+export const coupon = pgTable("coupon", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  code: text("code").notNull(),
+  discountType: text("discount_type").notNull().default("percent"),   // 'percent' | 'flat'
+  discountValue: numeric("discount_value", { precision: 10, scale: 2 }).notNull().default("0"),
+  minCartInr: numeric("min_cart_inr", { precision: 10, scale: 2 }).notNull().default("0"),
+  maxUses: integer("max_uses"),
+  usedCount: integer("used_count").notNull().default(0),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerCodeUnq: uniqueIndex("coupon_owner_code_idx").on(t.ownerId, t.code),
+  ownerIdx: index("coupon_owner_idx").on(t.ownerId, t.createdAt),
+}));
+
+export type Coupon = typeof coupon.$inferSelect;

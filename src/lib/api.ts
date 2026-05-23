@@ -535,6 +535,30 @@ export const api = {
   // Customers (derived from orders)
   getCustomers: () => get<CustomerDto[]>("/customers"),
 
+  // Coupons
+  getCoupons: () => get<CouponDto[]>("/coupons"),
+  createCoupon: (data: {
+    code: string;
+    discount_type: "percent" | "flat";
+    discount_value: number;
+    min_cart_inr?: number;
+    max_uses?: number | null;
+    starts_at?: string | null;
+    expires_at?: string | null;
+    active?: boolean;
+  }) => post<CouponDto>("/coupons", data),
+  updateCoupon: (id: string, data: Partial<{
+    code: string;
+    discount_type: "percent" | "flat";
+    discount_value: number;
+    min_cart_inr: number;
+    max_uses: number | null;
+    starts_at: string | null;
+    expires_at: string | null;
+    active: boolean;
+  }>) => patch<CouponDto>(`/coupons/${id}`, data),
+  deleteCoupon: (id: string) => del(`/coupons/${id}`),
+
   // Site analytics
   getSiteAnalyticsSummary: (days = 30) =>
     get<{ days: number; current: AnalyticsCounters; previous: AnalyticsCounters }>(`/site/analytics/summary?days=${days}`),
@@ -588,6 +612,22 @@ export type OrderDto = {
   source: "website" | "whatsapp" | "manual";
   notes: string | null;
   contact_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CouponDto = {
+  id: string;
+  owner_id: string;
+  code: string;
+  discount_type: "percent" | "flat";
+  discount_value: string;
+  min_cart_inr: string;
+  max_uses: number | null;
+  used_count: number;
+  starts_at: string | null;
+  expires_at: string | null;
+  active: boolean;
   created_at: string;
   updated_at: string;
 };
