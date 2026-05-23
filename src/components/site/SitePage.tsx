@@ -229,6 +229,41 @@ const SiteOverview = () => {
           </div>
         </div>
 
+        {/* Template picker */}
+        <div className="bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] p-5">
+          <h2 className="text-[13px] font-extrabold uppercase tracking-[0.15em] text-foreground/55 mb-1">Template</h2>
+          <p className="text-[11px] text-foreground/55 mb-3">Each template tweaks the vocabulary on your public site (Browse products / Today's menu / Our services / Our packages).</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { id: "kirana",     name: "Kirana / Shop", emoji: "🏪" },
+              { id: "salon",      name: "Salon / Spa",   emoji: "💇" },
+              { id: "restaurant", name: "Restaurant",    emoji: "🍽️" },
+              { id: "services",   name: "Services",      emoji: "🛠️" },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={async () => {
+                  if (site.template === t.id) return;
+                  try {
+                    const updated = await api.updateSite({ template: t.id });
+                    qc.setQueryData(["site-me"], updated);
+                    toast.success(`Switched to ${t.name} template`);
+                  } catch (e) { toast.error((e as Error).message); }
+                }}
+                className={cn(
+                  "p-3 rounded-xl border-2 text-left transition",
+                  site.template === t.id ? "border-[#0E8A4B] bg-[#E6F7EE] shadow-[0_2px_0_0_#0A6E3C]"
+                    : "border-[#E8B968]/60 hover:border-[#E8B968]"
+                )}
+              >
+                <p className="text-[18px] mb-0.5">{t.emoji}</p>
+                <p className="text-[11.5px] font-extrabold">{t.name}</p>
+                {site.template === t.id && <p className="text-[9px] font-extrabold uppercase tracking-wider text-[#0E8A4B] mt-1">Active</p>}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Public URL + slug */}
         <div className="bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] p-5">
           <div className="flex items-center justify-between mb-3">

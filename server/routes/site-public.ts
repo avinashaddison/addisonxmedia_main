@@ -94,6 +94,7 @@ type ProductRender = {
 };
 
 type RenderInput = {
+  template: string;
   cashfree: { enabled: boolean; mode: string };
   business: {
     name: string;
@@ -118,9 +119,65 @@ type RenderInput = {
   products: ProductRender[];
 };
 
+/** Per-template copy + label overrides — shared base template, swapped vocabulary. */
+const TEMPLATE_VOCAB: Record<string, {
+  productsHeading: string;
+  productsHint: string;
+  orderButtonText: string;
+  heroPill: string;
+  heroPillEmoji: string;
+  aboutHeading: string;
+  aboutHeadingSub: string;
+  aboutBigHeading: string;
+}> = {
+  kirana: {
+    productsHeading: "Browse products",
+    productsHint: "Add to cart and checkout in 30 seconds — pay via UPI or cash on delivery.",
+    orderButtonText: "Order on WhatsApp",
+    heroPill: "Open for orders",
+    heroPillEmoji: "⚡",
+    aboutHeading: "About us",
+    aboutHeadingSub: "Quality you can trust",
+    aboutBigHeading: "Quality you can trust",
+  },
+  salon: {
+    productsHeading: "Our services",
+    productsHint: "Book your appointment instantly on WhatsApp — pay at the salon or online.",
+    orderButtonText: "Book on WhatsApp",
+    heroPill: "Now booking",
+    heroPillEmoji: "💇",
+    aboutHeading: "About us",
+    aboutHeadingSub: "Hair · skin · nails — done right",
+    aboutBigHeading: "Pamper yourself",
+  },
+  restaurant: {
+    productsHeading: "Today's menu",
+    productsHint: "Add dishes to cart for home delivery, or message us to reserve a table.",
+    orderButtonText: "Order on WhatsApp",
+    heroPill: "Kitchen open",
+    heroPillEmoji: "🍽️",
+    aboutHeading: "About",
+    aboutHeadingSub: "Fresh ingredients, recipes from home",
+    aboutBigHeading: "Made with love",
+  },
+  services: {
+    productsHeading: "Our packages",
+    productsHint: "Browse what we offer — message us on WhatsApp for a custom quote.",
+    orderButtonText: "Enquire on WhatsApp",
+    heroPill: "Accepting bookings",
+    heroPillEmoji: "🛠️",
+    aboutHeading: "About us",
+    aboutHeadingSub: "Years of trusted service",
+    aboutBigHeading: "Why customers pick us",
+  },
+};
+
+const vocabFor = (template: string) => TEMPLATE_VOCAB[template] || TEMPLATE_VOCAB.kirana;
+
 /** The Kirana / Local Shop template — single page, mobile-first, fast. */
 const renderKirana = (input: RenderInput): string => {
-  const { business, theme, seo, slug, products, cashfree } = input;
+  const { business, theme, seo, slug, products, cashfree, template } = input;
+  const vocab = vocabFor(template);
   const waOrderLink = business.whatsapp || "#";
   const upiPayLink = business.upiVpa
     ? `upi://pay?pa=${encodeURIComponent(business.upiVpa)}&pn=${encodeURIComponent(business.upiName || business.name)}&cu=INR`
@@ -185,7 +242,7 @@ ${JSON.stringify({
     <a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer"
        class="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-white text-[12px] font-extrabold transition hover:opacity-90"
        style="background: ${esc(theme.primary)}">
-      💬 Order on WhatsApp
+      💬 ${esc(vocab.orderButtonText)}
     </a>` : ""}
   </div>
 </header>
@@ -195,7 +252,7 @@ ${JSON.stringify({
   <div class="max-w-5xl mx-auto text-center">
     <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider mb-5"
          style="background: ${esc(theme.accent)}22; color: ${esc(theme.primary)}">
-      ⚡ Open for orders
+      ${esc(vocab.heroPillEmoji)} ${esc(vocab.heroPill)}
     </div>
     <h2 class="text-[34px] sm:text-[48px] font-black leading-tight mb-4">
       ${esc(business.name)}
@@ -208,7 +265,7 @@ ${JSON.stringify({
       <a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer"
          class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-white font-extrabold text-[14px] shadow-lg transition hover:-translate-y-0.5"
          style="background: ${esc(theme.primary)}">
-        💬 Order on WhatsApp
+        💬 ${esc(vocab.orderButtonText)}
       </a>` : ""}
       ${upiPayLink ? `
       <a href="${esc(upiPayLink)}"
@@ -224,8 +281,8 @@ ${JSON.stringify({
 <section class="py-12 sm:py-16 px-4 bg-gray-50">
   <div class="max-w-3xl mx-auto">
     <div class="text-center mb-8">
-      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(theme.primary)}">About us</p>
-      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">Quality you can trust</h3>
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(theme.primary)}">${esc(vocab.aboutHeading)}</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">${esc(vocab.aboutBigHeading)}</h3>
     </div>
     <p class="text-[15px] sm:text-[16px] text-gray-700 leading-relaxed text-center">
       ${esc(business.about)}
@@ -239,8 +296,8 @@ ${products.length > 0 ? `
   <div class="max-w-5xl mx-auto">
     <div class="text-center mb-8">
       <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(theme.primary)}">Our offerings</p>
-      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">Browse products</h3>
-      <p class="text-[13px] text-gray-600 mt-2">Add to cart and checkout in 30 seconds — pay via UPI or cash on delivery.</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">${esc(vocab.productsHeading)}</h3>
+      <p class="text-[13px] text-gray-600 mt-2">${esc(vocab.productsHint)}</p>
     </div>
     <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
       ${products.map((p) => {
@@ -929,6 +986,7 @@ app.get("/biz/:slug", async (c) => {
       inStock: p.stock == null || Number(p.stock) > 0,
     })),
     cashfree: { enabled: cashfreeIsConfigured(), mode: cashfreeMode() },
+    template: row.template,
   };
 
   // Bump view counter + log analytics event (fire-and-forget).
@@ -947,13 +1005,9 @@ app.get("/biz/:slug", async (c) => {
     userAgent: c.req.header("user-agent") || null,
   });
 
-  let html: string;
-  switch (row.template) {
-    case "kirana":
-    default:
-      html = renderKirana(input);
-      break;
-  }
+  // All four templates currently share the base renderer with per-template
+  // vocabulary swaps (see TEMPLATE_VOCAB). Layouts diverge in Phase 8 polish.
+  const html = renderKirana(input);
 
   c.header("Cache-Control", "public, max-age=60, s-maxage=60");
   return c.html(html);
