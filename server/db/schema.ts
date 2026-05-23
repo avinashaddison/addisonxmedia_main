@@ -727,3 +727,23 @@ export const shippingZone = pgTable("shipping_zone", {
 }));
 
 export type ShippingZone = typeof shippingZone.$inferSelect;
+
+export const sitePage = pgTable("site_page", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  path: text("path").notNull(),                                       // '/' | '/about' | '/contact'
+  title: text("title"),
+  sections: jsonb("sections").notNull().default(sql`'[]'::jsonb`),     // [{ type, props }, ...]
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  seoTitle: text("seo_title"),
+  seoDescription: text("seo_description"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  unq: uniqueIndex("site_page_unq").on(t.siteId, t.path),
+  ownerIdx: index("site_page_owner_idx").on(t.ownerId),
+}));
+
+export type SitePage = typeof sitePage.$inferSelect;

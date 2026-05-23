@@ -559,6 +559,17 @@ export const api = {
   }>) => patch<CouponDto>(`/coupons/${id}`, data),
   deleteCoupon: (id: string) => del(`/coupons/${id}`),
 
+  // Pages
+  getSitePages: () => get<SitePageDto[]>("/site/pages"),
+  createSitePage: (data: { path: string; title?: string; sections?: SiteSection[] }) =>
+    post<SitePageDto>("/site/pages", data),
+  updateSitePage: (id: string, data: Partial<{
+    path: string; title: string | null; sections: SiteSection[];
+    sort_order: number; active: boolean;
+    seo_title: string | null; seo_description: string | null;
+  }>) => patch<SitePageDto>(`/site/pages/${id}`, data),
+  deleteSitePage: (id: string) => del(`/site/pages/${id}`),
+
   // Shipping zones
   getShippingZones: () => get<ShippingZoneDto[]>("/shipping-zones"),
   createShippingZone: (data: {
@@ -633,6 +644,27 @@ export type OrderDto = {
   source: "website" | "whatsapp" | "manual";
   notes: string | null;
   contact_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SiteSection = {
+  id: string;
+  type: "hero" | "about" | "products" | "gallery" | "testimonials" | "faq" | "hours" | "leadform" | "contact";
+  props: Record<string, unknown>;
+};
+
+export type SitePageDto = {
+  id: string;
+  site_id: string;
+  owner_id: string;
+  path: string;
+  title: string | null;
+  sections: SiteSection[];
+  sort_order: number;
+  active: boolean;
+  seo_title: string | null;
+  seo_description: string | null;
   created_at: string;
   updated_at: string;
 };
