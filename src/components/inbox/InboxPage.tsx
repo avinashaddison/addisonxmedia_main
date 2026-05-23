@@ -113,8 +113,29 @@ export const InboxPage = () => {
   const showLeadDrawer = viewport === "tablet" && leadOpenTablet;
   const showLeadFullscreen = viewport === "mobile" && isLeadView;
 
+  // Visible debug strip — kept until the user confirms the layout works. Lets
+  // them take a screenshot showing exactly what the JS thinks the viewport
+  // looks like + which panels should render. Tag it with the current commit
+  // so we can verify the latest build is actually loaded.
+  const BUILD_TAG = "inbox-layout-r4-debug";
+  const innerWidth = typeof window !== "undefined" ? window.innerWidth : 0;
+
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden relative">
+    <div className="flex flex-col h-[100dvh] w-full overflow-hidden relative">
+      {/* TEMPORARY DEBUG — REMOVE ONCE CONFIRMED WORKING */}
+      <div className="flex-shrink-0 bg-[#3D1A00] text-[#FFD23F] text-[10px] font-mono px-3 py-1 flex items-center gap-3 flex-wrap border-b-2 border-[#FFD23F]/40">
+        <span className="font-extrabold uppercase tracking-wider">debug</span>
+        <span>build: <b className="text-white">{BUILD_TAG}</b></span>
+        <span>vw: <b className="text-white">{innerWidth}px</b></span>
+        <span>tier: <b className="text-white">{viewport}</b></span>
+        <span>view: <b className="text-white">{mobileView}</b></span>
+        <span>showList: <b className={showList ? "text-[#0E8A4B]" : "text-[#D4308E]"}>{String(showList)}</b></span>
+        <span>showChat: <b className={showChat ? "text-[#0E8A4B]" : "text-[#D4308E]"}>{String(showChat)}</b></span>
+        <span>showLead: <b className={showLeadInline ? "text-[#0E8A4B]" : "text-[#D4308E]"}>{String(showLeadInline)}</b></span>
+        <span>active: <b className="text-white">{active ? "yes" : "no"}</b></span>
+      </div>
+
+      <div className="flex flex-1 min-h-0 overflow-hidden">
       {/* ── ConversationList ── */}
       {showList && (
         <div
@@ -196,6 +217,7 @@ export const InboxPage = () => {
           />
         </div>
       )}
+      </div>
     </div>
   );
 };
