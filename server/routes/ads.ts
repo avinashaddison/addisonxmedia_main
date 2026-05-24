@@ -218,6 +218,10 @@ const oauthConfig = () => ({
   appId: process.env.META_APP_ID,
   appSecret: process.env.META_APP_SECRET,
   redirectUri: process.env.META_OAUTH_REDIRECT_URI,
+  // Required when the Meta App uses Facebook Login for Business (which is
+  // mandatory for ads_management, ads_read, business_management scopes).
+  // Find this at: App Dashboard → Facebook Login for Business → Configurations
+  configId: process.env.META_LOGIN_CONFIG_ID,
 });
 
 app.get("/ads/oauth/start", async (c) => {
@@ -252,6 +256,7 @@ app.get("/ads/oauth/start", async (c) => {
     appId: cfg.appId,
     redirectUri: cfg.redirectUri,
     state,
+    configId: cfg.configId,
   }), 302);
 });
 

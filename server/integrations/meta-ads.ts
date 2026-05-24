@@ -55,23 +55,40 @@ const actId = (id: string) => (id.startsWith("act_") ? id : `act_${id}`);
  * Meta sends back a `code` to our callback, which we exchange for an access
  * token below.
  *
- * Scopes:
- *   - ads_management   — create/edit/pause campaigns (requires App Review)
- *   - ads_read         — read insights, account info     (requires App Review)
- *   - business_management — discover assets the user has access to
+ * Meta deprecated the classic `scope=...` flow for business permissions in
+ * favor of "Facebook Login for Business" Configurations. With a configId
+ * (the Configuration ID from App Dashboard → Facebook Login for Business →
+ * Configurations), Meta knows which permissions + assets to request without
+ * us specifying scopes here.
+ *
+ * If configId is omitted we fall back to legacy scope-based OAuth — only
+ * useful for personal/non-business apps or local testing.
  *
  * Until App Review is approved, only users listed as Admins/Developers/Testers
  * on your Meta App can complete the flow. Add pilot customers as Testers in
  * App Dashboard → Roles to onboard them before review lands.
  */
-export function buildOAuthUrl(opts: { appId: string; redirectUri: string; state: string }): string {
+export function buildOAuthUrl(opts: {
+  appId: string;
+  redirectUri: string;
+  state: string;
+  configId?: string;
+}): string {
   const params = new URLSearchParams({
     client_id: opts.appId,
     redirect_uri: opts.redirectUri,
     state: opts.state,
     response_type: "code",
-    scope: "ads_management,ads_read,business_management",
   });
+  if (opts.configId) {
+    // Facebook Login for Business flow (required for ads_management, ads_read,
+    // business_management). Permissions are configured in the App Dashboard's
+    // Login Configuration, not in this URL.
+    params.set("config_id", opts.configId);
+  } else {
+    // Legacy scope flow — non-business apps only.
+    params.set("scope", "ads_management,ads_read,business_management");
+  }
   return `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${params.toString()}`;
 }
 
