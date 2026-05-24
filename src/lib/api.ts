@@ -361,7 +361,16 @@ export const api = {
       reach: number; whatsapp_chats: number; purchases: number; demo: boolean; error?: string;
     }>(`/ads/insights${range ? `?range=${range}` : ""}`),
   listAdAudiences: () => get<{
-    audiences: Array<{ id: string; name: string; type: "custom" | "lookalike" | "saved"; size: number; source: string; status: "ready" | "building" }>;
+    audiences: Array<{
+      id: string;
+      name: string;
+      type: "custom" | "lookalike" | "saved";
+      size: number;
+      source: string;
+      status: "ready" | "building" | "too_small" | "updating" | "error";
+      status_code?: number | null;
+      status_description?: string | null;
+    }>;
     demo: boolean;
     error?: string;
   }>("/ads/audiences"),

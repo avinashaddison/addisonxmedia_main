@@ -1309,17 +1309,36 @@ app.get("/ads/audiences", async (c) => {
 
   try {
     const data = await listCustomAudiences(creds);
-    const rows = data.map((a) => ({
-      id: a.id,
-      name: a.name,
-      type:
-        a.subtype === "LOOKALIKE" ? "lookalike" :
-        a.subtype === "CUSTOM" || a.subtype === "WEBSITE" || a.subtype === "ENGAGEMENT" ? "custom" :
-        "saved",
-      size: a.approximate_count_upper_bound ?? a.approximate_count_lower_bound ?? 0,
-      source: a.subtype.toLowerCase(),
-      status: a.delivery_status?.code === 200 ? "ready" : "building",
-    }));
+    const rows = data.map((a) => {
+      // Meta delivery_status.code reference (their docs are sparse — these are
+      // the buckets that matter for SMB UX):
+      //   200       → ready
+      //   300, 414  → "too small" (under Meta's ~1000 matched-user minimum)
+      //   432       → still being updated/matched (most common transient state)
+      //   anything else → unknown/error (we surface as "building" for now)
+      const code = a.delivery_status?.code;
+      const description = a.delivery_status?.description ?? "";
+      let status: "ready" | "building" | "too_small" | "updating" | "error";
+      if (code === 200) status = "ready";
+      else if (code === 300 || code === 414) status = "too_small";
+      else if (code === 432) status = "updating";
+      else if (code && code >= 500) status = "error";
+      else status = "building";
+
+      return {
+        id: a.id,
+        name: a.name,
+        type:
+          a.subtype === "LOOKALIKE" ? "lookalike" :
+          a.subtype === "CUSTOM" || a.subtype === "WEBSITE" || a.subtype === "ENGAGEMENT" ? "custom" :
+          "saved",
+        size: a.approximate_count_upper_bound ?? a.approximate_count_lower_bound ?? 0,
+        source: a.subtype.toLowerCase(),
+        status,
+        status_code: code ?? null,
+        status_description: description || null,
+      };
+    });
     return c.json({ audiences: rows, demo: false });
   } catch (e) {
     const err = onApiError(e);

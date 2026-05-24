@@ -47,7 +47,17 @@ type AdCampaign = {
   audience: string;
 };
 
-type Audience = { id: string; name: string; type: "custom" | "lookalike" | "saved"; size: number; source: string; status: "ready" | "building" };
+type AudienceStatus = "ready" | "building" | "too_small" | "updating" | "error";
+type Audience = {
+  id: string;
+  name: string;
+  type: "custom" | "lookalike" | "saved";
+  size: number;
+  source: string;
+  status: AudienceStatus;
+  status_code?: number | null;
+  status_description?: string | null;
+};
 
 const fmtINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
@@ -480,13 +490,7 @@ export const AdsMarketingPage = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-[14px] font-black tabular-nums">{compactNum(a.size)}</p>
-                      {a.status === "ready" ? (
-                        <p className="text-[10px] text-[#0E8A4B] font-extrabold uppercase tracking-wider">Ready</p>
-                      ) : (
-                        <p className="text-[10px] text-[#B8651A] font-extrabold uppercase tracking-wider flex items-center gap-1">
-                          <Loader2Sm /> Building
-                        </p>
-                      )}
+                      <AudienceStatusBadge status={a.status} description={a.status_description} />
                     </div>
                     <button className="w-8 h-8 rounded-lg hover:bg-[#FFE8C7] flex items-center justify-center text-foreground/60 hover:text-foreground transition">
                       <MoreHorizontal className="w-4 h-4" />
@@ -584,6 +588,51 @@ const Loader2Sm = () => (
     <path d="M21 12a9 9 0 1 1-6.219-8.56" strokeLinecap="round" />
   </svg>
 );
+
+/**
+ * Renders the right-hand status pill for a custom audience. Each Meta
+ * delivery_status code maps to a human-readable explanation so users
+ * understand *why* an audience isn't ready instead of staring at a
+ * generic "BUILDING" forever.
+ */
+const AudienceStatusBadge = ({ status, description }: { status: AudienceStatus; description?: string | null }) => {
+  const config: Record<AudienceStatus, { label: string; cls: string; tooltip: string; spin: boolean }> = {
+    ready: {
+      label: "Ready", spin: false,
+      cls: "text-[#0E8A4B]",
+      tooltip: description || "Audience is ready to use in campaigns.",
+    },
+    updating: {
+      label: "Matching", spin: true,
+      cls: "text-[#B8651A]",
+      tooltip: description || "Meta is still matching your uploaded phones against Facebook users. Takes 30 min – 24 hr after upload.",
+    },
+    building: {
+      label: "Building", spin: true,
+      cls: "text-[#B8651A]",
+      tooltip: description || "Meta is preparing this audience. Refresh in a few hours.",
+    },
+    too_small: {
+      label: "Too small", spin: false,
+      cls: "text-[#D4308E]",
+      tooltip: description || "Meta needs ~1,000 matched users minimum. Either too few of your contacts have Facebook accounts, or wait — matching may not be complete yet.",
+    },
+    error: {
+      label: "Error", spin: false,
+      cls: "text-[#D4308E]",
+      tooltip: description || "Meta returned an error. Check the audience in Business Manager.",
+    },
+  };
+  const cfg = config[status];
+  return (
+    <p
+      className={cn("text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1 justify-end cursor-help", cfg.cls)}
+      title={cfg.tooltip}
+    >
+      {cfg.spin && <Loader2Sm />} {cfg.label}
+    </p>
+  );
+};
 
 /* ============================================================
    AdsHero — unified hero band that replaces the old demo-mode banner
