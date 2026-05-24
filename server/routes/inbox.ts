@@ -13,6 +13,76 @@ import { decrypt } from "../crypto";
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
 
+/* ─────────── Product-delivery body helpers ───────────
+ *
+ * The frontend encodes digital-product deliveries as:
+ *   [[product_delivery]]{"v":1,"kind":"product_delivery",...}
+ * so the seller-side UI can render a pretty card. But sending that raw JSON
+ * over WhatsApp shows the customer literal `[[product_delivery]]{...}` —
+ * useless and exposes the password awkwardly.
+ *
+ * Solution: when persisting outbound, keep the encoded form in our DB (so
+ * the operator's card renders). When sending to Meta, swap in a clean
+ * WhatsApp-formatted plain-text version built from the same payload.
+ */
+const PRODUCT_DELIVERY_PREFIX = "[[product_delivery]]";
+
+type ProductDeliveryPayload = {
+  v?: number;
+  kind?: string;
+  productName?: string;
+  deliveryType?: "credentials" | "download" | "course" | "license";
+  email?: string;
+  password?: string;
+  url?: string;
+  licenseKey?: string;
+  message?: string;
+  expiresAt?: string;
+};
+
+const parseProductDelivery = (body: string): ProductDeliveryPayload | null => {
+  if (!body || !body.startsWith(PRODUCT_DELIVERY_PREFIX)) return null;
+  try {
+    const json = body.slice(PRODUCT_DELIVERY_PREFIX.length);
+    const parsed = JSON.parse(json);
+    if (parsed?.kind !== "product_delivery") return null;
+    return parsed as ProductDeliveryPayload;
+  } catch {
+    return null;
+  }
+};
+
+/** Render a ProductDeliveryPayload as a clean WhatsApp message body.
+ *  Uses WhatsApp's *bold* and _italic_ formatting markers + line breaks. */
+const renderProductDeliveryForWhatsApp = (p: ProductDeliveryPayload): string => {
+  const lines: string[] = [];
+  lines.push(`🎉 *${p.productName ?? "Your product"}*`);
+  lines.push("");
+  if (p.message) {
+    lines.push(p.message);
+    lines.push("");
+  }
+  lines.push("*Your access details:*");
+  if (p.email) lines.push(`📧 Email: ${p.email}`);
+  if (p.password) lines.push(`🔑 Password: ${p.password}`);
+  if (p.url) lines.push(`🔗 Link: ${p.url}`);
+  if (p.licenseKey) lines.push(`🔐 License Key: ${p.licenseKey}`);
+  if (p.expiresAt) {
+    const d = new Date(p.expiresAt);
+    if (!isNaN(d.getTime())) {
+      lines.push("");
+      lines.push(`_Expires: ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}_`);
+    }
+  }
+  if (p.deliveryType === "credentials" && p.password) {
+    lines.push("");
+    lines.push("_Please change your password after first login._");
+  }
+  lines.push("");
+  lines.push("Need help? Just reply to this message 🙏");
+  return lines.join("\n");
+};
+
 // ============================================================
 // CONVERSATIONS — list with contact joined
 // ============================================================
@@ -338,8 +408,16 @@ app.post("/conversations/:id/messages", async (c) => {
         // document; audio doesn't support captions per Meta spec.
         const mediaType: string | null = body.media_type ?? null;
         const mediaUrl: string | null = body.media_url ?? null;
-        const caption: string = body.body ? String(body.body) : "";
         const filename: string | null = body.media_filename ?? null;
+        // If the body is an encoded product_delivery card, swap in a clean
+        // WhatsApp-formatted text version before sending. We still persist
+        // the original encoded JSON in our DB so the seller's UI renders
+        // the pretty card; only what gets sent to Meta changes.
+        const rawBody: string = body.body ? String(body.body) : "";
+        const productPayload = parseProductDelivery(rawBody);
+        const caption: string = productPayload
+          ? renderProductDeliveryForWhatsApp(productPayload)
+          : rawBody;
 
         let sent: { messages: Array<{ id: string }> };
         if (mediaUrl && mediaType === "image") {
