@@ -11,7 +11,7 @@
  */
 
 import { useState } from "react";
-import { Copy, Check, IndianRupee, Smartphone, QrCode, CheckCircle2, Loader2 } from "lucide-react";
+import { Copy, Check, IndianRupee, Smartphone, QrCode, CheckCircle2, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -105,6 +105,10 @@ export const PaymentRequestCard = ({
   markPaidPending?: boolean;
 }) => {
   const [copied, setCopied] = useState(false);
+  // Inline confirmation — first tap on "Payment received" flips this on,
+  // showing Yes/No buttons in the same slot. Much less jarring than a
+  // browser confirm() dialog.
+  const [confirming, setConfirming] = useState(false);
 
   const copyVpa = async () => {
     try {
@@ -223,22 +227,52 @@ export const PaymentRequestCard = ({
           </span>
         </div>
       ) : outbound && onMarkPaid ? (
-        /* Seller view — primary action is "Mark Paid" (revenue tracking),
-            secondary is "Open UPI app" for the rare case the seller wants
-            to test the link themselves. */
+        /* Seller view — primary action is "Payment received" with an inline
+            Yes/No confirmation row that slides in on first click. Secondary
+            "Test UPI link" stays below in both states. */
         <div className="border-t-2 border-[#E8B968] divide-y divide-[#E8B968]/40">
-          <button
-            onClick={onMarkPaid}
-            disabled={markPaidPending}
-            className="w-full text-center bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white font-black text-[12px] py-2.5 hover:from-[#10A35A] hover:to-[#0E8A4B] transition disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <span className="inline-flex items-center gap-1.5">
-              {markPaidPending
-                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                : <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2.5} />}
-              {markPaidPending ? "Marking…" : "Payment received"}
-            </span>
-          </button>
+          {confirming ? (
+            <>
+              <div className="text-center bg-[#FFF8DD] text-[#7A4A00] font-extrabold text-[11px] py-1.5 px-2 leading-tight">
+                Confirm — ₹{payment.amountInr.toLocaleString("en-IN")} received?
+              </div>
+              <div className="grid grid-cols-2 divide-x-2 divide-[#E8B968]/60">
+                <button
+                  onClick={() => setConfirming(false)}
+                  disabled={markPaidPending}
+                  className="text-center bg-white text-foreground/70 font-black text-[12px] py-2.5 hover:bg-[#FFF1D6] transition disabled:opacity-60"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+                    No
+                  </span>
+                </button>
+                <button
+                  onClick={() => { onMarkPaid(); }}
+                  disabled={markPaidPending}
+                  className="text-center bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white font-black text-[12px] py-2.5 hover:from-[#10A35A] hover:to-[#0E8A4B] transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    {markPaidPending
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2.5} />}
+                    {markPaidPending ? "Marking…" : "Yes"}
+                  </span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={() => setConfirming(true)}
+              disabled={markPaidPending}
+              className="w-full text-center bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white font-black text-[12px] py-2.5 hover:from-[#10A35A] hover:to-[#0E8A4B] transition disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2.5} />
+                Payment received
+              </span>
+            </button>
+          )}
           <a
             href={upiLink}
             onClick={(e) => {

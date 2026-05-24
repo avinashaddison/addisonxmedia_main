@@ -607,8 +607,9 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
                     payment={paymentPayload}
                     outbound={isOutbound}
                     onMarkPaid={isOutbound && !paymentPayload.paid ? () => {
+                      // Card handles its own Yes/No confirmation inline,
+                      // so this fires only after the user picks "Yes".
                       if (markPaidMut.isPending) return;
-                      if (!confirm(`Mark ₹${paymentPayload.amountInr.toLocaleString("en-IN")} as received?\n\nThis will:\n• Add to your revenue\n• Send a thank-you message to the customer`)) return;
                       markPaidMut.mutate(msg.id);
                     } : undefined}
                     markPaidPending={markPaidMut.isPending && markPaidMut.variables === msg.id}
