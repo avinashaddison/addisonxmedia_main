@@ -5,7 +5,9 @@ import { ConversationWithContact, Message } from "@/lib/inbox-types";
 import { toast } from "sonner";
 
 // =====================
-// CONVERSATIONS — polls every 5s while focused, instant on tab focus, paused when hidden.
+// CONVERSATIONS — polls every 2.5s, keeps polling when tab hidden so the
+// notification ding + OS notification still fire while user is on another
+// tab. Snappy on focus return.
 // =====================
 export const useConversations = () => {
   const { user } = useAuth();
@@ -13,10 +15,10 @@ export const useConversations = () => {
     queryKey: ["conversations", user?.id],
     enabled: !!user,
     queryFn: () => api.listConversations() as Promise<ConversationWithContact[]>,
-    refetchInterval: 5_000,
-    refetchIntervalInBackground: false, // pauses when tab is hidden
+    refetchInterval: 2_500,
+    refetchIntervalInBackground: true,  // keep polling for sound + OS notifications
     refetchOnWindowFocus: true,         // instant refresh when user returns to tab
-    staleTime: 1_500,
+    staleTime: 1_000,
   });
 };
 
