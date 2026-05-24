@@ -131,11 +131,11 @@ export const WebsiteStorePage = () => {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-[24px] font-black leading-tight">Template Store</h1>
+              <h1 className="text-[24px] font-black leading-tight">Website Store</h1>
               <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-[#FFD23F] text-[#7A4A00]">Beta</span>
             </div>
             <p className="text-[14px] text-foreground/70 font-medium mt-1">
-              Pick a template that fits your business — preview live, apply in one click.
+              Pick a website that fits your business — preview live, apply in one click.
             </p>
           </div>
           {site && (

@@ -90,6 +90,11 @@ app.patch("/site/me", async (c) => {
     seo_title?: string | null;
     seo_description?: string | null;
     seo_og_image?: string | null;
+    favicon_url?: string | null;
+    ga4_id?: string | null;
+    meta_pixel_id?: string | null;
+    custom_head_html?: string | null;
+    allow_indexing?: boolean;
   }>();
 
   // Load existing so we know if it exists + can do partial updates
@@ -121,6 +126,19 @@ app.patch("/site/me", async (c) => {
   if ("seo_title" in body) updates.seoTitle = body.seo_title ?? null;
   if ("seo_description" in body) updates.seoDescription = body.seo_description ?? null;
   if ("seo_og_image" in body) updates.seoOgImage = body.seo_og_image ?? null;
+  if ("favicon_url" in body) updates.faviconUrl = body.favicon_url ?? null;
+  if ("ga4_id" in body) {
+    const v = (body.ga4_id ?? "").trim();
+    if (v && !/^G-[A-Z0-9]+$/i.test(v)) return c.json({ error: "GA4 ID looks invalid — should be like G-XXXXXXX" }, 400);
+    updates.ga4Id = v || null;
+  }
+  if ("meta_pixel_id" in body) {
+    const v = (body.meta_pixel_id ?? "").trim();
+    if (v && !/^\d{6,20}$/.test(v)) return c.json({ error: "Meta Pixel ID looks invalid — should be 6-20 digits" }, 400);
+    updates.metaPixelId = v || null;
+  }
+  if ("custom_head_html" in body) updates.customHeadHtml = body.custom_head_html ?? null;
+  if (typeof body.allow_indexing === "boolean") updates.allowIndexing = body.allow_indexing;
 
   const [updated] = await db.update(site).set(updates).where(eq(site.userId, userId)).returning();
   return c.json(updated);

@@ -569,6 +569,11 @@ export const site = pgTable("site", {
   customDomain: text("custom_domain").unique(),
   customDomainVerified: boolean("custom_domain_verified").notNull().default(false),
   viewCount: integer("view_count").notNull().default(0),
+  faviconUrl: text("favicon_url"),
+  ga4Id: text("ga4_id"),
+  metaPixelId: text("meta_pixel_id"),
+  customHeadHtml: text("custom_head_html"),
+  allowIndexing: boolean("allow_indexing").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

@@ -474,6 +474,11 @@ export const api = {
     seo_title?: string | null;
     seo_description?: string | null;
     seo_og_image?: string | null;
+    favicon_url?: string | null;
+    ga4_id?: string | null;
+    meta_pixel_id?: string | null;
+    custom_head_html?: string | null;
+    allow_indexing?: boolean;
   }) => patch<SiteDto>("/site/me", data),
   publishSite: () => post<SiteDto>("/site/me/publish"),
   unpublishSite: () => post<SiteDto>("/site/me/unpublish"),
@@ -765,6 +770,11 @@ export type SiteDto = {
   custom_domain: string | null;
   custom_domain_verified: boolean;
   view_count: number;
+  favicon_url: string | null;
+  ga4_id: string | null;
+  meta_pixel_id: string | null;
+  custom_head_html: string | null;
+  allow_indexing: boolean;
   created_at: string;
   updated_at: string;
 };

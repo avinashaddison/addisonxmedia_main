@@ -28,6 +28,7 @@ import {
   CreditCard, Truck, Ticket, ClipboardList, Search, BarChart3, Settings,
   Rocket, ExternalLink, ArrowRight, CheckCircle2, Sparkles, Wand2,
   Loader2, Copy, Eye, EyeOff, AlertCircle, Check, Edit2, Save, X,
+  ChevronDown, Code, Shield, Image as ImageIcon, BarChart, Activity,
 } from "lucide-react";
 import { api, type SiteDto } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -442,6 +443,9 @@ const SiteOverview = () => {
           </div>
         </div>
 
+        {/* Advanced options accordion */}
+        <AdvancedOptions site={site} />
+
         {/* Mobile-only publish button */}
         <div className="sm:hidden">
           {isPublished ? (
@@ -476,6 +480,148 @@ const FieldRow = ({ label, hint, children }: { label: string; hint?: string; chi
     {children}
   </div>
 );
+
+// ─── Advanced options (collapsed by default) ───────────────────────────────
+
+const AdvancedOptions = ({ site }: { site: SiteDto }) => {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState({
+    favicon_url: site.favicon_url || "",
+    ga4_id: site.ga4_id || "",
+    meta_pixel_id: site.meta_pixel_id || "",
+    custom_head_html: site.custom_head_html || "",
+    allow_indexing: site.allow_indexing,
+  });
+
+  useEffect(() => {
+    setDraft({
+      favicon_url: site.favicon_url || "",
+      ga4_id: site.ga4_id || "",
+      meta_pixel_id: site.meta_pixel_id || "",
+      custom_head_html: site.custom_head_html || "",
+      allow_indexing: site.allow_indexing,
+    });
+  }, [site.id, site.favicon_url, site.ga4_id, site.meta_pixel_id, site.custom_head_html, site.allow_indexing]);
+
+  const dirty =
+    (draft.favicon_url || null) !== (site.favicon_url || null) ||
+    (draft.ga4_id || null) !== (site.ga4_id || null) ||
+    (draft.meta_pixel_id || null) !== (site.meta_pixel_id || null) ||
+    (draft.custom_head_html || null) !== (site.custom_head_html || null) ||
+    draft.allow_indexing !== site.allow_indexing;
+
+  const saveMut = useMutation({
+    mutationFn: () => api.updateSite({
+      favicon_url: draft.favicon_url.trim() || null,
+      ga4_id: draft.ga4_id.trim() || null,
+      meta_pixel_id: draft.meta_pixel_id.trim() || null,
+      custom_head_html: draft.custom_head_html.trim() || null,
+      allow_indexing: draft.allow_indexing,
+    }),
+    onSuccess: (s) => {
+      qc.setQueryData(["site-me"], s);
+      toast.success("Advanced options saved");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Count of configured options for the header pill
+  const configuredCount =
+    (site.favicon_url ? 1 : 0) +
+    (site.ga4_id ? 1 : 0) +
+    (site.meta_pixel_id ? 1 : 0) +
+    (site.custom_head_html ? 1 : 0) +
+    (!site.allow_indexing ? 1 : 0);
+
+  return (
+    <div className="bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full px-5 py-4 flex items-center gap-3 hover:bg-[#FFF6E8]/40 transition text-left"
+      >
+        <div className="w-9 h-9 rounded-xl bg-[#0A3D24] text-white flex items-center justify-center flex-shrink-0">
+          <Code className="w-4 h-4" strokeWidth={2.5} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-[13px] font-extrabold uppercase tracking-[0.15em] text-foreground/85 flex items-center gap-2">
+            Advanced
+            {configuredCount > 0 && (
+              <span className="text-[9px] font-extrabold tracking-wider px-1.5 py-0.5 rounded bg-[#0E8A4B] text-white normal-case">
+                {configuredCount} configured
+              </span>
+            )}
+          </h2>
+          <p className="text-[11px] text-foreground/55 mt-0.5">Tracking pixels, favicon, custom scripts, search-engine indexing.</p>
+        </div>
+        <ChevronDown className={cn("w-4 h-4 text-foreground/40 transition", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="p-5 pt-1 space-y-4 border-t border-[#E8B968]/50">
+          <FieldRow label="Favicon URL" hint="32×32 px ICO or PNG · shown in browser tab">
+            <div className="flex items-center gap-2">
+              <input value={draft.favicon_url} onChange={(e) => setDraft({ ...draft, favicon_url: e.target.value })}
+                     placeholder="https://res.cloudinary.com/…/favicon.png"
+                     className="flex-1 px-3 py-2 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[12px] font-mono" />
+              {draft.favicon_url && (
+                <img src={draft.favicon_url} alt="" className="w-8 h-8 rounded border border-[#E8B968]" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              )}
+            </div>
+          </FieldRow>
+
+          <FieldRow label="Google Analytics 4 ID" hint="Find in GA admin · format G-XXXXXXX">
+            <div className="relative">
+              <BarChart className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/45" strokeWidth={2.5} />
+              <input value={draft.ga4_id} onChange={(e) => setDraft({ ...draft, ga4_id: e.target.value.toUpperCase() })}
+                     placeholder="G-XXXXXXX"
+                     className="w-full pl-8 pr-3 py-2 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[12.5px] font-mono font-bold uppercase" />
+            </div>
+          </FieldRow>
+
+          <FieldRow label="Meta (Facebook) Pixel ID" hint="Numeric · for Insta/FB ad attribution & retargeting">
+            <div className="relative">
+              <Activity className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/45" strokeWidth={2.5} />
+              <input value={draft.meta_pixel_id} onChange={(e) => setDraft({ ...draft, meta_pixel_id: e.target.value.replace(/\D+/g, "") })}
+                     placeholder="123456789012345"
+                     className="w-full pl-8 pr-3 py-2 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[12.5px] font-mono font-bold" />
+            </div>
+          </FieldRow>
+
+          <FieldRow label="Custom <head> HTML" hint="Power-user · chat widgets, additional pixels, schema, fonts">
+            <textarea value={draft.custom_head_html} onChange={(e) => setDraft({ ...draft, custom_head_html: e.target.value })}
+                      placeholder={`<!-- e.g. Tawk.to chat widget -->\n<script src="https://embed.tawk.to/…/default" async></script>`}
+                      rows={4}
+                      className="w-full px-3 py-2.5 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[11.5px] font-mono leading-relaxed resize-none" />
+            <p className="text-[10px] text-foreground/45 mt-1 ml-1">Anything you paste here is injected into <code className="font-mono">&lt;head&gt;</code> on every page of your site.</p>
+          </FieldRow>
+
+          <div className="p-3 rounded-xl bg-[#FFF6E8]/60 border border-[#E8B968]/50">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" checked={draft.allow_indexing}
+                     onChange={(e) => setDraft({ ...draft, allow_indexing: e.target.checked })}
+                     className="w-4 h-4 accent-[#0E8A4B]" />
+              <Shield className="w-4 h-4 text-[#0A3D24]" strokeWidth={2.5} />
+              <div className="flex-1">
+                <span className="text-[12.5px] font-extrabold">Allow search engines to index this site</span>
+                <p className="text-[10.5px] text-foreground/55 mt-0.5">Uncheck to add <code className="font-mono">noindex</code> meta tag — hides from Google. Useful for staging or password-protected sites.</p>
+              </div>
+            </label>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button onClick={() => setOpen(false)} className="h-10 px-3 rounded-lg text-foreground/65 text-[12px] font-extrabold hover:bg-foreground/5">Close</button>
+            <button onClick={() => saveMut.mutate()} disabled={!dirty || saveMut.isPending}
+                    className="inline-flex items-center gap-1.5 h-10 px-5 rounded-lg bg-[#0E8A4B] text-white text-[13px] font-extrabold shadow-[0_3px_0_0_#073D22] hover:bg-[#0A6E3C] disabled:opacity-50 transition">
+              {saveMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              {dirty ? "Save advanced" : "Saved"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── Placeholder pages (Phases 2–4) ────────────────────────────────────────
 

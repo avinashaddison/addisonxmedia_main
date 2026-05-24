@@ -86,7 +86,7 @@ const websiteGroups: { label: string; items: NavItem[] }[] = [
   {
     label: "Website",
     items: [
-      { icon: Store,      label: "Template Store", id: "site/store",    hint: "Browse & preview templates" },
+      { icon: Store,      label: "Website Store",  id: "site/store",    hint: "Browse & preview websites" },
       { icon: Wrench,     label: "Manage Site",    id: "site",          hint: "Overview & launch" },
       { icon: FileText,   label: "Pages",          id: "site/pages",    hint: "Add / edit pages" },
       { icon: Palette,    label: "Theme",          id: "site/theme",    hint: "Colors, fonts, logo" },

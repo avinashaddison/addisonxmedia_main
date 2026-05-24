@@ -96,6 +96,13 @@ type ProductRender = {
 type RenderInput = {
   template: string;
   cashfree: { enabled: boolean; mode: string };
+  advanced: {
+    faviconUrl: string | null;
+    ga4Id: string | null;
+    metaPixelId: string | null;
+    customHeadHtml: string | null;
+    allowIndexing: boolean;
+  };
   business: {
     name: string;
     tagline: string;
@@ -176,8 +183,26 @@ const vocabFor = (template: string) => TEMPLATE_VOCAB[template] || TEMPLATE_VOCA
 
 /** The Kirana / Local Shop template — single page, mobile-first, fast. */
 const renderKirana = (input: RenderInput): string => {
-  const { business, theme, seo, slug, products, cashfree, template } = input;
+  const { business, theme, seo, slug, products, cashfree, template, advanced } = input;
   const vocab = vocabFor(template);
+
+  // Build the advanced <head> injections — only emit tags when actually configured.
+  const faviconTag = advanced.faviconUrl
+    ? `<link rel="icon" type="image/x-icon" href="${esc(advanced.faviconUrl)}" />`
+    : "";
+  const robotsTag = !advanced.allowIndexing
+    ? `<meta name="robots" content="noindex, nofollow" />`
+    : "";
+  const ga4Snippet = advanced.ga4Id
+    ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${esc(advanced.ga4Id)}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${esc(advanced.ga4Id)}');</script>`
+    : "";
+  const metaPixelSnippet = advanced.metaPixelId
+    ? `<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${esc(advanced.metaPixelId)}');fbq('track','PageView');</script>
+<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${esc(advanced.metaPixelId)}&ev=PageView&noscript=1" /></noscript>`
+    : "";
+  // Custom HTML is admin-trusted — user-configured, scoped to their own site.
+  const customHead = advanced.customHeadHtml ? advanced.customHeadHtml : "";
   const waOrderLink = business.whatsapp || "#";
   const upiPayLink = business.upiVpa
     ? `upi://pay?pa=${encodeURIComponent(business.upiVpa)}&pn=${encodeURIComponent(business.upiName || business.name)}&cu=INR`
@@ -195,6 +220,11 @@ const renderKirana = (input: RenderInput): string => {
 ${seo.ogImage ? `<meta property="og:image" content="${esc(seo.ogImage)}" />` : ""}
 <meta property="og:type" content="website" />
 <meta name="theme-color" content="${esc(theme.primary)}" />
+${faviconTag}
+${robotsTag}
+${ga4Snippet}
+${metaPixelSnippet}
+${customHead}
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=${esc(theme.font.replace(/ /g, "+"))}:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -987,6 +1017,13 @@ app.get("/biz/:slug", async (c) => {
     })),
     cashfree: { enabled: cashfreeIsConfigured(), mode: cashfreeMode() },
     template: row.template,
+    advanced: {
+      faviconUrl: row.faviconUrl,
+      ga4Id: row.ga4Id,
+      metaPixelId: row.metaPixelId,
+      customHeadHtml: row.customHeadHtml,
+      allowIndexing: row.allowIndexing,
+    },
   };
 
   // Bump view counter + log analytics event (fire-and-forget).
@@ -1348,6 +1385,7 @@ app.get("/biz-demo/:template", (c) => {
     slug: `demo-${template}`,
     products: demo.products,
     cashfree: { enabled: false, mode: "sandbox" },
+    advanced: { faviconUrl: null, ga4Id: null, metaPixelId: null, customHeadHtml: null, allowIndexing: false },
   };
 
   c.header("Cache-Control", "public, max-age=300");
@@ -1357,7 +1395,7 @@ app.get("/biz-demo/:template", (c) => {
     "<body class=\"text-gray-900 bg-white\">",
     `<body class="text-gray-900 bg-white">
 <div style="position:sticky;top:0;z-index:100;background:linear-gradient(90deg,#0E8A4B,#FFD23F);color:white;padding:8px 12px;text-align:center;font-weight:800;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;">
-  Template demo · <a href="/app/site/store" style="color:#fff;text-decoration:underline;">← back to Template Store</a>
+  Website preview · <a href="/app/site/store" style="color:#fff;text-decoration:underline;">← back to Website Store</a>
 </div>`,
   );
   return c.html(html);
