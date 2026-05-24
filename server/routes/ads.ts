@@ -44,10 +44,15 @@ import {
   createCustomAudience,
   addUsersToAudience,
   AdsApiError,
+  buildOAuthUrl,
+  exchangeCodeForToken,
+  exchangeForLongLivedToken,
+  listMyAdAccounts,
   type AdsCredentials,
   type MetaCampaign,
   type TargetingSpec,
 } from "../integrations/meta-ads";
+import { randomBytes } from "node:crypto";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -175,6 +180,233 @@ app.delete("/ads/connection", async (c) => {
     updatedAt: new Date(),
   }).where(eq(metaConfig.userId, c.var.userId));
   return c.json({ ok: true });
+});
+
+/* ─────────── Facebook Login OAuth flow ───────────
+ *
+ * The customer-friendly alternative to pasting a System User token. Three steps:
+ *
+ *   1) GET /auth/meta/start
+ *      → generate a state nonce, set short-lived signed cookie, 302 to Facebook
+ *
+ *   2) GET /auth/meta/callback?code=...&state=...
+ *      → exchange code → short-lived → long-lived (60d) token,
+ *        store on metaConfig (with adAccountId NULL until step 3),
+ *        return tiny HTML that postMessage's the parent + window.close()
+ *
+ *   3) GET /ads/accounts/available → list the user's ad accounts
+ *      POST /ads/connection/select { adAccountId } → finalize
+ *
+ * Env required:
+ *   META_APP_ID           — your Meta App ID
+ *   META_APP_SECRET       — App Secret (server-only, never exposed)
+ *   META_OAUTH_REDIRECT_URI — must exactly match the Valid OAuth Redirect URI
+ *                             configured in your Meta App's Facebook Login settings
+ *
+ * Until App Review is approved for ads_management/ads_read, only Admins/
+ * Developers/Testers on the Meta App can complete this flow.
+ */
+
+const OAUTH_STATE_COOKIE = "addisonx_meta_oauth_state";
+
+const oauthConfig = () => ({
+  appId: process.env.META_APP_ID,
+  appSecret: process.env.META_APP_SECRET,
+  redirectUri: process.env.META_OAUTH_REDIRECT_URI,
+});
+
+app.get("/auth/meta/start", async (c) => {
+  const cfg = oauthConfig();
+  if (!cfg.appId || !cfg.appSecret || !cfg.redirectUri) {
+    return c.json({
+      error: "OAuth not configured. Server is missing META_APP_ID, META_APP_SECRET, or META_OAUTH_REDIRECT_URI.",
+    }, 503);
+  }
+
+  // Random state tied to this user. We pack userId into the state value itself
+  // (state = `${nonce}.${userId}`) and store the nonce in a signed cookie so
+  // the callback can verify (a) the request came from us and (b) which user
+  // it belongs to, without needing a DB round-trip.
+  const nonce = randomBytes(24).toString("base64url");
+  const state = `${nonce}.${c.var.userId}`;
+
+  // Cookie: HttpOnly, SameSite=Lax (so it survives the FB → our domain hop),
+  // Secure in prod, 10-minute TTL — long enough for a real user, short
+  // enough to limit CSRF window.
+  const isProd = process.env.NODE_ENV === "production";
+  c.header("Set-Cookie", [
+    `${OAUTH_STATE_COOKIE}=${nonce}`,
+    "HttpOnly",
+    "Path=/",
+    `Max-Age=600`,
+    "SameSite=Lax",
+    isProd ? "Secure" : "",
+  ].filter(Boolean).join("; "));
+
+  return c.redirect(buildOAuthUrl({
+    appId: cfg.appId,
+    redirectUri: cfg.redirectUri,
+    state,
+  }), 302);
+});
+
+// Tiny HTML responder for the popup. Posts back to opener and closes itself.
+const popupResponseHtml = (payload: { ok: boolean; error?: string }) => `<!doctype html>
+<html><body style="margin:0;padding:24px;font-family:system-ui,sans-serif;background:#FFF6E8;">
+<div style="max-width:380px;margin:0 auto;text-align:center;">
+  <div style="font-size:48px;margin-bottom:8px;">${payload.ok ? "&#x2713;" : "&#x26A0;"}</div>
+  <h2 style="margin:0 0 8px;font-weight:900;">${payload.ok ? "Connected" : "Connection failed"}</h2>
+  <p style="margin:0;color:#555;font-size:13px;">${payload.ok ? "Closing window…" : (payload.error ?? "Please try again.")}</p>
+</div>
+<script>
+  try {
+    if (window.opener) {
+      window.opener.postMessage(${JSON.stringify({ type: "addisonx-meta-oauth", ...payload })}, "*");
+    }
+  } catch (e) { /* opener closed — fine */ }
+  setTimeout(function(){ window.close(); }, ${payload.ok ? 600 : 2500});
+</script>
+</body></html>`;
+
+app.get("/auth/meta/callback", async (c) => {
+  const cfg = oauthConfig();
+  if (!cfg.appId || !cfg.appSecret || !cfg.redirectUri) {
+    return c.html(popupResponseHtml({ ok: false, error: "OAuth not configured on server" }), 503);
+  }
+
+  const code = c.req.query("code");
+  const state = c.req.query("state") ?? "";
+  const error = c.req.query("error");
+  const errorReason = c.req.query("error_reason") ?? c.req.query("error_description") ?? "";
+
+  if (error) {
+    return c.html(popupResponseHtml({ ok: false, error: `Meta returned: ${error} ${errorReason}`.trim() }));
+  }
+  if (!code || !state) {
+    return c.html(popupResponseHtml({ ok: false, error: "Missing code or state" }));
+  }
+
+  // Verify state: nonce in cookie must match the nonce embedded in state.
+  const cookieHeader = c.req.header("cookie") ?? "";
+  const stateCookieMatch = cookieHeader.match(new RegExp(`${OAUTH_STATE_COOKIE}=([^;]+)`));
+  const cookieNonce = stateCookieMatch?.[1]?.trim();
+  const [stateNonce, stateUserId] = state.split(".");
+  if (!cookieNonce || !stateNonce || cookieNonce !== stateNonce || !stateUserId) {
+    return c.html(popupResponseHtml({ ok: false, error: "Invalid state — request did not originate from this session" }));
+  }
+  // Defense in depth: requireAuth already populated c.var.userId from the
+  // session cookie. Make sure the OAuth flow is finishing for the same user
+  // it started for — protects against a session swap during the popup.
+  if (stateUserId !== c.var.userId) {
+    return c.html(popupResponseHtml({ ok: false, error: "Session changed during OAuth — please start over" }));
+  }
+
+  // Clear the state cookie (single-use).
+  c.header("Set-Cookie", `${OAUTH_STATE_COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`);
+
+  // Exchange code → short-lived → long-lived
+  try {
+    const shortLived = await exchangeCodeForToken({
+      appId: cfg.appId, appSecret: cfg.appSecret, redirectUri: cfg.redirectUri, code,
+    });
+    const longLived = await exchangeForLongLivedToken({
+      appId: cfg.appId, appSecret: cfg.appSecret, shortLivedToken: shortLived.access_token,
+    });
+
+    // Store the long-lived token immediately. adAccountId stays NULL until the
+    // user picks one via /ads/connection/select. The page can show the picker
+    // once it gets the postMessage.
+    const [existing] = await db.select().from(metaConfig).where(eq(metaConfig.userId, stateUserId)).limit(1);
+    if (existing) {
+      await db.update(metaConfig).set({
+        adAccessToken: encrypt(longLived.access_token),
+        // Wipe any previously-selected account so the user is forced through the
+        // picker — prevents weird state where the new token can't see the old
+        // account.
+        adAccountId: null,
+        adAccountName: null,
+        adAccountCurrency: null,
+        adsLastVerifiedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(metaConfig.userId, stateUserId));
+    } else {
+      await db.insert(metaConfig).values({
+        userId: stateUserId,
+        accessToken: "", // placeholder until they connect WhatsApp
+        phoneNumberId: "",
+        adAccessToken: encrypt(longLived.access_token),
+        adsLastVerifiedAt: new Date(),
+      });
+    }
+
+    return c.html(popupResponseHtml({ ok: true }));
+  } catch (e) {
+    const { error: msg } = onApiError(e);
+    return c.html(popupResponseHtml({ ok: false, error: msg }));
+  }
+});
+
+/** List ad accounts available to the OAuth-connected user. Called by the
+ *  picker UI immediately after the popup closes. */
+app.get("/ads/accounts/available", async (c) => {
+  const [row] = await db.select().from(metaConfig).where(eq(metaConfig.userId, c.var.userId)).limit(1);
+  if (!row?.adAccessToken) {
+    return c.json({ error: "Not connected. Start the OAuth flow first." }, 400);
+  }
+  try {
+    const accounts = await listMyAdAccounts(decrypt(row.adAccessToken));
+    return c.json({
+      accounts,
+      currentAdAccountId: row.adAccountId ?? null,
+    });
+  } catch (e) {
+    const { error, status } = onApiError(e);
+    return c.json({ error }, (status as 400 | 401 | 403 | 500) ?? 500);
+  }
+});
+
+/** Finalize connection: user picks which ad account to use. */
+app.post("/ads/connection/select", async (c) => {
+  const body = await c.req.json<{ adAccountId: string }>();
+  const adAccountId = body.adAccountId?.trim().replace(/^act_/, "");
+  if (!adAccountId) return c.json({ error: "adAccountId required" }, 400);
+
+  const [row] = await db.select().from(metaConfig).where(eq(metaConfig.userId, c.var.userId)).limit(1);
+  if (!row?.adAccessToken) return c.json({ error: "Not connected" }, 400);
+
+  // Verify the chosen account is actually visible with this token.
+  let info;
+  try {
+    info = await verifyAdAccount({ adAccountId, accessToken: decrypt(row.adAccessToken) });
+  } catch (e) {
+    const { error } = onApiError(e);
+    return c.json({ error: `Could not verify ad account: ${error}` }, 400);
+  }
+
+  await db.update(metaConfig).set({
+    adAccountId,
+    adAccountName: info.name,
+    adAccountCurrency: info.currency,
+    adsConnectedAt: new Date(),
+    adsLastVerifiedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(metaConfig.userId, c.var.userId));
+
+  return c.json({
+    ok: true,
+    adAccountId,
+    adAccountName: info.name,
+    adAccountCurrency: info.currency,
+  });
+});
+
+/** Whether OAuth is configured on the server (so the UI can show the
+ *  Facebook Login button vs. fall back to manual paste only). */
+app.get("/ads/oauth/status", (c) => {
+  const cfg = oauthConfig();
+  return c.json({
+    available: !!(cfg.appId && cfg.appSecret && cfg.redirectUri),
+  });
 });
 
 /* ─────────── Campaigns ─────────── */

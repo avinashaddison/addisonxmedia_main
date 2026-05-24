@@ -1027,25 +1027,70 @@ const BoostWhatsAppDialog = ({
 };
 
 /* ============================================================
-   CONNECT META ADS DIALOG (manual System User token paste)
+   CONNECT META ADS DIALOG
+   Two flows in one dialog, OAuth-first:
+     1. Facebook Login (preferred — one-click)
+     2. Manual System User token paste (fallback for advanced users +
+        anyone hitting App Review limits before approval)
 ============================================================ */
+
+type ConnectStep = "choose" | "pickAccount" | "manual";
 
 const ConnectMetaAdsDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) => {
   const qc = useQueryClient();
-  const [adAccountId, setAdAccountId] = useState("");
-  const [accessToken, setAccessToken] = useState("");
+  const [step, setStep] = useState<ConnectStep>("choose");
+  const [oauthLoading, setOauthLoading] = useState(false);
 
-  const connect = useMutation({
-    mutationFn: () => api.connectAds({ adAccountId: adAccountId.trim(), accessToken: accessToken.trim() }),
-    onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: ["ads"] });
-      toast.success(`Connected to ${r.ad_account_name} (${r.ad_account_currency})`);
-      onOpenChange(false);
-      setAdAccountId("");
-      setAccessToken("");
-    },
-    onError: (e) => toast.error(String(e)),
+  // Whether the server has Meta App credentials configured. If not, we hide
+  // the Facebook Login button and the dialog collapses to manual-only.
+  const oauthStatusQ = useQuery({
+    queryKey: ["ads", "oauth-status"],
+    queryFn: () => api.getMetaOAuthStatus(),
+    enabled: open,
+    staleTime: 5 * 60_000,
   });
+  const oauthAvailable = oauthStatusQ.data?.available ?? false;
+
+  // Listen for postMessage from the OAuth popup window
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type !== "addisonx-meta-oauth") return;
+      setOauthLoading(false);
+      if (e.data.ok) {
+        toast.success("Facebook authorized — pick your ad account");
+        setStep("pickAccount");
+        qc.invalidateQueries({ queryKey: ["ads"] });
+      } else {
+        toast.error(e.data.error ?? "OAuth failed");
+      }
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, [qc]);
+
+  // Reset when the dialog closes
+  useEffect(() => {
+    if (!open) {
+      setStep("choose");
+      setOauthLoading(false);
+    }
+  }, [open]);
+
+  const startOAuth = () => {
+    setOauthLoading(true);
+    const w = 600, h = 740;
+    const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+    const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+    const popup = window.open(
+      api.metaOAuthStartUrl(),
+      "addisonx-meta-oauth",
+      `width=${w},height=${h},left=${left},top=${top},popup=1`
+    );
+    if (!popup) {
+      setOauthLoading(false);
+      toast.error("Popup blocked. Allow popups for this site and try again.");
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1054,65 +1099,229 @@ const ConnectMetaAdsDialog = ({ open, onOpenChange }: { open: boolean; onOpenCha
           <div className="flex items-center gap-3 mb-1">
             <div className="w-11 h-11 rounded-xl bg-[#0866FF] text-white flex items-center justify-center shadow-md text-xl font-black">f</div>
             <div>
-              <DialogTitle>Connect Meta Ads</DialogTitle>
+              <DialogTitle>
+                {step === "pickAccount" ? "Pick an ad account" :
+                 step === "manual"      ? "Connect with System User token" :
+                                          "Connect Meta Ads"}
+              </DialogTitle>
               <DialogDescription className="text-foreground/70 font-medium">
-                Paste your Business Manager System User token + Ad Account ID
+                {step === "pickAccount" ? "Choose which account AddisonX should manage." :
+                 step === "manual"      ? "Advanced flow for Business Manager admins." :
+                                          "One-click via Facebook Login — no token pasting needed."}
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="bg-[#FFF1D6] border border-[#E8B968] rounded-xl p-3 my-1 text-[12px] leading-relaxed">
-          <p className="font-extrabold mb-1.5 flex items-center gap-1.5">
-            <Plug className="w-3.5 h-3.5 text-[#B8651A]" /> Yeh kahan se laaye?
-          </p>
-          <ol className="space-y-0.5 pl-4 list-decimal text-foreground/80">
-            <li>Open <span className="font-mono bg-white px-1 rounded">business.facebook.com</span> → Settings → Users → System Users</li>
-            <li>Create or pick a system user → "Generate New Token" with <strong>ads_management</strong>, <strong>ads_read</strong>, <strong>business_management</strong> scopes</li>
-            <li>Copy that token (starts with <span className="font-mono">EAA…</span>) here</li>
-            <li>Ad Account ID is the number after <span className="font-mono">act_</span> in your Ads Manager URL (e.g. <span className="font-mono">act_84720</span> → paste <span className="font-mono">84720</span>)</li>
-          </ol>
-        </div>
+        {step === "choose" && (
+          <>
+            {oauthAvailable ? (
+              <>
+                <button
+                  onClick={startOAuth}
+                  disabled={oauthLoading}
+                  className="mt-2 w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-[#0866FF] hover:bg-[#0050D6] text-white font-extrabold text-[14px] shadow-md transition disabled:opacity-60"
+                >
+                  {oauthLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="text-lg font-black">f</span>}
+                  {oauthLoading ? "Waiting for Facebook…" : "Continue with Facebook"}
+                </button>
+                <p className="text-[11px] text-foreground/60 font-medium text-center mt-2">
+                  AddisonX will request <strong>ads_management</strong>, <strong>ads_read</strong>, and <strong>business_management</strong> permissions. You can revoke any time in Meta Business Settings.
+                </p>
+              </>
+            ) : (
+              <div className="mt-2 p-3 rounded-xl bg-[#FFF1D6] border-2 border-[#E8B968]">
+                <p className="text-[12px] font-extrabold flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5 text-[#B8651A]" /> One-click Facebook Login isn't enabled on this server.</p>
+                <p className="text-[11px] text-foreground/70 font-medium mt-1">
+                  Ask your admin to set <span className="font-mono bg-white px-1 rounded">META_APP_ID</span>, <span className="font-mono bg-white px-1 rounded">META_APP_SECRET</span>, and <span className="font-mono bg-white px-1 rounded">META_OAUTH_REDIRECT_URI</span>. Until then, use the manual flow below.
+                </p>
+              </div>
+            )}
 
-        <div className="space-y-3 mt-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="ad-account-id">Ad Account ID</Label>
-            <Input
-              id="ad-account-id"
-              value={adAccountId}
-              onChange={(e) => setAdAccountId(e.target.value)}
-              placeholder="e.g. 84720"
-              className="font-mono"
-              autoFocus
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="ad-token">System User Access Token</Label>
-            <Input
-              id="ad-token"
-              type="password"
-              value={accessToken}
-              onChange={(e) => setAccessToken(e.target.value)}
-              placeholder="EAA…"
-              className="font-mono text-[12px]"
-            />
-            <p className="text-[10px] text-foreground/60 font-medium">
-              Encrypted at rest. Can be revoked any time in Business Manager.
-            </p>
-          </div>
-        </div>
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[#E8B968]/60" /></div>
+              <div className="relative flex justify-center"><span className="bg-white px-2 text-[10px] uppercase tracking-[0.18em] text-foreground/55 font-extrabold">or advanced</span></div>
+            </div>
 
-        <DialogFooter className="gap-2 sm:gap-2 mt-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button
-            disabled={connect.isPending || !adAccountId.trim() || !accessToken.trim()}
-            onClick={() => connect.mutate()}
-          >
-            {connect.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plug className="w-3.5 h-3.5" />}
-            Verify & connect
-          </Button>
-        </DialogFooter>
+            <button
+              onClick={() => setStep("manual")}
+              className="w-full text-left p-3 rounded-xl border-2 border-[#E8B968] bg-[#FFF6E8] hover:bg-[#FFE8C7] transition"
+            >
+              <p className="text-[13px] font-extrabold">Paste a System User token</p>
+              <p className="text-[11px] text-foreground/65 font-medium mt-0.5">
+                For Business Manager admins who already have a token. Bypasses Facebook Login entirely.
+              </p>
+            </button>
+
+            <DialogFooter className="mt-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {step === "pickAccount" && (
+          <PickAdAccountStep
+            onDone={() => { onOpenChange(false); qc.invalidateQueries({ queryKey: ["ads"] }); }}
+            onBack={() => setStep("choose")}
+          />
+        )}
+
+        {step === "manual" && (
+          <ManualConnectStep
+            onDone={() => { onOpenChange(false); qc.invalidateQueries({ queryKey: ["ads"] }); }}
+            onBack={() => setStep("choose")}
+          />
+        )}
       </DialogContent>
     </Dialog>
+  );
+};
+
+/* ─── Step: pick an ad account after OAuth ─── */
+const PickAdAccountStep = ({ onDone, onBack }: { onDone: () => void; onBack: () => void }) => {
+  const accountsQ = useQuery({
+    queryKey: ["ads", "accounts-available"],
+    queryFn: () => api.listAvailableAdAccounts(),
+    staleTime: 30_000,
+  });
+  const [picked, setPicked] = useState<string | null>(null);
+  const selectMut = useMutation({
+    mutationFn: (adAccountId: string) => api.selectAdAccount(adAccountId),
+    onSuccess: (r) => { toast.success(`Connected to ${r.adAccountName} (${r.adAccountCurrency})`); onDone(); },
+    onError: (e) => toast.error(String(e)),
+  });
+
+  if (accountsQ.isPending) {
+    return <div className="py-10 flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin text-foreground/40" /></div>;
+  }
+  if (accountsQ.error) {
+    return (
+      <div className="py-6 text-center">
+        <p className="text-[13px] font-extrabold text-[#D4308E]">Couldn't load your ad accounts</p>
+        <p className="text-[11px] text-foreground/60 mt-1">{String(accountsQ.error)}</p>
+        <Button variant="outline" size="sm" className="mt-3" onClick={onBack}>Back</Button>
+      </div>
+    );
+  }
+  const accounts = accountsQ.data?.accounts ?? [];
+  if (accounts.length === 0) {
+    return (
+      <div className="py-8 text-center">
+        <p className="text-[14px] font-extrabold">No ad accounts visible</p>
+        <p className="text-[12px] text-foreground/65 mt-1.5 max-w-sm mx-auto">
+          Your Facebook user doesn't have access to any ad accounts via this app yet. In Meta Business Manager, assign at least one ad account to yourself.
+        </p>
+        <Button variant="outline" size="sm" className="mt-3" onClick={onBack}>Back</Button>
+      </div>
+    );
+  }
+  return (
+    <>
+      <div className="max-h-[360px] overflow-y-auto -mx-2 px-2 space-y-2 mt-2">
+        {accounts.map((a) => {
+          const disabled = a.account_status !== 1;
+          const selected = picked === a.id;
+          return (
+            <button
+              key={a.id}
+              onClick={() => !disabled && setPicked(a.id)}
+              disabled={disabled}
+              className={cn(
+                "w-full text-left p-3 rounded-xl border-2 transition flex items-center gap-3",
+                selected ? "border-[#0866FF] bg-[#E6EEFF]" :
+                disabled ? "border-[#E8B968]/40 bg-[#FFF6E8]/50 opacity-60 cursor-not-allowed" :
+                           "border-[#E8B968] bg-white hover:bg-[#FFF6E8]"
+              )}
+            >
+              <div className={cn(
+                "w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-black",
+                selected ? "bg-[#0866FF]" : "bg-[#B8651A]"
+              )}>
+                {a.currency || "?"}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-extrabold truncate">{a.name}</p>
+                <p className="text-[11px] text-foreground/60 font-mono truncate">act_{a.account_id} · {a.business?.name ?? "personal"}</p>
+              </div>
+              {disabled && <span className="text-[10px] font-extrabold text-[#B8651A] uppercase tracking-wider">Inactive</span>}
+              {selected && <CheckCircle2 className="w-5 h-5 text-[#0866FF] flex-shrink-0" />}
+            </button>
+          );
+        })}
+      </div>
+      <DialogFooter className="gap-2 sm:gap-2 mt-3">
+        <Button variant="outline" onClick={onBack}>Back</Button>
+        <Button
+          disabled={!picked || selectMut.isPending}
+          onClick={() => picked && selectMut.mutate(picked)}
+        >
+          {selectMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+          Use this account
+        </Button>
+      </DialogFooter>
+    </>
+  );
+};
+
+/* ─── Step: manual System User token paste (fallback) ─── */
+const ManualConnectStep = ({ onDone, onBack }: { onDone: () => void; onBack: () => void }) => {
+  const [adAccountId, setAdAccountId] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const connect = useMutation({
+    mutationFn: () => api.connectAds({ adAccountId: adAccountId.trim(), accessToken: accessToken.trim() }),
+    onSuccess: (r) => { toast.success(`Connected to ${r.ad_account_name} (${r.ad_account_currency})`); onDone(); },
+    onError: (e) => toast.error(String(e)),
+  });
+  return (
+    <>
+      <div className="bg-[#FFF1D6] border border-[#E8B968] rounded-xl p-3 my-1 text-[12px] leading-relaxed">
+        <p className="font-extrabold mb-1.5 flex items-center gap-1.5">
+          <Plug className="w-3.5 h-3.5 text-[#B8651A]" /> Where to find these
+        </p>
+        <ol className="space-y-0.5 pl-4 list-decimal text-foreground/80">
+          <li>Open <span className="font-mono bg-white px-1 rounded">business.facebook.com</span> → Settings → Users → System Users</li>
+          <li>Create or pick a system user → "Generate New Token" with <strong>ads_management</strong>, <strong>ads_read</strong>, <strong>business_management</strong> scopes</li>
+          <li>Copy that token (starts with <span className="font-mono">EAA…</span>) here</li>
+          <li>Ad Account ID is the number after <span className="font-mono">act_</span> in Ads Manager URL (e.g. <span className="font-mono">act_84720</span> → paste <span className="font-mono">84720</span>)</li>
+        </ol>
+      </div>
+      <div className="space-y-3 mt-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="ad-account-id">Ad Account ID</Label>
+          <Input
+            id="ad-account-id"
+            value={adAccountId}
+            onChange={(e) => setAdAccountId(e.target.value)}
+            placeholder="e.g. 84720"
+            className="font-mono"
+            autoFocus
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="ad-token">System User Access Token</Label>
+          <Input
+            id="ad-token"
+            type="password"
+            value={accessToken}
+            onChange={(e) => setAccessToken(e.target.value)}
+            placeholder="EAA…"
+            className="font-mono text-[12px]"
+          />
+          <p className="text-[10px] text-foreground/60 font-medium">
+            Encrypted at rest. Can be revoked any time in Business Manager.
+          </p>
+        </div>
+      </div>
+      <DialogFooter className="gap-2 sm:gap-2 mt-2">
+        <Button variant="outline" onClick={onBack}>Back</Button>
+        <Button
+          disabled={connect.isPending || !adAccountId.trim() || !accessToken.trim()}
+          onClick={() => connect.mutate()}
+        >
+          {connect.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plug className="w-3.5 h-3.5" />}
+          Verify & connect
+        </Button>
+      </DialogFooter>
+    </>
   );
 };

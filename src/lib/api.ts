@@ -216,6 +216,21 @@ export const api = {
   connectAds: (data: { adAccountId: string; accessToken: string }) =>
     post<{ ok: true; ad_account_id: string; ad_account_name: string; ad_account_currency: string }>("/ads/connection", data),
   disconnectAds: () => del("/ads/connection"),
+  /** Whether the server has Meta OAuth credentials configured. UI uses this to
+   *  show the "Connect with Facebook" button vs. manual paste only. */
+  getMetaOAuthStatus: () => get<{ available: boolean }>("/ads/oauth/status"),
+  /** Returns the absolute URL the popup should open. The server endpoint
+   *  itself sets the state cookie + 302's to Facebook. */
+  metaOAuthStartUrl: () => `/api/auth/meta/start`,
+  /** After the OAuth popup posts back success, fetch the user's ad accounts
+   *  so they can pick which one to connect. */
+  listAvailableAdAccounts: () => get<{
+    accounts: Array<{ id: string; account_id: string; name: string; currency: string; account_status: number; business?: { id: string; name: string } }>;
+    currentAdAccountId: string | null;
+  }>("/ads/accounts/available"),
+  /** Finalize the OAuth connection by selecting an ad account. */
+  selectAdAccount: (adAccountId: string) =>
+    post<{ ok: true; adAccountId: string; adAccountName: string; adAccountCurrency: string }>("/ads/connection/select", { adAccountId }),
   listAdCampaigns: () => get<{
     campaigns: Array<{
       id: string; name: string; platform: "meta" | "google"; objective: string;

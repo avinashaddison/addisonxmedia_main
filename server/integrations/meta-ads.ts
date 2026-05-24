@@ -48,6 +48,97 @@ async function adsFetch<T>(path: string, init: RequestInit & { token: string }):
 
 const actId = (id: string) => (id.startsWith("act_") ? id : `act_${id}`);
 
+/* ─────────── OAuth (Facebook Login for Business) ─────────── */
+
+/**
+ * Build the Facebook OAuth URL we redirect the user to. They authorize once,
+ * Meta sends back a `code` to our callback, which we exchange for an access
+ * token below.
+ *
+ * Scopes:
+ *   - ads_management   — create/edit/pause campaigns (requires App Review)
+ *   - ads_read         — read insights, account info     (requires App Review)
+ *   - business_management — discover assets the user has access to
+ *
+ * Until App Review is approved, only users listed as Admins/Developers/Testers
+ * on your Meta App can complete the flow. Add pilot customers as Testers in
+ * App Dashboard → Roles to onboard them before review lands.
+ */
+export function buildOAuthUrl(opts: { appId: string; redirectUri: string; state: string }): string {
+  const params = new URLSearchParams({
+    client_id: opts.appId,
+    redirect_uri: opts.redirectUri,
+    state: opts.state,
+    response_type: "code",
+    scope: "ads_management,ads_read,business_management",
+  });
+  return `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${params.toString()}`;
+}
+
+/** Exchange the auth `code` for a short-lived (1-2hr) user access token. */
+export async function exchangeCodeForToken(opts: {
+  appId: string; appSecret: string; redirectUri: string; code: string;
+}): Promise<{ access_token: string; token_type: string; expires_in?: number }> {
+  const params = new URLSearchParams({
+    client_id: opts.appId,
+    client_secret: opts.appSecret,
+    redirect_uri: opts.redirectUri,
+    code: opts.code,
+  });
+  // GET on /oauth/access_token (not authenticated — uses app secret in query).
+  const res = await fetch(`${GRAPH_BASE}/oauth/access_token?${params.toString()}`);
+  const text = await res.text();
+  let body: any = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  if (!res.ok) {
+    throw new AdsApiError(body?.error?.message ?? `OAuth exchange failed (${res.status})`, res.status, body);
+  }
+  return body;
+}
+
+/** Trade a short-lived user token for a long-lived (60-day) one. */
+export async function exchangeForLongLivedToken(opts: {
+  appId: string; appSecret: string; shortLivedToken: string;
+}): Promise<{ access_token: string; token_type: string; expires_in?: number }> {
+  const params = new URLSearchParams({
+    grant_type: "fb_exchange_token",
+    client_id: opts.appId,
+    client_secret: opts.appSecret,
+    fb_exchange_token: opts.shortLivedToken,
+  });
+  const res = await fetch(`${GRAPH_BASE}/oauth/access_token?${params.toString()}`);
+  const text = await res.text();
+  let body: any = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  if (!res.ok) {
+    throw new AdsApiError(body?.error?.message ?? `Long-lived exchange failed (${res.status})`, res.status, body);
+  }
+  return body;
+}
+
+/** List ad accounts the connected user has access to. Used for the picker. */
+export async function listMyAdAccounts(accessToken: string): Promise<Array<{
+  id: string;             // raw numeric (no act_ prefix)
+  account_id: string;     // same as id without act_
+  name: string;
+  currency: string;
+  account_status: number; // 1=active, 2=disabled, 3=unsettled, 7=pending_risk_review, 9=in_grace_period, 100=pending_closure, 101=closed, etc.
+  business?: { id: string; name: string };
+}>> {
+  const data = await adsFetch<{ data: Array<any> }>(
+    `/me/adaccounts?fields=account_id,name,currency,account_status,business&limit=100`,
+    { method: "GET", token: accessToken }
+  );
+  return (data.data ?? []).map((a) => ({
+    id: a.account_id,
+    account_id: a.account_id,
+    name: a.name,
+    currency: a.currency,
+    account_status: a.account_status,
+    business: a.business,
+  }));
+}
+
 /* ─────────── Connection / account verification ─────────── */
 
 export async function verifyAdAccount(creds: AdsCredentials): Promise<{
