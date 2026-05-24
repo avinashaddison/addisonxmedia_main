@@ -5,9 +5,8 @@
  * "Preview" (opens /biz-demo/:template in new tab) and "Apply to my site"
  * (PATCHes site.template and bumps the user to /app/site).
  *
- * Industry filter chips + search narrow the gallery. "Coming soon" templates
- * are visible but disabled — gives the store breathing room and signals
- * what's roadmapped.
+ * Industry filter chips + search narrow the gallery. Only templates that
+ * are actually wired in the renderer are listed — no "coming soon" fluff.
  */
 
 import { useMemo, useState } from "react";
@@ -28,57 +27,27 @@ type Template = {
   bestFor: string;
   primary: string;
   accent: string;
-  emoji: string;
-  available: boolean;       // false = "Coming soon"
-  pillText: string;         // hero status pill
 };
 
 const TEMPLATES: Template[] = [
-  // Live templates
   { id: "dps",        name: "Addison D-P-S",   description: "Made-for-India digital products template — instant download, UPI checkout, founder-style social proof, GST trust signals. Built for creators selling ebooks, Notion templates, courses, presets, software, art.",
     industries: ["Digital", "Education", "Services"], bestFor: "Ebook author, course creator, Notion templates, presets, software, art, music — anything you can deliver instantly on WhatsApp",
-    primary: "#0E8A4B", accent: "#FFD23F", emoji: "⚡", available: true, pillText: "Instant download" },
+    primary: "#0E8A4B", accent: "#FFD23F" },
   { id: "kirana",     name: "Local Shop",      description: "Perfect for kirana stores, general stores and supermarkets. Browseable product grid + WhatsApp ordering + UPI / COD checkout.",
     industries: ["Retail", "Grocery"], bestFor: "Kirana, general store, supermarket, mart",
-    primary: "#0E8A4B", accent: "#FFD23F", emoji: "🏪", available: true, pillText: "Open for orders" },
+    primary: "#0E8A4B", accent: "#FFD23F" },
   { id: "salon",      name: "Salon & Spa",     description: "Showcase services with photos and prices. Customers book on WhatsApp in seconds — perfect for hair salons, spas, nail studios.",
     industries: ["Beauty", "Wellness"], bestFor: "Salon, spa, nail studio, barbershop, makeup artist",
-    primary: "#D4308E", accent: "#FFD23F", emoji: "💇", available: true, pillText: "Now booking" },
+    primary: "#D4308E", accent: "#FFD23F" },
   { id: "restaurant", name: "Restaurant",      description: "Photo-led menu with cart + delivery checkout. Pincode-based shipping and UPI/COD built-in. Great for restaurants, cafés, cloud kitchens.",
     industries: ["Food"], bestFor: "Restaurant, café, cloud kitchen, bakery, dessert shop",
-    primary: "#FF6A1F", accent: "#FFD23F", emoji: "🍽️", available: true, pillText: "Kitchen open" },
+    primary: "#FF6A1F", accent: "#FFD23F" },
   { id: "services",   name: "Services Pro",    description: "List service packages with pricing. Customers enquire on WhatsApp for custom quotes. Built for repair, cleaning, consulting, professional services.",
     industries: ["Services"], bestFor: "Plumber, electrician, cleaner, consultant, photographer, tutor",
-    primary: "#3C50E0", accent: "#FFD23F", emoji: "🛠️", available: true, pillText: "Accepting bookings" },
-
-  // Coming soon — gives the store breathing room
-  { id: "boutique",   name: "Boutique",        description: "High-fashion product showcase with size variants, lookbooks and Instagram-style gallery. Perfect for clothing & accessory brands.",
-    industries: ["Retail", "Fashion"], bestFor: "Clothing boutique, jewelry, accessories, handcrafts",
-    primary: "#7A1052", accent: "#FFE8B8", emoji: "👗", available: false, pillText: "Shop now" },
-  { id: "clinic",     name: "Clinic & Health", description: "Doctor profile, services, hours, appointment booking via WhatsApp. HIPAA-style trust signals built-in.",
-    industries: ["Healthcare"], bestFor: "Clinic, dentist, physiotherapy, diagnostic lab",
-    primary: "#0A4D5C", accent: "#16C172", emoji: "🩺", available: false, pillText: "Book a visit" },
-  { id: "gym",        name: "Gym & Fitness",   description: "Membership plans, class schedule, trainer profiles. Trial-class booking and recurring memberships built-in.",
-    industries: ["Wellness", "Services"], bestFor: "Gym, yoga studio, dance class, personal trainer",
-    primary: "#1E3A8A", accent: "#FFD23F", emoji: "💪", available: false, pillText: "Train today" },
-  { id: "coaching",   name: "Coaching & Tutor", description: "Course catalog, batches, fees, demo class booking. Built for tutors, coaches, online educators, ed-tech.",
-    industries: ["Education", "Services"], bestFor: "Tutor, coaching institute, online course, ed-tech",
-    primary: "#FF6A1F", accent: "#3C50E0", emoji: "📚", available: false, pillText: "Enrol now" },
-  { id: "realestate", name: "Real Estate",     description: "Property listings with photos, location, pricing. Lead capture form for serious buyers + WhatsApp shortcuts to agents.",
-    industries: ["Services", "Retail"], bestFor: "Real estate agent, builder, property dealer",
-    primary: "#0A3D24", accent: "#16C172", emoji: "🏘️", available: false, pillText: "View properties" },
-  { id: "events",     name: "Event Planner",   description: "Portfolio of past events, packages, gallery, testimonials. Lead capture + WhatsApp enquiry built-in.",
-    industries: ["Services"], bestFor: "Wedding planner, event manager, decorator, caterer",
-    primary: "#D4308E", accent: "#FFE8B8", emoji: "🎉", available: false, pillText: "Plan an event" },
-  { id: "photographer", name: "Photographer",  description: "Portfolio-first layout — hero image, gallery, packages, booking. Perfect for wedding, fashion, product photographers.",
-    industries: ["Services"], bestFor: "Photographer, videographer, content creator",
-    primary: "#202124", accent: "#FFD23F", emoji: "📸", available: false, pillText: "Book a shoot" },
-  { id: "bakery",     name: "Bakery & Sweets", description: "Sweet photo grid, custom-order forms, festival packs. Pincode delivery + COD/UPI built-in.",
-    industries: ["Food"], bestFor: "Bakery, sweet shop, cake studio, mithai",
-    primary: "#B8651A", accent: "#FFD23F", emoji: "🧁", available: false, pillText: "Order fresh" },
+    primary: "#3C50E0", accent: "#FFD23F" },
 ];
 
-const INDUSTRIES = ["All", "Digital", "Retail", "Food", "Beauty", "Services", "Wellness", "Healthcare", "Education", "Fashion", "Grocery"] as const;
+const INDUSTRIES = ["All", "Digital", "Retail", "Food", "Beauty", "Services", "Wellness", "Education", "Grocery"] as const;
 
 export const WebsiteStorePage = () => {
   const qc = useQueryClient();
@@ -99,15 +68,10 @@ export const WebsiteStorePage = () => {
       t.bestFor.toLowerCase().includes(q) ||
       t.industries.some((i) => i.toLowerCase().includes(q))
     );
-    // Available first, then coming-soon
-    return [...xs].sort((a, b) => (a.available === b.available ? 0 : a.available ? -1 : 1));
+    return xs;
   }, [industry, search]);
 
   const apply = async (t: Template) => {
-    if (!t.available) {
-      toast.info(`${t.name} template — coming soon!`);
-      return;
-    }
     if (site?.template === t.id) {
       toast.success(`${t.name} is already your active template`);
       navigate("/app/site");
@@ -205,7 +169,7 @@ export const WebsiteStorePage = () => {
 
         {/* Footer */}
         <p className="text-[11px] text-center text-foreground/45">
-          More templates coming soon — message us on WhatsApp if you need one for a specific industry.
+          Want a template for your industry? Message us on WhatsApp — most-requested ones ship first.
         </p>
       </div>
 
@@ -220,74 +184,61 @@ const TemplateCard = ({ template, isActive, onPreview, onApply }: {
   template: Template; isActive: boolean; onPreview: () => void; onApply: () => void;
 }) => {
   return (
-    <article className={cn(
-      "bg-white rounded-2xl border-2 overflow-hidden transition group relative",
-      template.available ? "border-[#E8B968] hover:border-[#0E8A4B] hover:-translate-y-0.5 hover:shadow-xl shadow-[0_3px_0_0_#E8B968]"
-                         : "border-[#E8B968]/40 opacity-80"
-    )}>
-      {/* Thumbnail — generated visual using template colors + emoji */}
+    <article className="bg-white rounded-2xl border-2 border-[#E8B968] overflow-hidden transition hover:border-[#0E8A4B] hover:-translate-y-0.5 hover:shadow-xl shadow-[0_3px_0_0_#E8B968] group relative flex flex-col">
+      {/* Live mini-preview of the actual demo site. iframe is scaled down so
+          the full hero + first sections render in the card. pointer-events
+          disabled so card clicks/hovers still flow to our buttons; only the
+          'Preview' button opens the full-screen interactive version. */}
       <button
         onClick={onPreview}
-        className="block w-full text-left relative aspect-[4/3] overflow-hidden"
-        style={{ background: `linear-gradient(135deg, ${template.primary}, ${shade(template.primary, -20)})` }}
-        disabled={!template.available}
+        className="block w-full text-left relative aspect-[4/3] overflow-hidden bg-white"
+        aria-label={`Preview ${template.name}`}
       >
-        {/* Glow */}
-        <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full blur-2xl opacity-50" style={{ background: template.accent }} />
-        <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full blur-2xl opacity-20 bg-white" />
-        {/* Fake site preview */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-5 text-center text-white">
-          <div className="text-[40px] mb-1.5">{template.emoji}</div>
-          <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider mb-2" style={{ background: `${template.accent}30`, color: template.accent }}>
-            {template.pillText}
-          </span>
-          <p className="text-[15px] font-black leading-tight drop-shadow">{template.name}</p>
+        <div className="absolute inset-0 pointer-events-none origin-top-left"
+             style={{ width: "1200px", height: "900px", transform: "scale(0.30)" }}>
+          <iframe
+            src={`/biz-demo/${template.id}`}
+            title={`${template.name} preview`}
+            className="w-full h-full border-0 bg-white"
+            loading="lazy"
+            scrolling="no"
+          />
         </div>
-        {/* Active badge */}
+        {/* Hover veil → "Click to preview" */}
+        <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition flex items-center justify-center opacity-0 group-hover:opacity-100">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white text-[#0E8A4B] text-[12px] font-extrabold shadow-lg">
+            <ExternalLink className="w-3.5 h-3.5" /> Click to preview
+          </span>
+        </div>
         {isActive && (
-          <div className="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white text-[#0E8A4B] text-[10px] font-extrabold uppercase tracking-wider shadow-md">
+          <div className="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[#0E8A4B] text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md z-10">
             <CheckCircle2 className="w-3 h-3" strokeWidth={3} /> Active
           </div>
         )}
-        {!template.available && (
-          <div className="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-foreground/80 text-white text-[10px] font-extrabold uppercase tracking-wider">
-            Coming soon
-          </div>
-        )}
+        <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none" />
       </button>
 
       {/* Body */}
-      <div className="p-4 space-y-2.5">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-[15px] font-black leading-tight">{template.name}</h3>
-        </div>
+      <div className="p-4 space-y-2.5 flex-1 flex flex-col">
+        <h3 className="text-[15px] font-black leading-tight">{template.name}</h3>
         <div className="flex flex-wrap gap-1">
           {template.industries.map((ind) => (
             <span key={ind} className="text-[9.5px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#FFF1D6] text-[#7A4A00]">{ind}</span>
           ))}
         </div>
-        <p className="text-[12px] text-foreground/65 leading-snug line-clamp-3">{template.description}</p>
+        <p className="text-[12px] text-foreground/65 leading-snug line-clamp-3 flex-1">{template.description}</p>
 
-        {/* Actions */}
         <div className="flex items-center gap-2 pt-1">
-          <button
-            onClick={onPreview}
-            disabled={!template.available}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-white border-2 border-[#E8B968] text-[11.5px] font-extrabold hover:bg-[#FFE8C7] disabled:opacity-40 transition"
-          >
+          <button onClick={onPreview}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-white border-2 border-[#E8B968] text-[11.5px] font-extrabold hover:bg-[#FFE8C7] transition">
             <ExternalLink className="w-3 h-3" /> Preview
           </button>
-          <button
-            onClick={onApply}
-            disabled={!template.available}
-            className={cn(
-              "flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg text-white text-[11.5px] font-extrabold transition disabled:opacity-40",
-              isActive
-                ? "bg-foreground/65 cursor-default"
-                : "bg-[#0E8A4B] hover:bg-[#0A6E3C] shadow-[0_2px_0_0_#073D22] hover:-translate-y-0.5"
-            )}
-          >
-            {isActive ? "Active" : (template.available ? <>Apply <ArrowRight className="w-3 h-3" /></> : "Soon")}
+          <button onClick={onApply}
+                  className={cn(
+                    "flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg text-white text-[11.5px] font-extrabold transition",
+                    isActive ? "bg-foreground/65 cursor-default" : "bg-[#0E8A4B] hover:bg-[#0A6E3C] shadow-[0_2px_0_0_#073D22] hover:-translate-y-0.5"
+                  )}>
+            {isActive ? "Active" : (<>Apply <ArrowRight className="w-3 h-3" /></>)}
           </button>
         </div>
       </div>
@@ -306,12 +257,9 @@ const PreviewDialog = ({ template, onClose, onApply, isActive }: {
       <div className="bg-white w-full sm:max-w-5xl sm:max-h-[90vh] flex flex-col rounded-none sm:rounded-3xl overflow-hidden shadow-2xl">
         {/* Header */}
         <div className="border-b-2 border-[#E8B968] px-5 py-3 flex items-center justify-between gap-3 flex-shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-[20px]">{template.emoji}</span>
-            <div className="min-w-0">
-              <h2 className="text-[15px] font-black truncate">{template.name}</h2>
-              <p className="text-[10.5px] text-foreground/55 truncate">{template.bestFor}</p>
-            </div>
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-black truncate">{template.name}</h2>
+            <p className="text-[10.5px] text-foreground/55 truncate">{template.bestFor}</p>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <a href={previewUrl} target="_blank" rel="noopener noreferrer"
@@ -322,55 +270,28 @@ const PreviewDialog = ({ template, onClose, onApply, isActive }: {
               <span className="inline-flex items-center gap-1 h-9 px-3 rounded-lg bg-[#E6F7EE] text-[#0E8A4B] text-[12px] font-extrabold">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Active
               </span>
-            ) : template.available ? (
+            ) : (
               <button onClick={onApply}
                       className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#0E8A4B] text-white text-[12px] font-extrabold shadow-[0_2px_0_0_#073D22] hover:bg-[#0A6E3C] transition">
                 <Sparkles className="w-3.5 h-3.5" /> Apply to my site
               </button>
-            ) : null}
+            )}
             <button onClick={onClose} className="w-9 h-9 rounded-lg hover:bg-foreground/5 flex items-center justify-center">
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Preview iframe */}
+        {/* Preview iframe — full interactive */}
         <div className="flex-1 bg-gray-50 overflow-hidden">
-          {template.available ? (
-            <iframe
-              src={previewUrl}
-              className="w-full h-full"
-              title={`${template.name} preview`}
-              style={{ minHeight: 500 }}
-            />
-          ) : (
-            <div className="h-full flex items-center justify-center p-8 text-center">
-              <div>
-                <p className="text-[40px] mb-2">{template.emoji}</p>
-                <h3 className="text-[18px] font-black mb-1">Coming soon</h3>
-                <p className="text-[13px] text-foreground/65 max-w-sm mx-auto">
-                  This template is in design. Message us on WhatsApp to vote for it — top-requested templates ship first.
-                </p>
-              </div>
-            </div>
-          )}
+          <iframe
+            src={previewUrl}
+            className="w-full h-full"
+            title={`${template.name} preview`}
+            style={{ minHeight: 500 }}
+          />
         </div>
       </div>
     </div>
   );
 };
-
-// Darken a hex by N%. Used for the gradient on thumbnails.
-function shade(hex: string, pct: number): string {
-  const m = /^#?([a-f0-9]{6})$/i.exec(hex);
-  if (!m) return hex;
-  const n = parseInt(m[1], 16);
-  let r = (n >> 16) & 0xff;
-  let g = (n >> 8) & 0xff;
-  let b = n & 0xff;
-  const f = 1 + pct / 100;
-  r = Math.max(0, Math.min(255, Math.round(r * f)));
-  g = Math.max(0, Math.min(255, Math.round(g * f)));
-  b = Math.max(0, Math.min(255, Math.round(b * f)));
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
-}
