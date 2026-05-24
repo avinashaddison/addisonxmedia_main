@@ -20,6 +20,17 @@ import { requireAuth, type AuthVariables } from "../middleware/auth";
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
 
+/**
+ * Slugs that collide with reserved paths on /biz/* — `me` is the smart-redirect,
+ * the rest are common UI words we may want to claim for product routes later.
+ */
+const RESERVED_SLUGS = new Set([
+  "me", "demo", "app", "api", "admin", "biz", "site", "store", "shop",
+  "new", "edit", "settings", "account", "billing", "help", "support",
+  "login", "logout", "signup", "auth", "static", "assets", "public",
+  "www", "mail", "ftp", "blog", "about", "privacy", "terms", "tos",
+]);
+
 /** Derive a clean slug from a name/email — lowercase, hyphenated, ASCII only. */
 const makeSlugSeed = (raw: string): string => {
   const s = (raw || "")
@@ -32,14 +43,14 @@ const makeSlugSeed = (raw: string): string => {
   return s || "shop";
 };
 
-/** Ensure the seed slug is unique by appending -2, -3, … until free. */
+/** Ensure the seed slug is unique AND not reserved by appending -2, -3, … until free. */
 const ensureUniqueSlug = async (seed: string, ignoreUserId?: string): Promise<string> => {
-  let candidate = seed;
+  let candidate = RESERVED_SLUGS.has(seed) ? `${seed}-shop` : seed;
   let n = 1;
   while (true) {
     const [existing] = await db.select({ id: site.id, userId: site.userId })
       .from(site).where(eq(site.slug, candidate)).limit(1);
-    if (!existing || existing.userId === ignoreUserId) return candidate;
+    if ((!existing || existing.userId === ignoreUserId) && !RESERVED_SLUGS.has(candidate)) return candidate;
     n += 1;
     candidate = `${seed}-${n}`;
     if (n > 50) {
@@ -74,6 +85,17 @@ app.get("/site/me", async (c) => {
       theme: {},
       copy: {},
     }).returning();
+  } else if (RESERVED_SLUGS.has(row.slug)) {
+    // Migrate users whose slug collides with a reserved path (eg. "me" — which
+    // is the smart-redirect path at /biz/me). Re-seed from name/email.
+    const [u] = await db.select({ name: user.name, email: user.email })
+      .from(user).where(eq(user.id, userId)).limit(1);
+    const [pf] = await db.select({ displayName: profile.displayName })
+      .from(profile).where(eq(profile.userId, userId)).limit(1);
+    const seed = makeSlugSeed(pf?.displayName || u?.name || u?.email?.split("@")[0] || "shop");
+    const newSlug = await ensureUniqueSlug(seed, userId);
+    [row] = await db.update(site).set({ slug: newSlug, updatedAt: new Date() })
+      .where(eq(site.userId, userId)).returning();
   }
 
   return c.json(row);
@@ -106,6 +128,7 @@ app.patch("/site/me", async (c) => {
   if (typeof body.slug === "string") {
     const cleaned = makeSlugSeed(body.slug);
     if (!cleaned) return c.json({ error: "Slug can't be empty after cleanup. Use lowercase letters, numbers and hyphens." }, 400);
+    if (RESERVED_SLUGS.has(cleaned)) return c.json({ error: `"${cleaned}" is a reserved URL. Try a different one.` }, 400);
     if (cleaned !== existing.slug) {
       // Check the new slug isn't taken by anyone else
       const [clash] = await db.select({ id: site.id }).from(site)
@@ -234,6 +257,7 @@ app.get("/site/slug/check", async (c) => {
   const raw = c.req.query("slug") ?? "";
   const cleaned = makeSlugSeed(raw);
   if (!cleaned) return c.json({ slug: "", available: false, reason: "empty" });
+  if (RESERVED_SLUGS.has(cleaned)) return c.json({ slug: cleaned, available: false, reason: "reserved" });
 
   const [clash] = await db.select({ userId: site.userId }).from(site)
     .where(eq(site.slug, cleaned)).limit(1);

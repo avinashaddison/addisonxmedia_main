@@ -23,6 +23,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Globe, FileText, Palette, LayoutGrid, Package, ShoppingCart, Users,
   CreditCard, Truck, Ticket, ClipboardList, Search, BarChart3, Settings,
@@ -104,33 +105,6 @@ const SiteOverview = () => {
       qc.setQueryData(["site-me"], s);
       setEditingCopy(false);
       toast.success("Saved");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  // Slug editing
-  const [editingSlug, setEditingSlug] = useState(false);
-  const [slugDraft, setSlugDraft] = useState("");
-  const [slugCheck, setSlugCheck] = useState<{ slug: string; available: boolean; mine?: boolean } | null>(null);
-
-  useEffect(() => {
-    if (!editingSlug || !slugDraft) { setSlugCheck(null); return; }
-    const handle = setTimeout(async () => {
-      try {
-        const res = await api.checkSiteSlug(slugDraft);
-        setSlugCheck(res);
-      } catch { /* silent */ }
-    }, 300);
-    return () => clearTimeout(handle);
-  }, [slugDraft, editingSlug]);
-
-  const saveSlugMut = useMutation({
-    mutationFn: () => api.updateSite({ slug: slugDraft.trim() }),
-    onSuccess: (s) => {
-      qc.setQueryData(["site-me"], s);
-      setEditingSlug(false);
-      setSlugCheck(null);
-      toast.success("URL updated");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -262,78 +236,40 @@ const SiteOverview = () => {
         {/* Branding (logo + cover) */}
         <BrandingSection site={site} />
 
-        {/* Public URL + slug */}
+        {/* Public URL — auto-assigned, not editable. Use Domain page for custom URLs. */}
         <div className="bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-[13px] font-extrabold uppercase tracking-[0.15em] text-foreground/55">Public URL</h2>
-            {!editingSlug && (
-              <button
-                onClick={() => { setSlugDraft(site.slug); setEditingSlug(true); }}
-                className="text-[11px] font-extrabold text-[#0E8A4B] hover:text-[#0A6E3C] flex items-center gap-1"
-              >
-                <Edit2 className="w-3 h-3" /> Edit slug
-              </button>
-            )}
+            <Link
+              to="/app/site/domain"
+              className="text-[11px] font-extrabold text-[#0E8A4B] hover:text-[#0A6E3C] flex items-center gap-1"
+            >
+              Use custom domain →
+            </Link>
           </div>
 
-          {!editingSlug ? (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-[#FFF1D6] border border-[#E8B968]">
-              <Globe className="w-4 h-4 text-[#B8651A] flex-shrink-0" />
-              <span className="flex-1 text-[14px] font-mono font-extrabold truncate">{publicUrl}</span>
-              <button
-                onClick={copyPublicUrl}
-                className="w-8 h-8 rounded-lg bg-white hover:bg-[#FFE8C7] border border-[#E8B968] flex items-center justify-center transition"
-                title="Copy URL"
-              >
-                <Copy className="w-3.5 h-3.5 text-foreground/70" />
-              </button>
-              <a
-                href={publicUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#0E8A4B] text-white text-[11px] font-extrabold hover:bg-[#0A6E3C] transition"
-              >
-                <Eye className="w-3.5 h-3.5" /> View
-              </a>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 p-2 rounded-xl bg-white border-2 border-[#E8B968] focus-within:border-[#0E8A4B]">
-                <span className="text-[13px] text-foreground/50 font-mono pl-1 select-none">/biz/</span>
-                <input
-                  value={slugDraft}
-                  onChange={(e) => setSlugDraft(e.target.value)}
-                  placeholder="your-shop-name"
-                  className="flex-1 px-1 py-1.5 bg-transparent border-0 focus:outline-none text-[14px] font-mono font-extrabold"
-                  autoFocus
-                />
-                {slugCheck && slugCheck.slug && (
-                  slugCheck.available || slugCheck.mine ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-[#0E8A4B] px-1.5"><Check className="w-3 h-3" /> Available</span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-[#D4308E] px-1.5"><X className="w-3 h-3" /> Taken</span>
-                  )
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => saveSlugMut.mutate()}
-                  disabled={saveSlugMut.isPending || !slugDraft.trim() || (slugCheck != null && !slugCheck.available && !slugCheck.mine)}
-                  className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#0E8A4B] text-white text-[12px] font-extrabold shadow-[0_3px_0_0_#073D22] hover:bg-[#0A6E3C] active:translate-y-0.5 active:shadow-[0_1px_0_0_#073D22] transition disabled:opacity-50"
-                >
-                  {saveSlugMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  Save URL
-                </button>
-                <button
-                  onClick={() => { setEditingSlug(false); setSlugCheck(null); }}
-                  className="h-9 px-3 rounded-lg bg-white border border-[#E8B968] text-foreground/70 text-[12px] font-extrabold hover:bg-[#FFE8C7] transition"
-                >
-                  Cancel
-                </button>
-                <p className="text-[10.5px] text-foreground/55 ml-1">Lowercase, hyphens. URL changes immediately.</p>
-              </div>
-            </div>
-          )}
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-[#FFF1D6] border border-[#E8B968]">
+            <Globe className="w-4 h-4 text-[#B8651A] flex-shrink-0" />
+            <span className="flex-1 text-[14px] font-mono font-extrabold truncate">{publicUrl}</span>
+            <button
+              onClick={copyPublicUrl}
+              className="w-8 h-8 rounded-lg bg-white hover:bg-[#FFE8C7] border border-[#E8B968] flex items-center justify-center transition"
+              title="Copy URL"
+            >
+              <Copy className="w-3.5 h-3.5 text-foreground/70" />
+            </button>
+            <a
+              href={publicUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#0E8A4B] text-white text-[11px] font-extrabold hover:bg-[#0A6E3C] transition"
+            >
+              <Eye className="w-3.5 h-3.5" /> View
+            </a>
+          </div>
+          <p className="text-[10.5px] text-foreground/55 mt-2">
+            Auto-assigned from your business name. Want a clean URL like <span className="font-mono font-bold">yourshop.com</span>? Connect a custom domain.
+          </p>
         </div>
 
         {/* Editable copy */}
