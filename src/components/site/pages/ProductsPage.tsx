@@ -70,6 +70,7 @@ export const ProductsPage = () => {
               <ExternalLink className="w-3.5 h-3.5" /> View on site
             </a>
           )}
+          <SyncCatalogButton />
           <button
             onClick={() => setEditingId("new")}
             className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-[#0E8A4B] text-white font-extrabold text-[13px] shadow-[0_4px_0_0_#073D22] hover:bg-[#0A6E3C] active:translate-y-0.5 active:shadow-[0_2px_0_0_#073D22] transition flex-shrink-0"
@@ -479,3 +480,36 @@ const Stat = ({ label, value, accent }: { label: string; value: string; accent: 
     <p className="text-[24px] font-black mt-1 leading-none tabular-nums">{value}</p>
   </div>
 );
+
+// ─── WhatsApp Catalog sync ─────────────────────────────────────────────
+// One-click push of all active products to Meta's Commerce Manager catalog
+// so they appear in the user's WhatsApp Business profile / catalog shortcut.
+// Requires a catalog_id to be wired on the meta_config row (Admin → Meta API).
+
+const SyncCatalogButton = () => {
+  const [syncing, setSyncing] = useState(false);
+  const onClick = async () => {
+    if (!confirm("Sync all active products to your WhatsApp Catalog (Meta Commerce Manager)?\n\nProducts will appear in your WhatsApp Business profile.")) return;
+    setSyncing(true);
+    try {
+      const res = await api.syncCatalogToMeta();
+      if (res.failed > 0) {
+        toast.warning(`Synced ${res.synced} · ${res.failed} failed — check console for details`);
+        console.warn("[sync-catalog] failures:", res.results.filter((r) => !r.ok));
+      } else {
+        toast.success(`Synced ${res.synced} products to WhatsApp Catalog`);
+      }
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setSyncing(false); }
+  };
+  return (
+    <button
+      onClick={onClick}
+      disabled={syncing}
+      className="hidden md:inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-white border-2 border-[#25D366] text-[12.5px] font-extrabold text-[#075E54] shadow-[0_3px_0_0_#25D366]/40 hover:bg-[#E6FFE9] disabled:opacity-50 transition"
+      title="Sync products to WhatsApp Catalog (Meta Commerce Manager)"
+    >
+      {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "💬"} Sync to WhatsApp
+    </button>
+  );
+};

@@ -12,9 +12,9 @@
  */
 
 import { Hono } from "hono";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "../db/client";
-import { contact, conversation, message } from "../db/schema";
+import { contact, conversation, message, product } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
 import { rateLimit } from "../middleware/rateLimit";
 import { chat, chatJson, isAiConfigured } from "../integrations/openai";
@@ -86,9 +86,10 @@ const TAG_INSTRUCTIONS = {
 } as const;
 
 type Suggestion = { type: "polite" | "sell" | "qualify"; text: string };
+type ProductHint = { id: string; name: string; price: number; photo_url: string | null };
 type SuggestionsResult =
-  | { escalate: true; reason: string; suggestions: [] }
-  | { escalate: false; suggestions: Suggestion[] };
+  | { escalate: true; reason: string; suggestions: []; suggested_products?: ProductHint[] }
+  | { escalate: false; suggestions: Suggestion[]; suggested_products?: ProductHint[] };
 
 app.post("/ai/reply-suggestions", async (c) => {
   const userId = c.var.userId;
@@ -150,6 +151,41 @@ app.post("/ai/reply-suggestions", async (c) => {
   const gate = await checkAiCap(userId, "reply_suggestion");
   if (!gate.allowed) return c.json({ error: gate.reason, code: gate.code }, 429);
 
+  // 5b. Shopping intent — if customer's message looks like a product enquiry,
+  // pull matching products + suggest a reply that mentions them with prices.
+  // This is what turns the AI inbox into a real WhatsApp Commerce assistant.
+  const SHOPPING_KEYWORDS = ["price", "cost", "how much", "kitna", "rate", "available", "stock", "show me", "do you have", "want", "buy", "order", "send me", "details", "image", "photo", "size", "colour", "color"];
+  const looksLikeShopping = SHOPPING_KEYWORDS.some((kw) => inboundLower.includes(kw));
+
+  let productContext = "";
+  let suggestedProducts: Array<{ id: string; name: string; price: number; photoUrl: string | null }> = [];
+  if (looksLikeShopping) {
+    // Try keyword search across product name + description using significant
+    // words from the inbound message (drop common stop words).
+    const STOP = new Set(["i", "me", "you", "the", "a", "an", "is", "are", "want", "need", "buy", "order", "send", "show", "how", "much", "do", "have", "available", "any", "some", "this", "that", "what", "for", "to", "in", "on", "of", "and", "or"]);
+    const tokens = inboundLower.split(/[^a-z0-9]+/).filter((t) => t.length >= 2 && !STOP.has(t));
+    let matches: typeof product.$inferSelect[] = [];
+    if (tokens.length > 0) {
+      const conditions = tokens.map((t) => or(ilike(product.name, `%${t}%`), ilike(product.description, `%${t}%`))!);
+      matches = await db.select().from(product)
+        .where(and(eq(product.ownerId, userId), eq(product.status, "active"), or(...conditions)!))
+        .orderBy(asc(product.sortOrder), asc(product.createdAt))
+        .limit(6);
+    }
+    // If no specific match, fall back to top 4 active products
+    if (matches.length === 0) {
+      matches = await db.select().from(product)
+        .where(and(eq(product.ownerId, userId), eq(product.status, "active")))
+        .orderBy(asc(product.sortOrder), asc(product.createdAt))
+        .limit(4);
+    }
+    suggestedProducts = matches.map((p) => ({ id: p.id, name: p.name, price: Number(p.priceInr) || 0, photoUrl: p.photoUrl }));
+    if (matches.length > 0) {
+      productContext = "\n\nMATCHING PRODUCTS (customer asked about products — reference these by exact name + price in your reply):\n"
+        + matches.map((p) => `• ${p.name} — ₹${Number(p.priceInr).toLocaleString("en-IN")}${p.description ? ` (${p.description})` : ""}`).join("\n");
+    }
+  }
+
   // 6. Build prompt + call OpenAI in JSON mode
   const businessLine = persona.business_name
     ? `Business: ${persona.business_name}.`
@@ -193,9 +229,10 @@ app.post("/ai/reply-suggestions", async (c) => {
     historyText,
     "",
     `Customer's latest message: "${lastInbound.body}"`,
+    productContext,
     "",
     "Generate 3 reply drafts now.",
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   try {
     const result = await chatJson<{ suggestions: Suggestion[] }>(
@@ -220,7 +257,13 @@ app.post("/ai/reply-suggestions", async (c) => {
       ? result.json.suggestions.filter((s) => s && typeof s.text === "string" && s.text.trim().length > 0).slice(0, 3)
       : [];
 
-    return c.json<SuggestionsResult>({ escalate: false, suggestions });
+    return c.json<SuggestionsResult>({
+      escalate: false,
+      suggestions,
+      suggested_products: suggestedProducts.length > 0
+        ? suggestedProducts.map((p) => ({ id: p.id, name: p.name, price: p.price, photo_url: p.photoUrl }))
+        : undefined,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await logAiUsage({

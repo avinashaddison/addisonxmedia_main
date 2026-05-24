@@ -11,13 +11,42 @@
  */
 
 import { Hono } from "hono";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { product } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
+
+/** Free-text search for products owned by current user. Used by the WhatsApp
+ *  Commerce features (AI shopping suggestions + send-catalog picker). Matches
+ *  on name + description (case-insensitive). Empty query → all active. */
+app.get("/products/search", async (c) => {
+  const userId = c.var.userId;
+  const q = (c.req.query("q") || "").trim();
+  const limit = Math.min(Number(c.req.query("limit") ?? 12), 50);
+  const onlyActive = c.req.query("active") !== "false";
+
+  const baseWhere = onlyActive
+    ? and(eq(product.ownerId, userId), eq(product.status, "active"))
+    : eq(product.ownerId, userId);
+
+  let rows;
+  if (q.length === 0) {
+    rows = await db.select().from(product)
+      .where(baseWhere)
+      .orderBy(asc(product.sortOrder), asc(product.createdAt))
+      .limit(limit);
+  } else {
+    const pattern = `%${q.replace(/[%_]/g, "\\$&")}%`;
+    rows = await db.select().from(product)
+      .where(and(baseWhere, or(ilike(product.name, pattern), ilike(product.description, pattern))))
+      .orderBy(asc(product.sortOrder), asc(product.createdAt))
+      .limit(limit);
+  }
+  return c.json(rows);
+});
 
 app.get("/products", async (c) => {
   const userId = c.var.userId;

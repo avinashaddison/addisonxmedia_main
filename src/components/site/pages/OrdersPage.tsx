@@ -189,12 +189,26 @@ const OrderDetailDialog = ({ orderId, onClose }: { orderId: string; onClose: () 
     queryFn: () => api.getOrder(orderId),
   });
 
+  // Status update — uses the new commerce/quick-status endpoint that BOTH
+  // flips the status in DB AND auto-sends a WhatsApp notification to the
+  // buyer. Falls back to plain DB update for 'new'/'cancelled' (where the
+  // commerce endpoint requires confirmed/shipped/delivered).
   const statusMut = useMutation({
-    mutationFn: (status: OrderDto["status"]) => api.updateOrder(orderId, { status }),
-    onSuccess: () => {
+    mutationFn: async (status: OrderDto["status"]) => {
+      if (["confirmed", "shipped", "delivered", "cancelled"].includes(status)) {
+        return api.quickStatusUpdate({ order_id: orderId, status: status as "confirmed" | "shipped" | "delivered" | "cancelled" });
+      }
+      return api.updateOrder(orderId, { status });
+    },
+    onSuccess: (_, status) => {
       qc.invalidateQueries({ queryKey: ["order", orderId] });
       qc.invalidateQueries({ queryKey: ["orders"] });
-      toast.success("Status updated");
+      qc.invalidateQueries({ queryKey: ["messages"] });
+      toast.success(
+        ["confirmed", "shipped", "delivered"].includes(status)
+          ? `Status: ${status} · WhatsApp notification sent`
+          : "Status updated",
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });

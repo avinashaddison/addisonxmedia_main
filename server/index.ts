@@ -32,6 +32,7 @@ import couponRoutes from "./routes/coupon";
 import shippingRoutes from "./routes/shipping";
 import orderPaymentRoutes from "./routes/order-payment";
 import sitePageRoutes from "./routes/site-page";
+import commerceRoutes from "./routes/commerce";
 import { getSeoSettings, injectSeo, buildSitemapXml, buildRobotsTxt } from "./lib/seo";
 
 const app = new Hono();
@@ -120,6 +121,7 @@ app.route("/api", shippingRoutes);
 // span both public and API surfaces.
 app.route("/", orderPaymentRoutes);
 app.route("/api", sitePageRoutes);
+app.route("/api", commerceRoutes);
 
 // Public website renderer — no /api prefix. /biz/:slug is the public URL
 // customers share, so it lives next to /sitemap.xml as a top-level route.

@@ -515,6 +515,18 @@ export const api = {
   reorderProducts: (items: Array<{ id: string; sort_order: number }>) =>
     post<{ ok: true; updated: number }>("/products/reorder", { items }),
 
+  // ─── WhatsApp Commerce ────────────────────────────────────────────────
+  searchProducts: (q: string = "", limit = 12) =>
+    get<ProductDto[]>(`/products/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  sendProductsToConversation: (data: { conversation_id: string; product_ids: string[]; intro?: string }) =>
+    post<{ ok: true; sent: number; failed: number; sent_live: boolean; mode: string }>("/commerce/send-products", data),
+  createOrderFromMessage: (data: { conversation_id: string; product_ids: string[]; quantities?: Record<string, number>; notes?: string }) =>
+    post<{ ok: true; order_id: string; order_number: number; total_inr: number; upi_link: string | null; qr_url: string | null; sent_live: boolean }>("/commerce/order-from-message", data),
+  quickStatusUpdate: (data: { order_id: string; status: "confirmed" | "shipped" | "delivered" | "cancelled"; tracking_info?: string }) =>
+    post<{ ok: true; status: string }>("/commerce/quick-status", data),
+  syncCatalogToMeta: () =>
+    post<{ ok: true; synced: number; failed: number; results: Array<{ id: string; name: string; ok: boolean; meta_id?: string; error?: string }> }>("/commerce/sync-catalog"),
+
   // Orders
   getOrders: (status?: string) => get<OrderDto[]>(`/orders${status ? `?status=${status}` : ""}`),
   getOrder: (id: string) => get<OrderDto & { items: OrderItemDto[] }>(`/orders/${id}`),
@@ -790,11 +802,13 @@ export type ReplySuggestion = {
   text: string;
 };
 
+export type SuggestedProduct = { id: string; name: string; price: number; photo_url: string | null };
 export type ReplySuggestionsResult = {
   escalate: boolean;
   suggestions: ReplySuggestion[];
   reason?: string;
   note?: string;
+  suggested_products?: SuggestedProduct[];
 };
 
 export type WhatsAppBusinessProfile = {

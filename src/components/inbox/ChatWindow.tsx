@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { SendProductDialog, type ProductDeliveryPayload } from "./SendProductDialog";
 import { ProductDeliveryCard, decodeProductDelivery, encodeProductDelivery } from "./ProductDeliveryCard";
 import { PaymentRequestCard, parsePaymentRequest } from "./PaymentRequestCard";
+import { ProductPickerDialog } from "./ProductPickerDialog";
 import { api } from "@/lib/api";
 import { useCloudinaryConfig, useCloudinaryUpload } from "@/hooks/useCloudinaryUpload";
 
@@ -180,6 +181,7 @@ const CUSTOMER_SERVICE_WINDOW_HOURS = 24;
 export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) => {
   const [input, setInput] = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showProductPicker, setShowProductPicker] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
 
   // Pending media attachment (uploaded but not sent yet)
@@ -777,6 +779,7 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
           query={suggestionsQuery}
           onUse={useSuggestion}
           onHide={() => setAiHidden(true)}
+          conversationId={conversation.id}
         />
       )}
       {!shouldShowSuggestions && latestIsInbound && aiHidden && (
@@ -897,7 +900,17 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
               Templates
               <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", showTemplates && "rotate-180")} />
             </button>
-            {/* Send Product moved to the LeadPanel → 'Digital Product' tab. */}
+
+            {/* WhatsApp Commerce — Send products / Create order from chat */}
+            <button
+              onClick={() => setShowProductPicker(true)}
+              className="h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider transition-all border bg-[#E6F7EE] text-[#0E8A4B] border-[#0E8A4B]/40 hover:bg-[#C6F0D6] hover:-translate-y-0.5"
+              aria-label="Send products / create order"
+              title="Send products from your catalog or create an order with UPI QR"
+            >
+              <Package className="w-3 h-3" strokeWidth={2.5} />
+              Send products
+            </button>
 
             <div className="flex-1" />
 
@@ -947,6 +960,16 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
 
       {/* SendProductDialog moved to LeadPanel → Digital Product tab. */}
 
+      {/* WhatsApp Commerce — product picker (send catalog OR create order) */}
+      {showProductPicker && (
+        <ProductPickerDialog
+          conversationId={conversation.id}
+          contactName={conversation.contact.name}
+          onClose={() => setShowProductPicker(false)}
+          onSent={() => qc.invalidateQueries({ queryKey: ["messages", conversation.id] })}
+        />
+      )}
+
       {/* Image lightbox — click outside or X to close */}
       {lightboxSrc && (
         <div
@@ -985,12 +1008,17 @@ const AiSuggestionStrip = ({
   query,
   onUse,
   onHide,
+  conversationId,
 }: {
   query: ReturnType<typeof useQuery<import("@/lib/api").ReplySuggestionsResult>>;
   onUse: (text: string) => void;
   onHide: () => void;
+  conversationId?: string;
 }) => {
   const { data, isLoading, isError, error, refetch, isFetching } = query;
+  const qc = useQueryClient();
+  const [sendingProducts, setSendingProducts] = useState(false);
+  const [creatingOrder, setCreatingOrder] = useState(false);
 
   return (
     <div className="px-5 py-2 border-t border-border bg-gradient-to-b from-[#FFF6E8]/60 to-card flex-shrink-0">
@@ -1078,6 +1106,79 @@ const AiSuggestionStrip = ({
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* ── WhatsApp Commerce: AI-detected shopping intent ─────────────
+          AI noticed the customer is asking about products. Show the
+          matched products + one-click actions to send them or create
+          an order directly from this chat. */}
+      {data && !data.escalate && conversationId && data.suggested_products && data.suggested_products.length > 0 && (
+        <div className="mt-2 rounded-xl border-2 border-[#0E8A4B]/40 bg-gradient-to-br from-[#E6F7EE] to-white p-2.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <Package className="w-3.5 h-3.5 text-[#0E8A4B]" strokeWidth={2.5} />
+              <span className="text-[10px] uppercase tracking-[0.15em] font-extrabold text-[#0A6E3C]">
+                Shopping intent · {data.suggested_products.length} match{data.suggested_products.length === 1 ? "" : "es"}
+              </span>
+            </div>
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+            {data.suggested_products.map((p) => (
+              <div key={p.id} className="flex-shrink-0 w-[72px] text-center">
+                {p.photo_url ? (
+                  <div className="w-[72px] h-[72px] rounded-lg overflow-hidden bg-white border border-[#0E8A4B]/20">
+                    <img src={p.photo_url} alt="" className="w-full h-full object-cover"
+                         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  </div>
+                ) : (
+                  <div className="w-[72px] h-[72px] rounded-lg bg-white border border-[#0E8A4B]/20 flex items-center justify-center text-[24px]">📦</div>
+                )}
+                <p className="text-[9.5px] font-extrabold truncate mt-0.5">{p.name}</p>
+                {p.price > 0 && <p className="text-[10px] font-black tabular-nums text-[#0E8A4B]">₹{p.price.toLocaleString("en-IN")}</p>}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-1.5 mt-2">
+            <button
+              onClick={async () => {
+                setSendingProducts(true);
+                try {
+                  await api.sendProductsToConversation({
+                    conversation_id: conversationId,
+                    product_ids: data.suggested_products!.map((p) => p.id),
+                  });
+                  toast.success(`Sent ${data.suggested_products!.length} product${data.suggested_products!.length === 1 ? "" : "s"}`);
+                  qc.invalidateQueries({ queryKey: ["messages", conversationId] });
+                } catch (e) { toast.error((e as Error).message); }
+                finally { setSendingProducts(false); }
+              }}
+              disabled={sendingProducts}
+              className="flex-1 inline-flex items-center justify-center gap-1 h-8 rounded-lg bg-white border-2 border-[#0E8A4B] text-[#0E8A4B] text-[11px] font-extrabold hover:bg-[#0E8A4B] hover:text-white transition disabled:opacity-50"
+            >
+              {sendingProducts ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />} Send these
+            </button>
+            <button
+              onClick={async () => {
+                if (!confirm(`Create an order with these ${data.suggested_products!.length} product${data.suggested_products!.length === 1 ? "" : "s"} and send the customer a UPI QR for payment?`)) return;
+                setCreatingOrder(true);
+                try {
+                  const res = await api.createOrderFromMessage({
+                    conversation_id: conversationId,
+                    product_ids: data.suggested_products!.map((p) => p.id),
+                  });
+                  toast.success(`Order #${res.order_number} · ₹${res.total_inr.toLocaleString("en-IN")} UPI QR sent`);
+                  qc.invalidateQueries({ queryKey: ["messages", conversationId] });
+                  qc.invalidateQueries({ queryKey: ["orders"] });
+                } catch (e) { toast.error((e as Error).message); }
+                finally { setCreatingOrder(false); }
+              }}
+              disabled={creatingOrder}
+              className="flex-1 inline-flex items-center justify-center gap-1 h-8 rounded-lg bg-[#FF6A1F] text-white text-[11px] font-extrabold hover:bg-[#E85C12] transition disabled:opacity-50"
+            >
+              {creatingOrder ? <Loader2 className="w-3 h-3 animate-spin" /> : <CreditCard className="w-3 h-3" />} Create order + QR
+            </button>
+          </div>
         </div>
       )}
     </div>
