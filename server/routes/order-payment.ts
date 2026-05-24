@@ -129,18 +129,25 @@ app.get("/biz/pay/return", async (c) => {
     console.error("[order-payment/return] verification fetch failed", e);
   }
 
-  const back = siteRow ? `/biz/${siteRow.slug}` : "/";
-  // Tiny HTML page that auto-redirects with success/failure indicator
+  // Redirect to the dedicated order-success page on the customer's site.
+  // Includes phone in query so the page passes its privacy check.
+  const phoneParam = order.customerPhone ? `?phone=${encodeURIComponent(order.customerPhone)}` : "";
+  const successUrl = siteRow
+    ? `/biz/${siteRow.slug}/order/${order.orderNumber}${phoneParam}`
+    : "/";
+  // Brief auto-redirect page so the user sees confirmation before the success
+  // page loads (Cashfree redirect can otherwise feel jarring). Also has a
+  // manual button if redirect is blocked.
   return c.html(`<!doctype html><html><head><meta charset="utf-8"><title>Payment complete</title>
-<meta http-equiv="refresh" content="2; url=${back}?paid=1&order=${order.orderNumber}">
+<meta http-equiv="refresh" content="1; url=${successUrl}">
+<script>setTimeout(function(){ window.location.replace(${JSON.stringify(successUrl)}); }, 800);</script>
 <script src="https://cdn.tailwindcss.com"></script></head>
 <body class="bg-emerald-50 min-h-screen flex items-center justify-center p-6 font-sans">
 <div class="text-center max-w-sm bg-white p-8 rounded-3xl shadow-xl">
-<div class="w-16 h-16 mx-auto rounded-full bg-emerald-500 text-white flex items-center justify-center text-[28px] mb-3">✓</div>
+<div class="w-16 h-16 mx-auto rounded-full bg-emerald-500 text-white flex items-center justify-center text-[28px] mb-3 animate-pulse">✓</div>
 <h1 class="text-[22px] font-black">Payment received</h1>
-<p class="text-gray-600 mt-1">Order #${order.orderNumber} confirmed.</p>
-<p class="text-gray-400 text-[12px] mt-3">Returning to shop…</p>
-<a href="${back}" class="mt-4 inline-block px-5 py-2 rounded-lg bg-emerald-600 text-white font-bold text-[13px]">Continue</a>
+<p class="text-gray-600 mt-1">Loading your order…</p>
+<a href="${successUrl}" class="mt-4 inline-block px-5 py-2 rounded-lg bg-emerald-600 text-white font-bold text-[13px]">Continue →</a>
 </div></body></html>`);
 });
 

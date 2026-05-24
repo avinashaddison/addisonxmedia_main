@@ -680,384 +680,55 @@ ${products.length > 0 && visibility.products ? `
   </div>
 </section>` : ""}
 
-<!-- ── Floating cart button (rendered always — hides when empty) ── -->
+<!-- ── Floating cart button — navigates to /cart page ── -->
 ${products.length > 0 && visibility.products ? `
-<button
+<a
   id="ax-cart-btn"
-  type="button"
-  onclick="window.AxCart.open()"
+  href="/biz/${esc(slug)}/cart"
   class="hidden fixed bottom-5 left-5 z-40 h-14 rounded-full px-5 text-white font-extrabold shadow-xl transition hover:scale-105 items-center gap-2"
   style="background: ${esc(theme.primary)}">
   <span class="text-[18px]">🛒</span>
   <span id="ax-cart-count" class="text-[14px]">0</span>
   <span class="text-[12px] opacity-85">·</span>
   <span id="ax-cart-total" class="text-[13px] tabular-nums">₹0</span>
-</button>
+</a>
 
-<!-- ── Cart + Checkout modal ── -->
-<div id="ax-cart-modal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm items-end sm:items-center justify-center p-0 sm:p-4">
-  <div class="bg-white w-full sm:max-w-md max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl">
-    <div class="sticky top-0 z-10 bg-white border-b-2 px-5 py-3 flex items-center justify-between" style="border-color: ${esc(theme.primary)}33">
-      <h2 id="ax-cart-title" class="text-[16px] font-black">Your cart</h2>
-      <button type="button" onclick="window.AxCart.close()" class="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center text-[16px]">✕</button>
-    </div>
 
-    <!-- Items list -->
-    <div id="ax-cart-items" class="p-4 space-y-2"></div>
-
-    <!-- Checkout form (hidden until "Checkout" tapped) -->
-    <form id="ax-checkout-form" class="hidden p-5 pt-2 space-y-3 border-t" style="border-color: ${esc(theme.primary)}22" data-slug="${esc(slug)}">
-      <input name="customer_name" required maxlength="100" placeholder="Your name *"
-             class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[14px] font-bold" style="border-color: ${esc(theme.primary)}33" />
-      <input name="customer_phone" required type="tel" maxlength="20" placeholder="WhatsApp number * (e.g. +91 9XXXXXXXXX)"
-             class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[14px] font-mono" style="border-color: ${esc(theme.primary)}33" />
-      <textarea name="customer_address" rows="2" maxlength="500" placeholder="Delivery address"
-                class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[13px] resize-none" style="border-color: ${esc(theme.primary)}33"></textarea>
-      <div class="flex gap-2">
-        <input id="ax-pincode-input" name="customer_pincode" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit pincode"
-               oninput="window.AxCart.onPincodeInput()"
-               class="flex-1 px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[13px] font-mono font-bold tracking-wider" style="border-color: ${esc(theme.primary)}33" />
-      </div>
-      <p id="ax-shipping-status" class="text-[11px] font-bold hidden"></p>
-      <textarea name="notes" rows="2" maxlength="500" placeholder="Any special instructions?"
-                class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[13px] resize-none" style="border-color: ${esc(theme.primary)}33"></textarea>
-      <div>
-        <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-1.5">Payment</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          ${cashfree.enabled ? `
-          <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition hover:bg-gray-50" style="border-color: ${esc(theme.primary)}33">
-            <input type="radio" name="payment_method" value="online" checked class="w-4 h-4" />
-            <span class="text-[12px] font-extrabold">💳 Card / UPI / Netbanking</span>
-          </label>` : ""}
-          ${business.upiVpa && !cashfree.enabled ? `
-          <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition hover:bg-gray-50" style="border-color: ${esc(theme.primary)}33">
-            <input type="radio" name="payment_method" value="upi" checked class="w-4 h-4" />
-            <span class="text-[12px] font-extrabold">💳 UPI (manual)</span>
-          </label>` : ""}
-          <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition hover:bg-gray-50" style="border-color: ${esc(theme.primary)}33">
-            <input type="radio" name="payment_method" value="cod" ${(cashfree.enabled || business.upiVpa) ? "" : "checked"} class="w-4 h-4" />
-            <span class="text-[12px] font-extrabold">💵 Cash on delivery</span>
-          </label>
-        </div>
-      </div>
-    </form>
-
-    <!-- Footer: coupon + totals + CTA -->
-    <div id="ax-cart-footer" class="sticky bottom-0 bg-white border-t-2 p-4" style="border-color: ${esc(theme.primary)}33">
-      <div id="ax-coupon-row" class="hidden mb-2.5 flex items-center gap-2">
-        <input id="ax-coupon-input" type="text" placeholder="Coupon code"
-               class="flex-1 px-3 py-2 rounded-lg border-2 focus:outline-none text-[12.5px] font-mono uppercase font-bold tracking-wider"
-               style="border-color: ${esc(theme.primary)}33" />
-        <button id="ax-coupon-apply" type="button" onclick="window.AxCart.applyCoupon()"
-                class="h-9 px-3 rounded-lg text-white text-[12px] font-extrabold transition"
-                style="background: ${esc(theme.primary)}">Apply</button>
-      </div>
-      <p id="ax-coupon-status" class="hidden text-[11px] font-bold mb-2"></p>
-      <div id="ax-cart-summary" class="space-y-1.5 mb-3">
-        <div class="flex items-center justify-between">
-          <span class="text-[12.5px] font-bold text-gray-600">Subtotal</span>
-          <span id="ax-cart-subtotal" class="text-[13px] font-extrabold tabular-nums">₹0</span>
-        </div>
-        <div id="ax-cart-discount-row" class="hidden flex items-center justify-between text-[#0E8A4B]">
-          <span class="text-[12.5px] font-bold">Discount <span id="ax-cart-coupon-code" class="text-[10px] uppercase font-extrabold ml-1 px-1.5 py-0.5 rounded bg-[#E6F7EE]"></span></span>
-          <span id="ax-cart-discount" class="text-[13px] font-extrabold tabular-nums">−₹0</span>
-        </div>
-        <div id="ax-cart-shipping-row" class="hidden flex items-center justify-between">
-          <span class="text-[12.5px] font-bold text-gray-600">Shipping <span id="ax-cart-shipping-zone" class="text-[10px] font-extrabold ml-1 px-1.5 py-0.5 rounded bg-foreground/5"></span></span>
-          <span id="ax-cart-shipping" class="text-[13px] font-extrabold tabular-nums">₹0</span>
-        </div>
-        <div class="flex items-center justify-between pt-1 border-t" style="border-color: ${esc(theme.primary)}22">
-          <span class="text-[14px] font-extrabold">Total</span>
-          <span id="ax-cart-total-out" class="text-[18px] font-black tabular-nums" style="color: ${esc(theme.primary)}">₹0</span>
-        </div>
-      </div>
-      <button id="ax-checkout-btn" type="button" onclick="window.AxCart.checkoutStep()"
-              class="w-full h-12 rounded-xl text-white font-extrabold text-[14px] shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50"
-              style="background: ${esc(theme.primary)}">
-        Checkout
-      </button>
-      <p id="ax-cart-status" class="text-[12px] text-center font-bold mt-2 hidden"></p>
-    </div>
-  </div>
-</div>
-
-<!-- ── Success modal ── -->
-<div id="ax-order-success" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm items-center justify-center p-4">
-  <div class="bg-white max-w-sm w-full rounded-3xl shadow-2xl p-6 text-center">
-    <div class="w-16 h-16 mx-auto rounded-full flex items-center justify-center text-white text-[28px] mb-3" style="background: ${esc(theme.primary)}">✓</div>
-    <h2 class="text-[22px] font-black">Order placed!</h2>
-    <p class="text-[13px] text-gray-600 mt-1">We'll confirm on WhatsApp shortly.</p>
-    <p id="ax-order-number" class="text-[14px] font-extrabold mt-3 px-3 py-2 bg-gray-50 rounded-lg inline-block"></p>
-    <button type="button" onclick="window.AxCart.successClose()"
-            class="mt-5 w-full h-11 rounded-xl text-white font-extrabold text-[13px]"
-            style="background: ${esc(theme.primary)}">Continue shopping</button>
-  </div>
-</div>
-
+<!-- Cart + checkout live on dedicated pages now: /biz/<slug>/cart, /checkout,
+     /order/:n, /track/:n, /my-orders. Home page only exposes
+     window.AxCart.add() for product cards + keeps the floating pill in sync. -->
 <script>
 (function(){
-  var STORAGE_KEY = 'ax-cart-${esc(slug)}';
-  var fmt = function(n){ return '₹' + (Math.round(n)).toLocaleString('en-IN'); };
-  var $ = function(id){ return document.getElementById(id); };
-  var state = { items: {}, step: 'cart', coupon: null, shipping: null };  // shipping: {zone_name, rate_inr, eta_days, free} | null
-
-  try { state.items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch(e){}
-
-  function save(){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items)); } catch(e){} }
-  function lines(){ return Object.values(state.items); }
-  function count(){ return lines().reduce(function(s, l){ return s + l.qty; }, 0); }
-  function subtotal(){ return lines().reduce(function(s, l){ return s + l.qty * l.price; }, 0); }
-  function discountAmt(){ return state.coupon ? Math.min(subtotal(), state.coupon.discount_inr || 0) : 0; }
-  function shippingAmt(){ return state.shipping ? Number(state.shipping.rate_inr) || 0 : 0; }
-  function total(){ return Math.max(0, subtotal() - discountAmt() + shippingAmt()); }
-
+  var STORAGE_KEY = "ax-cart-${esc(slug)}";
+  var fmt = function(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); };
+  function read(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {}; } catch(e){ return {}; } }
+  function save(o){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(o)); } catch(e){} }
+  function lines(){ return Object.values(read()); }
+  function count(){ return lines().reduce(function(s, l){ return s + (l.qty || 0); }, 0); }
+  function subtotal(){ return lines().reduce(function(s, l){ return s + (l.qty * l.price); }, 0); }
   function renderBtn(){
-    var btn = $('ax-cart-btn'); if (!btn) return;
+    var btn = document.getElementById("ax-cart-btn"); if (!btn) return;
     var c = count();
-    if (c === 0) { btn.classList.add('hidden'); btn.classList.remove('flex'); }
-    else { btn.classList.remove('hidden'); btn.classList.add('flex'); }
-    $('ax-cart-count').textContent = c;
-    $('ax-cart-total').textContent = fmt(total());
+    if (c === 0) { btn.classList.add("hidden"); btn.classList.remove("flex"); }
+    else { btn.classList.remove("hidden"); btn.classList.add("flex"); }
+    var ctEl = document.getElementById("ax-cart-count"); if (ctEl) ctEl.textContent = c;
+    var totEl = document.getElementById("ax-cart-total"); if (totEl) totEl.textContent = fmt(subtotal());
   }
-
-  function renderTotals(){
-    $('ax-cart-subtotal').textContent = fmt(subtotal());
-    var dRow = $('ax-cart-discount-row');
-    if (state.coupon && discountAmt() > 0) {
-      dRow.classList.remove('hidden'); dRow.classList.add('flex');
-      $('ax-cart-discount').textContent = '−' + fmt(discountAmt());
-      $('ax-cart-coupon-code').textContent = state.coupon.code;
-    } else {
-      dRow.classList.add('hidden'); dRow.classList.remove('flex');
-    }
-    var sRow = $('ax-cart-shipping-row');
-    if (state.shipping) {
-      sRow.classList.remove('hidden'); sRow.classList.add('flex');
-      $('ax-cart-shipping').textContent = state.shipping.free ? 'FREE' : fmt(shippingAmt());
-      $('ax-cart-shipping-zone').textContent = state.shipping.zone_name;
-    } else {
-      sRow.classList.add('hidden'); sRow.classList.remove('flex');
-    }
-    $('ax-cart-total-out').textContent = fmt(total());
-    var couponRow = $('ax-coupon-row');
-    if (lines().length > 0) { couponRow.classList.remove('hidden'); couponRow.classList.add('flex'); }
-    else { couponRow.classList.add('hidden'); couponRow.classList.remove('flex'); }
-  }
-
-  function renderItems(){
-    var box = $('ax-cart-items'); if (!box) return;
-    var ls = lines();
-    if (ls.length === 0) {
-      box.innerHTML = '<p class="text-center py-8 text-[13px] text-gray-500">Your cart is empty.</p>';
-      $('ax-checkout-btn').setAttribute('disabled', 'true');
-      return;
-    }
-    $('ax-checkout-btn').removeAttribute('disabled');
-    box.innerHTML = ls.map(function(l){
-      var safe = function(s){ return String(s||'').replace(/[<>"'&]/g, function(c){ return '&#'+c.charCodeAt(0)+';'; }); };
-      var photo = l.photo ? '<img src="'+safe(l.photo)+'" class="w-14 h-14 rounded-lg object-cover flex-shrink-0" onerror="this.style.display=\\'none\\'" />' : '<div class="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center text-[20px] flex-shrink-0">📦</div>';
-      return '<div class="flex items-center gap-3 p-2.5 rounded-xl border" style="border-color: ${esc(theme.primary)}22">' +
-        photo +
-        '<div class="flex-1 min-w-0">' +
-          '<p class="text-[13px] font-extrabold truncate">' + safe(l.name) + '</p>' +
-          '<p class="text-[12px] font-bold tabular-nums" style="color: ${esc(theme.primary)}">' + fmt(l.price) + ' × ' + l.qty + ' = ' + fmt(l.price * l.qty) + '</p>' +
-        '</div>' +
-        '<div class="flex items-center gap-1 flex-shrink-0">' +
-          '<button type="button" onclick="window.AxCart.dec(\\''+safe(l.id)+'\\')" class="w-7 h-7 rounded-md bg-gray-100 hover:bg-gray-200 text-[14px] font-bold">−</button>' +
-          '<span class="w-6 text-center text-[12px] font-bold tabular-nums">' + l.qty + '</span>' +
-          '<button type="button" onclick="window.AxCart.inc(\\''+safe(l.id)+'\\')" class="w-7 h-7 rounded-md text-white text-[14px] font-bold" style="background: ${esc(theme.primary)}">+</button>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-    renderTotals();
-  }
-
-  function setStep(step){
-    state.step = step;
-    var title = $('ax-cart-title');
-    var form = $('ax-checkout-form');
-    var btn = $('ax-checkout-btn');
-    if (step === 'checkout') {
-      title.textContent = 'Checkout';
-      form.classList.remove('hidden');
-      btn.textContent = 'Place order — ' + fmt(total());
-    } else {
-      title.textContent = 'Your cart';
-      form.classList.add('hidden');
-      btn.textContent = 'Checkout';
-    }
-  }
-
+  // Called by product card Add buttons. Bumps qty + flashes floating button.
   window.AxCart = {
     add: function(id, name, price, photo){
-      if (!state.items[id]) state.items[id] = { id: id, name: name, price: price, photo: photo, qty: 0 };
-      state.items[id].qty += 1;
-      save(); renderBtn(); renderItems();
-    },
-    inc: function(id){ if (state.items[id]) { state.items[id].qty += 1; save(); renderBtn(); renderItems(); } },
-    dec: function(id){
-      if (!state.items[id]) return;
-      state.items[id].qty -= 1;
-      if (state.items[id].qty <= 0) delete state.items[id];
-      save(); renderBtn(); renderItems();
-    },
-    open: function(){
-      renderItems();
-      setStep('cart');
-      var m = $('ax-cart-modal'); m.classList.remove('hidden'); m.classList.add('flex');
-      document.body.style.overflow = 'hidden';
-    },
-    close: function(){
-      var m = $('ax-cart-modal'); m.classList.add('hidden'); m.classList.remove('flex');
-      document.body.style.overflow = '';
-    },
-    checkoutStep: function(){
-      if (count() === 0) return;
-      if (state.step === 'cart') {
-        setStep('checkout');
-      } else {
-        submitOrder();
-      }
-    },
-    successClose: function(){
-      var m = $('ax-order-success'); m.classList.add('hidden'); m.classList.remove('flex');
-      window.AxCart.close();
-    },
-    onPincodeInput: function(){
-      var inp = $('ax-pincode-input'); if (!inp) return;
-      var pin = (inp.value || '').replace(/\\D+/g, '').slice(0, 6);
-      inp.value = pin;
-      var st = $('ax-shipping-status');
-      if (pin.length !== 6) { state.shipping = null; renderTotals(); st.classList.add('hidden'); return; }
-      st.textContent = 'Checking delivery…'; st.className = 'text-[11px] font-bold text-gray-500';
-      fetch('/biz/${esc(slug)}/shipping/quote', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ pincode: pin, cart_subtotal_inr: subtotal() - discountAmt() })
-      }).then(function(r){ return r.json(); }).then(function(j){
-        if (j.ok) {
-          state.shipping = j;
-          st.textContent = (j.free ? '✓ Free delivery' : '✓ Delivery ' + fmt(j.rate_inr)) + (j.eta_days ? ' · ' + j.eta_days + ' days' : '') + ' (' + j.zone_name + ')';
-          st.className = 'text-[11px] font-bold text-[#0E8A4B]';
-          renderTotals();
-          if (state.step === 'checkout') $('ax-checkout-btn').textContent = 'Place order — ' + fmt(total());
-        } else {
-          state.shipping = null;
-          st.textContent = j.reason || 'No delivery';
-          st.className = 'text-[11px] font-bold text-rose-600';
-          renderTotals();
-        }
-      }).catch(function(){
-        state.shipping = null; renderTotals();
-        st.textContent = 'Network error'; st.className = 'text-[11px] font-bold text-rose-600';
-      });
-    },
-    applyCoupon: function(){
-      var inp = $('ax-coupon-input'); var st = $('ax-coupon-status'); var btn = $('ax-coupon-apply');
-      var code = (inp.value || '').trim();
-      if (!code) { st.textContent = 'Enter a code'; st.className = 'text-[11px] font-bold mb-2 text-rose-600'; st.classList.remove('hidden'); return; }
-      btn.disabled = true; btn.textContent = '…';
-      fetch('/biz/${esc(slug)}/coupon/check', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ code: code, cart_subtotal_inr: subtotal() })
-      }).then(function(r){ return r.json(); }).then(function(j){
-        btn.disabled = false; btn.textContent = 'Apply';
-        if (j.ok) {
-          state.coupon = { code: j.code, discount_inr: j.discount_inr };
-          st.textContent = 'Applied · saving ' + fmt(j.discount_inr);
-          st.className = 'text-[11px] font-bold mb-2 text-[#0E8A4B]'; st.classList.remove('hidden');
-          renderTotals(); renderBtn();
-          if (state.step === 'checkout') $('ax-checkout-btn').textContent = 'Place order — ' + fmt(total());
-        } else {
-          state.coupon = null; renderTotals(); renderBtn();
-          st.textContent = j.reason || 'Invalid coupon'; st.className = 'text-[11px] font-bold mb-2 text-rose-600'; st.classList.remove('hidden');
-        }
-      }).catch(function(){
-        btn.disabled = false; btn.textContent = 'Apply';
-        st.textContent = 'Network error'; st.className = 'text-[11px] font-bold mb-2 text-rose-600'; st.classList.remove('hidden');
-      });
+      var c = read();
+      if (!c[id]) c[id] = { id: id, name: name, price: price, photo: photo, qty: 0 };
+      c[id].qty += 1;
+      save(c); renderBtn();
+      // Quick visual feedback: scale up + back
+      var btn = document.getElementById("ax-cart-btn");
+      if (btn) { btn.style.transform = "scale(1.15)"; setTimeout(function(){ btn.style.transform = ""; }, 200); }
     },
   };
-
-  function submitOrder(){
-    var form = $('ax-checkout-form');
-    var btn = $('ax-checkout-btn');
-    var status = $('ax-cart-status');
-    var fd = new FormData(form);
-    if (!fd.get('customer_name') || !String(fd.get('customer_name')).trim()) {
-      status.textContent = 'Please enter your name'; status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
-      return;
-    }
-    if (!fd.get('customer_phone') || !String(fd.get('customer_phone')).trim()) {
-      status.textContent = 'Please enter your WhatsApp number'; status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
-      return;
-    }
-    btn.disabled = true; btn.textContent = 'Placing order…';
-    status.className = 'hidden';
-    var payload = {
-      customer_name: fd.get('customer_name'),
-      customer_phone: fd.get('customer_phone'),
-      customer_address: fd.get('customer_address'),
-      customer_pincode: fd.get('customer_pincode'),
-      notes: fd.get('notes'),
-      payment_method: fd.get('payment_method'),
-      coupon_code: state.coupon ? state.coupon.code : null,
-      items: lines().map(function(l){ return { product_id: l.id, quantity: l.qty }; }),
-    };
-    fetch('/biz/' + form.dataset.slug + '/order', {
-      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
-    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
-    .then(function(res){
-      if (res.ok) {
-        var orderId = res.j.order_id;
-        var orderNum = res.j.order_number;
-        var paymentMethod = payload.payment_method;
-
-        // For online payments, launch Cashfree drop-in BEFORE clearing cart
-        if (paymentMethod === 'online' && window.Cashfree) {
-          btn.textContent = 'Opening payment…';
-          fetch('/biz/${esc(slug)}/pay/' + orderId + '/start', { method: 'POST' })
-            .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
-            .then(function(payRes){
-              if (!payRes.ok || !payRes.j.payment_session_id) {
-                btn.disabled = false; btn.textContent = 'Place order — ' + fmt(total());
-                status.textContent = (payRes.j && payRes.j.error) || 'Could not start payment.';
-                status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
-                return;
-              }
-              try {
-                var cf = window.Cashfree({ mode: payRes.j.mode === 'production' ? 'production' : 'sandbox' });
-                cf.checkout({ paymentSessionId: payRes.j.payment_session_id, redirectTarget: '_self' });
-              } catch (e) {
-                btn.disabled = false; btn.textContent = 'Place order — ' + fmt(total());
-                status.textContent = 'Payment failed to open.';
-                status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
-              }
-              // Cart will redirect to /biz/pay/return after payment
-            });
-          return;
-        }
-
-        // COD / UPI-manual flow — show success immediately
-        state.items = {}; state.coupon = null; state.shipping = null; save(); renderBtn(); renderTotals();
-        $('ax-order-number').textContent = 'Order #' + orderNum;
-        var s = $('ax-order-success'); s.classList.remove('hidden'); s.classList.add('flex');
-        btn.disabled = false; btn.textContent = 'Checkout';
-        form.reset();
-        setStep('cart');
-      } else {
-        btn.disabled = false; btn.textContent = 'Place order — ' + fmt(total());
-        status.textContent = (res.j && res.j.error) || 'Could not place order.'; status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
-      }
-    }).catch(function(){
-      btn.disabled = false; btn.textContent = 'Place order — ' + fmt(total());
-      status.textContent = 'Network error.'; status.className = 'text-[12px] text-center font-bold mt-2 text-rose-600';
-    });
-  }
-
   renderBtn();
 })();
 </script>` : ""}
-
 <!-- ── Hours + Address (if set + visible) ── -->
 ${(business.hours && visibility.hours) || (business.address && visibility.address) ? `
 <section class="py-10 px-4 bg-gray-50/50">
@@ -1858,15 +1529,758 @@ app.get("/biz/:slug", async (c) => {
   return c.html(html);
 });
 
+// ─── E-COMMERCE CORE PAGES ────────────────────────────────────────────────
+//
+// Dedicated routes for the full buyer journey: cart → checkout → thank-you
+// → track → my-orders. Each renders a polished page using a shared chrome
+// (shell) so they all feel like part of the same site. Mobile-first.
+
+/** Shared chrome — head + sticky header + footer + WhatsApp FAB.
+ *  Used by all e-commerce pages so they share branding with the home site. */
+const renderEcommerceShell = (
+  input: RenderInput,
+  title: string,
+  bodyContent: string,
+  opts: { breadcrumb?: string; embedProducts?: boolean; extraScript?: string } = {},
+): string => {
+  const { business, theme, slug, advanced } = input;
+  const faviconTag = advanced.faviconUrl ? `<link rel="icon" href="${esc(advanced.faviconUrl)}" />` : "";
+  const robotsTag = !advanced.allowIndexing ? `<meta name="robots" content="noindex, nofollow" />` : "";
+  // Embed product data on cart + checkout pages so client-side JS can render
+  // localStorage cart items without an extra fetch.
+  const productsJson = opts.embedProducts
+    ? `<script>window.AX_PRODUCTS=${JSON.stringify(input.products.map((p) => ({ id: p.id, name: p.name, price: p.priceInr, photo: p.photoUrl, inStock: p.inStock })))};window.AX_SLUG=${JSON.stringify(slug)};window.AX_UPI=${JSON.stringify(business.upiVpa)};window.AX_THEME=${JSON.stringify({ primary: theme.primary, accent: theme.accent })};</script>`
+    : "";
+
+  return `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${esc(title)} · ${esc(business.name)}</title>
+<meta name="theme-color" content="${esc(theme.primary)}" />
+${faviconTag}${robotsTag}
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=${esc(theme.font.replace(/ /g, "+"))}:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{brand:"${esc(theme.primary)}",accent:"${esc(theme.accent)}"}}}};</script>
+<style>body{font-family:'${esc(theme.font)}',ui-sans-serif,system-ui,sans-serif;background:#FFFCF7;}</style>
+${productsJson}
+</head>
+<body class="text-gray-900 min-h-screen flex flex-col">
+
+<!-- Sticky header -->
+<header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b" style="border-color: ${esc(theme.primary)}22">
+  <div class="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+    <a href="/biz/${esc(slug)}" class="flex items-center gap-2.5 min-w-0">
+      ${business.logoUrl
+        ? `<img src="${esc(business.logoUrl)}" alt="${esc(business.name)}" class="w-9 h-9 rounded-xl object-cover shadow" />`
+        : `<div class="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-[14px] shadow" style="background: linear-gradient(135deg, ${esc(theme.primary)}, ${esc(theme.accent)})">${esc((business.name || "?").slice(0, 1).toUpperCase())}</div>`}
+      <h1 class="font-extrabold text-[15px] truncate">${esc(business.name)}</h1>
+    </a>
+    <nav class="flex items-center gap-1 text-[11.5px] font-extrabold">
+      <a href="/biz/${esc(slug)}" class="hidden sm:inline-block px-2.5 py-1 rounded hover:bg-gray-100 transition">Home</a>
+      <a href="/biz/${esc(slug)}/my-orders" class="px-2.5 py-1 rounded hover:bg-gray-100 transition" title="View your orders">📦 <span class="hidden sm:inline">My orders</span></a>
+      <a href="/biz/${esc(slug)}/cart" id="ax-mini-cart" class="px-2.5 py-1 rounded hover:bg-gray-100 transition relative">
+        🛒 <span class="hidden sm:inline">Cart</span> <span id="ax-mini-cart-count" class="hidden ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-extrabold text-white" style="background: ${esc(theme.primary)}"></span>
+      </a>
+    </nav>
+  </div>
+  ${opts.breadcrumb ? `<div class="max-w-5xl mx-auto px-4 py-1.5 border-t text-[11px] text-gray-500" style="border-color: ${esc(theme.primary)}11">${opts.breadcrumb}</div>` : ""}
+</header>
+
+<main class="flex-1">${bodyContent}</main>
+
+<!-- Footer -->
+<footer class="py-8 px-4 mt-12 border-t bg-white" style="border-color: ${esc(theme.primary)}22">
+  <div class="max-w-5xl mx-auto text-center space-y-2">
+    <div class="flex flex-wrap justify-center gap-x-4 gap-y-1 text-[12px] font-bold">
+      <a href="/biz/${esc(slug)}" class="hover:underline" style="color: ${esc(theme.primary)}">Home</a>
+      <a href="/biz/${esc(slug)}/my-orders" class="hover:underline" style="color: ${esc(theme.primary)}">My orders</a>
+      ${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer" class="hover:underline" style="color: ${esc(theme.primary)}">💬 WhatsApp support</a>` : ""}
+    </div>
+    <p class="text-[11px] text-gray-500">© ${new Date().getFullYear()} ${esc(business.name)} · Built with <a href="/" class="font-extrabold" style="color: ${esc(theme.primary)}">AddisonX</a></p>
+  </div>
+</footer>
+
+${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer" class="fixed bottom-5 right-5 w-14 h-14 rounded-full flex items-center justify-center text-white text-[24px] shadow-xl transition hover:scale-110 z-40" style="background: #25D366" aria-label="WhatsApp">💬</a>` : ""}
+
+<!-- Mini-cart count updater — shared across all pages -->
+<script>
+(function(){
+  var slug = ${JSON.stringify(slug)};
+  try {
+    var cart = JSON.parse(localStorage.getItem('ax-cart-' + slug) || '{}') || {};
+    var count = Object.values(cart).reduce(function(s, l){ return s + (l.qty || 0); }, 0);
+    var el = document.getElementById('ax-mini-cart-count');
+    if (el && count > 0) { el.textContent = count; el.classList.remove('hidden'); el.classList.add('inline-flex'); }
+  } catch(e){}
+})();
+</script>
+${opts.extraScript || ""}
+</body></html>`;
+};
+
+// ─── /cart — full cart page ───────────────────────────────────────────────
+const renderCartPage = (input: RenderInput): string => {
+  const body = `
+<div class="max-w-3xl mx-auto px-4 py-6">
+  <h1 class="text-[24px] sm:text-[28px] font-black mb-1">🛒 Your cart</h1>
+  <p class="text-[13px] text-gray-600 mb-6">Review items below, then proceed to checkout.</p>
+  <div id="ax-cart-list" class="space-y-3"></div>
+  <div id="ax-cart-empty" class="hidden text-center py-16 px-6 bg-white rounded-2xl border-2" style="border-color: ${esc(input.theme.primary)}22">
+    <div class="text-[64px] mb-3">🛍️</div>
+    <h2 class="text-[18px] font-black mb-1">Your cart is empty</h2>
+    <p class="text-[13px] text-gray-600 mb-4">Looks like you haven't added anything yet.</p>
+    <a href="/biz/${esc(input.slug)}" class="inline-flex items-center gap-2 h-11 px-5 rounded-xl text-white font-extrabold text-[13px] shadow-[0_3px_0_0_rgba(0,0,0,0.15)]" style="background: ${esc(input.theme.primary)}">← Continue shopping</a>
+  </div>
+  <div id="ax-cart-summary" class="hidden mt-6 p-5 rounded-2xl bg-white border-2 shadow-[0_3px_0_0_${esc(input.theme.primary)}22]" style="border-color: ${esc(input.theme.primary)}33">
+    <div class="space-y-1.5 mb-4">
+      <div class="flex justify-between text-[13px]"><span class="text-gray-600">Subtotal</span><span id="ax-cart-subtotal" class="font-extrabold tabular-nums">₹0</span></div>
+      <p class="text-[11px] text-gray-500 italic">Shipping &amp; coupons applied at checkout.</p>
+    </div>
+    <a href="/biz/${esc(input.slug)}/checkout" class="block w-full h-12 rounded-xl text-white font-extrabold text-[14px] shadow-[0_4px_0_0_rgba(0,0,0,0.15)] transition hover:-translate-y-0.5 flex items-center justify-center gap-2" style="background: ${esc(input.theme.primary)}">
+      Proceed to checkout →
+    </a>
+    <a href="/biz/${esc(input.slug)}" class="block text-center text-[12px] font-extrabold mt-3 hover:underline" style="color: ${esc(input.theme.primary)}">← Continue shopping</a>
+  </div>
+</div>
+`;
+  const script = `<script>
+(function(){
+  var slug = window.AX_SLUG, products = window.AX_PRODUCTS || [], theme = window.AX_THEME;
+  var byId = {}; products.forEach(function(p){ byId[p.id] = p; });
+  var fmt = function(n){ return '₹' + Math.round(n).toLocaleString('en-IN'); };
+  var safe = function(s){ return String(s||'').replace(/[<>"'&]/g, function(c){ return '&#'+c.charCodeAt(0)+';'; }); };
+  function getCart(){ try { return JSON.parse(localStorage.getItem('ax-cart-' + slug) || '{}') || {}; } catch(e){ return {}; } }
+  function setCart(c){ try { localStorage.setItem('ax-cart-' + slug, JSON.stringify(c)); } catch(e){} }
+  function render(){
+    var cart = getCart();
+    var ids = Object.keys(cart);
+    var list = document.getElementById('ax-cart-list');
+    var empty = document.getElementById('ax-cart-empty');
+    var summary = document.getElementById('ax-cart-summary');
+    if (ids.length === 0) {
+      list.innerHTML = ''; empty.classList.remove('hidden'); summary.classList.add('hidden'); return;
+    }
+    empty.classList.add('hidden'); summary.classList.remove('hidden');
+    var subtotal = 0;
+    list.innerHTML = ids.map(function(id){
+      var l = cart[id]; var p = byId[id];
+      if (!p) return '';
+      var line = l.qty * p.price; subtotal += line;
+      var photo = p.photo ? '<img src="'+safe(p.photo)+'" class="w-20 h-20 rounded-xl object-cover flex-shrink-0" onerror="this.style.display=\\'none\\'" />' : '<div class="w-20 h-20 rounded-xl bg-gray-100 flex items-center justify-center text-[28px] flex-shrink-0">📦</div>';
+      return '<div class="flex gap-3 p-3 bg-white rounded-2xl border-2" style="border-color:'+theme.primary+'22">' +
+        photo +
+        '<div class="flex-1 min-w-0 flex flex-col">' +
+          '<p class="text-[14px] font-extrabold line-clamp-2">' + safe(p.name) + '</p>' +
+          '<p class="text-[12px] tabular-nums" style="color:'+theme.primary+'">' + fmt(p.price) + ' each</p>' +
+          '<div class="mt-auto flex items-center justify-between gap-2">' +
+            '<div class="inline-flex items-center gap-1 rounded-lg border" style="border-color:'+theme.primary+'33">' +
+              '<button type="button" onclick="window.AxCart.dec(\\''+safe(id)+'\\')" class="w-8 h-8 hover:bg-gray-50 font-extrabold">−</button>' +
+              '<span class="w-8 text-center text-[13px] font-extrabold tabular-nums">' + l.qty + '</span>' +
+              '<button type="button" onclick="window.AxCart.inc(\\''+safe(id)+'\\')" class="w-8 h-8 hover:bg-gray-50 font-extrabold">+</button>' +
+            '</div>' +
+            '<div class="flex items-center gap-3">' +
+              '<span class="text-[14px] font-extrabold tabular-nums">' + fmt(line) + '</span>' +
+              '<button type="button" onclick="window.AxCart.remove(\\''+safe(id)+'\\')" title="Remove" class="text-rose-600 hover:bg-rose-50 w-7 h-7 rounded-md flex items-center justify-center text-[14px]">×</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    document.getElementById('ax-cart-subtotal').textContent = fmt(subtotal);
+    var mini = document.getElementById('ax-mini-cart-count');
+    var total = ids.reduce(function(s, id){ return s + cart[id].qty; }, 0);
+    if (mini) { mini.textContent = total; mini.classList.remove('hidden'); mini.classList.add('inline-flex'); }
+  }
+  window.AxCart = {
+    inc: function(id){ var c = getCart(); if (c[id]) { c[id].qty += 1; setCart(c); render(); } },
+    dec: function(id){ var c = getCart(); if (c[id]) { c[id].qty -= 1; if (c[id].qty <= 0) delete c[id]; setCart(c); render(); } },
+    remove: function(id){ var c = getCart(); delete c[id]; setCart(c); render(); },
+  };
+  render();
+})();
+</script>`;
+  return renderEcommerceShell(input, "Your cart", body, { embedProducts: true, extraScript: script });
+};
+
+// ─── /checkout — focused checkout form ────────────────────────────────────
+const renderCheckoutPage = (input: RenderInput): string => {
+  const { business, theme, slug, cashfree } = input;
+  const body = `
+<div class="max-w-2xl mx-auto px-4 py-6">
+  <h1 class="text-[24px] sm:text-[28px] font-black mb-1">Checkout</h1>
+  <p class="text-[13px] text-gray-600 mb-6">Almost there. Fill your details to place the order.</p>
+
+  <div id="ax-empty" class="hidden text-center py-16 bg-white rounded-2xl border-2" style="border-color: ${esc(theme.primary)}22">
+    <p class="text-[14px] font-extrabold">Your cart is empty.</p>
+    <a href="/biz/${esc(slug)}" class="inline-block mt-3 text-[12px] font-extrabold underline" style="color: ${esc(theme.primary)}">← Continue shopping</a>
+  </div>
+
+  <div id="ax-checkout-wrap" class="hidden grid grid-cols-1 lg:grid-cols-5 gap-4">
+    <!-- Form -->
+    <form id="ax-checkout-form" class="lg:col-span-3 bg-white rounded-2xl border-2 p-5 space-y-3 shadow-[0_3px_0_0_${esc(theme.primary)}22]" style="border-color: ${esc(theme.primary)}33">
+      <div>
+        <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600">Your name *</label>
+        <input name="customer_name" required maxlength="100" placeholder="Full name"
+               class="w-full mt-1 px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[14px] font-medium" style="border-color: ${esc(theme.primary)}33" />
+      </div>
+      <div>
+        <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600">WhatsApp number *</label>
+        <input name="customer_phone" required type="tel" maxlength="20" placeholder="+91 9XXXXXXXXX"
+               class="w-full mt-1 px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[14px] font-mono" style="border-color: ${esc(theme.primary)}33" />
+        <p class="text-[10.5px] text-gray-500 mt-1">We'll send updates here and look up your orders by this number.</p>
+      </div>
+      <div>
+        <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600">Email (optional)</label>
+        <input name="customer_email" type="email" maxlength="200" placeholder="you@example.com"
+               class="w-full mt-1 px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[14px]" style="border-color: ${esc(theme.primary)}33" />
+      </div>
+      <div>
+        <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600">Delivery address</label>
+        <textarea name="customer_address" rows="3" maxlength="500" placeholder="House / street / city"
+                  class="w-full mt-1 px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[13px] resize-none" style="border-color: ${esc(theme.primary)}33"></textarea>
+      </div>
+      <div>
+        <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600">Pincode</label>
+        <input id="ax-pincode" name="customer_pincode" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit pincode"
+               class="w-full mt-1 px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[14px] font-mono font-bold tracking-wider" style="border-color: ${esc(theme.primary)}33" />
+        <p id="ax-shipping-status" class="text-[11px] mt-1 hidden"></p>
+      </div>
+      <div>
+        <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600">Notes (optional)</label>
+        <textarea name="notes" rows="2" maxlength="500" placeholder="Any special instructions?"
+                  class="w-full mt-1 px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[13px] resize-none" style="border-color: ${esc(theme.primary)}33"></textarea>
+      </div>
+
+      <div>
+        <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-1.5">Payment</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          ${cashfree.enabled ? `
+          <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer hover:bg-gray-50 transition" style="border-color: ${esc(theme.primary)}33">
+            <input type="radio" name="payment_method" value="online" checked />
+            <span class="text-[12.5px] font-extrabold">💳 Card / UPI / Netbanking</span>
+          </label>` : ""}
+          ${business.upiVpa && !cashfree.enabled ? `
+          <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer hover:bg-gray-50 transition" style="border-color: ${esc(theme.primary)}33">
+            <input type="radio" name="payment_method" value="upi" checked />
+            <span class="text-[12.5px] font-extrabold">💳 UPI (manual)</span>
+          </label>` : ""}
+          <label class="flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer hover:bg-gray-50 transition" style="border-color: ${esc(theme.primary)}33">
+            <input type="radio" name="payment_method" value="cod" ${(cashfree.enabled || business.upiVpa) ? "" : "checked"} />
+            <span class="text-[12.5px] font-extrabold">💵 Cash on delivery</span>
+          </label>
+        </div>
+      </div>
+    </form>
+
+    <!-- Order summary -->
+    <aside class="lg:col-span-2 lg:sticky lg:top-20 self-start space-y-3">
+      <div class="bg-white rounded-2xl border-2 p-5 shadow-[0_3px_0_0_${esc(theme.primary)}22]" style="border-color: ${esc(theme.primary)}33">
+        <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-3">Order summary</p>
+        <ul id="ax-summary-items" class="space-y-2 mb-3"></ul>
+
+        <div id="ax-coupon-row" class="hidden mb-2.5 flex items-center gap-2 pt-2 border-t" style="border-color: ${esc(theme.primary)}22">
+          <input id="ax-coupon-input" type="text" placeholder="Coupon"
+                 class="flex-1 px-3 py-2 rounded-lg border-2 focus:outline-none text-[12px] font-mono uppercase font-bold tracking-wider" style="border-color: ${esc(theme.primary)}33" />
+          <button id="ax-coupon-apply" type="button" class="h-9 px-3 rounded-lg text-white text-[11.5px] font-extrabold" style="background: ${esc(theme.primary)}">Apply</button>
+        </div>
+        <p id="ax-coupon-status" class="hidden text-[11px] font-bold mb-2"></p>
+
+        <div class="space-y-1.5 pt-2 border-t" style="border-color: ${esc(theme.primary)}22">
+          <div class="flex justify-between text-[12.5px]"><span class="text-gray-600">Subtotal</span><span id="ax-sub" class="font-extrabold tabular-nums">₹0</span></div>
+          <div id="ax-disc-row" class="hidden flex justify-between text-[12.5px]" style="color: ${esc(theme.primary)}">
+            <span>Discount <span id="ax-disc-code" class="text-[10px] font-extrabold uppercase ml-1 px-1.5 py-0.5 rounded" style="background: ${esc(theme.primary)}11"></span></span>
+            <span id="ax-disc" class="font-extrabold tabular-nums">−₹0</span>
+          </div>
+          <div id="ax-ship-row" class="hidden flex justify-between text-[12.5px]">
+            <span class="text-gray-600">Shipping <span id="ax-ship-zone" class="text-[10px] font-extrabold ml-1 px-1.5 py-0.5 rounded bg-gray-100"></span></span>
+            <span id="ax-ship" class="font-extrabold tabular-nums">₹0</span>
+          </div>
+          <div class="flex justify-between text-[14px] pt-1.5 border-t" style="border-color: ${esc(theme.primary)}22">
+            <span class="font-extrabold">Total</span><span id="ax-total" class="font-black tabular-nums" style="color: ${esc(theme.primary)}">₹0</span>
+          </div>
+        </div>
+
+        <button id="ax-place-btn" type="button" form="ax-checkout-form"
+                class="mt-4 w-full h-12 rounded-xl text-white font-extrabold text-[14px] shadow-[0_4px_0_0_rgba(0,0,0,0.15)] transition hover:-translate-y-0.5 disabled:opacity-50" style="background: ${esc(theme.primary)}">
+          Place order
+        </button>
+        <p id="ax-status" class="text-[11.5px] text-center font-bold mt-2 hidden"></p>
+        <p class="text-[10.5px] text-center text-gray-500 mt-2">🔒 Secure · 7-day refund · WhatsApp updates</p>
+      </div>
+      <a href="/biz/${esc(slug)}/cart" class="block text-center text-[12px] font-extrabold hover:underline" style="color: ${esc(theme.primary)}">← Back to cart</a>
+    </aside>
+  </div>
+</div>
+`;
+
+  const script = `<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+<script>
+(function(){
+  var slug = window.AX_SLUG, products = window.AX_PRODUCTS || [], theme = window.AX_THEME;
+  var byId = {}; products.forEach(function(p){ byId[p.id] = p; });
+  var fmt = function(n){ return '₹' + Math.round(n).toLocaleString('en-IN'); };
+  var safe = function(s){ return String(s||'').replace(/[<>"'&]/g, function(c){ return '&#'+c.charCodeAt(0)+';'; }); };
+  function getCart(){ try { return JSON.parse(localStorage.getItem('ax-cart-' + slug) || '{}') || {}; } catch(e){ return {}; } }
+  var state = { coupon: null, shipping: null };
+
+  function lines(){ var c = getCart(); return Object.keys(c).map(function(id){ var p = byId[id]; if (!p) return null; return { id: id, name: p.name, price: p.price, photo: p.photo, qty: c[id].qty, line: p.price * c[id].qty }; }).filter(Boolean); }
+  function subtotal(){ return lines().reduce(function(s, l){ return s + l.line; }, 0); }
+  function discount(){ return state.coupon ? Math.min(subtotal(), state.coupon.discount_inr || 0) : 0; }
+  function shipping(){ return state.shipping ? Number(state.shipping.rate_inr) || 0 : 0; }
+  function total(){ return Math.max(0, subtotal() - discount() + shipping()); }
+
+  function render(){
+    var ls = lines();
+    if (ls.length === 0) {
+      document.getElementById('ax-empty').classList.remove('hidden');
+      document.getElementById('ax-checkout-wrap').classList.add('hidden');
+      return;
+    }
+    document.getElementById('ax-empty').classList.add('hidden');
+    document.getElementById('ax-checkout-wrap').classList.remove('hidden');
+    document.getElementById('ax-checkout-wrap').classList.add('grid');
+
+    document.getElementById('ax-summary-items').innerHTML = ls.map(function(l){
+      var photo = l.photo ? '<img src="'+safe(l.photo)+'" class="w-10 h-10 rounded-md object-cover flex-shrink-0" onerror="this.style.display=\\'none\\'" />' : '<div class="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center text-[16px] flex-shrink-0">📦</div>';
+      return '<li class="flex gap-2 items-center">' + photo +
+        '<div class="flex-1 min-w-0"><p class="text-[12px] font-bold truncate">'+safe(l.name)+'</p><p class="text-[10.5px] text-gray-500">'+fmt(l.price)+' × '+l.qty+'</p></div>' +
+        '<span class="text-[12.5px] font-extrabold tabular-nums">'+fmt(l.line)+'</span></li>';
+    }).join('');
+
+    document.getElementById('ax-sub').textContent = fmt(subtotal());
+    var dr = document.getElementById('ax-disc-row');
+    if (state.coupon) { dr.classList.remove('hidden'); dr.classList.add('flex'); document.getElementById('ax-disc').textContent = '−' + fmt(discount()); document.getElementById('ax-disc-code').textContent = state.coupon.code; }
+    else { dr.classList.add('hidden'); dr.classList.remove('flex'); }
+    var sr = document.getElementById('ax-ship-row');
+    if (state.shipping) { sr.classList.remove('hidden'); sr.classList.add('flex'); document.getElementById('ax-ship').textContent = state.shipping.free ? 'FREE' : fmt(shipping()); document.getElementById('ax-ship-zone').textContent = state.shipping.zone_name; }
+    else { sr.classList.add('hidden'); sr.classList.remove('flex'); }
+    document.getElementById('ax-total').textContent = fmt(total());
+    document.getElementById('ax-place-btn').textContent = 'Place order — ' + fmt(total());
+
+    // Show coupon row when there's a cart
+    document.getElementById('ax-coupon-row').classList.remove('hidden');
+    document.getElementById('ax-coupon-row').classList.add('flex');
+  }
+
+  // Coupon apply
+  document.getElementById('ax-coupon-apply').addEventListener('click', function(){
+    var inp = document.getElementById('ax-coupon-input'); var st = document.getElementById('ax-coupon-status');
+    var code = (inp.value || '').trim();
+    if (!code) return;
+    var btn = this; btn.disabled = true; btn.textContent = '…';
+    fetch('/biz/' + slug + '/coupon/check', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ code: code, cart_subtotal_inr: subtotal() }) })
+      .then(function(r){ return r.json(); }).then(function(j){
+        btn.disabled = false; btn.textContent = 'Apply';
+        if (j.ok) { state.coupon = { code: j.code, discount_inr: j.discount_inr }; st.textContent = 'Applied · saving ' + fmt(j.discount_inr); st.className = 'text-[11px] font-bold mb-2 mt-1 text-emerald-700'; st.classList.remove('hidden'); render(); }
+        else { state.coupon = null; st.textContent = j.reason || 'Invalid'; st.className = 'text-[11px] font-bold mb-2 mt-1 text-rose-600'; st.classList.remove('hidden'); render(); }
+      }).catch(function(){ btn.disabled = false; btn.textContent = 'Apply'; });
+  });
+
+  // Pincode → shipping
+  var debounce;
+  document.getElementById('ax-pincode').addEventListener('input', function(e){
+    clearTimeout(debounce);
+    var pin = (e.target.value || '').replace(/\\D+/g, '').slice(0, 6); e.target.value = pin;
+    var st = document.getElementById('ax-shipping-status');
+    if (pin.length !== 6) { state.shipping = null; st.classList.add('hidden'); render(); return; }
+    debounce = setTimeout(function(){
+      st.textContent = 'Checking delivery…'; st.className = 'text-[11px] mt-1 text-gray-500'; st.classList.remove('hidden');
+      fetch('/biz/' + slug + '/shipping/quote', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ pincode: pin, cart_subtotal_inr: subtotal() - discount() }) })
+        .then(function(r){ return r.json(); }).then(function(j){
+          if (j.ok) { state.shipping = j; st.textContent = (j.free ? '✓ Free delivery' : '✓ Delivery ' + fmt(j.rate_inr)) + (j.eta_days ? ' · ' + j.eta_days + ' days' : ''); st.className = 'text-[11px] mt-1 font-bold text-emerald-700'; }
+          else { state.shipping = null; st.textContent = j.reason || 'No delivery'; st.className = 'text-[11px] mt-1 font-bold text-rose-600'; }
+          render();
+        }).catch(function(){ state.shipping = null; render(); });
+    }, 400);
+  });
+
+  // Place order
+  document.getElementById('ax-place-btn').addEventListener('click', function(){
+    var form = document.getElementById('ax-checkout-form'); var fd = new FormData(form); var btn = this; var st = document.getElementById('ax-status');
+    if (!fd.get('customer_name') || !String(fd.get('customer_name')).trim()) { st.textContent = 'Please enter your name'; st.className = 'text-[11.5px] text-center font-bold mt-2 text-rose-600'; st.classList.remove('hidden'); return; }
+    if (!fd.get('customer_phone') || !String(fd.get('customer_phone')).trim()) { st.textContent = 'Please enter your WhatsApp number'; st.className = 'text-[11.5px] text-center font-bold mt-2 text-rose-600'; st.classList.remove('hidden'); return; }
+    btn.disabled = true; btn.textContent = 'Placing…'; st.classList.add('hidden');
+    var phone = String(fd.get('customer_phone')).trim();
+    var payload = {
+      customer_name: fd.get('customer_name'), customer_phone: phone, customer_email: fd.get('customer_email'),
+      customer_address: fd.get('customer_address'), customer_pincode: fd.get('customer_pincode'),
+      notes: fd.get('notes'), payment_method: fd.get('payment_method'),
+      coupon_code: state.coupon ? state.coupon.code : null,
+      items: lines().map(function(l){ return { product_id: l.id, quantity: l.qty }; }),
+    };
+    fetch('/biz/' + slug + '/order', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+      .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+      .then(function(res){
+        if (res.ok) {
+          var orderId = res.j.order_id, num = res.j.order_number, pm = payload.payment_method;
+          var successUrl = '/biz/' + slug + '/order/' + num + '?phone=' + encodeURIComponent(phone);
+          if (pm === 'online' && window.Cashfree) {
+            btn.textContent = 'Opening payment…';
+            fetch('/biz/' + slug + '/pay/' + orderId + '/start', { method: 'POST' })
+              .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+              .then(function(p){
+                if (!p.ok || !p.j.payment_session_id) { btn.disabled = false; btn.textContent = 'Place order — ' + fmt(total()); st.textContent = (p.j && p.j.error) || 'Could not start payment.'; st.className = 'text-[11.5px] text-center font-bold mt-2 text-rose-600'; st.classList.remove('hidden'); return; }
+                try { window.Cashfree({ mode: p.j.mode === 'production' ? 'production' : 'sandbox' }).checkout({ paymentSessionId: p.j.payment_session_id, redirectTarget: '_self' }); } catch(e){ btn.disabled = false; btn.textContent = 'Place order — ' + fmt(total()); st.textContent = 'Payment failed to open.'; st.className = 'text-[11.5px] text-center font-bold mt-2 text-rose-600'; st.classList.remove('hidden'); }
+              });
+            return;
+          }
+          // Clear cart + redirect to success page
+          try { localStorage.removeItem('ax-cart-' + slug); } catch(e){}
+          window.location.href = successUrl;
+        } else {
+          btn.disabled = false; btn.textContent = 'Place order — ' + fmt(total());
+          st.textContent = (res.j && res.j.error) || 'Could not place order.'; st.className = 'text-[11.5px] text-center font-bold mt-2 text-rose-600'; st.classList.remove('hidden');
+        }
+      }).catch(function(){ btn.disabled = false; btn.textContent = 'Place order — ' + fmt(total()); st.textContent = 'Network error.'; st.className = 'text-[11.5px] text-center font-bold mt-2 text-rose-600'; st.classList.remove('hidden'); });
+  });
+
+  render();
+})();
+</script>`;
+
+  return renderEcommerceShell(input, "Checkout", body, {
+    embedProducts: true,
+    breadcrumb: `<a href="/biz/${esc(slug)}/cart" class="hover:underline">Cart</a> · Checkout`,
+    extraScript: script,
+  });
+};
+
+// ─── /order/:n — thank-you / order confirmation ──────────────────────────
+const renderOrderSuccessPage = (
+  input: RenderInput,
+  order: typeof orderTbl.$inferSelect,
+  items: Array<typeof orderItem.$inferSelect>,
+): string => {
+  const { business, theme, slug } = input;
+  const trackUrl = `/biz/${slug}/track/${order.orderNumber}?phone=${encodeURIComponent(order.customerPhone || "")}`;
+  const waMsg = `Hi ${business.name}, I just placed order #${order.orderNumber}. ${order.totalInr ? `Total: ₹${Number(order.totalInr).toLocaleString("en-IN")}` : ""}`;
+  const waLink = business.whatsapp ? `${business.whatsapp.split("?")[0]}?text=${encodeURIComponent(waMsg)}` : null;
+  const body = `
+<div class="max-w-2xl mx-auto px-4 py-8">
+  <!-- Success header -->
+  <div class="text-center mb-6">
+    <div class="w-20 h-20 mx-auto rounded-full flex items-center justify-center text-white text-[36px] mb-3 shadow-lg" style="background: ${esc(theme.primary)}">✓</div>
+    <h1 class="text-[28px] sm:text-[34px] font-black leading-tight">Thank you! 🎉</h1>
+    <p class="text-[14px] text-gray-600 mt-2">Your order has been placed successfully.</p>
+    <div class="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full text-[14px] font-extrabold" style="background: ${esc(theme.primary)}11; color: ${esc(theme.primary)}">
+      Order #${order.orderNumber}
+    </div>
+  </div>
+
+  <!-- Order card -->
+  <div class="bg-white rounded-2xl border-2 p-5 shadow-[0_3px_0_0_${esc(theme.primary)}22] mb-4" style="border-color: ${esc(theme.primary)}33">
+    <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-3">Order details</p>
+    <ul class="space-y-2.5 mb-4 pb-4 border-b" style="border-color: ${esc(theme.primary)}22">
+      ${items.map((it) => `<li class="flex gap-2.5 items-start">
+        ${it.productPhotoUrl ? `<img src="${esc(it.productPhotoUrl)}" alt="" class="w-12 h-12 rounded-lg object-cover flex-shrink-0" onerror="this.style.display='none'" />` : `<div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-[20px] flex-shrink-0">📦</div>`}
+        <div class="flex-1 min-w-0">
+          <p class="text-[13px] font-extrabold truncate">${esc(it.productName)}</p>
+          <p class="text-[11px] text-gray-500">₹${Number(it.unitPriceInr).toLocaleString("en-IN")} × ${it.quantity}</p>
+        </div>
+        <span class="text-[13px] font-extrabold tabular-nums">₹${Number(it.lineTotalInr).toLocaleString("en-IN")}</span>
+      </li>`).join("")}
+    </ul>
+    <div class="space-y-1 text-[12.5px]">
+      <div class="flex justify-between"><span class="text-gray-600">Subtotal</span><span class="font-extrabold tabular-nums">₹${Number(order.subtotalInr).toLocaleString("en-IN")}</span></div>
+      ${Number(order.discountInr) > 0 ? `<div class="flex justify-between" style="color: ${esc(theme.primary)}"><span>Discount${order.couponCode ? ` (${esc(order.couponCode)})` : ""}</span><span class="font-extrabold tabular-nums">−₹${Number(order.discountInr).toLocaleString("en-IN")}</span></div>` : ""}
+      ${Number(order.shippingInr) > 0 ? `<div class="flex justify-between"><span class="text-gray-600">Shipping${order.shippingZoneName ? ` (${esc(order.shippingZoneName)})` : ""}</span><span class="font-extrabold tabular-nums">₹${Number(order.shippingInr).toLocaleString("en-IN")}</span></div>` : ""}
+      <div class="flex justify-between text-[15px] pt-2 mt-2 border-t" style="border-color: ${esc(theme.primary)}22">
+        <span class="font-extrabold">Total paid</span>
+        <span class="font-black tabular-nums" style="color: ${esc(theme.primary)}">₹${Number(order.totalInr).toLocaleString("en-IN")}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="bg-white rounded-2xl border-2 p-5 mb-4" style="border-color: ${esc(theme.primary)}22">
+    <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-2">Status</p>
+    <div class="flex items-center gap-2">
+      <span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider" style="background: ${esc(theme.primary)}11; color: ${esc(theme.primary)}">${esc(order.status)}</span>
+      <span class="text-[11.5px] text-gray-500">·</span>
+      <span class="text-[11.5px] font-bold">Payment: ${esc(order.paymentStatus)}</span>
+    </div>
+    ${order.paymentStatus === "pending" && order.paymentMethod === "cod"
+      ? `<p class="text-[11.5px] text-gray-600 mt-2 italic">Pay cash on delivery — keep ₹${Number(order.totalInr).toLocaleString("en-IN")} ready.</p>` : ""}
+    ${order.paymentStatus === "pending" && order.paymentMethod === "upi" && business.upiVpa
+      ? `<div class="mt-2 p-2.5 rounded-lg bg-gray-50 border" style="border-color: ${esc(theme.primary)}22"><p class="text-[11.5px] font-bold">Send ₹${Number(order.totalInr).toLocaleString("en-IN")} via UPI to:</p><p class="text-[13px] font-mono font-extrabold mt-1" style="color: ${esc(theme.primary)}">${esc(business.upiVpa)}</p></div>` : ""}
+  </div>
+
+  <!-- Actions -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+    <a href="${esc(trackUrl)}" class="inline-flex items-center justify-center gap-2 h-12 rounded-xl text-white font-extrabold text-[13px] shadow-[0_3px_0_0_rgba(0,0,0,0.15)] transition hover:-translate-y-0.5" style="background: ${esc(theme.primary)}">📦 Track order</a>
+    ${waLink ? `<a href="${esc(waLink)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center gap-2 h-12 rounded-xl text-white font-extrabold text-[13px] shadow-[0_3px_0_0_rgba(0,0,0,0.15)]" style="background: #25D366">💬 Confirm on WhatsApp</a>` : `<a href="/biz/${esc(slug)}" class="inline-flex items-center justify-center gap-2 h-12 rounded-xl bg-white border-2 font-extrabold text-[13px]" style="border-color: ${esc(theme.primary)}33; color: ${esc(theme.primary)}">← Continue shopping</a>`}
+  </div>
+  <div class="text-center mt-3">
+    <a href="/biz/${esc(slug)}/my-orders" class="text-[12px] font-extrabold hover:underline" style="color: ${esc(theme.primary)}">View all my orders</a>
+  </div>
+
+  <p class="text-[11px] text-center text-gray-500 mt-6">A confirmation has been logged. Bookmark this page or use your phone number to find this order again on the "My orders" page.</p>
+</div>
+
+<script>
+// Clear cart on success page mount (handles direct visits + post-payment redirect)
+(function(){ try { localStorage.removeItem('ax-cart-${esc(slug)}'); } catch(e){} })();
+</script>
+`;
+  return renderEcommerceShell(input, `Order #${order.orderNumber} confirmed`, body, {
+    breadcrumb: `<a href="/biz/${esc(slug)}" class="hover:underline">Home</a> · Order #${order.orderNumber}`,
+  });
+};
+
+// ─── /track/:n — order tracking ──────────────────────────────────────────
+const renderTrackOrderPage = (
+  input: RenderInput,
+  order: typeof orderTbl.$inferSelect,
+  items: Array<typeof orderItem.$inferSelect>,
+): string => {
+  const { business, theme, slug } = input;
+  const STEPS: Array<{ id: "new" | "confirmed" | "shipped" | "delivered"; label: string; icon: string }> = [
+    { id: "new",       label: "Order placed",  icon: "📝" },
+    { id: "confirmed", label: "Confirmed",      icon: "✅" },
+    { id: "shipped",   label: "Out for delivery", icon: "🚚" },
+    { id: "delivered", label: "Delivered",      icon: "📦" },
+  ];
+  const currentIdx = STEPS.findIndex((s) => s.id === order.status);
+  const isCancelled = order.status === "cancelled";
+
+  const waMsg = `Hi ${business.name}, asking about order #${order.orderNumber}.`;
+  const waLink = business.whatsapp ? `${business.whatsapp.split("?")[0]}?text=${encodeURIComponent(waMsg)}` : null;
+
+  const body = `
+<div class="max-w-2xl mx-auto px-4 py-8">
+  <div class="mb-6">
+    <h1 class="text-[24px] sm:text-[28px] font-black leading-tight">📦 Order #${order.orderNumber}</h1>
+    <p class="text-[13px] text-gray-600 mt-1">Placed ${new Date(order.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</p>
+  </div>
+
+  ${isCancelled ? `
+  <div class="p-4 rounded-2xl bg-rose-50 border-2 border-rose-200 mb-4">
+    <p class="text-[14px] font-extrabold text-rose-800">This order was cancelled.</p>
+    <p class="text-[12px] text-rose-700 mt-1">Contact us on WhatsApp if you have questions.</p>
+  </div>` : `
+  <!-- Status timeline (vertical) -->
+  <div class="bg-white rounded-2xl border-2 p-5 mb-4 shadow-[0_3px_0_0_${esc(theme.primary)}22]" style="border-color: ${esc(theme.primary)}33">
+    <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-4">Order progress</p>
+    <ol class="space-y-0">
+      ${STEPS.map((s, i) => {
+        const done = i <= currentIdx;
+        const current = i === currentIdx;
+        const isLast = i === STEPS.length - 1;
+        return `<li class="flex gap-3">
+          <div class="flex flex-col items-center flex-shrink-0">
+            <div class="w-9 h-9 rounded-full flex items-center justify-center text-[16px] transition" style="${done ? `background: ${esc(theme.primary)}; color: white;` : "background: #f1f1f1; color: #999;"}">
+              ${done ? "✓" : s.icon}
+            </div>
+            ${!isLast ? `<div class="w-0.5 flex-1 my-1" style="background: ${done && i + 1 <= currentIdx ? esc(theme.primary) : "#e5e5e5"}; min-height: 28px;"></div>` : ""}
+          </div>
+          <div class="pb-7 flex-1">
+            <p class="text-[13px] font-extrabold ${done ? "" : "text-gray-400"}">${esc(s.label)}</p>
+            ${current ? `<p class="text-[11.5px] mt-0.5" style="color: ${esc(theme.primary)}">⚡ Current status</p>` : ""}
+          </div>
+        </li>`;
+      }).join("")}
+    </ol>
+  </div>`}
+
+  <!-- Items -->
+  <div class="bg-white rounded-2xl border-2 p-5 mb-4" style="border-color: ${esc(theme.primary)}22">
+    <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-3">Items (${items.length})</p>
+    <ul class="space-y-2.5">
+      ${items.map((it) => `<li class="flex gap-2.5 items-center">
+        ${it.productPhotoUrl ? `<img src="${esc(it.productPhotoUrl)}" alt="" class="w-12 h-12 rounded-lg object-cover flex-shrink-0" onerror="this.style.display='none'" />` : `<div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-[20px] flex-shrink-0">📦</div>`}
+        <div class="flex-1 min-w-0"><p class="text-[13px] font-extrabold truncate">${esc(it.productName)}</p><p class="text-[11px] text-gray-500">Qty: ${it.quantity}</p></div>
+        <span class="text-[13px] font-extrabold tabular-nums">₹${Number(it.lineTotalInr).toLocaleString("en-IN")}</span>
+      </li>`).join("")}
+    </ul>
+    <div class="mt-3 pt-3 border-t flex justify-between text-[14px]" style="border-color: ${esc(theme.primary)}22">
+      <span class="font-extrabold">Total</span>
+      <span class="font-black tabular-nums" style="color: ${esc(theme.primary)}">₹${Number(order.totalInr).toLocaleString("en-IN")}</span>
+    </div>
+  </div>
+
+  <!-- Delivery info -->
+  ${order.customerAddress ? `<div class="bg-white rounded-2xl border-2 p-5 mb-4" style="border-color: ${esc(theme.primary)}22">
+    <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-2">📍 Delivering to</p>
+    <p class="text-[13px] font-bold whitespace-pre-line">${esc(order.customerAddress)}${order.customerPincode ? ` — ${esc(order.customerPincode)}` : ""}</p>
+  </div>` : ""}
+
+  <!-- Actions -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-6">
+    ${waLink ? `<a href="${esc(waLink)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center gap-2 h-12 rounded-xl text-white font-extrabold text-[13px] shadow-[0_3px_0_0_rgba(0,0,0,0.15)]" style="background: #25D366">💬 Message about this order</a>` : ""}
+    <a href="/biz/${esc(slug)}/my-orders" class="inline-flex items-center justify-center gap-2 h-12 rounded-xl bg-white border-2 font-extrabold text-[13px]" style="border-color: ${esc(theme.primary)}33; color: ${esc(theme.primary)}">📋 All my orders</a>
+  </div>
+
+  <p class="text-[11px] text-center text-gray-500 mt-6">Bookmark this page to track status updates. Refresh anytime.</p>
+</div>
+`;
+  return renderEcommerceShell(input, `Track order #${order.orderNumber}`, body, {
+    breadcrumb: `<a href="/biz/${esc(slug)}" class="hover:underline">Home</a> · Track order #${order.orderNumber}`,
+  });
+};
+
+// ─── /my-orders — phone lookup + order history ───────────────────────────
+const renderMyOrdersPage = (
+  input: RenderInput,
+  phone: string | null,
+  orders: Array<typeof orderTbl.$inferSelect> | null,
+): string => {
+  const { theme, slug } = input;
+  const STATUS_BG: Record<string, string> = {
+    new: "#FFEFE0", confirmed: "#E4E8FF", shipped: "#FFF1D6", delivered: "#E6F7EE", cancelled: "#FCE5F0",
+  };
+  const STATUS_COLOR: Record<string, string> = {
+    new: "#FF6A1F", confirmed: "#3C50E0", shipped: "#B8651A", delivered: "#0E8A4B", cancelled: "#D4308E",
+  };
+
+  const body = `
+<div class="max-w-3xl mx-auto px-4 py-8">
+  <h1 class="text-[24px] sm:text-[28px] font-black leading-tight mb-1">📦 My orders</h1>
+  <p class="text-[13px] text-gray-600 mb-6">Find your orders using the WhatsApp number you used at checkout.</p>
+
+  <!-- Phone lookup form -->
+  <form method="GET" action="/biz/${esc(slug)}/my-orders" class="bg-white rounded-2xl border-2 p-5 mb-6 shadow-[0_3px_0_0_${esc(theme.primary)}22]" style="border-color: ${esc(theme.primary)}33">
+    <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-1.5 block">WhatsApp number</label>
+    <div class="flex gap-2">
+      <input name="phone" type="tel" value="${esc(phone || "")}" placeholder="+91 9XXXXXXXXX" required
+             class="flex-1 px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[14px] font-mono font-bold" style="border-color: ${esc(theme.primary)}33" />
+      <button type="submit" class="h-11 px-5 rounded-lg text-white font-extrabold text-[13px] shadow-[0_3px_0_0_rgba(0,0,0,0.15)]" style="background: ${esc(theme.primary)}">Find orders</button>
+    </div>
+  </form>
+
+  ${orders === null ? "" : orders.length === 0 ? `
+  <div class="text-center py-12 px-6 bg-white rounded-2xl border-2" style="border-color: ${esc(theme.primary)}22">
+    <div class="text-[48px] mb-2">🔍</div>
+    <p class="text-[14px] font-extrabold mb-1">No orders found</p>
+    <p class="text-[12px] text-gray-600">No orders match ${esc(phone || "")}. Double-check the number includes the country code (e.g. +91…).</p>
+  </div>` : `
+  <p class="text-[11.5px] font-bold text-gray-600 mb-3">Found ${orders.length} order${orders.length === 1 ? "" : "s"} for ${esc(phone || "")}</p>
+  <ul class="space-y-3">
+    ${orders.map((o) => `<li>
+      <a href="/biz/${esc(slug)}/track/${o.orderNumber}?phone=${encodeURIComponent(o.customerPhone || "")}" class="block bg-white rounded-2xl border-2 p-4 hover:-translate-y-0.5 hover:shadow-lg transition" style="border-color: ${esc(theme.primary)}22">
+        <div class="flex items-center justify-between gap-3 mb-1">
+          <div class="flex items-center gap-2">
+            <span class="text-[14px] font-black">#${o.orderNumber}</span>
+            <span class="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded" style="background: ${STATUS_BG[o.status] || "#f1f1f1"}; color: ${STATUS_COLOR[o.status] || "#666"}">${esc(o.status)}</span>
+          </div>
+          <span class="text-[14px] font-extrabold tabular-nums" style="color: ${esc(theme.primary)}">₹${Number(o.totalInr).toLocaleString("en-IN")}</span>
+        </div>
+        <p class="text-[11.5px] text-gray-500">${new Date(o.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} · Payment: ${esc(o.paymentStatus)}</p>
+      </a>
+    </li>`).join("")}
+  </ul>`}
+</div>
+`;
+  return renderEcommerceShell(input, "My orders", body, {
+    breadcrumb: `<a href="/biz/${esc(slug)}" class="hover:underline">Home</a> · My orders`,
+  });
+};
+
+// ─── E-COMMERCE ROUTES ────────────────────────────────────────────────────
+
+app.get("/biz/:slug/cart", async (c) => {
+  const slug = (c.req.param("slug") || "").toLowerCase().trim();
+  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
+  if (!row) return c.html(renderNotFound(), 404);
+  if (row.status !== "published" && !(await isOwnerPreview(c, row.userId))) return c.html(renderDraftHolding(slug), 200);
+  const input = await buildRenderInput(row, slug);
+  return c.html(renderCartPage(input));
+});
+
+app.get("/biz/:slug/checkout", async (c) => {
+  const slug = (c.req.param("slug") || "").toLowerCase().trim();
+  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
+  if (!row) return c.html(renderNotFound(), 404);
+  if (row.status !== "published" && !(await isOwnerPreview(c, row.userId))) return c.html(renderDraftHolding(slug), 200);
+  const input = await buildRenderInput(row, slug);
+  return c.html(renderCheckoutPage(input));
+});
+
+app.get("/biz/:slug/order/:orderNumber", async (c) => {
+  const slug = (c.req.param("slug") || "").toLowerCase().trim();
+  const orderNumber = parseInt(c.req.param("orderNumber"), 10);
+  const phone = c.req.query("phone")?.trim() || null;
+  if (!Number.isFinite(orderNumber)) return c.html(renderNotFound(), 404);
+
+  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
+  if (!row) return c.html(renderNotFound(), 404);
+
+  const [order] = await db.select().from(orderTbl)
+    .where(and(eq(orderTbl.ownerId, row.userId), eq(orderTbl.orderNumber, orderNumber))).limit(1);
+  if (!order) return c.html(renderNotFound(), 404);
+
+  // Privacy: if phone provided in URL it must match. If not provided, allow
+  // anyone with the order number — same magic-link pattern as Shopify
+  // tracking. We can tighten with a signed token later.
+  if (phone && order.customerPhone && phone.replace(/\D+/g, "") !== order.customerPhone.replace(/\D+/g, "")) {
+    return c.html(renderNotFound(), 404);
+  }
+
+  const items = await db.select().from(orderItem).where(eq(orderItem.orderId, order.id));
+  const input = await buildRenderInput(row, slug);
+  c.header("Cache-Control", "no-store");
+  return c.html(renderOrderSuccessPage(input, order, items));
+});
+
+app.get("/biz/:slug/track/:orderNumber", async (c) => {
+  const slug = (c.req.param("slug") || "").toLowerCase().trim();
+  const orderNumber = parseInt(c.req.param("orderNumber"), 10);
+  const phone = c.req.query("phone")?.trim() || null;
+  if (!Number.isFinite(orderNumber)) return c.html(renderNotFound(), 404);
+
+  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
+  if (!row) return c.html(renderNotFound(), 404);
+
+  const [order] = await db.select().from(orderTbl)
+    .where(and(eq(orderTbl.ownerId, row.userId), eq(orderTbl.orderNumber, orderNumber))).limit(1);
+  if (!order) return c.html(renderNotFound(), 404);
+
+  // Track REQUIRES phone match — it's the cheap "auth" for the page.
+  if (!phone || !order.customerPhone || phone.replace(/\D+/g, "") !== order.customerPhone.replace(/\D+/g, "")) {
+    return c.html(renderNotFound(), 404);
+  }
+
+  const items = await db.select().from(orderItem).where(eq(orderItem.orderId, order.id));
+  const input = await buildRenderInput(row, slug);
+  c.header("Cache-Control", "no-store");
+  return c.html(renderTrackOrderPage(input, order, items));
+});
+
+app.get("/biz/:slug/my-orders", async (c) => {
+  const slug = (c.req.param("slug") || "").toLowerCase().trim();
+  const phone = c.req.query("phone")?.trim() || null;
+  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
+  if (!row) return c.html(renderNotFound(), 404);
+
+  let orders: Array<typeof orderTbl.$inferSelect> | null = null;
+  if (phone) {
+    const normalized = phone.replace(/\D+/g, "");
+    // Match by stripped digits — handles +91, spaces, hyphens uniformly
+    orders = await db.execute<typeof orderTbl.$inferSelect>(sql`
+      SELECT * FROM ${orderTbl}
+      WHERE ${orderTbl.ownerId} = ${row.userId}
+        AND regexp_replace(${orderTbl.customerPhone}, '[^0-9]+', '', 'g') = ${normalized}
+      ORDER BY ${orderTbl.createdAt} DESC
+      LIMIT 50
+    `).then((r) => (r.rows ?? r) as Array<typeof orderTbl.$inferSelect>);
+  }
+
+  const input = await buildRenderInput(row, slug);
+  c.header("Cache-Control", "no-store");
+  return c.html(renderMyOrdersPage(input, phone, orders));
+});
+
 /** Multi-page route — /biz/:slug/:path matches custom pages defined in the
  *  Builder (e.g. /biz/sharma-store/menu). Path must be a single-segment, lowercase,
  *  hyphenated word; longer/illegal paths fall through to NotFound. */
 app.get("/biz/:slug/:path", async (c) => {
   const slug = (c.req.param("slug") || "").toLowerCase().trim();
   const rawPath = (c.req.param("path") || "").toLowerCase().trim();
-  // Block the existing public mutation endpoints (cart, order, lead, etc.) —
-  // those are POST so won't actually hit here, but be safe.
-  if (["lead", "order", "shipping", "coupon", "pay"].includes(rawPath)) {
+  // Block POST mutation endpoints + reserved e-commerce pages (those are
+  // matched by their own GET handlers further up).
+  if (["lead", "order", "shipping", "coupon", "pay", "cart", "checkout", "my-orders", "track", "orders"].includes(rawPath)) {
     return c.html(renderNotFound(), 404);
   }
   if (!/^[a-z0-9-]+$/.test(rawPath)) return c.html(renderNotFound(), 404);
