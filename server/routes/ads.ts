@@ -186,10 +186,10 @@ app.delete("/ads/connection", async (c) => {
  *
  * The customer-friendly alternative to pasting a System User token. Three steps:
  *
- *   1) GET /auth/meta/start
+ *   1) GET /ads/oauth/start
  *      → generate a state nonce, set short-lived signed cookie, 302 to Facebook
  *
- *   2) GET /auth/meta/callback?code=...&state=...
+ *   2) GET /ads/oauth/callback?code=...&state=...
  *      → exchange code → short-lived → long-lived (60d) token,
  *        store on metaConfig (with adAccountId NULL until step 3),
  *        return tiny HTML that postMessage's the parent + window.close()
@@ -197,11 +197,16 @@ app.delete("/ads/connection", async (c) => {
  *   3) GET /ads/accounts/available → list the user's ad accounts
  *      POST /ads/connection/select { adAccountId } → finalize
  *
+ * Note on path: we mount under /ads/oauth/* (not /auth/meta/*) because
+ * server/index.ts owns the /api/auth/* prefix for BetterAuth and would
+ * 404 our routes if they lived under that namespace.
+ *
  * Env required:
  *   META_APP_ID           — your Meta App ID
  *   META_APP_SECRET       — App Secret (server-only, never exposed)
  *   META_OAUTH_REDIRECT_URI — must exactly match the Valid OAuth Redirect URI
  *                             configured in your Meta App's Facebook Login settings
+ *                             (e.g. https://addisonxmedia.com/api/ads/oauth/callback)
  *
  * Until App Review is approved for ads_management/ads_read, only Admins/
  * Developers/Testers on the Meta App can complete this flow.
@@ -215,7 +220,7 @@ const oauthConfig = () => ({
   redirectUri: process.env.META_OAUTH_REDIRECT_URI,
 });
 
-app.get("/auth/meta/start", async (c) => {
+app.get("/ads/oauth/start", async (c) => {
   const cfg = oauthConfig();
   if (!cfg.appId || !cfg.appSecret || !cfg.redirectUri) {
     return c.json({
@@ -268,7 +273,7 @@ const popupResponseHtml = (payload: { ok: boolean; error?: string }) => `<!docty
 </script>
 </body></html>`;
 
-app.get("/auth/meta/callback", async (c) => {
+app.get("/ads/oauth/callback", async (c) => {
   const cfg = oauthConfig();
   if (!cfg.appId || !cfg.appSecret || !cfg.redirectUri) {
     return c.html(popupResponseHtml({ ok: false, error: "OAuth not configured on server" }), 503);

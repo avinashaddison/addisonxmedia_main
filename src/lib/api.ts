@@ -221,7 +221,7 @@ export const api = {
   getMetaOAuthStatus: () => get<{ available: boolean }>("/ads/oauth/status"),
   /** Returns the absolute URL the popup should open. The server endpoint
    *  itself sets the state cookie + 302's to Facebook. */
-  metaOAuthStartUrl: () => `/api/auth/meta/start`,
+  metaOAuthStartUrl: () => `/api/ads/oauth/start`,
   /** After the OAuth popup posts back success, fetch the user's ad accounts
    *  so they can pick which one to connect. */
   listAvailableAdAccounts: () => get<{
