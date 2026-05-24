@@ -994,6 +994,8 @@ import { PaymentsPage } from "./pages/PaymentsPage";
 import { PagesPage } from "./pages/PagesPage";
 import { WebsiteStorePage } from "./pages/WebsiteStorePage";
 import { BuilderPage } from "./pages/BuilderPage";
+import { BookingsPage } from "./pages/BookingsPage";
+import { WhatsAppCatalogPage } from "./pages/WhatsAppCatalogPage";
 
 export const SitePage = ({ subPath }: Props) => {
   const key = (subPath || "").toLowerCase();
@@ -1015,6 +1017,8 @@ export const SitePage = ({ subPath }: Props) => {
     case "sections": return <PagesPage />;
     case "store":    return <WebsiteStorePage />;
     case "builder":  return <BuilderPage />;
+    case "bookings": return <BookingsPage />;
+    case "whatsapp-catalog": return <WhatsAppCatalogPage />;
     default:         return <SiteSubPagePlaceholder pageKey={key} />;
   }
 };

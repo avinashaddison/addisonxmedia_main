@@ -754,3 +754,31 @@ export const sitePage = pgTable("site_page", {
 }));
 
 export type SitePage = typeof sitePage.$inferSelect;
+
+export const booking = pgTable("booking", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  siteId: uuid("site_id").references(() => site.id, { onDelete: "set null" }),
+  bookingNumber: integer("booking_number").notNull(),
+  serviceId: uuid("service_id").references(() => product.id, { onDelete: "set null" }),
+  serviceName: text("service_name").notNull(),
+  servicePriceInr: numeric("service_price_inr", { precision: 10, scale: 2 }).notNull().default("0"),
+  serviceDurationMin: integer("service_duration_min"),
+  bookingDate: text("booking_date").notNull(),      // YYYY-MM-DD
+  bookingTime: text("booking_time").notNull(),      // HH:MM 24h
+  customerName: text("customer_name").notNull(),
+  customerPhone: text("customer_phone"),
+  customerEmail: text("customer_email"),
+  notes: text("notes"),
+  status: text("status").notNull().default("new"),  // new | confirmed | completed | cancelled | no_show
+  source: text("source").notNull().default("website"),
+  contactId: uuid("contact_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerNumberUnq: uniqueIndex("booking_owner_number_idx").on(t.ownerId, t.bookingNumber),
+  ownerDateIdx: index("booking_owner_date_idx").on(t.ownerId, t.bookingDate, t.bookingTime),
+  statusIdx: index("booking_status_idx").on(t.ownerId, t.status, t.bookingDate),
+}));
+
+export type Booking = typeof booking.$inferSelect;

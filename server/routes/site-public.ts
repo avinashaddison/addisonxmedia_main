@@ -20,8 +20,9 @@ import { Hono } from "hono";
 import { eq, sql, and, asc, inArray } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { db } from "../db/client";
-import { site, siteLead, contact, profile, metaConfig, product, orderTbl, orderItem, siteAnalyticsEvent, coupon, sitePage, user } from "../db/schema";
+import { site, siteLead, contact, profile, metaConfig, product, orderTbl, orderItem, siteAnalyticsEvent, coupon, sitePage, booking, user } from "../db/schema";
 import { nextOrderNumber } from "./order";
+import { nextBookingNumber } from "./booking";
 import { validateCoupon } from "./coupon";
 import { pickShippingQuote } from "./shipping";
 import { cashfreeIsConfigured, cashfreeMode } from "../integrations/cashfree";
@@ -1802,13 +1803,48 @@ ${business.hours || business.address ? `
     var notes = $('ax-notes').value.trim();
     if (!name) { alert('Please enter your name'); $('ax-name').focus(); return; }
     if (!phone) { alert('Please enter your WhatsApp number'); $('ax-phone').focus(); return; }
-    var msg = buildWaMessage(name, phone, notes);
-    if (WA_BASE) {
-      window.open(WA_BASE + '?text=' + encodeURIComponent(msg), '_blank');
-    } else {
-      alert('WhatsApp not connected for this salon yet. Booking saved:\\n\\n' + msg);
-    }
-    window.AxBook.close();
+
+    var btn = $('ax-next'); var origText = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = 'Saving…';
+
+    // Save to DB first (creates booking + CRM contact); then open WhatsApp
+    // for instant confirmation. The seller now has BOTH a calendar entry
+    // AND a chat to confirm in.
+    var payload = {
+      service_id: state.service.id && state.service.id.indexOf('-') > 0 ? state.service.id : null,
+      service_name: state.service.name,
+      service_price_inr: state.service.price || 0,
+      booking_date: state.date.iso,
+      booking_time: state.time.v,
+      customer_name: name,
+      customer_phone: phone,
+      notes: notes || undefined,
+    };
+    fetch('/biz/' + ${JSON.stringify(slug)} + '/booking', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json().catch(function(){ return {}; }); })
+      .then(function(res){
+        btn.disabled = false; btn.innerHTML = origText;
+        // Always open WhatsApp regardless of DB success — that's the seller's
+        // primary confirmation channel. DB save is "in addition to".
+        var msg = buildWaMessage(name, phone, notes);
+        if (res.ok && res.booking_number) {
+          msg = msg.replace('🌸 *NEW BOOKING REQUEST* 🌸', '🌸 *NEW BOOKING REQUEST #' + res.booking_number + '* 🌸');
+        }
+        if (WA_BASE) {
+          window.open(WA_BASE + '?text=' + encodeURIComponent(msg), '_blank');
+        }
+        window.AxBook.close();
+      })
+      .catch(function(){
+        btn.disabled = false; btn.innerHTML = origText;
+        // DB save failed — fall back to WhatsApp-only flow
+        var msg = buildWaMessage(name, phone, notes);
+        if (WA_BASE) window.open(WA_BASE + '?text=' + encodeURIComponent(msg), '_blank');
+        else alert('WhatsApp not connected for this salon yet. Booking:\\n\\n' + msg);
+        window.AxBook.close();
+      });
   }
 
   window.AxBook = {
@@ -2944,7 +2980,7 @@ app.get("/biz/:slug/:path", async (c) => {
   const rawPath = (c.req.param("path") || "").toLowerCase().trim();
   // Block POST mutation endpoints + reserved e-commerce pages (those are
   // matched by their own GET handlers further up).
-  if (["lead", "order", "shipping", "coupon", "pay", "cart", "checkout", "my-orders", "track", "orders"].includes(rawPath)) {
+  if (["lead", "order", "shipping", "coupon", "pay", "cart", "checkout", "my-orders", "track", "orders", "booking"].includes(rawPath)) {
     return c.html(renderNotFound(), 404);
   }
   if (!/^[a-z0-9-]+$/.test(rawPath)) return c.html(renderNotFound(), 404);
@@ -3209,6 +3245,115 @@ app.post("/biz/:slug/coupon/check", async (c) => {
     code: result.coupon.code,
     type: result.coupon.discountType,
     value: Number(result.coupon.discountValue),
+  });
+});
+
+/** POST /biz/:slug/booking — public booking capture from the Salon template
+ *  modal. Saves to `booking` table + auto-creates a CRM contact so the seller
+ *  sees them in Bookings AND in their inbox/contacts. The salon template
+ *  still opens WhatsApp after this returns — the DB save is "in addition to",
+ *  not "instead of", giving the seller a real calendar AND chat history. */
+app.post("/biz/:slug/booking", async (c) => {
+  const slug = (c.req.param("slug") || "").toLowerCase().trim();
+  if (!slug) return c.json({ error: "Site not found" }, 404);
+
+  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
+  if (!row) return c.json({ error: "Site not found" }, 404);
+  if (row.status !== "published") return c.json({ error: "Site not published" }, 400);
+
+  const body = await c.req.json<{
+    service_id?: string | null;
+    service_name?: string;
+    service_price_inr?: number;
+    service_duration_min?: number | null;
+    booking_date?: string;     // YYYY-MM-DD
+    booking_time?: string;     // HH:MM
+    customer_name?: string;
+    customer_phone?: string;
+    customer_email?: string;
+    notes?: string;
+  }>().catch(() => ({} as Record<string, never>));
+
+  const serviceName = (body.service_name || "").trim().slice(0, 200);
+  const customerName = (body.customer_name || "").trim().slice(0, 100);
+  const customerPhone = (body.customer_phone || "").trim().slice(0, 30) || null;
+  if (!serviceName) return c.json({ error: "Service is required" }, 400);
+  if (!customerName) return c.json({ error: "Your name is required" }, 400);
+  if (!customerPhone) return c.json({ error: "WhatsApp number is required" }, 400);
+  if (!body.booking_date || !/^\d{4}-\d{2}-\d{2}$/.test(body.booking_date)) {
+    return c.json({ error: "Invalid date" }, 400);
+  }
+  if (!body.booking_time || !/^\d{2}:\d{2}$/.test(body.booking_time)) {
+    return c.json({ error: "Invalid time" }, 400);
+  }
+
+  // Verify the service_id (if provided) belongs to this owner — cheap anti-tamper
+  let resolvedServiceId: string | null = null;
+  let resolvedPrice = Math.max(0, Number(body.service_price_inr) || 0);
+  if (body.service_id) {
+    const [prod] = await db.select().from(product)
+      .where(and(eq(product.id, body.service_id), eq(product.ownerId, row.userId))).limit(1);
+    if (prod) {
+      resolvedServiceId = prod.id;
+      resolvedPrice = Number(prod.priceInr) || resolvedPrice;
+    }
+  }
+
+  // Auto-link / create CRM contact
+  const normalizedPhone = customerPhone.replace(/[^\d+]/g, "");
+  const [existing] = await db.select({ id: contact.id }).from(contact)
+    .where(and(eq(contact.ownerId, row.userId), eq(contact.phone, normalizedPhone))).limit(1);
+  let contactId: string;
+  if (existing) {
+    contactId = existing.id;
+  } else {
+    const [created] = await db.insert(contact).values({
+      ownerId: row.userId,
+      name: customerName,
+      phone: normalizedPhone,
+      email: body.customer_email?.trim() || null,
+      source: `booking:${slug}`,
+      tag: "hot",
+      notes: body.notes?.trim() || null,
+    }).returning({ id: contact.id });
+    contactId = created.id;
+  }
+
+  // Allocate booking_number with retry on race
+  let savedBooking: typeof booking.$inferSelect | undefined;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const bookingNumber = await nextBookingNumber(row.userId);
+      const [created] = await db.insert(booking).values({
+        ownerId: row.userId,
+        siteId: row.id,
+        bookingNumber,
+        serviceId: resolvedServiceId,
+        serviceName,
+        servicePriceInr: String(resolvedPrice),
+        serviceDurationMin: body.service_duration_min ?? null,
+        bookingDate: body.booking_date,
+        bookingTime: body.booking_time,
+        customerName,
+        customerPhone,
+        customerEmail: body.customer_email?.trim() || null,
+        notes: body.notes?.trim() || null,
+        status: "new",
+        source: "website",
+        contactId,
+      }).returning();
+      savedBooking = created;
+      break;
+    } catch (e) {
+      if (attempt === 4) throw e;
+    }
+  }
+  if (!savedBooking) return c.json({ error: "Could not save booking" }, 500);
+
+  return c.json({
+    ok: true,
+    booking_id: savedBooking.id,
+    booking_number: savedBooking.bookingNumber,
   });
 });
 

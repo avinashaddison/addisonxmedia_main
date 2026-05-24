@@ -515,6 +515,35 @@ export const api = {
   reorderProducts: (items: Array<{ id: string; sort_order: number }>) =>
     post<{ ok: true; updated: number }>("/products/reorder", { items }),
 
+  // ─── Bookings (appointments) ──────────────────────────────────────────
+  getBookings: (params: { status?: string; date_from?: string; date_to?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set("status", params.status);
+    if (params.date_from) qs.set("date_from", params.date_from);
+    if (params.date_to) qs.set("date_to", params.date_to);
+    const s = qs.toString();
+    return get<BookingDto[]>(`/bookings${s ? `?${s}` : ""}`);
+  },
+  getBookingStats: () => get<{ today_count: string; week_count: string; pending_count: string; total_revenue_inr: string }>("/bookings/stats"),
+  getBooking: (id: string) => get<BookingDto>(`/bookings/${id}`),
+  updateBooking: (id: string, data: Partial<{
+    status: "new" | "confirmed" | "completed" | "cancelled" | "no_show";
+    notes: string | null;
+    booking_date: string;
+    booking_time: string;
+  }>) => patch<BookingDto>(`/bookings/${id}`, data),
+  createManualBooking: (data: {
+    service_name: string;
+    service_price_inr?: number;
+    service_duration_min?: number | null;
+    booking_date: string;
+    booking_time: string;
+    customer_name: string;
+    customer_phone?: string | null;
+    customer_email?: string | null;
+    notes?: string | null;
+  }) => post<{ ok: true; booking: BookingDto }>("/bookings", data),
+
   // ─── WhatsApp Commerce ────────────────────────────────────────────────
   searchProducts: (q: string = "", limit = 12) =>
     get<ProductDto[]>(`/products/search?q=${encodeURIComponent(q)}&limit=${limit}`),
@@ -632,6 +661,28 @@ export const api = {
     rates: { marketing: number; utility: number; authentication: number };
     note: string;
   }>("/billing/meta-estimate"),
+};
+
+export type BookingDto = {
+  id: string;
+  owner_id: string;
+  site_id: string | null;
+  booking_number: number;
+  service_id: string | null;
+  service_name: string;
+  service_price_inr: string;
+  service_duration_min: number | null;
+  booking_date: string;      // YYYY-MM-DD
+  booking_time: string;      // HH:MM
+  customer_name: string;
+  customer_phone: string | null;
+  customer_email: string | null;
+  notes: string | null;
+  status: "new" | "confirmed" | "completed" | "cancelled" | "no_show";
+  source: "website" | "whatsapp" | "manual";
+  contact_id: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type OrderItemDto = {

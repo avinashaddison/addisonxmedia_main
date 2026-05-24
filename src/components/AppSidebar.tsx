@@ -1,4 +1,4 @@
-import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, ChevronRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X, Bot, Workflow, Target, Shield, ScrollText, Crown, Loader2, Rocket, ArrowLeft, Palette, LayoutGrid, Package, ShoppingCart, CreditCard, Truck, Ticket, ClipboardList, Search, Store, Wrench, Layers } from "lucide-react";
+import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, ChevronRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X, Bot, Workflow, Target, Shield, ScrollText, Crown, Loader2, Rocket, ArrowLeft, Palette, LayoutGrid, Package, ShoppingCart, CreditCard, Truck, Ticket, ClipboardList, Search, Store, Wrench, Layers, Calendar, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AddisonMark, AddisonLogo } from "@/components/brand/AddisonLogo";
@@ -84,33 +84,38 @@ const groups: { label: string; items: NavItem[] }[] = [
 // resolves to /app/site/pages via Index.tsx's existing routing logic.
 const websiteGroups: { label: string; items: NavItem[] }[] = [
   {
-    label: "Website",
+    label: "Launch",
     items: [
-      { icon: Store,      label: "Website Store",  id: "site/store",    hint: "Browse & preview websites" },
-      { icon: Wrench,     label: "Manage Site",    id: "site",          hint: "Overview & launch" },
-      { icon: Layers,     label: "Builder",        id: "site/builder",  hint: "Live visual editor" },
-      { icon: FileText,   label: "Pages",          id: "site/pages",    hint: "Add / edit pages" },
-      { icon: Palette,    label: "Theme",          id: "site/theme",    hint: "Colors, fonts, logo" },
-      { icon: LayoutGrid, label: "Sections",       id: "site/sections", hint: "Section library" },
+      { icon: Store,      label: "Website Store", id: "site/store",   hint: "Browse & preview websites" },
+      { icon: Wrench,     label: "Site Manager",  id: "site",         hint: "Overview, branding, launch" },
+      { icon: Layers,     label: "Builder",       id: "site/builder", hint: "Live visual editor" },
+      { icon: Palette,    label: "Theme",         id: "site/theme",   hint: "Colors, fonts, logo" },
     ],
   },
   {
-    label: "Store",
+    label: "Engage",
     items: [
-      { icon: Package,      label: "Products",  id: "site/products",  hint: "Inventory & catalog" },
-      { icon: ShoppingCart, label: "Orders",    id: "site/orders",    hint: "Order pipeline" },
-      { icon: UsersRound,   label: "Customers", id: "site/customers", hint: "Buyers & LTV" },
-      { icon: CreditCard,   label: "Payments",  id: "site/payments",  hint: "UPI + Cashfree" },
-      { icon: Truck,        label: "Shipping",  id: "site/shipping",  hint: "Delhivery / Shiprocket" },
-      { icon: Ticket,       label: "Coupons",   id: "site/coupons",   hint: "Discount codes" },
+      { icon: Calendar,      label: "Bookings",         id: "site/bookings",        hint: "Appointment requests · NEW", smart: true },
+      { icon: MessageCircle, label: "WhatsApp Catalog", id: "site/whatsapp-catalog", hint: "Sync products to WhatsApp · NEW", smart: true },
+      { icon: ClipboardList, label: "Lead forms",       id: "site/leads",           hint: "Site → CRM" },
+    ],
+  },
+  {
+    label: "Sell",
+    items: [
+      { icon: Package,      label: "Products & Services", id: "site/products",  hint: "Catalog · services · inventory" },
+      { icon: ShoppingCart, label: "Orders",              id: "site/orders",    hint: "Order pipeline" },
+      { icon: UsersRound,   label: "Customers",           id: "site/customers", hint: "Buyers & LTV" },
+      { icon: CreditCard,   label: "Payments",            id: "site/payments",  hint: "UPI + Cashfree" },
+      { icon: Ticket,       label: "Coupons",             id: "site/coupons",   hint: "Discount codes" },
     ],
   },
   {
     label: "Growth",
     items: [
-      { icon: ClipboardList, label: "Lead forms", id: "site/leads",     hint: "Site → CRM" },
-      { icon: Search,        label: "SEO",        id: "site/seo",       hint: "Meta tags + sitemap" },
-      { icon: BarChart3,     label: "Analytics",  id: "site/analytics", hint: "Views, leads, sales" },
+      { icon: Search,    label: "SEO",       id: "site/seo",       hint: "Meta tags + sitemap" },
+      { icon: BarChart3, label: "Analytics", id: "site/analytics", hint: "Views, leads, sales" },
+      { icon: Truck,     label: "Shipping",  id: "site/shipping",  hint: "Pincode zones + rates" },
     ],
   },
   {
@@ -307,9 +312,11 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
             Automation: "text-[#D4308E]",
             AI: "text-[#3C50E0]",
             System: "text-[#B8651A]",
-            Website: "text-[#0E8A4B]",
-            Store: "text-[#FF6A1F]",
-            Growth: "text-[#D4308E]",
+            // Website-mode groups
+            Launch: "text-[#0E8A4B]",
+            Engage: "text-[#D4308E]",
+            Sell: "text-[#FF6A1F]",
+            Growth: "text-[#3C50E0]",
             Setup: "text-[#B8651A]",
           };
           return (
