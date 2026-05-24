@@ -47,12 +47,18 @@ app.post("/site/pages", async (c) => {
   if (!s) return c.json({ error: "Create a site first" }, 400);
 
   try {
+    const sections = Array.isArray(body.sections) ? body.sections : [];
+    // New pages start with sections == draftSections (both empty by default).
+    // Published right away so they show on the live site even without an
+    // explicit publish step — most users expect "create page = page exists".
     const [row] = await db.insert(sitePage).values({
       siteId: s.id,
       ownerId: userId,
       path,
       title: body.title?.trim() || null,
-      sections: Array.isArray(body.sections) ? body.sections : [],
+      sections,
+      draftSections: sections,
+      lastPublishedAt: new Date(),
     }).returning();
     return c.json(row, 201);
   } catch (e) {
@@ -61,13 +67,17 @@ app.post("/site/pages", async (c) => {
   }
 });
 
+/** PATCH a page. Section edits go to draft_sections (Builder writes here);
+ *  publish (separate endpoint) copies draft → published. Metadata changes
+ *  (path, title, active, seo) apply immediately to both. */
 app.patch("/site/pages/:id", async (c) => {
   const userId = c.var.userId;
   const id = c.req.param("id");
   const body = await c.req.json<{
     path?: string;
     title?: string | null;
-    sections?: unknown[];
+    sections?: unknown[];           // legacy — writes draft AND published (backward compat)
+    draft_sections?: unknown[];     // new — Builder writes here
     sort_order?: number;
     active?: boolean;
     seo_title?: string | null;
@@ -81,7 +91,14 @@ app.patch("/site/pages/:id", async (c) => {
     updates.path = p;
   }
   if ("title" in body) updates.title = body.title ?? null;
-  if (Array.isArray(body.sections)) updates.sections = body.sections;
+  // Legacy call (PageEditorDialog) — writes both so older clients keep working
+  if (Array.isArray(body.sections)) {
+    updates.sections = body.sections;
+    updates.draftSections = body.sections;
+    updates.lastPublishedAt = new Date();
+  }
+  // Builder writes only draft
+  if (Array.isArray(body.draft_sections)) updates.draftSections = body.draft_sections;
   if (typeof body.sort_order === "number") updates.sortOrder = body.sort_order;
   if (typeof body.active === "boolean") updates.active = body.active;
   if ("seo_title" in body) updates.seoTitle = body.seo_title ?? null;
@@ -97,6 +114,35 @@ app.patch("/site/pages/:id", async (c) => {
     if ((e as { code?: string }).code === "23505") return c.json({ error: "Another page already uses that path" }, 409);
     throw e;
   }
+});
+
+/** Publish: copy draft_sections → sections, stamp last_published_at. */
+app.post("/site/pages/:id/publish", async (c) => {
+  const userId = c.var.userId;
+  const id = c.req.param("id");
+  const [existing] = await db.select().from(sitePage)
+    .where(and(eq(sitePage.id, id), eq(sitePage.ownerId, userId))).limit(1);
+  if (!existing) return c.json({ error: "Page not found" }, 404);
+  const [row] = await db.update(sitePage).set({
+    sections: existing.draftSections ?? [],
+    lastPublishedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(and(eq(sitePage.id, id), eq(sitePage.ownerId, userId))).returning();
+  return c.json(row);
+});
+
+/** Discard draft: copy published sections → draft_sections (undo all unpublished edits). */
+app.post("/site/pages/:id/discard-draft", async (c) => {
+  const userId = c.var.userId;
+  const id = c.req.param("id");
+  const [existing] = await db.select().from(sitePage)
+    .where(and(eq(sitePage.id, id), eq(sitePage.ownerId, userId))).limit(1);
+  if (!existing) return c.json({ error: "Page not found" }, 404);
+  const [row] = await db.update(sitePage).set({
+    draftSections: existing.sections ?? [],
+    updatedAt: new Date(),
+  }).where(and(eq(sitePage.id, id), eq(sitePage.ownerId, userId))).returning();
+  return c.json(row);
 });
 
 app.delete("/site/pages/:id", async (c) => {

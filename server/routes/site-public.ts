@@ -25,6 +25,20 @@ import { nextOrderNumber } from "./order";
 import { validateCoupon } from "./coupon";
 import { pickShippingQuote } from "./shipping";
 import { cashfreeIsConfigured, cashfreeMode } from "../integrations/cashfree";
+import { auth } from "../auth";
+
+/** Owner-only preview check — if URL has ?preview=draft AND visitor is the
+ *  site owner, render draft_sections instead of published. Used by Builder
+ *  iframe so editors see unpublished changes in real time. */
+const isOwnerPreview = async (c: { req: { url: string; raw: { headers: Headers } } }, siteUserId: string): Promise<boolean> => {
+  if (new URL(c.req.url).searchParams.get("preview") !== "draft") return false;
+  try {
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    return !!session?.user && session.user.id === siteUserId;
+  } catch {
+    return false;
+  }
+};
 
 /** Derive a referrer host bucket from the Referer header. */
 const refHostBucket = (referer: string | null | undefined): string => {
@@ -1423,11 +1437,15 @@ const renderPage = (
 };
 
 /** Main site renderer. Picks the right rendering path based on whether the
- *  user has configured custom pages via the Builder. */
+ *  user has configured custom pages via the Builder.
+ *
+ *  preview=true → read draft_sections (only valid when caller has already
+ *  verified the visitor is the site owner). */
 const renderSiteForPath = async (
   row: typeof site.$inferSelect,
   slug: string,
   path: string,
+  preview = false,
 ): Promise<{ html: string; pageFound: boolean }> => {
   const input = await buildRenderInput(row, slug);
 
@@ -1440,7 +1458,10 @@ const renderSiteForPath = async (
   if (pageRows.length > 0) {
     const matched = pageRows.find((p) => p.path === path) || pageRows.find((p) => p.path === "/");
     if (!matched) return { html: renderNotFound(), pageFound: false };
-    const sections = (Array.isArray(matched.sections) ? matched.sections : []) as SectionConfig[];
+    const sectionsRaw = preview
+      ? (matched.draftSections ?? matched.sections)
+      : matched.sections;
+    const sections = (Array.isArray(sectionsRaw) ? sectionsRaw : []) as SectionConfig[];
     const pages = pageRows.map((p) => ({ path: p.path, title: p.title }));
     return { html: renderPage(input, { path: matched.path, sections }, pages), pageFound: true };
   }
@@ -1455,10 +1476,20 @@ app.get("/biz/:slug", async (c) => {
 
   const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
   if (!row) return c.html(renderNotFound(), 404);
-  if (row.status !== "published") return c.html(renderDraftHolding(slug), 200);
 
-  const { html, pageFound } = await renderSiteForPath(row, slug, "/");
+  const preview = await isOwnerPreview(c, row.userId);
+  // Owners can preview their unpublished draft sites. Public visitors get the
+  // "coming soon" holding page until the site is published.
+  if (row.status !== "published" && !preview) return c.html(renderDraftHolding(slug), 200);
+
+  const { html, pageFound } = await renderSiteForPath(row, slug, "/", preview);
   if (!pageFound) return c.html(renderNotFound(), 404);
+
+  // Don't pollute analytics when the owner is previewing their own site.
+  if (preview) {
+    c.header("Cache-Control", "no-store");
+    return c.html(html);
+  }
 
   // Bump view counter + log analytics event (fire-and-forget).
   void db.update(site).set({ viewCount: sql`${site.viewCount} + 1` }).where(eq(site.id, row.id)).catch(() => {});
@@ -1491,11 +1522,18 @@ app.get("/biz/:slug/:path", async (c) => {
 
   const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
   if (!row) return c.html(renderNotFound(), 404);
-  if (row.status !== "published") return c.html(renderDraftHolding(slug), 200);
+
+  const preview = await isOwnerPreview(c, row.userId);
+  if (row.status !== "published" && !preview) return c.html(renderDraftHolding(slug), 200);
 
   const requestPath = `/${rawPath}`;
-  const { html, pageFound } = await renderSiteForPath(row, slug, requestPath);
+  const { html, pageFound } = await renderSiteForPath(row, slug, requestPath, preview);
   if (!pageFound) return c.html(renderNotFound(), 404);
+
+  if (preview) {
+    c.header("Cache-Control", "no-store");
+    return c.html(html);
+  }
 
   // Log view (same as home route)
   void db.update(site).set({ viewCount: sql`${site.viewCount} + 1` }).where(eq(site.id, row.id)).catch(() => {});

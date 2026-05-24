@@ -569,11 +569,15 @@ export const api = {
   createSitePage: (data: { path: string; title?: string; sections?: SiteSection[] }) =>
     post<SitePageDto>("/site/pages", data),
   updateSitePage: (id: string, data: Partial<{
-    path: string; title: string | null; sections: SiteSection[];
+    path: string; title: string | null;
+    sections: SiteSection[];            // legacy — writes both draft + published
+    draft_sections: SiteSection[];      // new — Builder writes here
     sort_order: number; active: boolean;
     seo_title: string | null; seo_description: string | null;
   }>) => patch<SitePageDto>(`/site/pages/${id}`, data),
   deleteSitePage: (id: string) => del(`/site/pages/${id}`),
+  publishSitePage: (id: string) => post<SitePageDto>(`/site/pages/${id}/publish`),
+  discardSitePageDraft: (id: string) => post<SitePageDto>(`/site/pages/${id}/discard-draft`),
 
   // Shipping zones
   getShippingZones: () => get<ShippingZoneDto[]>("/shipping-zones"),
@@ -665,13 +669,15 @@ export type SitePageDto = {
   owner_id: string;
   path: string;
   title: string | null;
-  sections: SiteSection[];
+  sections: SiteSection[];           // published
+  draft_sections: SiteSection[] | null;  // editor working copy
   sort_order: number;
   active: boolean;
   seo_title: string | null;
   seo_description: string | null;
   created_at: string;
   updated_at: string;
+  last_published_at: string | null;
 };
 
 export type ShippingZoneDto = {

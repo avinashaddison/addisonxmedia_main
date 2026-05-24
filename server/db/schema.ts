@@ -739,13 +739,15 @@ export const sitePage = pgTable("site_page", {
   ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   path: text("path").notNull(),                                       // '/' | '/about' | '/contact'
   title: text("title"),
-  sections: jsonb("sections").notNull().default(sql`'[]'::jsonb`),     // [{ type, props }, ...]
+  sections: jsonb("sections").notNull().default(sql`'[]'::jsonb`),     // PUBLISHED — read by renderer
+  draftSections: jsonb("draft_sections").default(sql`'[]'::jsonb`),    // editor working copy
   sortOrder: integer("sort_order").notNull().default(0),
   active: boolean("active").notNull().default(true),
   seoTitle: text("seo_title"),
   seoDescription: text("seo_description"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
 }, (t) => ({
   unq: uniqueIndex("site_page_unq").on(t.siteId, t.path),
   ownerIdx: index("site_page_owner_idx").on(t.ownerId),

@@ -1,4 +1,4 @@
-import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, ChevronRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X, Bot, Workflow, Target, Shield, ScrollText, Crown, Loader2, Rocket, ArrowLeft, Palette, LayoutGrid, Package, ShoppingCart, CreditCard, Truck, Ticket, ClipboardList, Search, Store, Wrench } from "lucide-react";
+import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, ChevronRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X, Bot, Workflow, Target, Shield, ScrollText, Crown, Loader2, Rocket, ArrowLeft, Palette, LayoutGrid, Package, ShoppingCart, CreditCard, Truck, Ticket, ClipboardList, Search, Store, Wrench, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AddisonMark, AddisonLogo } from "@/components/brand/AddisonLogo";
@@ -88,6 +88,7 @@ const websiteGroups: { label: string; items: NavItem[] }[] = [
     items: [
       { icon: Store,      label: "Website Store",  id: "site/store",    hint: "Browse & preview websites" },
       { icon: Wrench,     label: "Manage Site",    id: "site",          hint: "Overview & launch" },
+      { icon: Layers,     label: "Builder",        id: "site/builder",  hint: "Live visual editor" },
       { icon: FileText,   label: "Pages",          id: "site/pages",    hint: "Add / edit pages" },
       { icon: Palette,    label: "Theme",          id: "site/theme",    hint: "Colors, fonts, logo" },
       { icon: LayoutGrid, label: "Sections",       id: "site/sections", hint: "Section library" },

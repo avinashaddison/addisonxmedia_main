@@ -12,7 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   FileText, Loader2, Plus, X, Trash2, Edit2, ArrowUp, ArrowDown,
   Image as ImageIcon, MessageCircle, HelpCircle, Star, Map, Clock,
-  ClipboardList, Phone, Sparkles, Package, ExternalLink, EyeOff,
+  ClipboardList, Phone, Sparkles, Package, ExternalLink, EyeOff, Layers,
 } from "lucide-react";
 import { api, type SitePageDto, type SiteSection } from "@/lib/api";
 import { toast } from "sonner";
@@ -97,28 +97,30 @@ export const PagesPage = () => {
           ) : (
             <ul className="divide-y divide-foreground/10">
               {pages.map((p) => (
-                <li key={p.id}>
-                  <button onClick={() => setEditingId(p.id)} className="w-full text-left px-4 sm:px-5 py-4 hover:bg-[#FFF6E8]/50 transition flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#E4E8FF] text-[#3C50E0] flex items-center justify-center flex-shrink-0">
-                      <FileText className="w-4 h-4" />
+                <li key={p.id} className="flex items-center gap-2 px-4 sm:px-5 py-3 hover:bg-[#FFF6E8]/50 transition">
+                  <div className="w-10 h-10 rounded-xl bg-[#E4E8FF] text-[#3C50E0] flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[14px] font-extrabold">{p.title || (p.path === "/" ? "Home" : p.path)}</span>
+                      <code className="text-[10.5px] font-mono text-foreground/55 bg-foreground/5 px-1.5 py-0.5 rounded">{p.path}</code>
+                      {!p.active && <span className="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-foreground/10 text-foreground/55">Hidden</span>}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[14px] font-extrabold">{p.title || (p.path === "/" ? "Home" : p.path)}</span>
-                        <code className="text-[10.5px] font-mono text-foreground/55 bg-foreground/5 px-1.5 py-0.5 rounded">{p.path}</code>
-                        {!p.active && <span className="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-foreground/10 text-foreground/55">Hidden</span>}
-                      </div>
-                      <p className="text-[11.5px] text-foreground/55 mt-0.5">
-                        {p.sections.length} section{p.sections.length === 1 ? "" : "s"}
-                      </p>
-                    </div>
-                    <a href={`${publicBase}${p.path === "/" ? "" : p.path}`} target="_blank" rel="noopener noreferrer"
-                       onClick={(e) => e.stopPropagation()}
-                       className="text-foreground/40 hover:text-[#0E8A4B] p-1.5" title="View">
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                    <Edit2 className="w-3.5 h-3.5 text-foreground/30 flex-shrink-0" />
+                    <p className="text-[11.5px] text-foreground/55 mt-0.5">
+                      {p.sections.length} section{p.sections.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <a href={`${publicBase}${p.path === "/" ? "" : p.path}`} target="_blank" rel="noopener noreferrer"
+                     className="text-foreground/40 hover:text-[#0E8A4B] p-1.5" title="View live">
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                  <button onClick={() => setEditingId(p.id)} className="text-foreground/40 hover:text-foreground p-1.5" title="Page settings">
+                    <Edit2 className="w-3.5 h-3.5" />
                   </button>
+                  <a href={`/app/site/builder?page=${p.id}`} className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-[#0E8A4B] text-white text-[11px] font-extrabold hover:bg-[#0A6E3C] transition" title="Open in Builder">
+                    <Layers className="w-3 h-3" /> Build
+                  </a>
                 </li>
               ))}
             </ul>
