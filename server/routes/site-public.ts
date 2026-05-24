@@ -1280,10 +1280,20 @@ const renderDraftHolding = (slug: string): string => `<!doctype html>
 </html>`;
 
 const renderNotFound = (): string => `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>404 — Not found</title><script src="https://cdn.tailwindcss.com"></script></head>
-<body class="bg-amber-50 min-h-screen flex items-center justify-center p-6 font-sans">
-  <div class="text-center"><div class="text-[64px]">🤷</div><h1 class="text-[24px] font-black">No site at this URL</h1><a href="/" class="text-emerald-700 font-extrabold hover:underline">← AddisonX home</a></div>
-</body></html>`;
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>404 — No site at this URL</title><script src="https://cdn.tailwindcss.com"></script></head>
+<body class="bg-gradient-to-br from-amber-50 to-orange-50 min-h-screen flex items-center justify-center p-6 font-sans">
+<div class="text-center max-w-md bg-white p-8 rounded-3xl shadow-xl">
+<div class="text-[56px] mb-2">🤷</div>
+<h1 class="text-[24px] font-black mb-1">No site at this URL</h1>
+<p class="text-[13px] text-gray-600 mb-5">Double-check the slug, or visit one of these:</p>
+<div class="grid gap-2">
+  <a href="/biz/me" class="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-emerald-600 text-white font-extrabold text-[13px] shadow-[0_3px_0_0_#065F46] hover:bg-emerald-700 transition">🏪 Go to my site</a>
+  <a href="/app/site/store" class="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-white border-2 border-emerald-600 text-emerald-700 font-extrabold text-[13px] hover:bg-emerald-50 transition">🛍️ Browse Website Store</a>
+  <a href="/" class="inline-flex items-center justify-center gap-2 h-10 text-[12px] text-gray-500 hover:text-gray-700 font-bold">← AddisonX home</a>
+</div>
+<p class="mt-5 text-[11px] text-gray-500">Hint: site URLs look like <code class="font-mono bg-gray-100 px-1.5 py-0.5 rounded">/biz/your-shop-name</code></p>
+</div></body></html>`;
 
 /** GET /biz/:slug — public site render. */
 /** Build the full RenderInput for a site row. Used by both the legacy single-page
@@ -1491,6 +1501,60 @@ const renderSiteForPath = async (
   const html = input.template === "dps" ? renderAddisonDPS(input) : renderKirana(input);
   return { html, pageFound: true };
 };
+
+/** Smart shortcut — /biz/me always sends the signed-in user to THEIR own
+ *  live site. Auto-creates the site row on first visit if it doesn't exist,
+ *  same logic as /api/site/me. Falls back to a friendly login prompt when
+ *  no Better Auth session is present. Makes 'your site URL' bookmarkable
+ *  without users having to remember their slug. */
+app.get("/biz/me", async (c) => {
+  let session;
+  try { session = await auth.api.getSession({ headers: c.req.raw.headers }); }
+  catch { session = null; }
+
+  if (!session?.user) {
+    return c.html(`<!doctype html><html><head><meta charset="utf-8"><title>Sign in to view your site</title>
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="bg-amber-50 min-h-screen flex items-center justify-center p-6 font-sans">
+<div class="text-center max-w-md bg-white p-8 rounded-3xl shadow-xl">
+<div class="text-[48px] mb-2">🔐</div>
+<h1 class="text-[22px] font-black mb-1">Sign in to view your site</h1>
+<p class="text-[13px] text-gray-600 mb-4">Log in to AddisonX and we'll take you straight to your live website.</p>
+<a href="/auth" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 text-white font-extrabold text-[13px] hover:bg-emerald-700">Sign in →</a>
+<p class="mt-4 text-[11px] text-gray-500">Already have your site URL? Just type it like <code class="font-mono">/biz/your-shop-name</code>.</p>
+</div></body></html>`, 200);
+  }
+
+  const userId = session.user.id;
+  let [row] = await db.select().from(site).where(eq(site.userId, userId)).limit(1);
+
+  // Auto-create site if it doesn't exist (same defaults as /api/site/me).
+  if (!row) {
+    const [u] = await db.select({ name: user.name, email: user.email })
+      .from(user).where(eq(user.id, userId)).limit(1);
+    const [pf] = await db.select({ displayName: profile.displayName })
+      .from(profile).where(eq(profile.userId, userId)).limit(1);
+    const seedRaw = pf?.displayName || u?.name || u?.email?.split("@")[0] || "shop";
+    const cleaned = seedRaw.toLowerCase().normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "shop";
+    // Ensure unique slug
+    let slugCandidate = cleaned;
+    for (let n = 2; n <= 50; n += 1) {
+      const [clash] = await db.select({ id: site.id }).from(site).where(eq(site.slug, slugCandidate)).limit(1);
+      if (!clash) break;
+      slugCandidate = `${cleaned}-${n}`;
+    }
+    [row] = await db.insert(site).values({
+      userId, slug: slugCandidate, template: "kirana", status: "draft",
+      theme: {}, copy: {},
+    }).returning();
+  }
+
+  return c.redirect(`/biz/${row.slug}`, 302);
+});
 
 app.get("/biz/:slug", async (c) => {
   const slug = (c.req.param("slug") || "").toLowerCase().trim();
