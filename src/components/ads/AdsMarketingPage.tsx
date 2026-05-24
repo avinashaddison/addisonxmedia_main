@@ -3,10 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   Target, IndianRupee, MousePointerClick, Eye, TrendingUp, Sparkles, Plus,
-  Play, Pause, Copy, MoreHorizontal, Crown, Flame, ArrowRight, ArrowUpRight,
+  Play, Pause, MoreHorizontal, Crown, Flame, ArrowUpRight,
   ShoppingBag, Users, MessageCircle, CheckCircle2, AlertTriangle, Search,
-  ChevronDown, Image as ImageIcon, Megaphone, Zap, Globe, BarChart3, Heart,
-  Tag, Wallet, Brain, Plug, Loader2,
+  Image as ImageIcon, Megaphone, BarChart3, Heart,
+  Tag, Brain, Plug, Loader2,
 } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -198,116 +194,110 @@ export const AdsMarketingPage = () => {
         </div>
       }
     >
-      {/* ============ DEMO BANNER (when no connection yet) ============ */}
-      {!isConnected && !connectionQ.isPending && (
-        <div className="bg-[#FFF1D6] border-2 border-[#E8B968] rounded-2xl px-4 py-3 mb-3 flex items-center gap-3 shadow-[0_3px_0_0_#E8B968]">
-          <div className="w-9 h-9 rounded-xl bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center shadow-md flex-shrink-0">
-            <AlertTriangle className="w-4 h-4" strokeWidth={2.5} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-extrabold">Demo mode</p>
-            <p className="text-[11px] text-foreground/70 font-medium">
-              Yeh sab demo data hai. Connect Meta Ads to see your real campaigns + insights.
-            </p>
-          </div>
-          <Button size="sm" onClick={() => setConnectOpen(true)}>
-            <Plug className="w-3.5 h-3.5" /> Connect now
-          </Button>
-        </div>
-      )}
+      {/* ============ HERO — connection state, spend pulse, primary CTA ============ */}
+      <AdsHero
+        isConnected={isConnected}
+        loading={connectionQ.isPending}
+        accountName={connectionQ.data?.ad_account_name ?? ""}
+        accountId={connectionQ.data?.ad_account_id ?? ""}
+        currency={connectionQ.data?.ad_account_currency ?? "INR"}
+        stats={stats}
+        activeCampaigns={campaigns.filter((c) => c.status === "active").length}
+        onConnect={() => setConnectOpen(true)}
+        onDisconnect={() => disconnect.mutate()}
+        onCreate={() => navigate("/app/ads/new")}
+      />
 
-      {/* ============ CONNECTION STATUS ============ */}
-      <div className="grid md:grid-cols-2 gap-3 mb-4">
-        <ConnectionCard
-          platform="meta"
-          name="Meta Ads"
-          subtitle="Facebook · Instagram · WhatsApp"
-          accountName={
-            isConnected
-              ? `${connectionQ.data?.ad_account_name ?? "—"} · #${connectionQ.data?.ad_account_id ?? ""}`
-              : "Connect to see your campaigns"
-          }
-          connected={isConnected}
-          loading={connectionQ.isPending}
-          onConnect={() => setConnectOpen(true)}
-          onDisconnect={() => disconnect.mutate()}
-        />
-        <ConnectionCard
-          platform="google"
-          name="Google Ads"
-          subtitle="Search · YouTube · Display · PMax"
-          accountName="Coming soon"
-        />
-      </div>
-
-      {/* ============ KPI STATS ============ */}
+      {/* ============ KPI STATS — honest, no fake trends ============ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <AdKPI
-          label="Total spend (7 din)"
+          label="Total spend (7d)"
           rawValue={stats.spent}
           format="inr"
-          sub={`${campaigns.filter((c) => c.status === "active").length} active campaigns`}
+          sub={stats.spent > 0
+            ? `${campaigns.filter((c) => c.status === "active").length} active ${campaigns.filter((c) => c.status === "active").length === 1 ? "campaign" : "campaigns"}`
+            : "No spend yet"}
           icon={IndianRupee}
           color="accent"
-          trend="+18% vs last week"
           loading={anyLoading}
         />
         <AdKPI
           label="Impressions"
           rawValue={stats.impressions}
           format="num"
-          sub={`Reach: ${compactNum(Math.round(stats.impressions * 0.42))}`}
+          sub={stats.impressions > 0 ? `Reach: ${compactNum(Math.round(stats.impressions * 0.42))}` : "Launch a campaign"}
           icon={Eye}
           color="primary"
-          trend="+22% vs last week"
           loading={anyLoading}
         />
         <AdKPI
           label="Clicks · CTR"
           rawValue={stats.clicks}
           format="num"
-          sub={`${stats.ctr.toFixed(2)}% CTR · ${fmtINR(stats.spent / Math.max(1, stats.clicks))} CPC`}
+          sub={stats.clicks > 0
+            ? `${stats.ctr.toFixed(2)}% CTR · ${fmtINR(stats.spent / Math.max(1, stats.clicks))} CPC`
+            : "Waiting on impressions"}
           icon={MousePointerClick}
           color="hot"
-          trend="+8% vs last week"
           loading={anyLoading}
         />
         <AdKPI
           label="ROAS"
           rawValue={stats.roas}
           format="roas"
-          sub={`Revenue: ${compactINR(stats.revenue)}`}
+          sub={stats.revenue > 0
+            ? `Revenue: ${compactINR(stats.revenue)}`
+            : "Needs CAPI events"}
           icon={TrendingUp}
           color="success"
-          highlight
-          trend={`+ ${compactINR(stats.revenue - stats.spent)} profit`}
+          highlight={stats.roas >= 2}
           loading={anyLoading}
         />
       </div>
 
-      {/* ============ AI SUGGESTIONS STRIP ============ */}
-      <div className="relative bg-gradient-to-r from-[#0A3D24] to-[#0D4E2E] text-white rounded-2xl border-2 border-[#0A3D24] shadow-[0_4px_0_0_#072917] p-4 mb-4 flex items-center gap-4 flex-wrap overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-10"
-          style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "20px 20px" }}
-        />
-        {/* Soft saffron sheen sliding right-to-left, ~6s loop — adds life without being distracting */}
-        <div className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-[#FFD23F]/10 to-transparent animate-ai-sheen" />
-        <div className="relative w-10 h-10 rounded-xl bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center shadow-md flex-shrink-0">
-          <Brain className="w-5 h-5" strokeWidth={2.5} />
-          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#16C172] ring-2 ring-[#0A3D24] animate-pulse" aria-hidden />
-        </div>
-        <div className="relative flex-1 min-w-[220px]">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-[#FFD23F] font-extrabold">Addison AI Suggestions</p>
-          <p className="text-[14px] font-extrabold mt-0.5">2 campaigns ka budget badhao · ROAS 5x se upar hai</p>
-        </div>
-        <div className="relative flex items-center gap-2">
-          <button className="text-[11px] font-extrabold bg-[#FFD23F] text-[#7A4A00] px-3 py-1.5 rounded-lg shadow-md hover:scale-105 hover:shadow-lg hover:shadow-[#FFD23F]/30 active:scale-95 transition-all">
-            Apply (+₹500/day)
-          </button>
-          <button className="text-[11px] font-bold opacity-80 hover:opacity-100 transition">Dismiss</button>
-        </div>
-      </div>
+      {/* ============ AI SUGGESTIONS STRIP — only when we have a real suggestion ============ */}
+      {(() => {
+        // Only surface a suggestion when it's actually grounded in data
+        const winners = campaigns.filter((c) => c.status === "active" && c.roas >= 5);
+        const losers = campaigns.filter((c) => c.status === "active" && c.roas > 0 && c.roas < 1.5);
+        let headline = "";
+        let cta = "";
+        let action = () => {};
+        if (winners.length > 0) {
+          headline = `${winners.length} ${winners.length === 1 ? "campaign" : "campaigns"} ka ROAS 5x se upar hai — budget badhao`;
+          cta = "Review winners";
+          action = () => setTab("campaigns");
+        } else if (losers.length > 0) {
+          headline = `${losers.length} ${losers.length === 1 ? "campaign" : "campaigns"} underperforming — pause or rework`;
+          cta = "Review losers";
+          action = () => setTab("campaigns");
+        } else if (isConnected && campaigns.length === 0) {
+          headline = "Connect kar liya — ab pehla campaign launch karo · CTW best for WhatsApp leads";
+          cta = "Launch campaign";
+          action = () => navigate("/app/ads/new");
+        } else {
+          return null;
+        }
+        return (
+          <div className="relative bg-gradient-to-r from-[#0A3D24] to-[#0D4E2E] text-white rounded-2xl border-2 border-[#0A3D24] shadow-[0_4px_0_0_#072917] p-4 mb-4 flex items-center gap-4 flex-wrap overflow-hidden">
+            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "20px 20px" }} />
+            <div className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-[#FFD23F]/10 to-transparent animate-ai-sheen" />
+            <div className="relative w-10 h-10 rounded-xl bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center shadow-md flex-shrink-0">
+              <Brain className="w-5 h-5" strokeWidth={2.5} />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#16C172] ring-2 ring-[#0A3D24] animate-pulse" aria-hidden />
+            </div>
+            <div className="relative flex-1 min-w-[220px]">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#FFD23F] font-extrabold">Addison AI</p>
+              <p className="text-[14px] font-extrabold mt-0.5">{headline}</p>
+            </div>
+            <div className="relative flex items-center gap-2">
+              <button onClick={action} className="text-[11px] font-extrabold bg-[#FFD23F] text-[#7A4A00] px-3 py-1.5 rounded-lg shadow-md hover:scale-105 hover:shadow-lg hover:shadow-[#FFD23F]/30 active:scale-95 transition-all">
+                {cta} →
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ============ TABS ============ */}
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
@@ -527,39 +517,44 @@ export const AdsMarketingPage = () => {
         />
       )}
 
-      {/* ============ INSIGHTS TAB ============ */}
-      {tab === "insights" && (
-        <div className="grid lg:grid-cols-2 gap-4">
-          <InsightCard
-            title="Best performer"
-            icon={Crown}
-            color="success"
-            stat="Class 10 Admissions"
-            sub="ROAS 6.2x · ₹2.16 CPC · 318 form fills"
-          />
-          <InsightCard
-            title="Needs attention"
-            icon={AlertTriangle}
-            color="warning"
-            stat="Salon Bookings · PMax"
-            sub="ROAS 3.2x — below threshold · paused 2 din pehle"
-          />
-          <InsightCard
-            title="Most clicked creative"
-            icon={Flame}
-            color="hot"
-            stat="Diwali_offer_v3.jpg"
-            sub="CTR 4.8% · 12,400 clicks across 3 ads"
-          />
-          <InsightCard
-            title="Top audience"
-            icon={Users}
-            color="primary"
-            stat="FabBox buyers lookalike 1%"
-            sub="₹1.84 CPC · 2.1M reach · running 14 days"
-          />
-        </div>
-      )}
+      {/* ============ INSIGHTS TAB — derived from real campaign data ============ */}
+      {tab === "insights" && (() => {
+        const realCampaigns = campaigns.filter((c) => !c.id.startsWith("demo_"));
+        if (realCampaigns.length === 0) {
+          return (
+            <EmptyState
+              icon={BarChart3}
+              title="Insights need real campaign data"
+              desc="Once you launch real campaigns and they collect impressions, this tab will show your best performers, attention-needed ads, top creatives, and audience winners."
+            />
+          );
+        }
+        const sortedByRoas = [...realCampaigns].filter((c) => c.roas > 0).sort((a, b) => b.roas - a.roas);
+        const sortedByCtr = [...realCampaigns].filter((c) => c.impressions > 100).sort((a, b) => b.ctr - a.ctr);
+        const best = sortedByRoas[0];
+        const worst = sortedByRoas[sortedByRoas.length - 1];
+        const topCtr = sortedByCtr[0];
+        const cards: Array<{ title: string; icon: typeof Target; color: "primary" | "success" | "warning" | "hot"; stat: string; sub: string }> = [];
+        if (best && best.roas >= 2) cards.push({ title: "Best performer", icon: Crown, color: "success", stat: best.name, sub: `ROAS ${best.roas.toFixed(1)}x · ${fmtINR(best.cpc_inr)} CPC · ${best.results} ${best.result_type}` });
+        if (worst && worst !== best && worst.roas < 2) cards.push({ title: "Needs attention", icon: AlertTriangle, color: "warning", stat: worst.name, sub: `ROAS ${worst.roas.toFixed(1)}x — below 2x threshold · ${compactINR(worst.spent_inr)} spent` });
+        if (topCtr) cards.push({ title: "Top CTR", icon: Flame, color: "hot", stat: topCtr.name, sub: `${topCtr.ctr.toFixed(2)}% CTR · ${compactNum(topCtr.clicks)} clicks · ${compactNum(topCtr.impressions)} reach` });
+        if (cards.length === 0) {
+          return (
+            <EmptyState
+              icon={BarChart3}
+              title="Not enough signal yet"
+              desc="Your campaigns are still collecting data. Insights show up once campaigns have meaningful impressions and ROAS data."
+            />
+          );
+        }
+        return (
+          <div className="grid lg:grid-cols-2 gap-4">
+            {cards.map((card) => (
+              <InsightCard key={card.title} {...card} />
+            ))}
+          </div>
+        );
+      })()}
 
       {/* ============ BOOST WHATSAPP DIALOG ============ */}
       <BoostWhatsAppDialog open={boostOpen} onOpenChange={setBoostOpen} isConnected={isConnected} />
@@ -587,60 +582,133 @@ const Loader2Sm = () => (
   </svg>
 );
 
-const ConnectionCard = ({
-  platform, name, subtitle, accountName, connected, loading, onConnect, onDisconnect,
+/* ============================================================
+   AdsHero — unified hero band that replaces the old demo-mode banner
+   + two equal connection cards. When connected → shows account info
+   + live activity beat. When not → shows a single confident CTA card
+   sized at hero width.
+============================================================ */
+const AdsHero = ({
+  isConnected, loading, accountName, accountId, currency, stats, activeCampaigns,
+  onConnect, onDisconnect, onCreate,
 }: {
-  platform: Platform;
-  name: string;
-  subtitle: string;
+  isConnected: boolean;
+  loading: boolean;
   accountName: string;
-  connected?: boolean;
-  loading?: boolean;
-  onConnect?: () => void;
-  onDisconnect?: () => void;
+  accountId: string;
+  currency: string;
+  stats: { spent: number; clicks: number; results: number };
+  activeCampaigns: number;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  onCreate: () => void;
 }) => {
-  const styles = platform === "meta"
-    ? { iconBg: "bg-[#0866FF]", border: "border-[#0866FF]", shadow: "shadow-[0_4px_0_0_#0050D6]", logo: "f" }
-    : { iconBg: "bg-[#34A853]", border: "border-[#34A853]", shadow: "shadow-[0_4px_0_0_#1E7E34]", logo: "G" };
-
   return (
-    <div className={cn("relative bg-white border-2 rounded-2xl p-4 flex items-center gap-3", styles.border, styles.shadow)}>
-      <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center text-white text-xl font-black shadow-md", styles.iconBg)}>
-        {styles.logo}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-[15px] font-black tracking-tight truncate">{name}</p>
-          {connected ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E6F7EE] border border-[#0E8A4B]/30 text-[#0E8A4B] text-[10px] font-extrabold uppercase tracking-wider">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#0E8A4B] animate-pulse" />
-              Connected
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF1D6] border border-[#E8B968] text-[#B8651A] text-[10px] font-extrabold uppercase tracking-wider">
-              Not connected
-            </span>
-          )}
+    <div className="grid lg:grid-cols-[1.4fr_1fr] gap-3 mb-4">
+      {/* Primary hero — Meta */}
+      <div className="relative overflow-hidden rounded-2xl border-2 border-[#0866FF] shadow-[0_4px_0_0_#0050D6] p-5"
+           style={{ background: isConnected
+             ? "linear-gradient(135deg, #0866FF 0%, #1B4ED8 60%, #062D8E 100%)"
+             : "linear-gradient(135deg, #FFFFFF 0%, #F3F7FF 100%)" }}>
+        {/* Decorative pattern */}
+        {isConnected && (
+          <>
+            <div className="absolute -top-12 -right-8 w-44 h-44 rounded-full bg-white/10 blur-3xl" />
+            <div className="absolute -bottom-16 -left-10 w-44 h-44 rounded-full bg-[#FFD23F]/20 blur-3xl" />
+          </>
+        )}
+        <div className="relative flex items-start gap-4">
+          <div className={cn(
+            "w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black shadow-md flex-shrink-0",
+            isConnected ? "bg-white text-[#0866FF]" : "bg-[#0866FF] text-white"
+          )}>f</div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className={cn("text-[17px] font-black tracking-tight", isConnected ? "text-white" : "text-foreground")}>Meta Ads</p>
+              {loading ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/15 text-white/80 text-[10px] font-extrabold uppercase tracking-wider">
+                  <Loader2 className="w-2.5 h-2.5 animate-spin" /> Loading
+                </span>
+              ) : isConnected ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#16C172]/20 border border-[#16C172]/40 text-[#16C172] text-[10px] font-extrabold uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#16C172] animate-pulse" /> Live
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF1D6] border border-[#E8B968] text-[#B8651A] text-[10px] font-extrabold uppercase tracking-wider">
+                  Not connected
+                </span>
+              )}
+            </div>
+            <p className={cn("text-[11.5px] font-medium mt-0.5", isConnected ? "text-white/80" : "text-foreground/60")}>
+              Facebook · Instagram · WhatsApp · CTW
+            </p>
+            {isConnected ? (
+              <div className="mt-3">
+                <p className="text-[12px] text-white/80 font-bold truncate">{accountName || "—"}{accountId && <span className="text-white/55 font-medium"> · act_{accountId}</span>}</p>
+                <div className="mt-3 flex flex-wrap items-end gap-x-5 gap-y-2">
+                  <div>
+                    <p className="text-[9.5px] uppercase tracking-[0.18em] text-[#FFD23F] font-extrabold">Spend 7d</p>
+                    <p className="text-[22px] font-black tabular-nums leading-none text-white">{compactINR(stats.spent)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9.5px] uppercase tracking-[0.18em] text-[#FFD23F] font-extrabold">Active</p>
+                    <p className="text-[22px] font-black tabular-nums leading-none text-white">{activeCampaigns}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9.5px] uppercase tracking-[0.18em] text-[#FFD23F] font-extrabold">Results</p>
+                    <p className="text-[22px] font-black tabular-nums leading-none text-white">{compactNum(stats.results)}</p>
+                  </div>
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={onDisconnect}
+                            className="bg-white/10 hover:bg-white/20 text-white border-white/30">
+                      Disconnect
+                    </Button>
+                    <Button size="sm" onClick={onCreate} className="bg-[#FFD23F] hover:bg-[#FFC107] text-[#7A4A00] border-0 shadow-md">
+                      <Plus className="w-3.5 h-3.5" /> New campaign
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <p className="text-[12.5px] text-foreground/70 font-medium max-w-md leading-relaxed">
+                  Connect your Meta Business account once — campaigns, audiences, and ROAS all show up here. Yeh data demo hai jab tak connect na karein.
+                </p>
+                <div className="ml-auto flex items-center gap-2">
+                  <Button size="sm" onClick={onConnect} className="bg-[#0866FF] hover:bg-[#0050D6] text-white border-0 shadow-md">
+                    <Plug className="w-3.5 h-3.5" /> Connect Meta Ads
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        <p className="text-[11px] text-foreground/60 font-medium">{subtitle}</p>
-        <p className="text-[11px] text-foreground/80 mt-0.5 font-extrabold">{accountName}</p>
       </div>
-      {loading ? (
-        <Loader2 className="w-4 h-4 animate-spin text-foreground/40" />
-      ) : connected ? (
-        <Button variant="outline" size="sm" onClick={onDisconnect}>Disconnect</Button>
-      ) : platform === "meta" ? (
-        <Button size="sm" onClick={onConnect}>
-          Connect <ArrowRight className="w-3.5 h-3.5" />
-        </Button>
-      ) : (
-        <Button size="sm" variant="outline" onClick={() => toast.info("Google Ads integration is on the v1.2 roadmap")}>
-          Coming soon
-        </Button>
-      )}
+
+      {/* Secondary — Google placeholder, smaller */}
+      <div className="relative overflow-hidden rounded-2xl border-2 border-[#34A853]/40 shadow-[0_4px_0_0_#1E7E3450] p-5 bg-gradient-to-br from-white to-[#F1F8F3]">
+        <div className="flex items-start gap-3">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black bg-gradient-to-br from-[#4285F4] via-[#34A853] to-[#FBBC05] text-white shadow-md flex-shrink-0">
+            G
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-[17px] font-black tracking-tight text-foreground">Google Ads</p>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF1D6] border border-[#E8B968] text-[#B8651A] text-[10px] font-extrabold uppercase tracking-wider">
+                Coming soon
+              </span>
+            </div>
+            <p className="text-[11.5px] text-foreground/60 font-medium mt-0.5">Search · YouTube · Display · PMax</p>
+            <p className="text-[12px] text-foreground/65 font-medium mt-2 leading-relaxed">
+              Google integration v1.2 ke roadmap mein hai. Abhi Meta + WhatsApp pe focus.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
+
 
 // Ease-out counter from 0 → target over `duration` ms. Re-runs when target
 // changes so KPIs animate on data refresh too.
@@ -692,6 +760,7 @@ const AdKPI = ({
     format === "roas" ? `${animated.toFixed(1)}x` :
                         compactNum(animated);
 
+  const isZero = rawValue === 0;
   return (
     <div className={cn(
       "group relative overflow-hidden bg-white border-2 rounded-2xl p-4 transition-all duration-200 ease-out hover:-translate-y-0.5 will-change-transform",
@@ -712,14 +781,17 @@ const AdKPI = ({
         )}
       </div>
       <p className="relative text-[11px] uppercase tracking-[0.15em] text-foreground/60 font-extrabold">{label}</p>
-      {loading && rawValue === 0 ? (
+      {loading && isZero ? (
         <div className="relative h-9 w-24 mt-1 rounded-md bg-[#FFF1D6] animate-pulse" />
       ) : (
-        <p className={cn("relative text-3xl font-black tracking-tight tabular-nums mt-1", highlight && styles.trendText)}>
+        <p className={cn(
+          "relative text-3xl font-black tracking-tight tabular-nums mt-1",
+          isZero ? "text-foreground/30" : highlight ? styles.trendText : "text-foreground"
+        )}>
           {display}
         </p>
       )}
-      {sub && <p className="relative text-[11px] text-foreground/60 font-medium mt-1">{sub}</p>}
+      {sub && <p className="relative text-[11px] text-foreground/60 font-medium mt-1 truncate">{sub}</p>}
     </div>
   );
 };
