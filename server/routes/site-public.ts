@@ -66,6 +66,9 @@ const logEvent = (params: {
 
 const app = new Hono();
 
+/** Coerce JSONB value to boolean — handles true / "true" / 1 / "1". */
+const truthy = (v: unknown): boolean => v === true || v === "true" || v === 1 || v === "1";
+
 /** HTML-escape every value we interpolate to prevent XSS via user copy. */
 const esc = (s: unknown): string =>
   String(s ?? "")
@@ -111,10 +114,20 @@ type RenderInput = {
     whatsapp: string | null;          // wa.me link
     upiVpa: string | null;
     upiName: string | null;
+    email: string | null;
     instagram: string | null;
     facebook: string | null;
     address: string | null;
     hours: string | null;
+    logoUrl: string | null;
+    coverUrl: string | null;
+  };
+  visibility: {
+    products: boolean;
+    hours: boolean;
+    address: boolean;
+    contact: boolean;
+    leadform: boolean;
   };
   theme: {
     primary: string;                  // hex
@@ -183,7 +196,7 @@ const vocabFor = (template: string) => TEMPLATE_VOCAB[template] || TEMPLATE_VOCA
 
 /** The Kirana / Local Shop template — single page, mobile-first, fast. */
 const renderKirana = (input: RenderInput): string => {
-  const { business, theme, seo, slug, products, cashfree, template, advanced } = input;
+  const { business, theme, seo, slug, products, cashfree, template, advanced, visibility } = input;
   const vocab = vocabFor(template);
 
   // Build the advanced <head> injections — only emit tags when actually configured.
@@ -262,10 +275,12 @@ ${JSON.stringify({
 <header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b" style="border-color: ${esc(theme.primary)}33">
   <div class="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
     <div class="flex items-center gap-2.5 min-w-0">
-      <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-[14px] flex-shrink-0 shadow"
-           style="background: linear-gradient(135deg, ${esc(theme.primary)}, ${esc(theme.accent)})">
-        ${esc((business.name || "?").slice(0, 1).toUpperCase())}
-      </div>
+      ${business.logoUrl
+        ? `<img src="${esc(business.logoUrl)}" alt="${esc(business.name)}" class="w-9 h-9 rounded-xl object-cover flex-shrink-0 shadow" onerror="this.style.display='none'" />`
+        : `<div class="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-[14px] flex-shrink-0 shadow"
+             style="background: linear-gradient(135deg, ${esc(theme.primary)}, ${esc(theme.accent)})">
+          ${esc((business.name || "?").slice(0, 1).toUpperCase())}
+        </div>`}
       <h1 class="font-extrabold text-[15px] truncate">${esc(business.name)}</h1>
     </div>
     ${business.whatsapp ? `
@@ -278,7 +293,8 @@ ${JSON.stringify({
 </header>
 
 <!-- ── Hero ── -->
-<section class="dot-bg py-16 sm:py-24 px-4">
+<section class="${business.coverUrl ? 'relative' : 'dot-bg'} py-16 sm:py-24 px-4"
+         ${business.coverUrl ? `style="background-image: linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.85)), url(${JSON.stringify(business.coverUrl).slice(1, -1)}); background-size: cover; background-position: center;"` : ""}>
   <div class="max-w-5xl mx-auto text-center">
     <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider mb-5"
          style="background: ${esc(theme.accent)}22; color: ${esc(theme.primary)}">
@@ -321,7 +337,7 @@ ${JSON.stringify({
 </section>
 
 <!-- ── Products (if any) ── -->
-${products.length > 0 ? `
+${products.length > 0 && visibility.products ? `
 <section id="products" class="py-12 sm:py-16 px-4">
   <div class="max-w-5xl mx-auto">
     <div class="text-center mb-8">
@@ -372,7 +388,7 @@ ${products.length > 0 ? `
 </section>` : ""}
 
 <!-- ── Floating cart button (rendered always — hides when empty) ── -->
-${products.length > 0 ? `
+${products.length > 0 && visibility.products ? `
 <button
   id="ax-cart-btn"
   type="button"
@@ -749,16 +765,16 @@ ${products.length > 0 ? `
 })();
 </script>` : ""}
 
-<!-- ── Hours + Address (if set) ── -->
-${business.hours || business.address ? `
+<!-- ── Hours + Address (if set + visible) ── -->
+${(business.hours && visibility.hours) || (business.address && visibility.address) ? `
 <section class="py-10 px-4 bg-gray-50/50">
   <div class="max-w-3xl mx-auto grid sm:grid-cols-2 gap-4">
-    ${business.hours ? `
+    ${business.hours && visibility.hours ? `
     <div class="p-5 rounded-2xl bg-white border-2" style="border-color: ${esc(theme.primary)}22">
       <p class="text-[11px] font-extrabold uppercase tracking-wider mb-2" style="color: ${esc(theme.primary)}">🕐 Hours</p>
       <p class="text-[13px] font-medium whitespace-pre-line leading-relaxed">${esc(business.hours)}</p>
     </div>` : ""}
-    ${business.address ? `
+    ${business.address && visibility.address ? `
     <div class="p-5 rounded-2xl bg-white border-2" style="border-color: ${esc(theme.primary)}22">
       <p class="text-[11px] font-extrabold uppercase tracking-wider mb-2" style="color: ${esc(theme.primary)}">📍 Visit us</p>
       <p class="text-[13px] font-medium whitespace-pre-line leading-relaxed">${esc(business.address)}</p>
@@ -767,6 +783,7 @@ ${business.hours || business.address ? `
 </section>` : ""}
 
 <!-- ── Contact ── -->
+${visibility.contact ? `
 <section class="py-12 sm:py-16 px-4">
   <div class="max-w-3xl mx-auto">
     <div class="text-center mb-10">
@@ -821,11 +838,24 @@ ${business.hours || business.address ? `
           </div>
         </div>
       </a>` : ""}
+      ${business.email ? `
+      <a href="mailto:${esc(business.email)}"
+         class="block p-5 rounded-2xl bg-white border-2 transition hover:-translate-y-0.5 hover:shadow-lg"
+         style="border-color: ${esc(theme.primary)}33">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-[18px] flex-shrink-0" style="background: ${esc(theme.primary)}">✉️</div>
+          <div class="min-w-0">
+            <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">Email</p>
+            <p class="text-[14px] font-extrabold truncate">${esc(business.email)}</p>
+          </div>
+        </div>
+      </a>` : ""}
     </div>
   </div>
-</section>
+</section>` : ""}
 
 <!-- ── Lead form ── -->
+${visibility.leadform ? `
 <section class="py-12 sm:py-16 px-4 bg-gray-50">
   <div class="max-w-xl mx-auto">
     <div class="text-center mb-7">
@@ -908,6 +938,7 @@ ${business.hours || business.address ? `
   });
 })();
 </script>
+` : ""}
 
 <!-- ── Footer ── -->
 <footer class="py-8 px-4 border-t" style="border-color: ${esc(theme.primary)}22">
@@ -987,14 +1018,31 @@ app.get("/biz/:slug", async (c) => {
       name: businessName,
       tagline,
       about,
-      phone,
-      whatsapp: wa,
+      // copy.phone overrides profile.phone (lets site have a different
+      // shop number from the operator's personal phone)
+      phone: copy.phone || phone,
+      whatsapp: copy.phone
+        ? waLink(copy.phone, `Hi ${businessName}, I'd like to place an order.`)
+        : wa,
       upiVpa: pf?.upiVpa || null,
       upiName: pf?.upiDisplayName || pf?.displayName || null,
+      email: copy.email || null,
       instagram: pf?.instagramUrl || null,
       facebook: pf?.facebookUrl || null,
       address: copy.address || null,
       hours: copy.hours || null,
+      logoUrl: copy.logo_url || null,
+      coverUrl: copy.cover_url || null,
+    },
+    // Each section defaults to visible — only hidden if user explicitly sets
+    // hide_<section> in copy JSON via the Manage Site toggles. Values may be
+    // boolean true OR string "true" depending on how the UI serializes.
+    visibility: {
+      products: !truthy(copy.hide_products),
+      hours:    !truthy(copy.hide_hours),
+      address:  !truthy(copy.hide_address),
+      contact:  !truthy(copy.hide_contact),
+      leadform: !truthy(copy.hide_leadform),
     },
     theme: {
       primary: theme.primary || "#0E8A4B",
@@ -1375,11 +1423,15 @@ app.get("/biz-demo/:template", (c) => {
       whatsapp: "https://wa.me/919999000000?text=" + encodeURIComponent(`Hi ${demo.businessName}, this is a demo enquiry.`),
       upiVpa: "demo@upi",
       upiName: demo.businessName,
+      email: "demo@addisonxmedia.com",
       instagram: "https://instagram.com/demo",
       facebook: null,
       address: demo.address,
       hours: demo.hours,
+      logoUrl: null,
+      coverUrl: null,
     },
+    visibility: { products: true, hours: true, address: true, contact: true, leadform: true },
     theme: demo.theme,
     seo: { title: `${demo.businessName} — demo template`, description: demo.tagline, ogImage: null },
     slug: `demo-${template}`,

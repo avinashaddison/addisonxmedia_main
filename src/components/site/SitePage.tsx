@@ -22,14 +22,15 @@
  * edit slug + copy, publish → public URL goes live at /biz/<slug>.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Globe, FileText, Palette, LayoutGrid, Package, ShoppingCart, Users,
   CreditCard, Truck, Ticket, ClipboardList, Search, BarChart3, Settings,
   Rocket, ExternalLink, ArrowRight, CheckCircle2, Sparkles, Wand2,
   Loader2, Copy, Eye, EyeOff, AlertCircle, Check, Edit2, Save, X,
-  ChevronDown, Code, Shield, Image as ImageIcon, BarChart, Activity,
+  ChevronDown, Code, Shield, Image as ImageIcon, BarChart, Activity, Upload,
 } from "lucide-react";
+import { useCloudinaryConfig, useCloudinaryUpload } from "@/hooks/useCloudinaryUpload";
 import { api, type SiteDto } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -257,6 +258,9 @@ const SiteOverview = () => {
           <ArrowRight className="sm:hidden w-4 h-4 text-[#0E8A4B] flex-shrink-0" />
         </a>
 
+        {/* Branding (logo + cover) */}
+        <BrandingSection site={site} />
+
         {/* Public URL + slug */}
         <div className="bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] p-5">
           <div className="flex items-center justify-between mb-3">
@@ -410,6 +414,12 @@ const SiteOverview = () => {
           </div>
         </div>
 
+        {/* Contact overrides (phone + email specific to this site) */}
+        <ContactOverridesSection site={site} />
+
+        {/* Section visibility toggles */}
+        <SectionVisibility site={site} />
+
         {/* What auto-fills banner */}
         <div className="bg-gradient-to-br from-[#E4E8FF] to-white rounded-2xl border-2 border-[#3C50E0]/30 p-5">
           <div className="flex items-start gap-3 mb-3">
@@ -472,6 +482,228 @@ const FieldRow = ({ label, hint, children }: { label: string; hint?: string; chi
     {children}
   </div>
 );
+
+// ─── Branding: logo + cover photo upload ───────────────────────────────────
+
+const BrandingSection = ({ site }: { site: SiteDto }) => {
+  const qc = useQueryClient();
+  const { data: cloudConfig } = useCloudinaryConfig();
+  const { upload: uploadLogo, progress: logoProgress, uploading: logoUploading } = useCloudinaryUpload();
+  const { upload: uploadCover, progress: coverProgress, uploading: coverUploading } = useCloudinaryUpload();
+  const logoRef = useRef<HTMLInputElement>(null);
+  const coverRef = useRef<HTMLInputElement>(null);
+
+  const currentLogo = (site.copy as Record<string, string>)?.logo_url || "";
+  const currentCover = (site.copy as Record<string, string>)?.cover_url || "";
+
+  const saveImg = async (key: "logo_url" | "cover_url", url: string | null) => {
+    try {
+      const updated = await api.updateSite({ copy: { ...(site.copy || {}), [key]: url ?? "" } });
+      qc.setQueryData(["site-me"], updated);
+      toast.success(url ? "Saved" : "Removed");
+    } catch (e) { toast.error((e as Error).message); }
+  };
+
+  const handleUpload = async (file: File, kind: "logo" | "cover") => {
+    if (!cloudConfig?.enabled || !cloudConfig.cloudName || !cloudConfig.uploadPreset) {
+      toast.error("Image upload not configured on the server");
+      return;
+    }
+    if (file.size > (cloudConfig.maxImageMb || 25) * 1024 * 1024) {
+      toast.error(`Image too large (max ${cloudConfig.maxImageMb}MB)`);
+      return;
+    }
+    try {
+      const fn = kind === "logo" ? uploadLogo : uploadCover;
+      const res = await fn(file, { cloudName: cloudConfig.cloudName, uploadPreset: cloudConfig.uploadPreset }, "image");
+      await saveImg(kind === "logo" ? "logo_url" : "cover_url", res.secure_url);
+    } catch (e) { toast.error((e as Error).message); }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] p-5">
+      <h2 className="text-[13px] font-extrabold uppercase tracking-[0.15em] text-foreground/55 mb-3">Branding</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Logo */}
+        <div>
+          <label className="text-[11px] font-extrabold uppercase tracking-wider text-foreground/65 mb-2 block">Logo (square)</label>
+          <div className="flex items-start gap-3">
+            <div className="relative w-20 h-20 rounded-2xl border-2 border-[#E8B968] overflow-hidden flex-shrink-0 bg-gradient-to-br from-foreground/5 to-foreground/10">
+              {currentLogo ? (
+                <img src={currentLogo} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-foreground/30">
+                  <ImageIcon className="w-7 h-7" />
+                </div>
+              )}
+              {logoUploading && (
+                <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white">
+                  <Loader2 className="w-4 h-4 animate-spin mb-1" />
+                  <span className="text-[9px] font-extrabold">{logoProgress}%</span>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <input ref={logoRef} type="file" accept="image/*" className="hidden"
+                     onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleUpload(f, "logo"); if (logoRef.current) logoRef.current.value = ""; }} />
+              <button onClick={() => logoRef.current?.click()} disabled={logoUploading}
+                      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[#FFF1D6] hover:bg-[#FFE8C7] border border-[#E8B968] text-[12px] font-extrabold text-[#B8651A] disabled:opacity-50 transition">
+                <Upload className="w-3.5 h-3.5" /> {currentLogo ? "Replace" : "Upload logo"}
+              </button>
+              {currentLogo && (
+                <button onClick={() => saveImg("logo_url", null)}
+                        className="ml-2 text-[11px] font-extrabold text-[#D4308E] hover:text-[#A11A6A]">Remove</button>
+              )}
+              <p className="text-[10px] text-foreground/55">Square image, 200×200+ recommended. Replaces the auto letter circle.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Cover photo */}
+        <div>
+          <label className="text-[11px] font-extrabold uppercase tracking-wider text-foreground/65 mb-2 block">Hero cover photo</label>
+          <div className="space-y-2">
+            <div className="relative w-full aspect-[5/2] rounded-xl border-2 border-[#E8B968] overflow-hidden bg-gradient-to-br from-foreground/5 to-foreground/10">
+              {currentCover ? (
+                <img src={currentCover} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-foreground/30">
+                  <ImageIcon className="w-8 h-8" />
+                </div>
+              )}
+              {coverUploading && (
+                <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white">
+                  <Loader2 className="w-5 h-5 animate-spin mb-1" />
+                  <span className="text-[10px] font-extrabold">{coverProgress}%</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <input ref={coverRef} type="file" accept="image/*" className="hidden"
+                     onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleUpload(f, "cover"); if (coverRef.current) coverRef.current.value = ""; }} />
+              <button onClick={() => coverRef.current?.click()} disabled={coverUploading}
+                      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[#FFF1D6] hover:bg-[#FFE8C7] border border-[#E8B968] text-[12px] font-extrabold text-[#B8651A] disabled:opacity-50 transition">
+                <Upload className="w-3.5 h-3.5" /> {currentCover ? "Replace" : "Upload cover"}
+              </button>
+              {currentCover && (
+                <button onClick={() => saveImg("cover_url", null)}
+                        className="text-[11px] font-extrabold text-[#D4308E] hover:text-[#A11A6A]">Remove</button>
+              )}
+            </div>
+            <p className="text-[10px] text-foreground/55">Wide image (1600×640+). Shown behind the hero. Leave empty for default dot pattern.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Contact overrides (site-specific phone + email) ──────────────────────
+
+const ContactOverridesSection = ({ site }: { site: SiteDto }) => {
+  const qc = useQueryClient();
+  const copy = (site.copy as Record<string, string>) || {};
+  const [draft, setDraft] = useState({ phone: copy.phone || "", email: copy.email || "" });
+
+  useEffect(() => { setDraft({ phone: copy.phone || "", email: copy.email || "" }); }, [site.id, copy.phone, copy.email]);
+
+  const dirty = (draft.phone || "") !== (copy.phone || "") || (draft.email || "") !== (copy.email || "");
+
+  const save = async () => {
+    try {
+      const updated = await api.updateSite({ copy: { ...copy, phone: draft.phone.trim(), email: draft.email.trim() } });
+      qc.setQueryData(["site-me"], updated);
+      toast.success("Saved");
+    } catch (e) { toast.error((e as Error).message); }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] p-5">
+      <h2 className="text-[13px] font-extrabold uppercase tracking-[0.15em] text-foreground/55 mb-1">Site contact</h2>
+      <p className="text-[11px] text-foreground/55 mb-3">Overrides for THIS site only — leave blank to use your AddisonX profile values.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <FieldRow label="Phone / WhatsApp" hint="Override your profile phone for this site">
+          <input value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
+                 placeholder="+91 9XXXXXXXXX"
+                 className="w-full px-3 py-2.5 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[13px] font-mono font-bold" />
+        </FieldRow>
+        <FieldRow label="Email" hint="Shown in the Contact section">
+          <input type="email" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+                 placeholder="hello@yourshop.com"
+                 className="w-full px-3 py-2.5 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[13px] font-bold" />
+        </FieldRow>
+      </div>
+      <div className="flex items-center justify-end gap-2 mt-3">
+        <button onClick={save} disabled={!dirty}
+                className="inline-flex items-center gap-1.5 h-10 px-5 rounded-lg bg-[#0E8A4B] text-white text-[13px] font-extrabold shadow-[0_3px_0_0_#073D22] hover:bg-[#0A6E3C] active:translate-y-0.5 active:shadow-[0_1px_0_0_#073D22] disabled:opacity-50 transition">
+          <Save className="w-3.5 h-3.5" /> {dirty ? "Save contact" : "Saved"}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─── Section visibility toggles ───────────────────────────────────────────
+
+const SectionVisibility = ({ site }: { site: SiteDto }) => {
+  const qc = useQueryClient();
+  const copy = (site.copy as Record<string, unknown>) || {};
+  const isTruthy = (v: unknown) => v === true || v === "true" || v === 1 || v === "1";
+
+  type Key = "products" | "hours" | "address" | "contact" | "leadform";
+  const ROWS: Array<{ key: Key; label: string; description: string; icon: React.ReactNode }> = [
+    { key: "products", label: "Products grid",  description: "Add to cart + checkout",       icon: <Package className="w-4 h-4" /> },
+    { key: "hours",    label: "Business hours", description: "From Site Settings",            icon: <Eye className="w-4 h-4" /> },
+    { key: "address",  label: "Address",        description: "From Site Settings",            icon: <Eye className="w-4 h-4" /> },
+    { key: "contact",  label: "Contact cards",  description: "WhatsApp, UPI, social",         icon: <Eye className="w-4 h-4" /> },
+    { key: "leadform", label: "Lead form",      description: "Capture leads → CRM",           icon: <ClipboardList className="w-4 h-4" /> },
+  ];
+
+  const toggle = async (key: Key, hide: boolean) => {
+    try {
+      const updated = await api.updateSite({ copy: { ...copy, [`hide_${key}`]: hide } });
+      qc.setQueryData(["site-me"], updated);
+      toast.success(hide ? "Section hidden" : "Section shown");
+    } catch (e) { toast.error((e as Error).message); }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] p-5">
+      <h2 className="text-[13px] font-extrabold uppercase tracking-[0.15em] text-foreground/55 mb-1">Sections on your site</h2>
+      <p className="text-[11px] text-foreground/55 mb-3">Toggle off the sections you don't want shown on the public site.</p>
+      <ul className="divide-y divide-foreground/10 -mx-2">
+        {ROWS.map((r) => {
+          const hidden = isTruthy(copy[`hide_${r.key}`]);
+          return (
+            <li key={r.key} className="flex items-center gap-3 px-2 py-2.5">
+              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                hidden ? "bg-foreground/5 text-foreground/30" : "bg-[#E6F7EE] text-[#0E8A4B]")}>
+                {r.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={cn("text-[13px] font-extrabold", hidden && "text-foreground/45 line-through")}>{r.label}</p>
+                <p className="text-[10.5px] text-foreground/55">{r.description}</p>
+              </div>
+              <button
+                onClick={() => toggle(r.key, !hidden)}
+                className={cn(
+                  "relative w-11 h-6 rounded-full transition flex-shrink-0",
+                  !hidden ? "bg-[#0E8A4B]" : "bg-foreground/20"
+                )}
+                aria-label={hidden ? `Show ${r.label}` : `Hide ${r.label}`}
+              >
+                <span className={cn(
+                  "absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                  !hidden ? "translate-x-[22px]" : "translate-x-0.5"
+                )} />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+};
 
 // ─── Advanced options (collapsed by default) ───────────────────────────────
 
