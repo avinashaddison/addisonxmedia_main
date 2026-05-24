@@ -86,10 +86,8 @@ const websiteGroups: { label: string; items: NavItem[] }[] = [
   {
     label: "Launch",
     items: [
-      { icon: Store,      label: "Website Store", id: "site/store",   hint: "Browse & preview websites" },
-      { icon: Wrench,     label: "Site Manager",  id: "site",         hint: "Overview, branding, launch" },
-      { icon: Layers,     label: "Builder",       id: "site/builder", hint: "Live visual editor" },
-      { icon: Palette,    label: "Theme",         id: "site/theme",   hint: "Colors, fonts, logo" },
+      { icon: Store,  label: "Website Store", id: "site/store", hint: "Browse & preview websites" },
+      { icon: Wrench, label: "Site Manager",  id: "site",       hint: "Everything: content, theme, branding, launch" },
     ],
   },
   {

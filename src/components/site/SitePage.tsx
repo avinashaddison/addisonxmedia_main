@@ -446,8 +446,19 @@ const SiteOverview = () => {
           </div>
         </div>
 
+        {/* Theme picker (was its own page, now inline so users don't have
+            to context-switch for colors + fonts) */}
+        <ThemeSection site={site} />
+
         {/* Advanced options accordion */}
         <AdvancedOptions site={site} />
+
+        {/* Power-user escape hatch to the Builder. Most users won't need it,
+            but the link's here for those who do. */}
+        <a href="/app/site/builder"
+           className="block text-center py-3 text-[12px] font-extrabold text-foreground/55 hover:text-[#0E8A4B] transition">
+          🛠 Need section-by-section editing? Open Builder →
+        </a>
 
         {/* Mobile-only publish button */}
         <div className="sm:hidden">
@@ -702,6 +713,143 @@ const SectionVisibility = ({ site }: { site: SiteDto }) => {
           );
         })}
       </ul>
+    </div>
+  );
+};
+
+// ─── Theme picker — inline section in Site Manager ─────────────────────
+//
+// Was a standalone page. Folded in here so users don't have to context-
+// switch to swap colors / font. 8 curated palettes + 7 fonts, live mini-
+// preview, single save.
+
+const PALETTES: Array<{ id: string; name: string; primary: string; accent: string; tag?: string }> = [
+  { id: "emerald-saffron", name: "Emerald + Saffron", primary: "#0E8A4B", accent: "#FFD23F", tag: "Default" },
+  { id: "rose-gold",       name: "Rose + Gold",       primary: "#D4308E", accent: "#FFD23F" },
+  { id: "indigo-amber",    name: "Indigo + Amber",    primary: "#3C50E0", accent: "#FF6A1F" },
+  { id: "deep-teal",       name: "Deep Teal",         primary: "#0A4D5C", accent: "#FFB627" },
+  { id: "maroon-cream",    name: "Maroon + Cream",    primary: "#7A1052", accent: "#FFE8B8" },
+  { id: "midnight",        name: "Midnight",          primary: "#0A3D24", accent: "#16C172" },
+  { id: "sunset",          name: "Sunset Orange",     primary: "#FF6A1F", accent: "#3C50E0" },
+  { id: "royal-blue",      name: "Royal Blue",        primary: "#1E3A8A", accent: "#FFD23F" },
+];
+const FONTS = ["Inter", "Manrope", "Plus Jakarta Sans", "Poppins", "Lora", "DM Sans", "Outfit"];
+
+const ThemeSection = ({ site }: { site: SiteDto }) => {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [theme, setTheme] = useState<{ primary: string; accent: string; font: string }>({
+    primary: "#0E8A4B", accent: "#FFD23F", font: "Inter",
+  });
+
+  useEffect(() => {
+    if (site) {
+      const t = (site.theme || {}) as Record<string, string>;
+      setTheme({
+        primary: t.primary || "#0E8A4B",
+        accent: t.accent || "#FFD23F",
+        font: t.font || "Inter",
+      });
+    }
+  }, [site]);
+
+  const current = (site.theme || {}) as Record<string, string>;
+  const dirty =
+    theme.primary !== (current.primary || "#0E8A4B") ||
+    theme.accent !== (current.accent || "#FFD23F") ||
+    theme.font !== (current.font || "Inter");
+
+  const save = async () => {
+    try {
+      const updated = await api.updateSite({ theme });
+      qc.setQueryData(["site-me"], updated);
+      toast.success("Theme saved");
+    } catch (e) { toast.error((e as Error).message); }
+  };
+
+  // Closed view: show current palette swatch + font name
+  const currentPalette = PALETTES.find((p) => p.primary === theme.primary && p.accent === theme.accent);
+
+  return (
+    <div className="bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] overflow-hidden">
+      <button onClick={() => setOpen(!open)}
+              className="w-full px-5 py-4 flex items-center gap-3 hover:bg-[#FFF6E8]/40 transition text-left">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className="w-7 h-7 rounded-md shadow-sm" style={{ background: theme.primary }} />
+          <span className="w-7 h-7 rounded-md shadow-sm" style={{ background: theme.accent }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-[13px] font-extrabold uppercase tracking-[0.15em] text-foreground/85">Theme</h2>
+          <p className="text-[11px] text-foreground/55 mt-0.5">
+            {currentPalette?.name || "Custom"} · <span style={{ fontFamily: `'${theme.font}', system-ui, sans-serif` }}>{theme.font}</span>
+          </p>
+        </div>
+        <ChevronDown className={cn("w-4 h-4 text-foreground/40 transition", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="p-5 pt-1 space-y-4 border-t border-[#E8B968]/50">
+          <div>
+            <p className="text-[10.5px] font-extrabold uppercase tracking-wider text-foreground/65 mb-2">Colour palette</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {PALETTES.map((p) => {
+                const selected = theme.primary === p.primary && theme.accent === p.accent;
+                return (
+                  <button key={p.id}
+                          onClick={() => setTheme({ ...theme, primary: p.primary, accent: p.accent })}
+                          className={cn(
+                            "p-2.5 rounded-xl border-2 text-left transition",
+                            selected ? "border-[#0E8A4B] shadow-[0_2px_0_0_#0A6E3C]" : "border-[#E8B968]/60 hover:border-[#E8B968]"
+                          )}>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span className="w-6 h-6 rounded-md shadow-sm" style={{ background: p.primary }} />
+                      <span className="w-6 h-6 rounded-md shadow-sm" style={{ background: p.accent }} />
+                      {selected && <Check className="w-3.5 h-3.5 text-[#0E8A4B] ml-auto" strokeWidth={3} />}
+                    </div>
+                    <p className="text-[11px] font-extrabold truncate">{p.name}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10.5px] font-extrabold uppercase tracking-wider text-foreground/65 mb-2">Font</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              {FONTS.map((f) => (
+                <button key={f}
+                        onClick={() => setTheme({ ...theme, font: f })}
+                        className={cn(
+                          "px-2.5 py-2 rounded-lg border-2 transition text-left",
+                          theme.font === f ? "border-[#0E8A4B] bg-[#E6F7EE]" : "border-[#E8B968]/60 hover:border-[#E8B968]"
+                        )}
+                        style={{ fontFamily: `'${f}', system-ui, sans-serif` }}>
+                  <p className="text-[12.5px] font-bold">{f}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Mini preview */}
+          <div className="rounded-xl overflow-hidden border-2" style={{ borderColor: `${theme.primary}33` }}>
+            <div className="p-4 text-center"
+                 style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}cc)`, fontFamily: `'${theme.font}', system-ui, sans-serif` }}>
+              <h4 className="text-white font-black text-[18px]">{site.copy?.business_name || "My Shop"}</h4>
+              <p className="text-white/85 text-[11.5px] mt-1">{site.copy?.tagline || "Local quality, delivered with care."}</p>
+              <button className="mt-2.5 px-3 py-1.5 rounded-md font-extrabold text-[10.5px]"
+                      style={{ background: theme.accent, color: "#3D1A00" }}>Order on WhatsApp</button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button onClick={() => setOpen(false)} className="h-10 px-3 rounded-lg text-foreground/65 text-[12px] font-extrabold hover:bg-foreground/5">Close</button>
+            <button onClick={save} disabled={!dirty}
+                    className="inline-flex items-center gap-1.5 h-10 px-5 rounded-lg bg-[#0E8A4B] text-white text-[13px] font-extrabold shadow-[0_3px_0_0_#073D22] hover:bg-[#0A6E3C] disabled:opacity-50 transition">
+              <Save className="w-3.5 h-3.5" /> {dirty ? "Save theme" : "Saved"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
