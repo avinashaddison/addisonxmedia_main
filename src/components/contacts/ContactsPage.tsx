@@ -37,7 +37,7 @@ import { PageShell } from "@/components/PageShell";
 import { Contact, tagLabel, initialsFor, formatRelative } from "@/lib/inbox-types";
 import {
   Users, Search, Plus, Download, Upload, Flame, Snowflake, CircleDot, Phone, Mail,
-  TrendingUp, IndianRupee, MessageCircle, CreditCard, Send, Sparkles, Zap,
+  TrendingUp, MessageCircle, CreditCard, Send, Sparkles, Zap,
   Clock, Filter, ChevronDown, X, CheckSquare, Square, MoreHorizontal,
   AlertCircle, ArrowUpRight, UserPlus, Megaphone,
 } from "lucide-react";
@@ -61,16 +61,6 @@ const tagPill: Record<Contact["tag"], string> = {
   hot: "bg-hot-soft text-hot",
   warm: "bg-warning-soft text-warning",
   cold: "bg-accent-soft text-accent",
-};
-
-const formatINR = (n: number) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
-
-const compactINR = (n: number) => {
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
-  return `₹${n}`;
 };
 
 // Deterministic intent signals & AI suggestion based on contact data
@@ -97,8 +87,6 @@ const lastActivityFor = (c: Contact): { label: string; minsAgo: number } => {
   if (mins < 1440) return { label: `${Math.floor(mins / 60)}h ago`, minsAgo: mins };
   return { label: `${Math.floor(mins / 1440)}d ago`, minsAgo: mins };
 };
-
-const potentialValueFor = (c: Contact) => Math.round(2000 + c.score * 100);
 
 // Quick segment definitions
 type Segment = "all" | "ready" | "followup" | "cold";
@@ -190,9 +178,6 @@ export const ContactsPage = () => {
     const avgScore = contacts.length
       ? Math.round(contacts.reduce((a, c) => a + c.score, 0) / contacts.length)
       : 0;
-    const potentialRevenue = contacts
-      .filter((c) => c.tag === "hot" || c.tag === "warm")
-      .reduce((sum, c) => sum + potentialValueFor(c), 0);
     // simple "added in last 24h / 7d" trend
     const dayMs = 86400000;
     const now = Date.now();
@@ -200,7 +185,7 @@ export const ContactsPage = () => {
     const addedWeek = contacts.filter((c) => now - new Date(c.created_at).getTime() < 7 * dayMs).length;
     const inactive24h = contacts.filter((c) => lastActivityFor(c).minsAgo > 1440).length;
     const readyToClose = contacts.filter((c) => c.tag === "hot" && c.score >= 75).length;
-    return { total: contacts.length, hot, warm, cold, avgScore, potentialRevenue, addedToday, addedWeek, inactive24h, readyToClose };
+    return { total: contacts.length, hot, warm, cold, avgScore, addedToday, addedWeek, inactive24h, readyToClose };
   }, [contacts]);
 
   const sources = useMemo(() => {
@@ -363,12 +348,13 @@ export const ContactsPage = () => {
           trend="lead quality"
         />
         <ClickableStat
-          label="Potential Revenue"
-          value={0}
-          customValue={compactINR(stats.potentialRevenue)}
-          icon={<IndianRupee className="w-4 h-4" />}
+          label="Ready to Close"
+          value={stats.readyToClose}
+          icon={<Flame className="w-4 h-4" />}
           accent="success"
-          trend="hot + warm"
+          trend="hot · score ≥ 75"
+          active={segment === "ready"}
+          onClick={() => { setSegment("ready"); setTagFilter("all"); }}
           highlight
         />
       </div>
@@ -609,7 +595,6 @@ export const ContactsPage = () => {
           const inactive = activity.minsAgo > 1440;
           const isSelected = selected.has(c.id);
           const isHovered = hoveredId === c.id;
-          const value = potentialValueFor(c);
           const isHot = c.tag === "hot";
 
           return (
@@ -641,10 +626,7 @@ export const ContactsPage = () => {
                   {isHot && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-hot ring-2 ring-card" />}
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-[13px] font-semibold truncate">{c.name}</p>
-                    <span className="text-[9px] font-bold text-success tabular-nums">{compactINR(value)}</span>
-                  </div>
+                  <p className="text-[13px] font-semibold truncate">{c.name}</p>
                   {c.email ? (
                     <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1">
                       <Mail className="w-2.5 h-2.5 flex-shrink-0" />
