@@ -1553,6 +1553,17 @@ app.get("/biz/me", async (c) => {
     }).returning();
   }
 
+  // Loop-guard: if the user's actual slug IS 'me' (manually set OR seeded
+  // from a name that cleaned to 'me'), don't redirect — it would 308 to
+  // itself forever. Just render the site inline here.
+  if (row.slug === "me") {
+    if (row.status !== "published") return c.html(renderDraftHolding("me"), 200);
+    const { html, pageFound } = await renderSiteForPath(row, "me", "/");
+    if (!pageFound) return c.html(renderNotFound(), 404);
+    c.header("Cache-Control", "no-store");
+    return c.html(html);
+  }
+
   return c.redirect(`/biz/${row.slug}`, 302);
 });
 
