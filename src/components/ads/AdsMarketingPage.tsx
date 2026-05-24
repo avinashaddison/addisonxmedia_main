@@ -418,17 +418,17 @@ export const AdsMarketingPage = () => {
 
       {/* ============ AUDIENCES TAB ============ */}
       {tab === "audiences" && (
-        <div className="grid lg:grid-cols-2 gap-4">
-          {/* Audience list */}
-          <div className="lg:col-span-2 bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_4px_0_0_#E8B968] overflow-hidden">
+        <div className="space-y-4">
+          {/* SECTION 1 — Custom audiences (retargeting your CRM contacts) */}
+          <div className="bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_4px_0_0_#E8B968] overflow-hidden">
             <div className="px-4 py-3 border-b-2 border-[#E8B968] bg-[#FFF1D6] flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-[#3C50E0] text-white flex items-center justify-center shadow-md">
                   <Users className="w-4 h-4" strokeWidth={2.5} />
                 </div>
                 <div>
-                  <h3 className="text-[14px] font-black tracking-tight">Audiences</h3>
-                  <p className="text-[11px] text-foreground/60 font-medium">Custom · Lookalike · Saved targeting</p>
+                  <h3 className="text-[14px] font-black tracking-tight">Your custom audiences</h3>
+                  <p className="text-[11px] text-foreground/60 font-medium">CRM contacts · Lookalikes · For retargeting people who already engaged</p>
                 </div>
               </div>
               <Button size="sm" variant="outline" onClick={() => setCreateAudienceOpen(true)}>
@@ -443,17 +443,17 @@ export const AdsMarketingPage = () => {
                 </div>
               )}
               {audiences.length === 0 && !audiencesQ.isPending && (
-                <div className="px-6 py-12 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#3C50E0] to-[#2533A8] text-white mx-auto mb-4 flex items-center justify-center shadow-md">
-                    <Users className="w-7 h-7" strokeWidth={2.5} />
+                <div className="px-6 py-8 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#3C50E0] to-[#2533A8] text-white mx-auto mb-3 flex items-center justify-center shadow-md">
+                    <Users className="w-6 h-6" strokeWidth={2.5} />
                   </div>
-                  <p className="text-[16px] font-black tracking-tight">Koi custom audience nahi hai</p>
+                  <p className="text-[14px] font-black tracking-tight">No custom audience yet</p>
                   <p className="text-[12px] text-foreground/60 font-medium mt-1 max-w-md mx-auto">
-                    Audience banao apne CRM contacts se · Meta unhe target karega WhatsApp aur Instagram pe. Hot leads se start karein.
+                    Upload your CRM contacts to Meta and re-engage past leads on WhatsApp & Instagram.
                   </p>
-                  <div className="flex gap-2 mt-4 justify-center">
-                    <Button onClick={() => setCreateAudienceOpen(true)}>
-                      <Plus className="w-3.5 h-3.5" /> Naya audience banao
+                  <div className="flex gap-2 mt-3 justify-center">
+                    <Button size="sm" onClick={() => setCreateAudienceOpen(true)}>
+                      <Plus className="w-3.5 h-3.5" /> Create from contacts
                     </Button>
                   </div>
                 </div>
@@ -496,6 +496,9 @@ export const AdsMarketingPage = () => {
               })}
             </div>
           </div>
+
+          {/* SECTION 2 — Meta interest targeting (finding NEW customers) */}
+          <InterestTargetingSection onUseInCampaign={() => navigate("/app/ads/new")} />
         </div>
       )}
 
@@ -924,6 +927,158 @@ const EmptyState = ({ icon: Icon, title, desc }: { icon: typeof Target; title: s
     <p className="text-[13px] text-foreground/70 font-medium mt-2 max-w-md mx-auto">{desc}</p>
   </div>
 );
+
+/* ============================================================
+   Interest Targeting — browse Meta's pre-built interest categories
+   so users can find NEW customers (vs. custom audiences which retarget
+   existing CRM contacts).
+
+   Pre-seeded with 12 popular Indian SMB interests so the panel always
+   has something to scan. Search hits /ads/targeting/interests which
+   talks to Meta's targeting API.
+============================================================ */
+
+// Curated Indian-SMB picks shown when no search is active. These show as
+// quick-pick chips above the full list so first-time users see relevant
+// categories instantly instead of an empty search box.
+const INDIA_SMB_INTEREST_QUICKPICKS = [
+  "Online shopping", "Small business owners", "WhatsApp Business",
+  "E-commerce", "Beauty & cosmetics", "Indian cuisine",
+  "Fashion", "Bollywood", "Cricket", "Diwali",
+  "Yoga", "Real estate",
+];
+
+const formatReach = (lower?: number, upper?: number): string => {
+  if (!lower && !upper) return "—";
+  const mid = lower && upper ? Math.round((lower + upper) / 2) : (upper ?? lower ?? 0);
+  if (mid >= 10_000_000) return `${(mid / 10_000_000).toFixed(1)}Cr`;
+  if (mid >= 100_000) return `${(mid / 100_000).toFixed(1)}L`;
+  if (mid >= 1_000) return `${(mid / 1_000).toFixed(1)}K`;
+  return String(mid);
+};
+
+const InterestTargetingSection = ({ onUseInCampaign }: { onUseInCampaign: () => void }) => {
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // 250ms debounce on the search box — Meta's targeting API isn't free
+  // and the user types faster than it returns.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const interestsQ = useQuery({
+    queryKey: ["ads", "interests", debouncedSearch],
+    queryFn: () => api.searchAdInterests(debouncedSearch),
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const interests = interestsQ.data?.interests ?? [];
+  const isDemo = interestsQ.data?.demo ?? false;
+
+  return (
+    <div className="bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_4px_0_0_#E8B968] overflow-hidden">
+      <div className="px-4 py-3 border-b-2 border-[#E8B968] bg-[#FFF1D6] flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] text-white flex items-center justify-center shadow-md">
+            <Target className="w-4 h-4" strokeWidth={2.5} />
+          </div>
+          <div>
+            <h3 className="text-[14px] font-black tracking-tight">Meta interest categories</h3>
+            <p className="text-[11px] text-foreground/60 font-medium">
+              Pre-built by Meta · For finding new customers who match your audience profile
+            </p>
+          </div>
+        </div>
+        <Button size="sm" onClick={onUseInCampaign}>
+          <Plus className="w-3.5 h-3.5" /> Use in campaign
+        </Button>
+      </div>
+
+      {/* Search */}
+      <div className="px-4 py-3 border-b border-[#E8B968]/40 bg-white">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#B8651A]" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search Meta interests — e.g. 'yoga', 'restaurants', 'diwali'…"
+            className="pl-9"
+          />
+        </div>
+
+        {/* India SMB quick-picks — show when no search */}
+        {!debouncedSearch && (
+          <div className="mt-3">
+            <p className="text-[10px] uppercase tracking-wider font-extrabold text-foreground/55 mb-1.5">
+              Popular for Indian SMBs
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {INDIA_SMB_INTEREST_QUICKPICKS.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => setSearch(q)}
+                  className="px-2.5 h-7 rounded-full text-[11px] font-extrabold bg-[#FFF1D6] text-[#7A4A00] border border-[#E8B968] hover:bg-[#FFE8C7] hover:scale-105 transition-all"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Results */}
+      <div className="divide-y divide-[#E8B968]/40 max-h-[420px] overflow-y-auto">
+        {interestsQ.isPending && interests.length === 0 && (
+          <div className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-foreground/40" /></div>
+        )}
+        {!interestsQ.isPending && interests.length === 0 && (
+          <div className="py-10 text-center">
+            <p className="text-[13px] font-extrabold">No results</p>
+            <p className="text-[11px] text-foreground/55 mt-1">Try a different keyword</p>
+          </div>
+        )}
+        {interests.map((i) => (
+          <div key={i.id} className="px-4 py-2.5 flex items-center gap-3 hover:bg-[#FFF6E8] transition">
+            <div className="w-9 h-9 rounded-lg bg-[#FFEAD9] text-[#FF6A1F] flex items-center justify-center flex-shrink-0">
+              <Target className="w-4 h-4" strokeWidth={2.5} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-extrabold truncate">{i.name}</p>
+              {i.topic && <p className="text-[10.5px] text-foreground/55 font-medium">{i.topic}</p>}
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-[13px] font-black tabular-nums">{formatReach(i.audience_size_lower_bound, i.audience_size_upper_bound)}</p>
+              <p className="text-[9px] text-foreground/55 font-extrabold uppercase tracking-wider">Reach</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Footnote */}
+      <div className="px-4 py-2.5 bg-[#FFF6E8] border-t border-[#E8B968]/40 flex items-center gap-2">
+        {isDemo ? (
+          <>
+            <AlertTriangle className="w-3.5 h-3.5 text-[#B8651A] flex-shrink-0" />
+            <p className="text-[10.5px] text-foreground/65 font-medium">
+              <strong>Sample data shown</strong> — connect Meta Ads to browse the full ~50,000 live interest categories.
+            </p>
+          </>
+        ) : (
+          <>
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#0E8A4B] flex-shrink-0" />
+            <p className="text-[10.5px] text-foreground/65 font-medium">
+              Live from Meta — pick interests when creating a campaign to target NEW customers matching these profiles.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 
 /* ============================================================
