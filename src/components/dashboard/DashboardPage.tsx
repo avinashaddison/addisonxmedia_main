@@ -499,12 +499,17 @@ export const DashboardPage = ({ onNavigate }: Props) => {
         })}
       </div>
 
-      {/* ===== SECTION 2 — NEEDS ATTENTION (real signals) ===== */}
-      <AddisonAIHero
-        insights={insights}
-        topUnanswered={topUnanswered}
-        onNavigate={onNavigate}
-      />
+      {/* ===== SECTION 2 — NEEDS ATTENTION (real signals) =====
+          Only render when there's actually something pending. An "all clear"
+          empty state was noisy — users with quiet days saw a giant green
+          panel saying nothing actionable. Hide instead. */}
+      {(insights.length > 0 || topUnanswered) && (
+        <AddisonAIHero
+          insights={insights}
+          topUnanswered={topUnanswered}
+          onNavigate={onNavigate}
+        />
+      )}
 
       {/* ===== SECTION 3 — LIVE CHAT PREVIEW ===== */}
       <LiveChatPreview chats={liveChats} onNavigate={onNavigate} isLoading={isLoading} />
