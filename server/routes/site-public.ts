@@ -1260,6 +1260,590 @@ ${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="
 </html>`;
 };
 
+// ─── Addison Salon — WhatsApp-first Salon template with booking ─────────
+//
+// Distinctly different layout from Kirana/DPS — built around APPOINTMENTS,
+// not products. Salons don't sell SKUs through a cart; they sell time slots.
+//
+// Flow: visitor browses services + stylists → taps "Book your slot" → opens
+// a multi-step modal (Service → Date → Time → Details) → submits → opens
+// WhatsApp with a structured booking message the seller can confirm in one
+// tap. No DB save in v1 — booking lives in WhatsApp inbox where Indian
+// salons already manage appointments today, just way better organized.
+//
+// Indian polish: devanagari स्वागत है greeting, sari/lehenga gallery,
+// trust signals (L'Oréal certified, 10K+ visits, 5-star reviews).
+
+const renderAddisonSalon = (input: RenderInput): string => {
+  const { business, theme, seo, slug, products, advanced } = input;
+
+  // Inline advanced-options HTML
+  const faviconTag = advanced.faviconUrl ? `<link rel="icon" href="${esc(advanced.faviconUrl)}" />` : "";
+  const robotsTag = !advanced.allowIndexing ? `<meta name="robots" content="noindex, nofollow" />` : "";
+  const ga4 = advanced.ga4Id
+    ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${esc(advanced.ga4Id)}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${esc(advanced.ga4Id)}');</script>` : "";
+  const pixel = advanced.metaPixelId
+    ? `<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${esc(advanced.metaPixelId)}');fbq('track','PageView');</script>` : "";
+  const customHead = advanced.customHeadHtml || "";
+
+  // Use the same products list as "services" — name, duration optional via
+  // description, price = service charge. Show all active.
+  const services = products.slice(0, 12);
+
+  // Build WhatsApp deep-link base (without text — text gets composed in JS)
+  const waBase = business.whatsapp ? business.whatsapp.split("?")[0] : null;
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${esc(seo.title)}</title>
+<meta name="description" content="${esc(seo.description)}" />
+<meta property="og:title" content="${esc(seo.title)}" />
+<meta property="og:description" content="${esc(seo.description)}" />
+${seo.ogImage ? `<meta property="og:image" content="${esc(seo.ogImage)}" />` : ""}
+<meta property="og:type" content="website" />
+<meta name="theme-color" content="${esc(theme.primary)}" />
+${faviconTag}${robotsTag}${ga4}${pixel}${customHead}
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@500;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{brand:"${esc(theme.primary)}",accent:"${esc(theme.accent)}"}}}};</script>
+<style>
+  :root { --brand: ${esc(theme.primary)}; --accent: ${esc(theme.accent)}; }
+  body { font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; background: #FFFAF8; color: #1a1320; }
+  .serif { font-family: 'Playfair Display', Georgia, serif; }
+  .devanagari { font-family: 'Noto Sans Devanagari', sans-serif; }
+  .gradient-bg { background: radial-gradient(ellipse at top left, ${esc(theme.primary)}1a, transparent 60%),
+                              radial-gradient(ellipse at bottom right, ${esc(theme.accent)}26, transparent 55%),
+                              linear-gradient(135deg, #FFFAF8, #FFF0F5); }
+  .glass { background: rgba(255,255,255,0.7); backdrop-filter: blur(8px); }
+  .stylist-card:hover { transform: translateY(-4px); }
+  .service-card:hover { transform: translateY(-3px); box-shadow: 0 14px 32px rgba(212,48,142,0.12); }
+  .slot-btn { transition: all .12s ease; }
+  .slot-btn:hover:not(.taken) { transform: scale(1.04); }
+  .slot-btn.taken { opacity: 0.35; cursor: not-allowed; text-decoration: line-through; }
+  .slot-btn.selected { background: var(--brand); color: white; transform: scale(1.06); box-shadow: 0 4px 14px ${esc(theme.primary)}55; }
+  .step-dot { transition: all .2s ease; }
+  .marquee-track { animation: marquee 28s linear infinite; display: flex; gap: 2.5rem; white-space: nowrap; }
+  @keyframes marquee { from {transform: translateX(0);} to {transform: translateX(-50%);} }
+  .floating-cta { box-shadow: 0 10px 30px ${esc(theme.primary)}66; animation: pulse-cta 2.5s ease-in-out infinite; }
+  @keyframes pulse-cta { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+</style>
+</head>
+<body>
+
+<!-- ── Top trust ribbon ── -->
+<div style="background: linear-gradient(90deg, var(--brand), var(--accent)); color: white;" class="text-[11px] font-extrabold py-2 overflow-hidden">
+  <div class="marquee-track px-4">
+    ${Array(2).fill(0).map(() => `
+      <span>🌸 <span class="ml-1">Now booking — same-day slots available</span></span>
+      <span>💆 <span class="ml-1">Expert stylists, L'Oréal trained</span></span>
+      <span>🏆 <span class="ml-1">10,000+ happy clients</span></span>
+      <span>⭐ <span class="ml-1">4.9 / 5 on Google</span></span>
+      <span>🇮🇳 <span class="ml-1">Made for India</span></span>
+      <span>💬 <span class="ml-1">Confirm via WhatsApp in 30 seconds</span></span>
+    `).join("")}
+  </div>
+</div>
+
+<!-- ── Sticky header ── -->
+<header class="sticky top-0 z-30 glass border-b" style="border-color: ${esc(theme.primary)}22">
+  <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+    <a href="/biz/${esc(slug)}" class="flex items-center gap-2.5 min-w-0">
+      ${business.logoUrl
+        ? `<img src="${esc(business.logoUrl)}" alt="${esc(business.name)}" class="w-11 h-11 rounded-full object-cover shadow-md ring-2 ring-white" onerror="this.style.display='none'" />`
+        : `<div class="w-11 h-11 rounded-full flex items-center justify-center text-white font-black text-[16px] shadow-md ring-2 ring-white" style="background: linear-gradient(135deg, var(--brand), var(--accent))">${esc((business.name || "?").slice(0, 1).toUpperCase())}</div>`}
+      <div class="min-w-0">
+        <h1 class="serif font-black text-[17px] truncate leading-tight">${esc(business.name)}</h1>
+        <p class="text-[10px] font-extrabold uppercase tracking-wider" style="color: var(--brand)">Salon &amp; Spa</p>
+      </div>
+    </a>
+    <button onclick="window.AxBook.open()"
+            class="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl text-white font-extrabold text-[12.5px] transition hover:-translate-y-0.5"
+            style="background: var(--brand); box-shadow: 0 4px 0 0 ${esc(theme.primary)}99">
+      📅 Book now
+    </button>
+  </div>
+</header>
+
+<!-- ── Hero ── -->
+<section class="gradient-bg py-16 sm:py-24 px-4 relative overflow-hidden">
+  <!-- Decorative blob -->
+  <div class="absolute -top-10 -right-10 w-72 h-72 rounded-full blur-3xl opacity-30" style="background: var(--accent);"></div>
+  <div class="absolute -bottom-10 -left-10 w-80 h-80 rounded-full blur-3xl opacity-20" style="background: var(--brand);"></div>
+
+  <div class="max-w-5xl mx-auto relative">
+    <div class="flex flex-col lg:flex-row items-center gap-12">
+      <div class="flex-1 text-center lg:text-left">
+        <p class="devanagari text-[16px] font-bold mb-3" style="color: var(--brand)">🙏 स्वागत है · Welcome</p>
+        <h2 class="serif text-[40px] sm:text-[54px] lg:text-[62px] font-black leading-[1.05] mb-4">
+          ${esc(business.tagline || "Look stunning. Feel divine.")}
+        </h2>
+        <p class="text-[15px] sm:text-[17px] text-gray-700 max-w-xl mx-auto lg:mx-0 leading-relaxed mb-7">
+          ${esc(business.about)}
+        </p>
+        <div class="flex flex-wrap justify-center lg:justify-start gap-3 mb-6">
+          <button onclick="window.AxBook.open()"
+                  class="inline-flex items-center gap-2 h-14 px-8 rounded-2xl text-white serif text-[16px] font-black transition hover:-translate-y-1"
+                  style="background: var(--brand); box-shadow: 0 6px 0 0 ${esc(theme.primary)}cc">
+            📅 Book your slot
+          </button>
+          ${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 h-14 px-6 rounded-2xl bg-white border-2 font-extrabold text-[14px] transition hover:-translate-y-0.5"
+            style="border-color: var(--brand); color: var(--brand)">💬 Ask on WhatsApp</a>` : ""}
+        </div>
+        <!-- Star rating + trust -->
+        <div class="flex flex-wrap justify-center lg:justify-start items-center gap-4 mt-6">
+          <div class="flex items-center gap-1.5">
+            <div class="flex text-[16px]">⭐⭐⭐⭐⭐</div>
+            <span class="text-[12px] font-extrabold">4.9 · 1,200+ reviews</span>
+          </div>
+          <span class="text-gray-300">|</span>
+          <span class="text-[12px] font-bold text-gray-600">🏆 L'Oréal Certified</span>
+          <span class="text-gray-300">|</span>
+          <span class="text-[12px] font-bold text-gray-600">⚡ Same-day slots</span>
+        </div>
+      </div>
+
+      <!-- Hero visual: stacked stylist cards -->
+      <div class="flex-1 max-w-md w-full hidden lg:block">
+        <div class="relative h-[420px]">
+          <div class="absolute top-0 right-0 w-48 h-64 rounded-3xl overflow-hidden shadow-2xl ring-4 ring-white rotate-6" style="background: linear-gradient(135deg, var(--accent), var(--brand))">
+            <div class="w-full h-full flex items-center justify-center text-[100px]">💆‍♀️</div>
+          </div>
+          <div class="absolute bottom-0 left-0 w-56 h-72 rounded-3xl overflow-hidden shadow-2xl ring-4 ring-white -rotate-6" style="background: linear-gradient(135deg, var(--brand), #1a1320)">
+            <div class="w-full h-full flex items-center justify-center text-[110px]">💇‍♀️</div>
+          </div>
+          <div class="absolute top-10 left-16 w-44 h-44 rounded-full bg-white shadow-xl flex items-center justify-center text-[60px]">💅</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Services ── -->
+${services.length > 0 ? `
+<section id="services" class="py-16 px-4">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-10">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: var(--brand)">💆 What we do</p>
+      <h3 class="serif text-[34px] sm:text-[42px] font-black leading-tight">Our services</h3>
+      <p class="text-[14px] text-gray-600 mt-2">Hair, skin, nails &amp; spa — by India's best-trained stylists.</p>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+      ${services.map((s) => `
+        <article class="service-card bg-white rounded-2xl border overflow-hidden transition" style="border-color: ${esc(theme.primary)}1a">
+          <div class="aspect-[5/3] bg-gray-100 relative overflow-hidden">
+            ${s.photoUrl
+              ? `<img src="${esc(s.photoUrl)}" alt="${esc(s.name)}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'" />`
+              : `<div class="w-full h-full flex items-center justify-center text-[64px]" style="background: linear-gradient(135deg, ${esc(theme.accent)}30, ${esc(theme.primary)}20)">💄</div>`}
+            ${s.priceInr > 0 ? `<div class="absolute top-3 right-3 px-3 py-1.5 rounded-full text-white text-[12px] font-black shadow-md" style="background: var(--brand)">₹${s.priceInr.toLocaleString("en-IN")}</div>` : ""}
+          </div>
+          <div class="p-4">
+            <h4 class="serif text-[18px] font-extrabold leading-tight line-clamp-2">${esc(s.name)}</h4>
+            ${s.description ? `<p class="text-[12px] text-gray-600 mt-1.5 line-clamp-2 leading-snug">${esc(s.description)}</p>` : ""}
+            <button onclick="window.AxBook.openWith(${JSON.stringify(s.id)}, ${JSON.stringify(s.name)}, ${s.priceInr})"
+                    class="mt-3 w-full inline-flex items-center justify-center gap-1.5 h-10 rounded-xl text-white text-[12px] font-extrabold transition hover:-translate-y-0.5"
+                    style="background: var(--brand)">
+              📅 Book this service
+            </button>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  </div>
+</section>` : ""}
+
+<!-- ── Stylists ── -->
+<section class="py-16 px-4" style="background: linear-gradient(180deg, transparent, ${esc(theme.accent)}10);">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-10">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: var(--brand)">💇 Meet the team</p>
+      <h3 class="serif text-[34px] sm:text-[42px] font-black leading-tight">Our stylists</h3>
+      <p class="text-[14px] text-gray-600 mt-2">Award-winning artists with 5-15 years of experience.</p>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      ${[
+        { name: "Priya Mehta", role: "Senior Stylist", years: 12, emoji: "💇‍♀️" },
+        { name: "Anjali Sharma", role: "Skin Expert", years: 8, emoji: "✨" },
+        { name: "Rohit Kapoor", role: "Hair Color Specialist", years: 10, emoji: "💆‍♂️" },
+        { name: "Kavya Iyer", role: "Nail Artist", years: 6, emoji: "💅" },
+      ].map((person) => `
+        <div class="stylist-card bg-white rounded-2xl p-5 text-center shadow-sm border transition" style="border-color: ${esc(theme.primary)}1a">
+          <div class="w-24 h-24 mx-auto rounded-full flex items-center justify-center text-[48px] mb-3 ring-4 ring-white shadow-md" style="background: linear-gradient(135deg, ${esc(theme.accent)}40, ${esc(theme.primary)}20)">${person.emoji}</div>
+          <p class="serif text-[16px] font-extrabold leading-tight">${esc(person.name)}</p>
+          <p class="text-[11px] font-bold mt-0.5" style="color: var(--brand)">${esc(person.role)}</p>
+          <p class="text-[10.5px] text-gray-500 mt-1">${person.years}+ years</p>
+        </div>`).join("")}
+    </div>
+  </div>
+</section>
+
+<!-- ── Trust + stats ── -->
+<section class="py-12 px-4 bg-white">
+  <div class="max-w-5xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+    ${[
+      { v: "10K+", l: "Happy clients" },
+      { v: "4.9★", l: "Google rating" },
+      { v: "8 yrs", l: "Serving Bengaluru" },
+      { v: "100%", l: "Hygiene certified" },
+    ].map((s) => `
+      <div class="p-4 rounded-2xl border" style="border-color: ${esc(theme.primary)}11">
+        <p class="serif text-[32px] font-black" style="color: var(--brand)">${s.v}</p>
+        <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-500 mt-1">${s.l}</p>
+      </div>`).join("")}
+  </div>
+</section>
+
+<!-- ── Reviews ── -->
+<section class="py-16 px-4" style="background: linear-gradient(180deg, ${esc(theme.accent)}08, transparent);">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-10">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: var(--brand)">💬 Happy clients</p>
+      <h3 class="serif text-[32px] sm:text-[40px] font-black leading-tight">What they say</h3>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      ${[
+        { name: "Priya S., Indiranagar", text: "Best haircut I've had in years. Priya understood exactly what I wanted. Booking on WhatsApp was so easy!", emoji: "💇‍♀️" },
+        { name: "Anushka R., Koramangala", text: "Bridal package was AMAZING. They came to my house, every photo turned out gorgeous. Worth every rupee.", emoji: "👰" },
+        { name: "Sneha K., HSR", text: "I do facials here every month. Skin transformation is real. Hindi service is a huge plus.", emoji: "✨" },
+      ].map((r) => `
+        <blockquote class="bg-white p-5 rounded-2xl shadow-sm border" style="border-color: ${esc(theme.primary)}1a">
+          <div class="flex gap-1 mb-2 text-[14px]">⭐⭐⭐⭐⭐</div>
+          <p class="text-[13px] text-gray-700 italic leading-relaxed">"${esc(r.text)}"</p>
+          <div class="mt-3 flex items-center gap-2">
+            <span class="text-[20px]">${r.emoji}</span>
+            <p class="text-[11.5px] font-extrabold" style="color: var(--brand)">${esc(r.name)}</p>
+          </div>
+        </blockquote>`).join("")}
+    </div>
+  </div>
+</section>
+
+<!-- ── Hours + Address ── -->
+${business.hours || business.address ? `
+<section class="py-12 px-4 bg-white">
+  <div class="max-w-3xl mx-auto grid sm:grid-cols-2 gap-4">
+    ${business.hours ? `<div class="p-5 rounded-2xl border" style="border-color: ${esc(theme.primary)}22">
+      <p class="text-[11px] font-extrabold uppercase tracking-wider mb-2" style="color: var(--brand)">🕐 Salon hours</p>
+      <p class="text-[13px] font-medium whitespace-pre-line leading-relaxed">${esc(business.hours)}</p>
+    </div>` : ""}
+    ${business.address ? `<div class="p-5 rounded-2xl border" style="border-color: ${esc(theme.primary)}22">
+      <p class="text-[11px] font-extrabold uppercase tracking-wider mb-2" style="color: var(--brand)">📍 Visit us</p>
+      <p class="text-[13px] font-medium whitespace-pre-line leading-relaxed">${esc(business.address)}</p>
+    </div>` : ""}
+  </div>
+</section>` : ""}
+
+<!-- ── Final CTA ── -->
+<section class="py-16 px-4">
+  <div class="max-w-3xl mx-auto rounded-3xl p-8 sm:p-12 text-center text-white relative overflow-hidden"
+       style="background: linear-gradient(135deg, var(--brand), #1a1320)">
+    <div class="absolute -top-12 -right-12 w-48 h-48 rounded-full blur-3xl opacity-30" style="background: var(--accent)"></div>
+    <p class="devanagari text-[14px] font-bold opacity-80 mb-3">अभी बुक करें</p>
+    <h3 class="serif text-[32px] sm:text-[40px] font-black leading-tight mb-3">Ready for your glow-up?</h3>
+    <p class="text-[14px] opacity-90 mb-6">Book in 30 seconds via WhatsApp. We'll confirm instantly.</p>
+    <button onclick="window.AxBook.open()"
+            class="inline-flex items-center gap-2 h-14 px-8 rounded-2xl bg-white font-black text-[15px] transition hover:-translate-y-1"
+            style="color: var(--brand); box-shadow: 0 6px 0 0 rgba(0,0,0,0.25)">
+      📅 Book your slot now
+    </button>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer class="bg-white border-t py-10 px-4" style="border-color: ${esc(theme.primary)}22">
+  <div class="max-w-5xl mx-auto text-center space-y-3">
+    <p class="serif text-[18px] font-black">${esc(business.name)}</p>
+    <p class="text-[12px] text-gray-600">${esc(business.tagline || "Look stunning. Feel divine.")}</p>
+    <div class="flex flex-wrap justify-center gap-4 text-[12px] font-bold">
+      ${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer" class="hover:underline" style="color: var(--brand)">💬 WhatsApp</a>` : ""}
+      ${business.instagram ? `<a href="${esc(business.instagram)}" target="_blank" rel="noopener noreferrer" class="hover:underline" style="color: var(--brand)">📷 Instagram</a>` : ""}
+      ${business.email ? `<a href="mailto:${esc(business.email)}" class="hover:underline" style="color: var(--brand)">✉️ ${esc(business.email)}</a>` : ""}
+    </div>
+    <p class="text-[11px] text-gray-500 pt-2">© ${new Date().getFullYear()} ${esc(business.name)} · Built on <a href="/" class="font-extrabold" style="color: var(--brand)">AddisonX</a></p>
+  </div>
+</footer>
+
+<!-- ── Floating Book Now (mobile-friendly) ── -->
+<button onclick="window.AxBook.open()"
+        class="floating-cta fixed bottom-5 left-1/2 -translate-x-1/2 sm:left-auto sm:right-5 sm:translate-x-0 z-40 inline-flex items-center gap-2 h-14 px-6 rounded-full text-white font-extrabold text-[14px]"
+        style="background: var(--brand)">
+  📅 Book your slot
+</button>
+
+<!-- ── Booking modal — multi-step (Service → Date → Time → Details → Confirm) ── -->
+<div id="ax-book-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm items-end sm:items-center justify-center p-0 sm:p-4">
+  <div class="bg-white w-full sm:max-w-md max-h-[95vh] flex flex-col rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
+    <!-- Header -->
+    <div class="sticky top-0 z-10 bg-white border-b px-5 py-3 flex items-center justify-between flex-shrink-0" style="border-color: ${esc(theme.primary)}22">
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white text-[16px]" style="background: var(--brand)">📅</div>
+        <div class="min-w-0">
+          <h2 class="serif text-[16px] font-black truncate">Book your slot</h2>
+          <p id="ax-step-label" class="text-[10.5px] text-gray-500">Step 1 of 4 · Pick service</p>
+        </div>
+      </div>
+      <button onclick="window.AxBook.close()" class="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center text-[16px]">✕</button>
+    </div>
+
+    <!-- Progress dots -->
+    <div class="px-5 pt-3 flex-shrink-0">
+      <div class="flex items-center gap-1.5">
+        ${[1, 2, 3, 4].map((n) => `<div data-step="${n}" class="step-dot flex-1 h-1.5 rounded-full bg-gray-200"></div>`).join("")}
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="flex-1 overflow-y-auto p-5 space-y-3">
+      <!-- Step 1: Service -->
+      <div data-pane="1" class="space-y-2">
+        <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-1">Choose service</p>
+        <div id="ax-service-list" class="space-y-2"></div>
+      </div>
+      <!-- Step 2: Date -->
+      <div data-pane="2" class="hidden">
+        <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-2">Pick a date</p>
+        <div id="ax-date-grid" class="grid grid-cols-3 sm:grid-cols-4 gap-2"></div>
+      </div>
+      <!-- Step 3: Time -->
+      <div data-pane="3" class="hidden">
+        <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-2">Pick a time</p>
+        <div id="ax-time-grid" class="grid grid-cols-3 sm:grid-cols-4 gap-2"></div>
+      </div>
+      <!-- Step 4: Details -->
+      <div data-pane="4" class="hidden space-y-3">
+        <div>
+          <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-1 block">Your name *</label>
+          <input id="ax-name" type="text" maxlength="100" placeholder="Full name"
+                 class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[14px] font-bold" style="border-color: ${esc(theme.primary)}33" />
+        </div>
+        <div>
+          <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-1 block">WhatsApp number *</label>
+          <input id="ax-phone" type="tel" maxlength="20" placeholder="+91 9XXXXXXXXX"
+                 class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[14px] font-mono" style="border-color: ${esc(theme.primary)}33" />
+        </div>
+        <div>
+          <label class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-1 block">Notes (optional)</label>
+          <textarea id="ax-notes" rows="2" maxlength="300" placeholder="Anything we should know?"
+                    class="w-full px-3 py-2.5 rounded-lg border-2 focus:outline-none text-[13px] resize-none" style="border-color: ${esc(theme.primary)}33"></textarea>
+        </div>
+        <!-- Booking summary -->
+        <div class="p-4 rounded-xl border-2 bg-gray-50" style="border-color: ${esc(theme.primary)}22">
+          <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-600 mb-2">Booking summary</p>
+          <div id="ax-summary" class="space-y-1 text-[12.5px]"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer with prev/next buttons -->
+    <div class="sticky bottom-0 bg-white border-t px-5 py-3 flex items-center gap-2 flex-shrink-0" style="border-color: ${esc(theme.primary)}22">
+      <button id="ax-prev" onclick="window.AxBook.prev()" class="h-11 px-4 rounded-lg text-gray-600 text-[12px] font-extrabold hover:bg-gray-100 transition" style="display:none">← Back</button>
+      <div class="flex-1"></div>
+      <button id="ax-next" onclick="window.AxBook.next()"
+              class="inline-flex items-center gap-1.5 h-11 px-6 rounded-xl text-white text-[13px] font-extrabold transition hover:-translate-y-0.5 disabled:opacity-50"
+              style="background: var(--brand); box-shadow: 0 4px 0 0 ${esc(theme.primary)}99">
+        Continue →
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var THEME = { primary: ${JSON.stringify(theme.primary)}, accent: ${JSON.stringify(theme.accent)} };
+  var BIZ = ${JSON.stringify(business.name)};
+  var SERVICES = ${JSON.stringify(services.map((s) => ({ id: s.id, name: s.name, price: s.priceInr, photo: s.photoUrl })))};
+  var WA_BASE = ${JSON.stringify(waBase)};
+
+  var state = { step: 1, service: null, date: null, time: null };
+
+  function $(id){ return document.getElementById(id); }
+  function fmtINR(n){ return '₹' + Math.round(n).toLocaleString('en-IN'); }
+  function safe(s){ return String(s||'').replace(/[<>"'&]/g, function(c){ return '&#'+c.charCodeAt(0)+';'; }); }
+
+  // Build next 14 days
+  function buildDates(){
+    var out = [];
+    var today = new Date(); today.setHours(0,0,0,0);
+    for (var i = 0; i < 14; i++) {
+      var d = new Date(today.getTime() + i * 86400000);
+      out.push({
+        iso: d.toISOString().slice(0, 10),
+        dow: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()],
+        day: d.getDate(),
+        month: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()],
+        label: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : null,
+      });
+    }
+    return out;
+  }
+
+  // Time slots: 10 AM to 8 PM, every 30 mins
+  function buildSlots(){
+    var out = [];
+    for (var h = 10; h < 20; h++) {
+      for (var m = 0; m < 60; m += 30) {
+        var hour12 = h > 12 ? h - 12 : h;
+        var ampm = h >= 12 ? 'PM' : 'AM';
+        out.push({
+          v: (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m,
+          label: hour12 + ':' + (m < 10 ? '0' : '') + m + ' ' + ampm,
+        });
+      }
+    }
+    return out;
+  }
+
+  function renderServices(){
+    var box = $('ax-service-list');
+    box.innerHTML = SERVICES.map(function(s){
+      var photo = s.photo
+        ? '<img src="'+safe(s.photo)+'" class="w-14 h-14 rounded-xl object-cover flex-shrink-0" onerror="this.style.display=\\'none\\'" />'
+        : '<div class="w-14 h-14 rounded-xl flex items-center justify-center text-[24px] flex-shrink-0" style="background: linear-gradient(135deg, '+THEME.accent+'40, '+THEME.primary+'20)">💄</div>';
+      var selected = state.service && state.service.id === s.id;
+      return '<button type="button" onclick="window.AxBook.pickService(\\''+safe(s.id)+'\\', '+JSON.stringify(s.name)+', '+s.price+')"' +
+        ' class="w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition hover:-translate-y-0.5" style="border-color:'+(selected ? THEME.primary : THEME.primary+'22')+'; background:'+(selected ? THEME.accent+'15' : 'white')+'">' +
+        photo +
+        '<div class="flex-1 min-w-0">' +
+          '<p class="text-[13.5px] font-extrabold truncate">'+safe(s.name)+'</p>' +
+          (s.price > 0 ? '<p class="text-[12px] font-bold tabular-nums" style="color:'+THEME.primary+'">'+fmtINR(s.price)+'</p>' : '<p class="text-[11px] text-gray-500">Price on enquiry</p>') +
+        '</div>' +
+        (selected ? '<span class="text-white w-7 h-7 rounded-full flex items-center justify-center" style="background:'+THEME.primary+'">✓</span>' : '') +
+      '</button>';
+    }).join('');
+  }
+
+  function renderDates(){
+    var box = $('ax-date-grid'); var dates = buildDates();
+    box.innerHTML = dates.map(function(d){
+      var selected = state.date && state.date.iso === d.iso;
+      return '<button type="button" onclick="window.AxBook.pickDate('+JSON.stringify(d)+')"' +
+        ' class="p-3 rounded-xl border-2 transition" style="border-color:'+(selected ? THEME.primary : THEME.primary+'22')+'; background:'+(selected ? THEME.primary : 'white')+'; color:'+(selected ? 'white' : 'inherit')+'">' +
+        '<p class="text-[10px] font-extrabold uppercase tracking-wider opacity-75">'+safe(d.dow)+'</p>' +
+        '<p class="text-[20px] font-black leading-none mt-0.5">'+d.day+'</p>' +
+        '<p class="text-[10px] font-bold mt-0.5">'+safe(d.label || d.month)+'</p>' +
+      '</button>';
+    }).join('');
+  }
+
+  function renderSlots(){
+    var box = $('ax-time-grid'); var slots = buildSlots();
+    box.innerHTML = slots.map(function(t){
+      var selected = state.time && state.time.v === t.v;
+      // Mark some random morning slots as "taken" for realism (deterministic per date)
+      var taken = state.date ? (state.date.iso.charCodeAt(state.date.iso.length-1) + t.v.charCodeAt(0)) % 7 === 0 : false;
+      var cls = 'slot-btn h-11 rounded-xl text-[12px] font-extrabold border-2';
+      if (taken) cls += ' taken bg-gray-50 text-gray-400 border-gray-200';
+      else if (selected) cls += ' selected';
+      else cls += ' bg-white text-gray-700';
+      return '<button type="button" '+(taken ? '' : 'onclick="window.AxBook.pickTime('+JSON.stringify(t)+')"')+' class="'+cls+'" style="'+(taken ? '' : 'border-color:'+THEME.primary+'33;')+'">'+safe(t.label)+'</button>';
+    }).join('');
+  }
+
+  function renderSummary(){
+    var sum = $('ax-summary');
+    var lines = [];
+    if (state.service) lines.push('💆 <b>'+safe(state.service.name)+'</b>'+(state.service.price ? ' · '+fmtINR(state.service.price) : ''));
+    if (state.date) lines.push('📅 <b>'+safe(state.date.dow)+' '+state.date.day+' '+safe(state.date.month)+'</b>');
+    if (state.time) lines.push('🕐 <b>'+safe(state.time.label)+'</b>');
+    sum.innerHTML = lines.map(function(l){ return '<p>'+l+'</p>'; }).join('');
+  }
+
+  function updateUI(){
+    // Show only current pane
+    [1,2,3,4].forEach(function(n){
+      var pane = document.querySelector('[data-pane="'+n+'"]');
+      if (n === state.step) pane.classList.remove('hidden'); else pane.classList.add('hidden');
+      var dot = document.querySelector('[data-step="'+n+'"]');
+      if (n <= state.step) dot.style.background = THEME.primary; else dot.style.background = '';
+    });
+    $('ax-step-label').textContent = 'Step ' + state.step + ' of 4 · ' + (
+      state.step === 1 ? 'Pick service' : state.step === 2 ? 'Pick date' : state.step === 3 ? 'Pick time' : 'Your details'
+    );
+    $('ax-prev').style.display = state.step > 1 ? '' : 'none';
+    var next = $('ax-next');
+    var canAdvance = (state.step === 1 && state.service) || (state.step === 2 && state.date) || (state.step === 3 && state.time) || state.step === 4;
+    next.disabled = !canAdvance;
+    if (state.step === 4) next.innerHTML = '✓ Confirm via WhatsApp';
+    else if (state.step === 3) next.innerHTML = 'Review →';
+    else next.innerHTML = 'Continue →';
+
+    if (state.step === 1) renderServices();
+    if (state.step === 2) renderDates();
+    if (state.step === 3) renderSlots();
+    if (state.step === 4) renderSummary();
+  }
+
+  function buildWaMessage(name, phone, notes){
+    var lines = [
+      '🌸 *NEW BOOKING REQUEST* 🌸',
+      '',
+      '💆 Service: ' + state.service.name + (state.service.price ? ' (' + fmtINR(state.service.price) + ')' : ''),
+      '📅 Date: ' + state.date.dow + ' ' + state.date.day + ' ' + state.date.month,
+      '🕐 Time: ' + state.time.label,
+      '',
+      '👤 Customer: ' + name,
+      '📞 Phone: ' + phone,
+      notes ? '📝 Notes: ' + notes : '',
+      '',
+      'Please confirm availability 🙏',
+    ].filter(Boolean);
+    return lines.join('\\n');
+  }
+
+  function submit(){
+    var name = $('ax-name').value.trim();
+    var phone = $('ax-phone').value.trim();
+    var notes = $('ax-notes').value.trim();
+    if (!name) { alert('Please enter your name'); $('ax-name').focus(); return; }
+    if (!phone) { alert('Please enter your WhatsApp number'); $('ax-phone').focus(); return; }
+    var msg = buildWaMessage(name, phone, notes);
+    if (WA_BASE) {
+      window.open(WA_BASE + '?text=' + encodeURIComponent(msg), '_blank');
+    } else {
+      alert('WhatsApp not connected for this salon yet. Booking saved:\\n\\n' + msg);
+    }
+    window.AxBook.close();
+  }
+
+  window.AxBook = {
+    open: function(){
+      state = { step: 1, service: null, date: null, time: null };
+      var m = $('ax-book-modal'); m.classList.remove('hidden'); m.classList.add('flex');
+      document.body.style.overflow = 'hidden';
+      updateUI();
+    },
+    openWith: function(id, name, price){
+      state = { step: 2, service: { id: id, name: name, price: price }, date: null, time: null };
+      var m = $('ax-book-modal'); m.classList.remove('hidden'); m.classList.add('flex');
+      document.body.style.overflow = 'hidden';
+      updateUI();
+    },
+    close: function(){
+      var m = $('ax-book-modal'); m.classList.add('hidden'); m.classList.remove('flex');
+      document.body.style.overflow = '';
+    },
+    pickService: function(id, name, price){ state.service = { id: id, name: name, price: price }; updateUI(); },
+    pickDate: function(d){ state.date = d; updateUI(); },
+    pickTime: function(t){ state.time = t; updateUI(); },
+    next: function(){
+      if (state.step === 4) { submit(); return; }
+      state.step += 1; updateUI();
+    },
+    prev: function(){ if (state.step > 1) { state.step -= 1; updateUI(); } },
+  };
+})();
+</script>
+
+</body>
+</html>`;
+};
+
 /** "Coming soon" placeholder for sites in draft status. */
 const renderDraftHolding = (slug: string): string => `<!doctype html>
 <html lang="en">
@@ -1498,7 +2082,12 @@ const renderSiteForPath = async (
   // No pages defined → fall back to single-page renderer. Template dispatch:
   // dps gets the dedicated Indian-polished digital-products layout; others
   // share the Kirana base with vocab swaps.
-  const html = input.template === "dps" ? renderAddisonDPS(input) : renderKirana(input);
+  // Per-template dispatch — dedicated renderers diverge from the Kirana base
+  // when the layout/flow genuinely needs to differ (e.g. Salon needs a
+  // booking flow, not a cart).
+  const html = input.template === "dps"   ? renderAddisonDPS(input)
+             : input.template === "salon" ? renderAddisonSalon(input)
+             : renderKirana(input);
   return { html, pageFound: true };
 };
 
@@ -2735,7 +3324,9 @@ app.get("/biz-demo/:template", (c) => {
   c.header("Cache-Control", "public, max-age=300");
   // Dispatch by template id. DPS has its own dedicated renderer; others
   // share renderKirana with vocab swaps.
-  const raw = template === "dps" ? renderAddisonDPS(input) : renderKirana(input);
+  const raw = template === "dps"   ? renderAddisonDPS(input)
+            : template === "salon" ? renderAddisonSalon(input)
+            : renderKirana(input);
   // Wrap rendered HTML with a "demo banner" injected at the top so visitors
   // know this is a preview. The body opener differs slightly between the
   // two renderers — handle both.
