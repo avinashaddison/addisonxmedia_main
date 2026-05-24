@@ -326,6 +326,13 @@ export const api = {
       "/payments/upi/send",
       data,
     ),
+  /** Mark a UPI payment-request message as received. Creates a won deal +
+   *  sends an auto-reply thank-you to the customer. */
+  markPaymentReceived: (messageId: string) =>
+    post<{ ok: true; amount_inr: number; thank_you_sent: boolean; thank_you_error?: string; deal: { id: string; value: string } }>(
+      "/payments/mark-received",
+      { messageId },
+    ),
   adsPreflight: () =>
     get<{
       ok: boolean;

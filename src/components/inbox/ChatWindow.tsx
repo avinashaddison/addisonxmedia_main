@@ -7,7 +7,7 @@ import {
   Brain, RefreshCcw, ShieldAlert, EyeOff, ArrowLeft, Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ConversationWithContact, formatTime, initialsFor, splitTextWithLinks, tokenizeWhatsAppFormatting } from "@/lib/inbox-types";
 import type { MessageStatus as MsgStatus } from "@/lib/api-types";
 import { useMessages, useSendMessage } from "@/hooks/useInboxData";
@@ -242,6 +242,21 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
 
   const { data: messages = [], isLoading } = useMessages(conversation.id);
   const sendMut = useSendMessage();
+
+  // Mark-paid mutation — fired by the "Payment received" button on a
+  // PaymentRequestCard. Server creates a won deal + sends a thank-you message.
+  const markPaidMut = useMutation({
+    mutationFn: (messageId: string) => api.markPaymentReceived(messageId),
+    onSuccess: (res) => {
+      toast.success(`✓ ₹${res.amount_inr.toLocaleString("en-IN")} marked as received${res.thank_you_sent ? " · thank-you sent" : ""}`);
+      // Refresh messages (marker appears) + dashboard money (new won deal)
+      qc.invalidateQueries({ queryKey: ["messages", conversation.id] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-money"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e) => toast.error(String(e)),
+  });
 
   // ── AI reply suggestions ──────────────────────────────────────────────────
   // Only show suggestions when:
@@ -588,7 +603,16 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
             return (
               <div key={row.key} className={cn("flex animate-bubble-pop", isOutbound ? "justify-end" : "justify-start", !row.isGroupTail && "mb-0.5")}>
                 <div className="relative">
-                  <PaymentRequestCard payment={paymentPayload} outbound={isOutbound} />
+                  <PaymentRequestCard
+                    payment={paymentPayload}
+                    outbound={isOutbound}
+                    onMarkPaid={isOutbound && !paymentPayload.paid ? () => {
+                      if (markPaidMut.isPending) return;
+                      if (!confirm(`Mark ₹${paymentPayload.amountInr.toLocaleString("en-IN")} as received?\n\nThis will:\n• Add to your revenue\n• Send a thank-you message to the customer`)) return;
+                      markPaidMut.mutate(msg.id);
+                    } : undefined}
+                    markPaidPending={markPaidMut.isPending && markPaidMut.variables === msg.id}
+                  />
                   {row.isGroupTail && (
                     <div className={cn("flex items-center gap-1 mt-1", isOutbound ? "justify-end" : "justify-start")}>
                       <span className="text-[10px] text-muted-foreground">{formatTime(msg.created_at)}</span>

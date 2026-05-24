@@ -14,7 +14,7 @@
 import { Hono } from "hono";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/client";
-import { profile, conversation, contact, metaConfig, message } from "../db/schema";
+import { profile, conversation, contact, metaConfig, message, deal } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
 import { sendTextMessage, sendImageMessage } from "../integrations/meta";
 import { decrypt } from "../crypto";
@@ -189,6 +189,130 @@ app.post("/payments/upi/send", async (c) => {
     note,
     sent_live: sentLive,
     mode: sentLive ? "live" : "dry-run",
+  });
+});
+
+/**
+ * Mark a UPI payment-request message as received.
+ *
+ * Triggered by the "Payment received" button on the operator's outbound
+ * PaymentRequestCard in chat. Does three things atomically (best-effort):
+ *
+ *   1. Parse amount + payee from the message body (same regex the card uses)
+ *   2. Create a `won` deal so the amount flows into Money Machine + reports
+ *   3. Send a thank-you WhatsApp message to the customer
+ *
+ * Idempotency: appends the marker " [PAID]" to the original message body.
+ * Re-sending the same messageId is a no-op (returns 409). The frontend's
+ * parser detects this marker and renders the card as "Paid" instead of
+ * showing the button.
+ */
+app.post("/payments/mark-received", async (c) => {
+  const userId = c.var.userId;
+  const body = await c.req.json<{ messageId: string }>();
+  if (!body.messageId) return c.json({ error: "messageId required" }, 400);
+
+  // Load the message + verify ownership + grab the conversation/contact context
+  const [row] = await db.select({
+    msgId: message.id,
+    msgBody: message.body,
+    msgDirection: message.direction,
+    conversationId: message.conversationId,
+    contactId: conversation.contactId,
+    contactName: contact.name,
+    contactPhone: contact.phone,
+  }).from(message)
+    .innerJoin(conversation, eq(conversation.id, message.conversationId))
+    .innerJoin(contact, eq(contact.id, conversation.contactId))
+    .where(and(eq(message.id, body.messageId), eq(message.ownerId, userId)))
+    .limit(1);
+
+  if (!row) return c.json({ error: "Message not found" }, 404);
+  if (row.msgDirection !== "outbound") return c.json({ error: "Only outbound payment requests can be marked received" }, 400);
+  if (row.msgBody.includes("[PAID]")) return c.json({ error: "Already marked as received" }, 409);
+
+  // Parse amount from the body (same shape as PaymentRequestCard parser)
+  const amountMatch = row.msgBody.match(/💳\s*\*?₹?\s*([\d,]+(?:\.\d+)?)\s*(?:to|→|->)\s*([^\n*]+?)\*?$/im);
+  if (!amountMatch) return c.json({ error: "Could not parse payment amount from message" }, 400);
+  const amount = Number(amountMatch[1].replace(/,/g, ""));
+  if (!Number.isFinite(amount) || amount <= 0) return c.json({ error: "Invalid amount in message" }, 400);
+
+  // Create the won deal — this is what Money Machine / dashboard reads
+  const [created] = await db.insert(deal).values({
+    ownerId: userId,
+    contactId: row.contactId,
+    conversationId: row.conversationId,
+    title: `UPI payment — ₹${amount.toLocaleString("en-IN")}`,
+    value: String(amount),
+    currency: "INR",
+    stage: "won",
+    probability: 100,
+    closedAt: new Date(),
+  }).returning();
+
+  // Append the [PAID] marker to the original message so the card flips state.
+  await db.update(message)
+    .set({ body: `${row.msgBody.trim()} [PAID]` })
+    .where(eq(message.id, body.messageId));
+
+  // Send a styled thank-you back to the customer over WhatsApp (best-effort —
+  // a failed thank-you message shouldn't roll back the deal/marker above).
+  const thankYouBody = `✅ *Payment received — thank you!* 🙏\n\n₹${amount.toLocaleString("en-IN")} confirmed.\n\nYour order is being processed. We'll keep you posted right here.`;
+  let thankYouSent = false;
+  let thankYouError: string | undefined;
+  try {
+    const [meta] = await db.select().from(metaConfig)
+      .where(eq(metaConfig.userId, userId)).limit(1);
+
+    if (meta && meta.enabled) {
+      const creds = {
+        accessToken: decrypt(meta.accessToken),
+        phoneNumberId: meta.phoneNumberId,
+        businessAccountId: meta.businessAccountId,
+      };
+      const to = row.contactPhone.replace(/^\+/, "");
+      const sent = await sendTextMessage(creds, to, thankYouBody);
+      // Persist the outbound thank-you so it appears in chat
+      await db.insert(message).values({
+        conversationId: row.conversationId,
+        ownerId: userId,
+        senderId: userId,
+        direction: "outbound",
+        body: thankYouBody,
+        status: "sent",
+        twilioSid: sent.messages?.[0]?.id ?? null,
+      });
+      thankYouSent = true;
+    } else {
+      // No Meta config — still record the thank-you locally so the UI shows it
+      await db.insert(message).values({
+        conversationId: row.conversationId,
+        ownerId: userId,
+        senderId: userId,
+        direction: "outbound",
+        body: thankYouBody,
+        status: "sent",
+      });
+      thankYouSent = true;
+    }
+
+    // Bump conversation preview to the thank-you so the inbox list shows it
+    await db.update(conversation).set({
+      lastMessageAt: new Date(),
+      lastMessagePreview: `✅ Payment received — ₹${amount.toLocaleString("en-IN")}`,
+      updatedAt: new Date(),
+    }).where(and(eq(conversation.id, row.conversationId), eq(conversation.ownerId, userId)));
+  } catch (e) {
+    thankYouError = e instanceof Error ? e.message : "Failed to send thank-you";
+    console.error("[payments/mark-received] thank-you send failed", e);
+  }
+
+  return c.json({
+    ok: true,
+    deal: created,
+    amount_inr: amount,
+    thank_you_sent: thankYouSent,
+    thank_you_error: thankYouError,
   });
 });
 

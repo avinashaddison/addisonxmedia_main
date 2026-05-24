@@ -11,7 +11,7 @@
  */
 
 import { useState } from "react";
-import { Copy, Check, IndianRupee, Smartphone, QrCode } from "lucide-react";
+import { Copy, Check, IndianRupee, Smartphone, QrCode, CheckCircle2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -21,6 +21,10 @@ export type PaymentRequestParsed = {
   vpa: string;
   qrUrl: string | null;
   note?: string;
+  /** True if the seller marked this request as received via the "Payment
+   *  received" button. Detected from the " [PAID]" marker we append on
+   *  the server when /payments/mark-received fires. */
+  paid: boolean;
 };
 
 const PAY_REGEX = {
@@ -42,8 +46,12 @@ export const parsePaymentRequest = (
   // Must have either the 💳 marker or UPI ID line — otherwise it's not ours
   if (!body.includes("💳") && !/UPI\s+ID:/i.test(body)) return null;
 
-  const am = body.match(PAY_REGEX.amount);
-  const vp = body.match(PAY_REGEX.vpa);
+  // Strip our marker before regex so it doesn't trip the payee match
+  const paid = /\[PAID\]/i.test(body);
+  const cleaned = paid ? body.replace(/\s*\[PAID\]\s*$/i, "").trim() : body;
+
+  const am = cleaned.match(PAY_REGEX.amount);
+  const vp = cleaned.match(PAY_REGEX.vpa);
   if (!am || !vp) return null;
 
   const amountInr = Number(am[1].replace(/,/g, ""));
@@ -51,7 +59,7 @@ export const parsePaymentRequest = (
 
   const payeeName = am[2].trim() || "Business";
   const vpa = vp[1].trim();
-  const noteMatch = body.match(PAY_REGEX.note);
+  const noteMatch = cleaned.match(PAY_REGEX.note);
 
   // QR is the message's media. If absent we can synthesize a deep link from
   // VPA + amount but skipping the QR is fine — UPI ID alone is payable.
@@ -63,6 +71,7 @@ export const parsePaymentRequest = (
     vpa,
     qrUrl,
     note: noteMatch?.[1]?.trim() || undefined,
+    paid,
   };
 };
 
@@ -85,9 +94,15 @@ const buildUpiDeepLink = (p: PaymentRequestParsed) => {
 export const PaymentRequestCard = ({
   payment,
   outbound,
+  onMarkPaid,
+  markPaidPending,
 }: {
   payment: PaymentRequestParsed;
   outbound: boolean;
+  /** Seller-only: called when the seller taps "Payment received". Hidden
+   *  from inbound (customer-side) and from already-paid cards. */
+  onMarkPaid?: () => void;
+  markPaidPending?: boolean;
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -107,25 +122,37 @@ export const PaymentRequestCard = ({
   return (
     <div
       className={cn(
-        "w-[280px] rounded-2xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] border-2",
-        outbound ? "bg-white border-[#0E8A4B]/30" : "bg-white border-[#E8B968]"
+        "w-[280px] rounded-2xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] border-2 transition",
+        payment.paid ? "bg-white border-[#0E8A4B]" :
+        outbound      ? "bg-white border-[#0E8A4B]/30" :
+                        "bg-white border-[#E8B968]"
       )}
     >
       {/* Header strip with amount */}
-      <div className="bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white px-3.5 py-2.5 flex items-center gap-2">
+      <div className={cn(
+        "px-3.5 py-2.5 flex items-center gap-2 text-white",
+        payment.paid
+          ? "bg-gradient-to-br from-[#0E8A4B] via-[#10A35A] to-[#0A6E3C]"
+          : "bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C]"
+      )}>
         <div className="w-8 h-8 rounded-lg bg-white/15 backdrop-blur flex items-center justify-center flex-shrink-0">
-          <IndianRupee className="w-4 h-4" strokeWidth={2.5} />
+          {payment.paid
+            ? <CheckCircle2 className="w-5 h-5" strokeWidth={2.5} />
+            : <IndianRupee className="w-4 h-4" strokeWidth={2.5} />}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[9px] uppercase tracking-wider font-extrabold text-white/80 leading-none">
-            Payment request
+            {payment.paid ? "Payment received" : "Payment request"}
           </p>
           <p className="text-[18px] font-black leading-tight tabular-nums">
             {fmtINR(payment.amountInr)}
           </p>
         </div>
-        <span className="text-[9px] uppercase tracking-wider font-extrabold text-[#FFD23F] bg-black/15 px-1.5 py-0.5 rounded">
-          UPI
+        <span className={cn(
+          "text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded",
+          payment.paid ? "text-white bg-white/25" : "text-[#FFD23F] bg-black/15"
+        )}>
+          {payment.paid ? "Paid ✓" : "UPI"}
         </span>
       </div>
 
@@ -186,29 +213,70 @@ export const PaymentRequestCard = ({
         )}
       </div>
 
-      {/* CTA — opens the UPI app on mobile. On desktop the upi:// scheme
-          is typically blocked; we still render the button as a fallback
-          (clicking copies the link silently to clipboard instead). */}
-      <a
-        href={upiLink}
-        onClick={(e) => {
-          // On non-mobile, the browser usually won't handle upi:// — copy the
-          // link to clipboard as a fallback rather than leaving the user with
-          // a broken click.
-          if (typeof navigator !== "undefined" && /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) === false) {
-            e.preventDefault();
-            navigator.clipboard.writeText(upiLink).then(() => {
-              toast.success("UPI link copied — paste on your phone to pay");
-            }).catch(() => toast.error("Couldn't copy"));
-          }
-        }}
-        className="w-full block text-center bg-gradient-to-br from-[#FFD23F] to-[#E8B400] text-[#3D1A00] font-black text-[12px] py-2.5 hover:from-[#FFC10E] hover:to-[#D9A300] transition border-t-2 border-[#E8B968]"
-      >
-        <span className="inline-flex items-center gap-1.5">
-          <Smartphone className="w-3.5 h-3.5" strokeWidth={2.5} />
-          Open UPI app to pay
-        </span>
-      </a>
+      {/* CTAs */}
+      {payment.paid ? (
+        /* Paid — banner replaces both buttons */
+        <div className="w-full text-center bg-[#E6F7EE] text-[#0E8A4B] font-black text-[12px] py-3 border-t-2 border-[#0E8A4B]/30">
+          <span className="inline-flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Payment received · added to revenue
+          </span>
+        </div>
+      ) : outbound && onMarkPaid ? (
+        /* Seller view — primary action is "Mark Paid" (revenue tracking),
+            secondary is "Open UPI app" for the rare case the seller wants
+            to test the link themselves. */
+        <div className="border-t-2 border-[#E8B968] divide-y divide-[#E8B968]/40">
+          <button
+            onClick={onMarkPaid}
+            disabled={markPaidPending}
+            className="w-full text-center bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white font-black text-[12px] py-2.5 hover:from-[#10A35A] hover:to-[#0E8A4B] transition disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              {markPaidPending
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2.5} />}
+              {markPaidPending ? "Marking…" : "Payment received"}
+            </span>
+          </button>
+          <a
+            href={upiLink}
+            onClick={(e) => {
+              if (typeof navigator !== "undefined" && /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) === false) {
+                e.preventDefault();
+                navigator.clipboard.writeText(upiLink).then(() => {
+                  toast.success("UPI link copied — paste on your phone to pay");
+                }).catch(() => toast.error("Couldn't copy"));
+              }
+            }}
+            className="w-full block text-center text-[#7A4A00] font-extrabold text-[11px] py-2 hover:bg-[#FFF1D6] transition"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Smartphone className="w-3 h-3" strokeWidth={2.5} />
+              Test UPI link
+            </span>
+          </a>
+        </div>
+      ) : (
+        /* Customer view — only "Open UPI app to pay" */
+        <a
+          href={upiLink}
+          onClick={(e) => {
+            if (typeof navigator !== "undefined" && /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) === false) {
+              e.preventDefault();
+              navigator.clipboard.writeText(upiLink).then(() => {
+                toast.success("UPI link copied — paste on your phone to pay");
+              }).catch(() => toast.error("Couldn't copy"));
+            }
+          }}
+          className="w-full block text-center bg-gradient-to-br from-[#FFD23F] to-[#E8B400] text-[#3D1A00] font-black text-[12px] py-2.5 hover:from-[#FFC10E] hover:to-[#D9A300] transition border-t-2 border-[#E8B968]"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <Smartphone className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Open UPI app to pay
+          </span>
+        </a>
+      )}
     </div>
   );
 };
