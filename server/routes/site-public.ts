@@ -20,7 +20,7 @@ import { Hono } from "hono";
 import { eq, sql, and, asc, inArray } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { db } from "../db/client";
-import { site, siteLead, contact, profile, metaConfig, product, orderTbl, orderItem, siteAnalyticsEvent, coupon, user } from "../db/schema";
+import { site, siteLead, contact, profile, metaConfig, product, orderTbl, orderItem, siteAnalyticsEvent, coupon, sitePage, user } from "../db/schema";
 import { nextOrderNumber } from "./order";
 import { validateCoupon } from "./coupon";
 import { pickShippingQuote } from "./shipping";
@@ -193,6 +193,275 @@ const TEMPLATE_VOCAB: Record<string, {
 };
 
 const vocabFor = (template: string) => TEMPLATE_VOCAB[template] || TEMPLATE_VOCAB.kirana;
+
+// ─── Section render functions ─────────────────────────────────────────────
+//
+// Each section type known to the editor (see PagesPage.tsx SECTION_LIBRARY)
+// has a dedicated renderer that returns plain HTML. The Builder lets users
+// add/reorder these on each page; the public renderer reads site_page.sections
+// and stitches them together in order.
+//
+// All sections receive the same `ctx` so vocab/theme/business are available
+// everywhere — kept as one bag to avoid threading 8 props through every fn.
+
+type SectionProps = Record<string, unknown>;
+type SectionCtx = {
+  business: RenderInput["business"];
+  theme: RenderInput["theme"];
+  vocab: ReturnType<typeof vocabFor>;
+  slug: string;
+  products: RenderInput["products"];
+  cashfree: RenderInput["cashfree"];
+};
+
+const sec = {
+  hero: (p: SectionProps, c: SectionCtx) => {
+    const headline = String(p.headline || c.business.name);
+    const sub = String(p.subheadline || c.business.tagline);
+    const upiPayLink = c.business.upiVpa
+      ? `upi://pay?pa=${encodeURIComponent(c.business.upiVpa)}&pn=${encodeURIComponent(c.business.upiName || c.business.name)}&cu=INR`
+      : null;
+    return `<section class="${c.business.coverUrl ? "relative" : "dot-bg"} py-16 sm:py-24 px-4"
+      ${c.business.coverUrl ? `style="background-image: linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.85)), url(${JSON.stringify(c.business.coverUrl).slice(1, -1)}); background-size: cover; background-position: center;"` : ""}>
+  <div class="max-w-5xl mx-auto text-center">
+    <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider mb-5"
+         style="background: ${esc(c.theme.accent)}22; color: ${esc(c.theme.primary)}">
+      ${esc(c.vocab.heroPillEmoji)} ${esc(c.vocab.heroPill)}
+    </div>
+    <h2 class="text-[34px] sm:text-[48px] font-black leading-tight mb-4">${esc(headline)}</h2>
+    <p class="text-[16px] sm:text-[18px] text-gray-600 max-w-xl mx-auto leading-relaxed mb-7">${esc(sub)}</p>
+    <div class="flex flex-wrap justify-center gap-3">
+      ${c.business.whatsapp ? `<a href="${esc(c.business.whatsapp)}" target="_blank" rel="noopener noreferrer"
+         class="inline-flex items-center gap-2 h-12 px-6 rounded-xl text-white font-extrabold text-[14px] shadow-lg transition hover:-translate-y-0.5"
+         style="background: ${esc(c.theme.primary)}">💬 ${esc(String(p.primary_cta || c.vocab.orderButtonText))}</a>` : ""}
+      ${upiPayLink ? `<a href="${esc(upiPayLink)}"
+         class="inline-flex items-center gap-2 h-12 px-6 rounded-xl bg-white border-2 font-extrabold text-[14px] transition hover:-translate-y-0.5"
+         style="border-color: ${esc(c.theme.primary)}; color: ${esc(c.theme.primary)}">💳 Pay via UPI</a>` : ""}
+    </div>
+  </div>
+</section>`;
+  },
+
+  about: (p: SectionProps, c: SectionCtx) => {
+    const heading = String(p.heading || c.vocab.aboutHeading);
+    const bigHeading = String(p.bigHeading || c.vocab.aboutBigHeading);
+    const body = String(p.body || c.business.about);
+    return `<section class="py-12 sm:py-16 px-4 bg-gray-50">
+  <div class="max-w-3xl mx-auto">
+    <div class="text-center mb-8">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(c.theme.primary)}">${esc(heading)}</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">${esc(bigHeading)}</h3>
+    </div>
+    <p class="text-[15px] sm:text-[16px] text-gray-700 leading-relaxed text-center">${esc(body)}</p>
+  </div>
+</section>`;
+  },
+
+  products: (p: SectionProps, c: SectionCtx) => {
+    if (c.products.length === 0) return "";
+    const heading = String(p.heading || c.vocab.productsHeading);
+    const limitProp = Number(p.limit);
+    const limit = Number.isFinite(limitProp) && limitProp > 0 ? limitProp : c.products.length;
+    const list = c.products.slice(0, limit);
+    return `<section id="products" class="py-12 sm:py-16 px-4">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-8">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(c.theme.primary)}">Our offerings</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">${esc(heading)}</h3>
+      <p class="text-[13px] text-gray-600 mt-2">${esc(c.vocab.productsHint)}</p>
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
+      ${list.map((prod) => {
+        const waText = `Hi ${c.business.name}, I'd like to order:\n• ${prod.name}${prod.priceInr > 0 ? ` — ₹${prod.priceInr.toLocaleString("en-IN")}` : ""}`;
+        const waLink = c.business.whatsapp ? `${c.business.whatsapp.split("?")[0]}?text=${encodeURIComponent(waText)}` : null;
+        return `<article class="bg-white rounded-2xl border-2 overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg flex flex-col" style="border-color: ${esc(c.theme.primary)}22">
+          ${prod.photoUrl
+            ? `<div class="aspect-square bg-gray-50 overflow-hidden"><img src="${esc(prod.photoUrl)}" alt="${esc(prod.name)}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'" /></div>`
+            : `<div class="aspect-square bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center text-gray-300 text-[36px]">📦</div>`}
+          <div class="p-3 sm:p-4 flex flex-col flex-1">
+            <h4 class="font-extrabold text-[13px] sm:text-[14px] leading-tight line-clamp-2">${esc(prod.name)}</h4>
+            ${prod.description ? `<p class="text-[11px] text-gray-600 mt-1 line-clamp-2 leading-snug">${esc(prod.description)}</p>` : ""}
+            <div class="mt-2.5 flex items-center justify-between gap-2">
+              ${prod.priceInr > 0 ? `<span class="text-[15px] sm:text-[16px] font-black tabular-nums" style="color: ${esc(c.theme.primary)}">₹${prod.priceInr.toLocaleString("en-IN")}</span>` : `<span class="text-[11px] font-bold text-gray-500">Price on request</span>`}
+            </div>
+            ${!prod.inStock ? `<p class="mt-1.5 text-[10px] font-bold text-rose-600 uppercase tracking-wider">Out of stock</p>` : ""}
+            <div class="mt-3 flex gap-2">
+              ${prod.inStock && prod.priceInr > 0 ? `<button type="button" onclick="window.AxCart && window.AxCart.add('${esc(prod.id)}', ${JSON.stringify(prod.name).replace(/"/g, "&quot;")}, ${prod.priceInr}, ${JSON.stringify(prod.photoUrl).replace(/"/g, "&quot;")})"
+                class="flex-1 inline-flex items-center justify-center gap-1.5 h-9 rounded-lg text-white text-[12px] font-extrabold hover:opacity-90 transition" style="background: ${esc(c.theme.primary)}">🛒 Add</button>` : ""}
+              ${waLink ? `<a href="${esc(waLink)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white border-2 hover:bg-gray-50 transition flex-shrink-0" style="border-color: ${esc(c.theme.primary)}33; color: ${esc(c.theme.primary)}" aria-label="Order ${esc(prod.name)} on WhatsApp">💬</a>` : ""}
+            </div>
+          </div>
+        </article>`;
+      }).join("")}
+    </div>
+  </div>
+</section>`;
+  },
+
+  gallery: (p: SectionProps, c: SectionCtx) => {
+    const heading = String(p.heading || "Gallery");
+    const images = Array.isArray(p.images) ? (p.images as string[]).filter((u) => typeof u === "string" && u.trim()) : [];
+    if (images.length === 0) return "";
+    return `<section class="py-12 sm:py-16 px-4">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-8">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(c.theme.primary)}">Gallery</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">${esc(heading)}</h3>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      ${images.map((url) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="block aspect-square rounded-xl overflow-hidden bg-gray-100 hover:opacity-90 transition"><img src="${esc(url)}" alt="" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'" /></a>`).join("")}
+    </div>
+  </div>
+</section>`;
+  },
+
+  testimonials: (p: SectionProps, c: SectionCtx) => {
+    const heading = String(p.heading || "What customers say");
+    const items = Array.isArray(p.items) ? (p.items as Array<{ name?: string; text?: string }>).filter((it) => it && (it.name || it.text)) : [];
+    if (items.length === 0) return "";
+    return `<section class="py-12 sm:py-16 px-4 bg-gray-50">
+  <div class="max-w-4xl mx-auto">
+    <div class="text-center mb-8">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(c.theme.primary)}">Reviews</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">${esc(heading)}</h3>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-4">
+      ${items.map((it) => `<blockquote class="p-5 rounded-2xl bg-white border-2" style="border-color: ${esc(c.theme.primary)}22">
+        <p class="text-[14px] text-gray-700 italic leading-relaxed">"${esc(it.text || "")}"</p>
+        ${it.name ? `<p class="text-[12px] font-extrabold mt-3" style="color: ${esc(c.theme.primary)}">— ${esc(it.name)}</p>` : ""}
+      </blockquote>`).join("")}
+    </div>
+  </div>
+</section>`;
+  },
+
+  faq: (p: SectionProps, c: SectionCtx) => {
+    const heading = String(p.heading || "Frequently asked");
+    const items = Array.isArray(p.items) ? (p.items as Array<{ q?: string; a?: string }>).filter((it) => it && it.q) : [];
+    if (items.length === 0) return "";
+    return `<section class="py-12 sm:py-16 px-4">
+  <div class="max-w-3xl mx-auto">
+    <div class="text-center mb-8">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(c.theme.primary)}">FAQ</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">${esc(heading)}</h3>
+    </div>
+    <div class="space-y-2.5">
+      ${items.map((it) => `<details class="group rounded-xl border-2 bg-white" style="border-color: ${esc(c.theme.primary)}22">
+        <summary class="px-4 py-3 cursor-pointer font-extrabold text-[14px] flex items-center justify-between">${esc(it.q || "")}<span class="text-foreground/40 group-open:rotate-180 transition">⌄</span></summary>
+        <div class="px-4 pb-3 text-[13px] text-gray-700 leading-relaxed">${esc(it.a || "")}</div>
+      </details>`).join("")}
+    </div>
+  </div>
+</section>`;
+  },
+
+  hours: (p: SectionProps, c: SectionCtx) => {
+    if (!c.business.hours && !c.business.address) return "";
+    return `<section class="py-10 px-4 bg-gray-50/50">
+  <div class="max-w-3xl mx-auto grid sm:grid-cols-2 gap-4">
+    ${c.business.hours ? `<div class="p-5 rounded-2xl bg-white border-2" style="border-color: ${esc(c.theme.primary)}22">
+      <p class="text-[11px] font-extrabold uppercase tracking-wider mb-2" style="color: ${esc(c.theme.primary)}">🕐 Hours</p>
+      <p class="text-[13px] font-medium whitespace-pre-line leading-relaxed">${esc(c.business.hours)}</p>
+    </div>` : ""}
+    ${c.business.address ? `<div class="p-5 rounded-2xl bg-white border-2" style="border-color: ${esc(c.theme.primary)}22">
+      <p class="text-[11px] font-extrabold uppercase tracking-wider mb-2" style="color: ${esc(c.theme.primary)}">📍 Visit us</p>
+      <p class="text-[13px] font-medium whitespace-pre-line leading-relaxed">${esc(c.business.address)}</p>
+    </div>` : ""}
+  </div>
+</section>`;
+  },
+
+  contact: (p: SectionProps, c: SectionCtx) => {
+    const heading = String(p.heading || "Multiple ways to get in touch");
+    return `<section class="py-12 sm:py-16 px-4">
+  <div class="max-w-3xl mx-auto">
+    <div class="text-center mb-10">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(c.theme.primary)}">Reach us</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">${esc(heading)}</h3>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-4">
+      ${c.business.whatsapp ? `<a href="${esc(c.business.whatsapp)}" target="_blank" rel="noopener noreferrer" class="block p-5 rounded-2xl bg-white border-2 transition hover:-translate-y-0.5 hover:shadow-lg" style="border-color: ${esc(c.theme.primary)}33">
+        <div class="flex items-center gap-3"><div class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-[18px] flex-shrink-0" style="background: ${esc(c.theme.primary)}">💬</div>
+        <div class="min-w-0"><p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">WhatsApp</p><p class="text-[14px] font-extrabold truncate">${esc(c.business.phone || "Chat with us")}</p></div></div></a>` : ""}
+      ${c.business.upiVpa ? `<div class="block p-5 rounded-2xl bg-white border-2" style="border-color: ${esc(c.theme.primary)}33">
+        <div class="flex items-center gap-3"><div class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-[18px] flex-shrink-0" style="background: ${esc(c.theme.accent)}">💳</div>
+        <div class="min-w-0"><p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">UPI</p><p class="text-[14px] font-extrabold font-mono truncate">${esc(c.business.upiVpa)}</p></div></div></div>` : ""}
+      ${c.business.instagram ? `<a href="${esc(c.business.instagram)}" target="_blank" rel="noopener noreferrer" class="block p-5 rounded-2xl bg-white border-2 transition hover:-translate-y-0.5 hover:shadow-lg" style="border-color: ${esc(c.theme.primary)}33">
+        <div class="flex items-center gap-3"><div class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-[18px] flex-shrink-0 bg-gradient-to-br from-fuchsia-500 to-orange-400">📷</div>
+        <div class="min-w-0"><p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">Instagram</p><p class="text-[14px] font-extrabold truncate">${esc(c.business.instagram.replace(/^https?:\/\/(www\.)?/, ""))}</p></div></div></a>` : ""}
+      ${c.business.email ? `<a href="mailto:${esc(c.business.email)}" class="block p-5 rounded-2xl bg-white border-2 transition hover:-translate-y-0.5 hover:shadow-lg" style="border-color: ${esc(c.theme.primary)}33">
+        <div class="flex items-center gap-3"><div class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-[18px] flex-shrink-0" style="background: ${esc(c.theme.primary)}">✉️</div>
+        <div class="min-w-0"><p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-500">Email</p><p class="text-[14px] font-extrabold truncate">${esc(c.business.email)}</p></div></div></a>` : ""}
+    </div>
+  </div>
+</section>`;
+  },
+
+  leadform: (p: SectionProps, c: SectionCtx) => {
+    const heading = String(p.heading || "Leave us a message");
+    const description = String(p.description || "We'll get back to you on WhatsApp.");
+    return `<section class="py-12 sm:py-16 px-4 bg-gray-50">
+  <div class="max-w-xl mx-auto">
+    <div class="text-center mb-7">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(c.theme.primary)}">Get in touch</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">${esc(heading)}</h3>
+      <p class="text-[13px] text-gray-600 mt-2">${esc(description)}</p>
+    </div>
+    <form class="ax-lead-form bg-white rounded-2xl border-2 p-5 sm:p-6 space-y-3 shadow-sm" style="border-color: ${esc(c.theme.primary)}33" data-slug="${esc(c.slug)}">
+      <input name="name" required maxlength="100" placeholder="Your name *" class="w-full px-3 py-2.5 rounded-lg bg-white border-2 focus:outline-none text-[14px] font-medium" style="border-color: ${esc(c.theme.primary)}33" />
+      <input name="phone" type="tel" maxlength="20" placeholder="+91 9XXXXXXXXX" class="w-full px-3 py-2.5 rounded-lg bg-white border-2 focus:outline-none text-[14px] font-mono" style="border-color: ${esc(c.theme.primary)}33" />
+      <textarea name="message" rows="3" maxlength="500" placeholder="What would you like to know?" class="w-full px-3 py-2.5 rounded-lg bg-white border-2 focus:outline-none text-[14px] resize-none" style="border-color: ${esc(c.theme.primary)}33"></textarea>
+      <button type="submit" class="ax-lead-submit w-full h-12 rounded-xl text-white font-extrabold text-[14px] shadow-lg transition hover:-translate-y-0.5 disabled:opacity-50" style="background: ${esc(c.theme.primary)}">Send message</button>
+      <p class="ax-lead-status text-[12px] text-center font-bold hidden"></p>
+    </form>
+  </div>
+</section>`;
+  },
+};
+
+const SHARED_LEADFORM_SCRIPT = `<script>
+(function(){
+  document.querySelectorAll('.ax-lead-form').forEach(function(f){
+    f.addEventListener('submit', function(e){
+      e.preventDefault();
+      var btn = f.querySelector('.ax-lead-submit');
+      var status = f.querySelector('.ax-lead-status');
+      var fd = new FormData(f);
+      btn.disabled = true; btn.textContent = 'Sending…';
+      status.classList.add('hidden');
+      fetch('/biz/' + f.dataset.slug + '/lead', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ name: fd.get('name'), phone: fd.get('phone'), message: fd.get('message') })
+      }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+        .then(function(res){
+          if (res.ok) {
+            f.reset();
+            btn.textContent = '✓ Message sent';
+            status.textContent = 'Thanks! We will be in touch on WhatsApp shortly.';
+            status.className = 'ax-lead-status text-[12px] text-center font-bold text-emerald-700';
+            setTimeout(function(){ btn.disabled = false; btn.textContent = 'Send message'; }, 4000);
+          } else {
+            btn.disabled = false; btn.textContent = 'Send message';
+            status.textContent = (res.j && res.j.error) || 'Could not send.';
+            status.className = 'ax-lead-status text-[12px] text-center font-bold text-rose-700';
+          }
+        }).catch(function(){
+          btn.disabled = false; btn.textContent = 'Send message';
+          status.textContent = 'Network error.'; status.className = 'ax-lead-status text-[12px] text-center font-bold text-rose-700';
+        });
+    });
+  });
+})();
+</script>`;
+
+type SectionConfig = { id?: string; type: string; props?: SectionProps };
+
+const renderSection = (s: SectionConfig, ctx: SectionCtx): string => {
+  const fn = (sec as Record<string, (p: SectionProps, c: SectionCtx) => string>)[s.type];
+  if (!fn) return "";
+  try { return fn(s.props || {}, ctx); }
+  catch (e) { console.error(`[renderSection ${s.type}]`, e); return ""; }
+};
 
 /** The Kirana / Local Shop template — single page, mobile-first, fast. */
 const renderKirana = (input: RenderInput): string => {
@@ -984,18 +1253,9 @@ const renderNotFound = (): string => `<!doctype html>
 </body></html>`;
 
 /** GET /biz/:slug — public site render. */
-app.get("/biz/:slug", async (c) => {
-  const slug = (c.req.param("slug") || "").toLowerCase().trim();
-  if (!slug) return c.html(renderNotFound(), 404);
-
-  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
-  if (!row) return c.html(renderNotFound(), 404);
-
-  // Draft sites get a holding page (don't leak unpublished content publicly).
-  // The owner can still preview via /biz/<slug>?preview=1 (Phase 2 — TODO).
-  if (row.status !== "published") return c.html(renderDraftHolding(slug), 200);
-
-  // Pull owner profile + meta config + active products in parallel for auto-fill
+/** Build the full RenderInput for a site row. Used by both the legacy single-page
+ *  renderer and the new page-based renderer (Builder output). */
+const buildRenderInput = async (row: typeof site.$inferSelect, slug: string): Promise<RenderInput> => {
   const [pf] = await db.select().from(profile).where(eq(profile.userId, row.userId)).limit(1);
   const [mc] = await db.select({ displayPhoneNumber: metaConfig.displayPhoneNumber })
     .from(metaConfig).where(eq(metaConfig.userId, row.userId)).limit(1);
@@ -1013,7 +1273,7 @@ app.get("/biz/:slug", async (c) => {
   const phone = pf?.phone || mc?.displayPhoneNumber || null;
   const wa = waLink(phone, `Hi ${businessName}, I'd like to place an order.`);
 
-  const input: RenderInput = {
+  return {
     business: {
       name: businessName,
       tagline,
@@ -1073,26 +1333,180 @@ app.get("/biz/:slug", async (c) => {
       allowIndexing: row.allowIndexing,
     },
   };
+};
+
+/** Build the HTML <head> + opening <body> + sticky page nav. Used by both
+ *  legacy and section-based renderers — they share the chrome. */
+const renderShell = (
+  input: RenderInput,
+  pages: Array<{ path: string; title: string | null }>,
+  currentPath: string,
+): { head: string; bodyOpen: string; bodyClose: string } => {
+  const { business, theme, seo, slug, advanced } = input;
+  const faviconTag = advanced.faviconUrl ? `<link rel="icon" type="image/x-icon" href="${esc(advanced.faviconUrl)}" />` : "";
+  const robotsTag = !advanced.allowIndexing ? `<meta name="robots" content="noindex, nofollow" />` : "";
+  const ga4Snippet = advanced.ga4Id
+    ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${esc(advanced.ga4Id)}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${esc(advanced.ga4Id)}');</script>` : "";
+  const metaPixelSnippet = advanced.metaPixelId
+    ? `<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${esc(advanced.metaPixelId)}');fbq('track','PageView');</script>` : "";
+  const customHead = advanced.customHeadHtml || "";
+
+  const head = `<!doctype html><html lang="en"><head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${esc(seo.title)}</title>
+<meta name="description" content="${esc(seo.description)}" />
+<meta property="og:title" content="${esc(seo.title)}" />
+<meta property="og:description" content="${esc(seo.description)}" />
+${seo.ogImage ? `<meta property="og:image" content="${esc(seo.ogImage)}" />` : ""}
+<meta property="og:type" content="website" />
+<meta name="theme-color" content="${esc(theme.primary)}" />
+${faviconTag}${robotsTag}${ga4Snippet}${metaPixelSnippet}${customHead}
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=${esc(theme.font.replace(/ /g, "+"))}:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{brand:"${esc(theme.primary)}",accent:"${esc(theme.accent)}"},fontFamily:{sans:["${esc(theme.font)}","ui-sans-serif","system-ui","sans-serif"]}}}};</script>
+<style>body{font-family:'${esc(theme.font)}',ui-sans-serif,system-ui,sans-serif;}.dot-bg{background-image:radial-gradient(rgba(0,0,0,0.04) 1px,transparent 0);background-size:18px 18px;}</style>
+</head>`;
+
+  // Page nav — only shown when site has 2+ active pages
+  const pageNav = pages.length >= 2 ? `<nav class="border-t border-b sticky top-14 z-20 bg-white/95 backdrop-blur overflow-x-auto" style="border-color: ${esc(theme.primary)}22">
+  <div class="max-w-5xl mx-auto px-4 flex items-center gap-1">
+    ${pages.map((pg) => `<a href="/biz/${esc(slug)}${pg.path === "/" ? "" : pg.path}"
+      class="px-3 py-2.5 text-[12.5px] font-extrabold whitespace-nowrap border-b-2 transition ${pg.path === currentPath ? "" : "border-transparent text-foreground/55 hover:text-foreground"}"
+      ${pg.path === currentPath ? `style="border-color: ${esc(theme.primary)}; color: ${esc(theme.primary)};"` : ""}>${esc(pg.title || (pg.path === "/" ? "Home" : pg.path.replace(/^\//, "").replace(/-/g, " ")))}</a>`).join("")}
+  </div>
+</nav>` : "";
+
+  const bodyOpen = `<body class="text-gray-900 bg-white">
+<header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b" style="border-color: ${esc(theme.primary)}33">
+  <div class="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+    <a href="/biz/${esc(slug)}" class="flex items-center gap-2.5 min-w-0">
+      ${business.logoUrl
+        ? `<img src="${esc(business.logoUrl)}" alt="${esc(business.name)}" class="w-9 h-9 rounded-xl object-cover flex-shrink-0 shadow" onerror="this.style.display='none'" />`
+        : `<div class="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-[14px] flex-shrink-0 shadow" style="background: linear-gradient(135deg, ${esc(theme.primary)}, ${esc(theme.accent)})">${esc((business.name || "?").slice(0, 1).toUpperCase())}</div>`}
+      <h1 class="font-extrabold text-[15px] truncate">${esc(business.name)}</h1>
+    </a>
+    ${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer" class="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-white text-[12px] font-extrabold transition hover:opacity-90" style="background: ${esc(theme.primary)}">💬 ${esc(vocabFor(input.template).orderButtonText)}</a>` : ""}
+  </div>
+</header>
+${pageNav}`;
+
+  const bodyClose = `
+<footer class="py-8 px-4 border-t" style="border-color: ${esc(theme.primary)}22">
+  <div class="max-w-5xl mx-auto text-center">
+    <p class="text-[12px] text-gray-500">© ${new Date().getFullYear()} ${esc(business.name)} · Made with <a href="/" class="font-extrabold" style="color: ${esc(theme.primary)}">AddisonX</a></p>
+  </div>
+</footer>
+${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer" class="fixed bottom-5 right-5 w-14 h-14 rounded-full flex items-center justify-center text-white text-[24px] shadow-xl transition hover:scale-110" style="background: ${esc(theme.primary)}" aria-label="Chat on WhatsApp">💬</a>` : ""}
+${SHARED_LEADFORM_SCRIPT}
+</body></html>`;
+
+  return { head, bodyOpen, bodyClose };
+};
+
+/** Render a single page from its sections array. */
+const renderPage = (
+  input: RenderInput,
+  page: { path: string; sections: SectionConfig[] },
+  pages: Array<{ path: string; title: string | null }>,
+): string => {
+  const { head, bodyOpen, bodyClose } = renderShell(input, pages, page.path);
+  const ctx: SectionCtx = {
+    business: input.business, theme: input.theme, vocab: vocabFor(input.template),
+    slug: input.slug, products: input.products, cashfree: input.cashfree,
+  };
+  const body = page.sections.map((s) => renderSection(s, ctx)).join("\n");
+  return `${head}${bodyOpen}${body}${bodyClose}`;
+};
+
+/** Main site renderer. Picks the right rendering path based on whether the
+ *  user has configured custom pages via the Builder. */
+const renderSiteForPath = async (
+  row: typeof site.$inferSelect,
+  slug: string,
+  path: string,
+): Promise<{ html: string; pageFound: boolean }> => {
+  const input = await buildRenderInput(row, slug);
+
+  // Look up all active pages for this site — used for nav + dispatch
+  const pageRows = await db.select().from(sitePage)
+    .where(and(eq(sitePage.siteId, row.id), eq(sitePage.active, true)))
+    .orderBy(asc(sitePage.sortOrder), asc(sitePage.createdAt));
+
+  // If user has defined custom pages via Builder, use section-based rendering
+  if (pageRows.length > 0) {
+    const matched = pageRows.find((p) => p.path === path) || pageRows.find((p) => p.path === "/");
+    if (!matched) return { html: renderNotFound(), pageFound: false };
+    const sections = (Array.isArray(matched.sections) ? matched.sections : []) as SectionConfig[];
+    const pages = pageRows.map((p) => ({ path: p.path, title: p.title }));
+    return { html: renderPage(input, { path: matched.path, sections }, pages), pageFound: true };
+  }
+
+  // No pages defined → fall back to legacy single-page renderer (current behavior)
+  return { html: renderKirana(input), pageFound: true };
+};
+
+app.get("/biz/:slug", async (c) => {
+  const slug = (c.req.param("slug") || "").toLowerCase().trim();
+  if (!slug) return c.html(renderNotFound(), 404);
+
+  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
+  if (!row) return c.html(renderNotFound(), 404);
+  if (row.status !== "published") return c.html(renderDraftHolding(slug), 200);
+
+  const { html, pageFound } = await renderSiteForPath(row, slug, "/");
+  if (!pageFound) return c.html(renderNotFound(), 404);
 
   // Bump view counter + log analytics event (fire-and-forget).
   void db.update(site).set({ viewCount: sql`${site.viewCount} + 1` }).where(eq(site.id, row.id)).catch(() => {});
 
   const ipForView = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const dayBucket = new Date().toISOString().slice(0, 10);   // crude 24h-rotating salt
+  const dayBucket = new Date().toISOString().slice(0, 10);
   const viewSession = createHash("sha256").update(`${ipForView}|${dayBucket}|${row.id}`).digest("hex").slice(0, 32);
   logEvent({
-    siteId: row.id,
-    ownerId: row.userId,
-    eventType: "view",
-    path: `/biz/${slug}`,
-    referrerHost: refHostBucket(c.req.header("referer")),
-    sessionHash: viewSession,
-    userAgent: c.req.header("user-agent") || null,
+    siteId: row.id, ownerId: row.userId, eventType: "view",
+    path: `/biz/${slug}`, referrerHost: refHostBucket(c.req.header("referer")),
+    sessionHash: viewSession, userAgent: c.req.header("user-agent") || null,
   });
 
-  // All four templates currently share the base renderer with per-template
-  // vocabulary swaps (see TEMPLATE_VOCAB). Layouts diverge in Phase 8 polish.
-  const html = renderKirana(input);
+  c.header("Cache-Control", "public, max-age=60, s-maxage=60");
+  return c.html(html);
+});
+
+/** Multi-page route — /biz/:slug/:path matches custom pages defined in the
+ *  Builder (e.g. /biz/sharma-store/menu). Path must be a single-segment, lowercase,
+ *  hyphenated word; longer/illegal paths fall through to NotFound. */
+app.get("/biz/:slug/:path", async (c) => {
+  const slug = (c.req.param("slug") || "").toLowerCase().trim();
+  const rawPath = (c.req.param("path") || "").toLowerCase().trim();
+  // Block the existing public mutation endpoints (cart, order, lead, etc.) —
+  // those are POST so won't actually hit here, but be safe.
+  if (["lead", "order", "shipping", "coupon", "pay"].includes(rawPath)) {
+    return c.html(renderNotFound(), 404);
+  }
+  if (!/^[a-z0-9-]+$/.test(rawPath)) return c.html(renderNotFound(), 404);
+
+  const [row] = await db.select().from(site).where(eq(site.slug, slug)).limit(1);
+  if (!row) return c.html(renderNotFound(), 404);
+  if (row.status !== "published") return c.html(renderDraftHolding(slug), 200);
+
+  const requestPath = `/${rawPath}`;
+  const { html, pageFound } = await renderSiteForPath(row, slug, requestPath);
+  if (!pageFound) return c.html(renderNotFound(), 404);
+
+  // Log view (same as home route)
+  void db.update(site).set({ viewCount: sql`${site.viewCount} + 1` }).where(eq(site.id, row.id)).catch(() => {});
+  const ipForView = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const dayBucket = new Date().toISOString().slice(0, 10);
+  const viewSession = createHash("sha256").update(`${ipForView}|${dayBucket}|${row.id}`).digest("hex").slice(0, 32);
+  logEvent({
+    siteId: row.id, ownerId: row.userId, eventType: "view",
+    path: `/biz/${slug}${requestPath}`, referrerHost: refHostBucket(c.req.header("referer")),
+    sessionHash: viewSession, userAgent: c.req.header("user-agent") || null,
+  });
 
   c.header("Cache-Control", "public, max-age=60, s-maxage=60");
   return c.html(html);
