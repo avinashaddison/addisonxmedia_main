@@ -230,40 +230,32 @@ const SiteOverview = () => {
           </div>
         </div>
 
-        {/* Template picker */}
-        <div className="bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] p-5">
-          <h2 className="text-[13px] font-extrabold uppercase tracking-[0.15em] text-foreground/55 mb-1">Template</h2>
-          <p className="text-[11px] text-foreground/55 mb-3">Each template tweaks the vocabulary on your public site (Browse products / Today's menu / Our services / Our packages).</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[
-              { id: "kirana",     name: "Kirana / Shop", emoji: "🏪" },
-              { id: "salon",      name: "Salon / Spa",   emoji: "💇" },
-              { id: "restaurant", name: "Restaurant",    emoji: "🍽️" },
-              { id: "services",   name: "Services",      emoji: "🛠️" },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={async () => {
-                  if (site.template === t.id) return;
-                  try {
-                    const updated = await api.updateSite({ template: t.id });
-                    qc.setQueryData(["site-me"], updated);
-                    toast.success(`Switched to ${t.name} template`);
-                  } catch (e) { toast.error((e as Error).message); }
-                }}
-                className={cn(
-                  "p-3 rounded-xl border-2 text-left transition",
-                  site.template === t.id ? "border-[#0E8A4B] bg-[#E6F7EE] shadow-[0_2px_0_0_#0A6E3C]"
-                    : "border-[#E8B968]/60 hover:border-[#E8B968]"
-                )}
-              >
-                <p className="text-[18px] mb-0.5">{t.emoji}</p>
-                <p className="text-[11.5px] font-extrabold">{t.name}</p>
-                {site.template === t.id && <p className="text-[9px] font-extrabold uppercase tracking-wider text-[#0E8A4B] mt-1">Active</p>}
-              </button>
-            ))}
+        {/* Active website — read-only summary that links to Website Store
+            for the picker UX. (Used to host the 4-card picker; removed
+            because Website Store now does the same job with previews,
+            filters and 12 templates.) */}
+        <a
+          href="/app/site/store"
+          className="flex items-center gap-3 bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] p-4 hover:bg-[#FFE8C7]/40 hover:-translate-y-0.5 transition group"
+        >
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[20px] flex-shrink-0 bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C]">
+            {site.template === "salon" ? "💇" : site.template === "restaurant" ? "🍽️" : site.template === "services" ? "🛠️" : "🏪"}
           </div>
-        </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-foreground/55">Active website</p>
+            <p className="text-[14px] font-extrabold capitalize">
+              {site.template === "kirana" ? "Local Shop"
+                : site.template === "salon" ? "Salon & Spa"
+                : site.template === "restaurant" ? "Restaurant"
+                : site.template === "services" ? "Services Pro"
+                : site.template}
+            </p>
+          </div>
+          <span className="hidden sm:inline-flex items-center gap-1.5 text-[11.5px] font-extrabold text-[#0E8A4B] group-hover:text-[#0A6E3C]">
+            Change in Website Store <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition" />
+          </span>
+          <ArrowRight className="sm:hidden w-4 h-4 text-[#0E8A4B] flex-shrink-0" />
+        </a>
 
         {/* Public URL + slug */}
         <div className="bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] p-5">
