@@ -240,7 +240,7 @@ const SiteOverview = () => {
           className="flex items-center gap-3 bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] p-4 hover:bg-[#FFE8C7]/40 hover:-translate-y-0.5 transition group"
         >
           <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[20px] flex-shrink-0 bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C]">
-            {site.template === "salon" ? "💇" : site.template === "restaurant" ? "🍽️" : site.template === "services" ? "🛠️" : "🏪"}
+            {site.template === "salon" ? "💇" : site.template === "restaurant" ? "🍽️" : site.template === "services" ? "🛠️" : site.template === "dps" ? "⚡" : "🏪"}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-foreground/55">Active website</p>
@@ -249,6 +249,7 @@ const SiteOverview = () => {
                 : site.template === "salon" ? "Salon & Spa"
                 : site.template === "restaurant" ? "Restaurant"
                 : site.template === "services" ? "Services Pro"
+                : site.template === "dps" ? "Addison D-P-S"
                 : site.template}
             </p>
           </div>

@@ -35,6 +35,9 @@ type Template = {
 
 const TEMPLATES: Template[] = [
   // Live templates
+  { id: "dps",        name: "Addison D-P-S",   description: "Made-for-India digital products template — instant download, UPI checkout, founder-style social proof, GST trust signals. Built for creators selling ebooks, Notion templates, courses, presets, software, art.",
+    industries: ["Digital", "Education", "Services"], bestFor: "Ebook author, course creator, Notion templates, presets, software, art, music — anything you can deliver instantly on WhatsApp",
+    primary: "#0E8A4B", accent: "#FFD23F", emoji: "⚡", available: true, pillText: "Instant download" },
   { id: "kirana",     name: "Local Shop",      description: "Perfect for kirana stores, general stores and supermarkets. Browseable product grid + WhatsApp ordering + UPI / COD checkout.",
     industries: ["Retail", "Grocery"], bestFor: "Kirana, general store, supermarket, mart",
     primary: "#0E8A4B", accent: "#FFD23F", emoji: "🏪", available: true, pillText: "Open for orders" },
@@ -75,7 +78,7 @@ const TEMPLATES: Template[] = [
     primary: "#B8651A", accent: "#FFD23F", emoji: "🧁", available: false, pillText: "Order fresh" },
 ];
 
-const INDUSTRIES = ["All", "Retail", "Food", "Beauty", "Services", "Wellness", "Healthcare", "Education", "Fashion", "Grocery"] as const;
+const INDUSTRIES = ["All", "Digital", "Retail", "Food", "Beauty", "Services", "Wellness", "Healthcare", "Education", "Fashion", "Grocery"] as const;
 
 export const WebsiteStorePage = () => {
   const qc = useQueryClient();

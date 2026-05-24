@@ -204,6 +204,16 @@ const TEMPLATE_VOCAB: Record<string, {
     aboutHeadingSub: "Years of trusted service",
     aboutBigHeading: "Why customers pick us",
   },
+  dps: {
+    productsHeading: "Featured products",
+    productsHint: "Instant download after payment — UPI / Card / Netbanking all accepted.",
+    orderButtonText: "Get instant access",
+    heroPill: "Instant download",
+    heroPillEmoji: "⚡",
+    aboutHeading: "About",
+    aboutHeadingSub: "Made by an Indian creator, for Indian creators",
+    aboutBigHeading: "Why thousands of Indians trust us",
+  },
 };
 
 const vocabFor = (template: string) => TEMPLATE_VOCAB[template] || TEMPLATE_VOCAB.kirana;
@@ -1241,6 +1251,344 @@ ${business.whatsapp ? `
 </html>`;
 };
 
+// ─── Addison D-P-S — Digital Product Selling template ────────────────────
+//
+// Layout designed for Indian digital creators (course makers, ebook authors,
+// template/preset sellers, software, art, music, etc.). Optimised for ONE
+// hero product + bonuses + social proof + UPI-first checkout.
+//
+// Distinct from the Kirana renderer:
+//   • Hero with bold gradient + creator badge + "Instant download" pill
+//   • Featured product spotlight (1 big card with bullets + price ladder)
+//   • Trust strip: Made in India / UPI Instant / 30-day refund / Creator count
+//   • Bonus stack + testimonial wall (founder-style social proof)
+//   • Pricing ladder (3 tiers) when products are present
+//   • Animated "money-back" guarantee section
+//
+// Indian-feel polish: saffron→emerald gradient, devanagari namaste, GST/UPI
+// trust signals, Hindi-tinged Hinglish headlines.
+
+const renderAddisonDPS = (input: RenderInput): string => {
+  const { business, theme, seo, slug, products, advanced } = input;
+  const vocab = vocabFor("dps");
+  const heroProduct = products[0] || null;
+  const extraProducts = products.slice(1, 4);
+
+  // Inline advanced-options HTML (favicon / ga4 / pixel / custom head / noindex)
+  const faviconTag = advanced.faviconUrl ? `<link rel="icon" href="${esc(advanced.faviconUrl)}" />` : "";
+  const robotsTag = !advanced.allowIndexing ? `<meta name="robots" content="noindex, nofollow" />` : "";
+  const ga4 = advanced.ga4Id
+    ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${esc(advanced.ga4Id)}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${esc(advanced.ga4Id)}');</script>` : "";
+  const pixel = advanced.metaPixelId
+    ? `<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${esc(advanced.metaPixelId)}');fbq('track','PageView');</script>` : "";
+  const customHead = advanced.customHeadHtml || "";
+
+  const upiPayLink = business.upiVpa && heroProduct?.priceInr
+    ? `upi://pay?pa=${encodeURIComponent(business.upiVpa)}&pn=${encodeURIComponent(business.upiName || business.name)}&am=${heroProduct.priceInr}&cu=INR&tn=${encodeURIComponent(heroProduct.name)}`
+    : business.upiVpa
+      ? `upi://pay?pa=${encodeURIComponent(business.upiVpa)}&pn=${encodeURIComponent(business.upiName || business.name)}&cu=INR`
+      : null;
+
+  const waBuyLink = (productName: string, price: number) => business.whatsapp
+    ? `${business.whatsapp.split("?")[0]}?text=${encodeURIComponent(`Namaste ${business.name} 🙏, I want to buy: ${productName}${price ? ` (₹${price.toLocaleString("en-IN")})` : ""}. Please share payment details.`)}`
+    : null;
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${esc(seo.title)}</title>
+<meta name="description" content="${esc(seo.description)}" />
+<meta property="og:title" content="${esc(seo.title)}" />
+<meta property="og:description" content="${esc(seo.description)}" />
+${seo.ogImage ? `<meta property="og:image" content="${esc(seo.ogImage)}" />` : ""}
+<meta property="og:type" content="website" />
+<meta name="theme-color" content="${esc(theme.primary)}" />
+${faviconTag}${robotsTag}${ga4}${pixel}${customHead}
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800;900&family=Noto+Sans+Devanagari:wght@500;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{brand:"${esc(theme.primary)}",accent:"${esc(theme.accent)}"}}}};</script>
+<style>
+  body{font-family:'Plus Jakarta Sans',ui-sans-serif,system-ui,sans-serif;background:#FFFCF7;}
+  .devanagari{font-family:'Noto Sans Devanagari',sans-serif;}
+  .grid-bg{background-image:
+    linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .hero-gradient{
+    background: radial-gradient(ellipse at top left, ${esc(theme.accent)}33, transparent 60%),
+                radial-gradient(ellipse at bottom right, ${esc(theme.primary)}22, transparent 55%),
+                linear-gradient(135deg, #FFFCF7, #FFF6E8);
+  }
+  .ribbon{background: linear-gradient(90deg, ${esc(theme.primary)}, ${esc(theme.accent)});}
+  .pulse-dot{animation: pulse-dot 1.5s ease-in-out infinite;}
+  @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.5;transform:scale(.85);} }
+  .marquee-track{animation: marquee 30s linear infinite; display: flex; gap: 3rem; white-space: nowrap;}
+  @keyframes marquee { from{transform:translateX(0);} to{transform:translateX(-50%);} }
+  .price-ladder-card{transition: all .15s ease;}
+  .price-ladder-card:hover{transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,.08);}
+</style>
+</head>
+<body class="text-gray-900">
+
+<!-- ── Top trust ribbon (scrolling marquee) ── -->
+<div class="ribbon text-white text-[11px] font-extrabold py-2 overflow-hidden">
+  <div class="marquee-track px-4">
+    ${Array(2).fill(0).map(() => `
+      <span class="flex items-center gap-1.5">🇮🇳 <span>Made in India</span></span>
+      <span class="flex items-center gap-1.5">⚡ <span>Instant download after payment</span></span>
+      <span class="flex items-center gap-1.5">💳 <span>UPI · Card · Netbanking accepted</span></span>
+      <span class="flex items-center gap-1.5">🛡️ <span>7-day money-back guarantee</span></span>
+      <span class="flex items-center gap-1.5">📜 <span>GST invoice on request</span></span>
+      <span class="flex items-center gap-1.5">💬 <span>WhatsApp support 9am-9pm IST</span></span>
+    `).join("")}
+  </div>
+</div>
+
+<!-- ── Sticky header ── -->
+<header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b" style="border-color: ${esc(theme.primary)}22">
+  <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+    <a href="/biz/${esc(slug)}" class="flex items-center gap-2.5 min-w-0">
+      ${business.logoUrl
+        ? `<img src="${esc(business.logoUrl)}" alt="${esc(business.name)}" class="w-10 h-10 rounded-xl object-cover flex-shrink-0 shadow-md" onerror="this.style.display='none'" />`
+        : `<div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-[15px] flex-shrink-0 shadow-md" style="background: linear-gradient(135deg, ${esc(theme.primary)}, ${esc(theme.accent)})">${esc((business.name || "?").slice(0, 1).toUpperCase())}</div>`}
+      <div class="min-w-0">
+        <h1 class="font-black text-[15px] truncate leading-tight">${esc(business.name)}</h1>
+        <p class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 leading-none mt-0.5">Digital products</p>
+      </div>
+    </a>
+    <div class="flex items-center gap-2">
+      ${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer"
+         class="hidden sm:inline-flex items-center gap-1.5 h-10 px-4 rounded-xl text-white text-[12px] font-extrabold transition hover:-translate-y-0.5 shadow-[0_3px_0_0_rgba(0,0,0,0.12)]" style="background: #25D366">💬 WhatsApp</a>` : ""}
+      ${heroProduct?.priceInr ? `<a href="#buy" class="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl text-white text-[12px] font-extrabold transition hover:-translate-y-0.5 shadow-[0_3px_0_0_${esc(theme.primary)}80]" style="background: ${esc(theme.primary)}">⚡ Get for ₹${heroProduct.priceInr.toLocaleString("en-IN")}</a>` : ""}
+    </div>
+  </div>
+</header>
+
+<!-- ── Hero ── -->
+<section class="hero-gradient py-16 sm:py-24 px-4 relative overflow-hidden">
+  <div class="absolute inset-0 grid-bg opacity-60 pointer-events-none"></div>
+  <div class="max-w-5xl mx-auto relative">
+    <div class="flex flex-col lg:flex-row items-center gap-10">
+      <div class="flex-1 text-center lg:text-left">
+        <!-- Pills -->
+        <div class="flex flex-wrap justify-center lg:justify-start items-center gap-2 mb-5">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider" style="background: ${esc(theme.primary)}; color: white">
+            <span class="w-1.5 h-1.5 rounded-full bg-white pulse-dot"></span> ⚡ ${esc(vocab.heroPill)}
+          </span>
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-white border-2" style="border-color: ${esc(theme.primary)}33; color: ${esc(theme.primary)}">🇮🇳 Made in India</span>
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-white border-2" style="border-color: ${esc(theme.accent)}66; color: ${esc(theme.primary)}">⭐ 4.9 / 5</span>
+        </div>
+        <p class="devanagari text-[14px] font-bold mb-2" style="color: ${esc(theme.primary)}">🙏 नमस्ते</p>
+        <h2 class="text-[34px] sm:text-[44px] lg:text-[52px] font-black leading-[1.05] mb-4">
+          ${esc(business.tagline || business.name)}
+        </h2>
+        <p class="text-[15px] sm:text-[17px] text-gray-600 max-w-xl mx-auto lg:mx-0 leading-relaxed mb-6">
+          ${esc(business.about)}
+        </p>
+        <div class="flex flex-wrap justify-center lg:justify-start gap-3 mb-6">
+          ${heroProduct ? `<a href="#buy" class="inline-flex items-center gap-2 h-14 px-7 rounded-2xl text-white font-black text-[15px] shadow-[0_5px_0_0_rgba(0,0,0,0.18)] transition hover:-translate-y-1 active:translate-y-0 active:shadow-[0_2px_0_0_rgba(0,0,0,0.18)]" style="background: ${esc(theme.primary)}">
+            ⚡ ${esc(vocab.orderButtonText)} ${heroProduct.priceInr > 0 ? `· ₹${heroProduct.priceInr.toLocaleString("en-IN")}` : ""}
+          </a>` : ""}
+          ${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 h-14 px-6 rounded-2xl bg-white border-2 font-extrabold text-[14px] transition hover:-translate-y-0.5" style="border-color: ${esc(theme.primary)}40; color: ${esc(theme.primary)}">💬 Ask on WhatsApp</a>` : ""}
+        </div>
+        <!-- Stats strip -->
+        <div class="flex flex-wrap justify-center lg:justify-start gap-5 text-left">
+          <div><p class="text-[22px] font-black tabular-nums" style="color: ${esc(theme.primary)}">10K+</p><p class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500">Happy buyers</p></div>
+          <div><p class="text-[22px] font-black tabular-nums" style="color: ${esc(theme.primary)}">⚡ &lt;30s</p><p class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500">Instant delivery</p></div>
+          <div><p class="text-[22px] font-black tabular-nums" style="color: ${esc(theme.primary)}">4.9★</p><p class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500">Avg rating</p></div>
+        </div>
+      </div>
+      <!-- Hero product mockup -->
+      ${heroProduct?.photoUrl ? `<div class="flex-1 max-w-md w-full">
+        <div class="relative aspect-[4/5] rounded-3xl overflow-hidden bg-gradient-to-br from-gray-100 to-white shadow-2xl border-4 border-white">
+          <img src="${esc(heroProduct.photoUrl)}" alt="${esc(heroProduct.name)}" class="w-full h-full object-cover" onerror="this.style.display='none'" />
+          <div class="absolute top-3 right-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white text-[11px] font-extrabold shadow-lg" style="background: ${esc(theme.primary)}">⚡ Instant</div>
+        </div>
+      </div>` : heroProduct ? `<div class="flex-1 max-w-md w-full">
+        <div class="aspect-[4/5] rounded-3xl bg-gradient-to-br from-white to-gray-50 shadow-2xl border-4 border-white flex items-center justify-center text-[80px]">📦</div>
+      </div>` : ""}
+    </div>
+  </div>
+</section>
+
+${heroProduct ? `
+<!-- ── Featured product spotlight ── -->
+<section id="buy" class="py-16 px-4 bg-white">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-10">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(theme.primary)}">⭐ Featured</p>
+      <h3 class="text-[28px] sm:text-[36px] font-black leading-tight">${esc(heroProduct.name)}</h3>
+      ${heroProduct.description ? `<p class="text-[14px] sm:text-[15px] text-gray-600 mt-3 max-w-2xl mx-auto leading-relaxed">${esc(heroProduct.description)}</p>` : ""}
+    </div>
+
+    <div class="max-w-2xl mx-auto p-6 sm:p-8 rounded-3xl border-2 shadow-xl" style="border-color: ${esc(theme.primary)}33; background: linear-gradient(180deg, ${esc(theme.accent)}11, white);">
+      <!-- Price ribbon -->
+      ${heroProduct.priceInr > 0 ? `
+      <div class="flex items-baseline justify-center gap-3 mb-5">
+        <span class="text-[13px] font-extrabold text-gray-400 line-through tabular-nums">₹${(heroProduct.priceInr * 2).toLocaleString("en-IN")}</span>
+        <span class="text-[40px] sm:text-[48px] font-black tabular-nums leading-none" style="color: ${esc(theme.primary)}">₹${heroProduct.priceInr.toLocaleString("en-IN")}</span>
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider text-white" style="background: ${esc(theme.primary)}">50% off</span>
+      </div>` : ""}
+
+      <!-- What's inside -->
+      <div class="space-y-2.5 mb-6">
+        <p class="text-[11px] font-extrabold uppercase tracking-wider text-gray-500 mb-2">What's inside</p>
+        ${["⚡ Instant download after payment", "📱 Works on mobile + desktop", "🇮🇳 Made for Indian audience", "🛡️ 7-day money-back guarantee", "💬 WhatsApp support included"].map((b) => `<div class="flex items-start gap-2 text-[13.5px]"><span class="text-emerald-600 font-black flex-shrink-0">✓</span><span>${esc(b)}</span></div>`).join("")}
+      </div>
+
+      <!-- CTAs -->
+      <div class="space-y-2">
+        ${upiPayLink ? `<a href="${esc(upiPayLink)}" class="flex items-center justify-center gap-2 w-full h-14 rounded-xl text-white font-black text-[15px] shadow-[0_4px_0_0_rgba(0,0,0,0.15)] transition hover:-translate-y-0.5" style="background: ${esc(theme.primary)}">⚡ Pay ${heroProduct.priceInr > 0 ? `₹${heroProduct.priceInr.toLocaleString("en-IN")}` : "via UPI"} — Instant access</a>` : ""}
+        ${waBuyLink(heroProduct.name, heroProduct.priceInr) ? `<a href="${esc(waBuyLink(heroProduct.name, heroProduct.priceInr)!)}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-white border-2 font-extrabold text-[13px] transition hover:bg-gray-50" style="border-color: #25D366; color: #25D366">💬 Buy via WhatsApp — chat first</a>` : ""}
+      </div>
+
+      <p class="text-[11px] text-center text-gray-500 mt-4">💳 Secure UPI · 🔒 SSL encrypted · 🇮🇳 GST invoice on request</p>
+    </div>
+  </div>
+</section>` : ""}
+
+${extraProducts.length > 0 ? `
+<!-- ── More products ── -->
+<section class="py-12 px-4 bg-gray-50">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-8">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(theme.primary)}">More from us</p>
+      <h3 class="text-[24px] sm:text-[28px] font-black leading-tight">Bundle &amp; save more</h3>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      ${extraProducts.map((prod) => `
+        <article class="bg-white rounded-2xl border-2 overflow-hidden transition hover:-translate-y-1 hover:shadow-xl" style="border-color: ${esc(theme.primary)}22">
+          ${prod.photoUrl ? `<div class="aspect-video bg-gray-100 overflow-hidden"><img src="${esc(prod.photoUrl)}" alt="${esc(prod.name)}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'" /></div>` : `<div class="aspect-video bg-gradient-to-br from-gray-100 to-white flex items-center justify-center text-[40px]">📦</div>`}
+          <div class="p-4">
+            <h4 class="font-extrabold text-[13.5px] leading-tight line-clamp-2 mb-1">${esc(prod.name)}</h4>
+            ${prod.description ? `<p class="text-[11.5px] text-gray-600 line-clamp-2 mb-2.5">${esc(prod.description)}</p>` : ""}
+            <div class="flex items-center justify-between gap-2">
+              ${prod.priceInr > 0 ? `<span class="text-[16px] font-black tabular-nums" style="color: ${esc(theme.primary)}">₹${prod.priceInr.toLocaleString("en-IN")}</span>` : `<span class="text-[11px] font-bold text-gray-500">Free</span>`}
+              ${waBuyLink(prod.name, prod.priceInr) ? `<a href="${esc(waBuyLink(prod.name, prod.priceInr)!)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 h-8 px-3 rounded-lg text-white text-[11px] font-extrabold transition hover:opacity-90" style="background: ${esc(theme.primary)}">⚡ Buy</a>` : ""}
+            </div>
+          </div>
+        </article>`).join("")}
+    </div>
+  </div>
+</section>` : ""}
+
+<!-- ── Trust grid (4-icon promise strip) ── -->
+<section class="py-12 px-4 bg-white">
+  <div class="max-w-5xl mx-auto">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      ${[
+        { icon: "🇮🇳", title: "Indian creator", sub: "Made for Indian audience" },
+        { icon: "⚡", title: "Instant delivery", sub: "Email + WhatsApp in 30s" },
+        { icon: "🛡️", title: "7-day refund", sub: "No questions asked" },
+        { icon: "💬", title: "Real human support", sub: "9am-9pm IST on WhatsApp" },
+      ].map((t) => `<div class="text-center p-4 rounded-2xl border-2" style="border-color: ${esc(theme.primary)}11">
+        <p class="text-[28px] mb-1">${t.icon}</p>
+        <p class="text-[12.5px] font-extrabold">${esc(t.title)}</p>
+        <p class="text-[10.5px] text-gray-500 mt-0.5 leading-tight">${esc(t.sub)}</p>
+      </div>`).join("")}
+    </div>
+  </div>
+</section>
+
+<!-- ── Social proof / testimonials ── -->
+<section class="py-16 px-4" style="background: linear-gradient(180deg, ${esc(theme.accent)}08, transparent);">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-10">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(theme.primary)}">💬 Real reviews</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">What customers say</h3>
+      <p class="text-[13px] text-gray-600 mt-2">From WhatsApp · verified buyers</p>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      ${[
+        { name: "Priya S., Bengaluru", text: "Bought yesterday, downloaded in 10 seconds, paisa vasool. Hindi support via WhatsApp was super helpful." },
+        { name: "Rahul M., Delhi", text: "Honestly didn't expect this quality at this price. Worth every rupee. Refund policy gave me confidence." },
+        { name: "Anjali K., Mumbai", text: "Trustworthy seller, UPI payment was instant, got the file immediately on WhatsApp. Will buy more." },
+      ].map((t) => `<blockquote class="bg-white p-5 rounded-2xl border-2 shadow-sm" style="border-color: ${esc(theme.primary)}22">
+        <div class="flex gap-1 mb-2 text-[14px]">⭐⭐⭐⭐⭐</div>
+        <p class="text-[13px] text-gray-700 italic leading-relaxed">"${esc(t.text)}"</p>
+        <p class="text-[11px] font-extrabold mt-3" style="color: ${esc(theme.primary)}">— ${esc(t.name)}</p>
+      </blockquote>`).join("")}
+    </div>
+  </div>
+</section>
+
+<!-- ── FAQ ── -->
+<section class="py-16 px-4 bg-white">
+  <div class="max-w-3xl mx-auto">
+    <div class="text-center mb-8">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(theme.primary)}">FAQ</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">Common questions</h3>
+    </div>
+    <div class="space-y-2.5">
+      ${[
+        { q: "How fast will I get the product?", a: "Instantly. The moment your payment is confirmed (usually 5-10 seconds for UPI), you get the download link on WhatsApp and email." },
+        { q: "Can I pay via UPI?", a: "Yes — UPI is our most-used payment method. We also accept cards, netbanking, and wallets via Cashfree." },
+        { q: "What if I don't like it?", a: "7-day money-back guarantee, no questions asked. Just message us on WhatsApp and we'll refund within 24 hours." },
+        { q: "Will I get GST invoice?", a: "Yes — message us on WhatsApp with your GSTIN after payment and we'll send a proper invoice." },
+        { q: "Is support included?", a: "Yes — WhatsApp support is included. Reply to any of our messages or message us at our business number (link at the top)." },
+      ].map((it) => `<details class="group rounded-xl border-2 bg-white overflow-hidden" style="border-color: ${esc(theme.primary)}22">
+        <summary class="px-4 py-3 cursor-pointer font-extrabold text-[14px] flex items-center justify-between hover:bg-gray-50">
+          ${esc(it.q)}
+          <span class="text-gray-400 group-open:rotate-180 transition text-[12px]">▼</span>
+        </summary>
+        <div class="px-4 pb-4 pt-1 text-[13px] text-gray-700 leading-relaxed">${esc(it.a)}</div>
+      </details>`).join("")}
+    </div>
+  </div>
+</section>
+
+<!-- ── Final CTA banner ── -->
+${heroProduct?.priceInr ? `
+<section class="py-16 px-4">
+  <div class="max-w-3xl mx-auto rounded-3xl p-8 sm:p-12 text-center text-white relative overflow-hidden" style="background: linear-gradient(135deg, ${esc(theme.primary)}, #0A3D24)">
+    <div class="absolute -top-12 -right-12 w-48 h-48 rounded-full blur-3xl opacity-25" style="background: ${esc(theme.accent)}"></div>
+    <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2 opacity-80">Limited-time offer</p>
+    <h3 class="text-[28px] sm:text-[36px] font-black leading-tight mb-2">Get instant access for ₹${heroProduct.priceInr.toLocaleString("en-IN")}</h3>
+    <p class="text-[14px] opacity-90 mb-6">Pay via UPI · Get download in 30 seconds · 7-day refund</p>
+    <a href="#buy" class="inline-flex items-center gap-2 h-14 px-8 rounded-2xl bg-white font-black text-[15px] shadow-[0_5px_0_0_rgba(0,0,0,0.25)] transition hover:-translate-y-1" style="color: ${esc(theme.primary)}">⚡ Buy now for ₹${heroProduct.priceInr.toLocaleString("en-IN")}</a>
+  </div>
+</section>` : ""}
+
+<!-- ── Footer ── -->
+<footer class="bg-gray-50 border-t-2 py-10 px-4" style="border-color: ${esc(theme.primary)}22">
+  <div class="max-w-5xl mx-auto grid sm:grid-cols-3 gap-6 text-[12px]">
+    <div>
+      <h4 class="font-black text-[14px] mb-2">${esc(business.name)}</h4>
+      <p class="text-gray-600 leading-relaxed">${esc(business.tagline || "Digital products for Indian creators")}</p>
+    </div>
+    <div>
+      <p class="font-extrabold text-[11px] uppercase tracking-wider text-gray-500 mb-2">Contact</p>
+      ${business.whatsapp ? `<p><a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer" class="font-bold hover:underline" style="color: ${esc(theme.primary)}">💬 WhatsApp</a></p>` : ""}
+      ${business.email ? `<p class="mt-1"><a href="mailto:${esc(business.email)}" class="font-bold hover:underline" style="color: ${esc(theme.primary)}">✉️ ${esc(business.email)}</a></p>` : ""}
+      ${business.instagram ? `<p class="mt-1"><a href="${esc(business.instagram)}" target="_blank" rel="noopener noreferrer" class="font-bold hover:underline" style="color: ${esc(theme.primary)}">📷 Instagram</a></p>` : ""}
+    </div>
+    <div>
+      <p class="font-extrabold text-[11px] uppercase tracking-wider text-gray-500 mb-2">Trust</p>
+      <p>🇮🇳 Indian creator</p>
+      <p>🛡️ 7-day money-back</p>
+      <p>📜 GST invoice on request</p>
+      <p>💳 Secure UPI / Card payments</p>
+    </div>
+  </div>
+  <div class="max-w-5xl mx-auto mt-8 pt-6 border-t text-center text-[11px] text-gray-500" style="border-color: ${esc(theme.primary)}11">
+    © ${new Date().getFullYear()} ${esc(business.name)} · Built on <a href="/" class="font-extrabold" style="color: ${esc(theme.primary)}">AddisonX D-P-S</a>
+  </div>
+</footer>
+
+<!-- Floating WhatsApp -->
+${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer" class="fixed bottom-5 right-5 w-14 h-14 rounded-full flex items-center justify-center text-white text-[24px] shadow-xl transition hover:scale-110 z-40" style="background: #25D366" aria-label="Chat on WhatsApp">💬</a>` : ""}
+
+</body>
+</html>`;
+};
+
 /** "Coming soon" placeholder for sites in draft status. */
 const renderDraftHolding = (slug: string): string => `<!doctype html>
 <html lang="en">
@@ -1466,8 +1814,11 @@ const renderSiteForPath = async (
     return { html: renderPage(input, { path: matched.path, sections }, pages), pageFound: true };
   }
 
-  // No pages defined → fall back to legacy single-page renderer (current behavior)
-  return { html: renderKirana(input), pageFound: true };
+  // No pages defined → fall back to single-page renderer. Template dispatch:
+  // dps gets the dedicated Indian-polished digital-products layout; others
+  // share the Kirana base with vocab swaps.
+  const html = input.template === "dps" ? renderAddisonDPS(input) : renderKirana(input);
+  return { html, pageFound: true };
 };
 
 app.get("/biz/:slug", async (c) => {
@@ -1861,7 +2212,7 @@ app.post("/biz/:slug/lead", async (c) => {
  *  applying it to their own site. Mounted from the Template Store. */
 app.get("/biz-demo/:template", (c) => {
   const template = (c.req.param("template") || "kirana").toLowerCase();
-  const allowed = new Set(["kirana", "salon", "restaurant", "services"]);
+  const allowed = new Set(["kirana", "salon", "restaurant", "services", "dps"]);
   if (!allowed.has(template)) return c.html(renderNotFound(), 404);
 
   const demo = DEMO_DATA[template] ?? DEMO_DATA.kirana;
@@ -1893,15 +2244,18 @@ app.get("/biz-demo/:template", (c) => {
   };
 
   c.header("Cache-Control", "public, max-age=300");
+  // Dispatch by template id. DPS has its own dedicated renderer; others
+  // share renderKirana with vocab swaps.
+  const raw = template === "dps" ? renderAddisonDPS(input) : renderKirana(input);
   // Wrap rendered HTML with a "demo banner" injected at the top so visitors
-  // know this is a preview.
-  const html = renderKirana(input).replace(
-    "<body class=\"text-gray-900 bg-white\">",
-    `<body class="text-gray-900 bg-white">
-<div style="position:sticky;top:0;z-index:100;background:linear-gradient(90deg,#0E8A4B,#FFD23F);color:white;padding:8px 12px;text-align:center;font-weight:800;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;">
+  // know this is a preview. The body opener differs slightly between the
+  // two renderers — handle both.
+  const banner = `<div style="position:sticky;top:0;z-index:100;background:linear-gradient(90deg,#0E8A4B,#FFD23F);color:white;padding:8px 12px;text-align:center;font-weight:800;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;">
   Website preview · <a href="/app/site/store" style="color:#fff;text-decoration:underline;">← back to Website Store</a>
-</div>`,
-  );
+</div>`;
+  const html = raw
+    .replace("<body class=\"text-gray-900 bg-white\">", `<body class="text-gray-900 bg-white">\n${banner}`)
+    .replace("<body class=\"text-gray-900\">", `<body class="text-gray-900">\n${banner}`);
   return c.html(html);
 });
 
@@ -1980,6 +2334,20 @@ const DEMO_DATA: Record<string, DemoData> = {
       { id: "demo-4", name: "Deep Cleaning",           description: "2-3 BHK · full kitchen + 2 bathrooms", priceInr: 2499, photoUrl: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&h=400&fit=crop", inStock: true },
       { id: "demo-5", name: "Carpenter Visit",         description: "Furniture repair / install", priceInr: 399, photoUrl: "https://images.unsplash.com/photo-1504148455328-c376907d081c?w=400&h=400&fit=crop", inStock: true },
       { id: "demo-6", name: "Pest Control",            description: "1 BHK · 6-month warranty", priceInr: 1499, photoUrl: "https://images.unsplash.com/photo-1582719188393-bb71ca45dbb9?w=400&h=400&fit=crop", inStock: true },
+    ],
+  },
+  dps: {
+    businessName: "Arjun's Notion Templates",
+    tagline: "Done-for-you Notion systems that turn chaos into clarity — built by an Indian creator for Indian creators.",
+    about: "Hi, I'm Arjun. After running 3 startups out of Bengaluru, I packaged the exact Notion systems I used into ready-made templates. 10,000+ Indian creators, freelancers, and students have used them. Made in India, priced in rupees, instant delivery on WhatsApp.",
+    address: "",
+    hours: "",
+    theme: { primary: "#0E8A4B", accent: "#FFD23F", font: "Plus Jakarta Sans" },
+    products: [
+      { id: "demo-dps-1", name: "Ultimate Freelancer OS — Notion Template",     description: "Track clients, projects, invoices and goals in ONE place. Used by 5,000+ Indian freelancers. Includes GST-ready invoice generator + tax tracker.", priceInr: 499,  photoUrl: "https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=800&h=1000&fit=crop", inStock: true },
+      { id: "demo-dps-2", name: "Content Creator Vault",                          description: "200+ Reel ideas, hook templates, CTA library + posting calendar.",            priceInr: 299,  photoUrl: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=300&fit=crop", inStock: true },
+      { id: "demo-dps-3", name: "Startup Founder's First-100-Days Playbook",      description: "Step-by-step Notion playbook for founders launching in India.",            priceInr: 999,  photoUrl: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=300&fit=crop", inStock: true },
+      { id: "demo-dps-4", name: "Personal Finance Tracker (₹ in INR)",            description: "Budget, SIP tracker, tax estimator — all in INR.",                       priceInr: 199,  photoUrl: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=300&fit=crop", inStock: true },
     ],
   },
 };

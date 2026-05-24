@@ -116,7 +116,7 @@ app.patch("/site/me", async (c) => {
   }
 
   if (typeof body.template === "string") {
-    const allowed = new Set(["kirana", "salon", "restaurant", "services"]);
+    const allowed = new Set(["kirana", "salon", "restaurant", "services", "dps"]);
     if (!allowed.has(body.template)) return c.json({ error: "Invalid template" }, 400);
     updates.template = body.template;
   }
