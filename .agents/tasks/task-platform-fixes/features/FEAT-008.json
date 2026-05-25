@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-008",
+  "type": "feat",
+  "description": "Frontend improvements: error boundaries, TanStack Query defaults, typed API layer. Plus README update.",
+  "status": "in_progress",
+  "steps": [
+    "1. ERROR BOUNDARIES (src/components/ErrorBoundary.tsx): Create a reusable ErrorBoundary component using React class component pattern (componentDidCatch). Show a friendly error card with 'Something went wrong' message and a 'Try again' button that calls this.setState to reset. Create src/components/SectionErrorBoundary.tsx that wraps ErrorBoundary with section-specific styling.",
+    "2. WRAP MAJOR SECTIONS: In the main layout or router file, wrap major route sections (Dashboard, Inbox, CRM, Ads, Settings, Commerce) with <ErrorBoundary>. Find the router configuration (likely in src/App.tsx or similar) and add error boundaries around lazy-loaded route components.",
+    "3. TANSTACK QUERY DEFAULTS (src/lib/query-client.ts or similar): Find where QueryClient is instantiated. Set default options: staleTime: 30000 (30s), gcTime (formerly cacheTime): 5 * 60 * 1000 (5 min), retry: 1, refetchOnWindowFocus: false. If QueryClient is created in a provider component, update it there.",
+    "4. TYPE THE FRONTEND API LAYER (src/lib/api.ts): Replace the most common `any` types with proper interfaces. In src/lib/api-types.ts, add interfaces for: Contact, Conversation, Message, Deal, Campaign, Broadcast, Task, Order, OrderItem, Product, Booking, Coupon, ShippingZone, SitePage, Site. Then in api.ts, replace `get<any[]>` with the proper types: listContacts -> get<Contact[]>, listDeals -> get<Deal[]>, etc. Focus on the 10 most-used endpoints. Keep complex or rarely used ones as they are.",
+    "5. UPDATE README: Replace the current README.md content with proper project documentation: project name (Addison X Media), description (full-stack CRM + WhatsApp automation + e-commerce platform for Indian SMBs), tech stack list, setup instructions (copy .env.example to .env, fill DATABASE_URL, npm install, npm run dev), available scripts (dev, build, start, test, db:push, db:migrate), project structure overview, deployment notes (Render.com via render.yaml)."
+  ],
+  "acceptance_criteria": [
+    "ErrorBoundary component exists and is used in the router",
+    "QueryClient has sensible staleTime and gcTime defaults",
+    "At least 10 api.ts endpoints use typed returns instead of any",
+    "README.md has setup instructions, tech stack, and project structure",
+    "npm run build succeeds with no errors"
+  ],
+  "verification": [
+    "Run npm run build to verify frontend compiles",
+    "Run npx tsc --noEmit to verify type correctness"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
