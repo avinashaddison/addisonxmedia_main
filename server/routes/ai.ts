@@ -17,6 +17,7 @@ import { db } from "../db/client";
 import { contact, conversation, message, product } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
 import { rateLimit } from "../middleware/rateLimit";
+import { requirePlan } from "../middleware/requirePlan";
 import { escapeSqlLike } from "../utils";
 import { chat, chatJson, isAiConfigured } from "../integrations/openai";
 import { checkAiCap, logAiUsage, getUsageSummary } from "../lib/ai-usage";
@@ -92,7 +93,7 @@ type SuggestionsResult =
   | { escalate: true; reason: string; suggestions: []; suggested_products?: ProductHint[] }
   | { escalate: false; suggestions: Suggestion[]; suggested_products?: ProductHint[] };
 
-app.post("/ai/reply-suggestions", async (c) => {
+app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), async (c) => {
   const userId = c.var.userId;
   const body = await c.req.json<{ conversation_id: string }>();
   if (!body.conversation_id) return c.json({ error: "conversation_id required" }, 400);
@@ -360,7 +361,7 @@ type AdCopyResult = {
   cta_label: "LEARN_MORE" | "SHOP_NOW" | "SIGN_UP" | "CONTACT_US" | "GET_OFFER" | "BOOK_NOW" | "ORDER_NOW";
 };
 
-app.post("/ai/ad-copy", async (c) => {
+app.post("/ai/ad-copy", requirePlan('growth', 'scale', 'enterprise'), async (c) => {
   if (!isAiConfigured()) return c.json({ error: "AI not configured on server" }, 503);
 
   type AdCopyBody = {

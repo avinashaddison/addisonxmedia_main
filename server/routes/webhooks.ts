@@ -238,6 +238,14 @@ async function handleInboundMessage(userId: string, contacts: any[], m: any) {
     );
   }
 
+  // Deduplication: skip if we already have this Meta message id for this owner
+  const [existing] = await db.select({ id: message.id }).from(message)
+    .where(and(eq(message.externalMessageId, m.id), eq(message.ownerId, userId))).limit(1);
+  if (existing) {
+    logger.debug({ externalMessageId: m.id, ownerId: userId }, 'Duplicate message skipped');
+    return;
+  }
+
   await db.insert(message).values({
     conversationId: convId,
     ownerId: userId,

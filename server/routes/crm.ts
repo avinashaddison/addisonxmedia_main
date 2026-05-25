@@ -1,20 +1,18 @@
 import { Hono } from "hono";
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   broadcast,
   campaign,
   contact,
-  conversation,
   deal,
-  message,
   metaConfig,
   task,
 } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
+import { requirePlan } from "../middleware/requirePlan";
 import { toCamel } from "../utils";
-import { sendTemplateMessage, MetaApiError } from "../integrations/meta";
-import { decrypt } from "../crypto";
+import { enqueueJob } from "../lib/job-queue";
 import {
   patchContactSchema,
   patchDealSchema,
@@ -361,13 +359,12 @@ app.delete("/broadcasts/:id", async (c) => {
   return c.body(null, 204);
 });
 
-// Actually send a broadcast via Meta. Iterates the audience, calls Meta's
-// /messages endpoint with the approved template, records each send as an
-// outbound message in the originating contact's conversation.
+// Enqueue broadcast send as a background job. The actual send logic runs
+// in server/jobs/broadcast-send.ts via the job queue worker.
 //
 // Audience selection: if `audience_tag` is set on the broadcast, send to only
 // contacts with that tag. Otherwise, send to all of the user's contacts.
-app.post("/broadcasts/:id/send", async (c) => {
+app.post("/broadcasts/:id/send", requirePlan('growth', 'scale', 'enterprise'), async (c) => {
   const id = c.req.param("id");
   const userId = c.var.userId;
 
@@ -384,101 +381,31 @@ app.post("/broadcasts/:id/send", async (c) => {
     return c.json({ error: "WhatsApp not connected. Configure Meta in Settings." }, 412);
   }
 
-  // Pick audience
+  // Pick audience to get recipient count
   const audienceWhere = bc.audienceTag
     ? and(eq(contact.ownerId, userId), eq(contact.tag, bc.audienceTag))
     : eq(contact.ownerId, userId);
   const recipients = await db.select({
-    id: contact.id, phone: contact.phone, name: contact.name,
+    id: contact.id,
   }).from(contact).where(audienceWhere);
 
   if (recipients.length === 0) {
     return c.json({ error: "No contacts in audience" }, 400);
   }
 
-  // Mark as sending
-  await db.update(broadcast).set({
+  // Mark as sending and enqueue background job
+  const [updated] = await db.update(broadcast).set({
     status: "sending",
     recipientCount: recipients.length,
     updatedAt: new Date(),
-  }).where(eq(broadcast.id, id));
-
-  let delivered = 0;
-  let failed = 0;
-  const recipientIds = recipients.map((r) => r.id);
-
-  // Find or create a conversation per recipient so the broadcast is visible in inbox
-  const existingConvs = await db.select().from(conversation)
-    .where(and(eq(conversation.ownerId, userId), inArray(conversation.contactId, recipientIds)));
-  const convByContact = new Map(existingConvs.map((cv) => [cv.contactId, cv]));
-
-  // Bulk-create missing conversations
-  const missingContactIds = recipientIds.filter((cid) => !convByContact.has(cid));
-  if (missingContactIds.length > 0) {
-    const newConvs = await db.insert(conversation).values(
-      missingContactIds.map((cid) => ({
-        contactId: cid,
-        ownerId: userId,
-        status: "open" as const,
-        unreadCount: 0,
-      }))
-    ).returning();
-    for (const cv of newConvs) convByContact.set(cv.contactId, cv);
-  }
-
-  // Send sequentially. (Meta has rate limits; for big lists, queue this in a worker.)
-  for (const r of recipients) {
-    try {
-      const sent = await sendTemplateMessage(
-        {
-          accessToken: decrypt(meta.accessToken),
-          phoneNumberId: meta.phoneNumberId,
-          businessAccountId: meta.businessAccountId,
-        },
-        r.phone.replace(/^\+/, ""),
-        bc.templateName,
-        bc.templateLanguage ?? "en",
-        // Pass contact name as first parameter (templates often use {{1}} for name)
-        [r.name]
-      );
-      const metaMsgId = sent.messages?.[0]?.id ?? null;
-      const conv = convByContact.get(r.id)!;
-      await db.insert(message).values({
-        conversationId: conv.id,
-        ownerId: userId,
-        senderId: userId,
-        direction: "outbound",
-        body: bc.body,
-        status: "sent",
-        externalMessageId: metaMsgId,
-      });
-      await db.update(conversation).set({
-        lastMessageAt: new Date(),
-        lastMessagePreview: bc.body.slice(0, 200),
-        updatedAt: new Date(),
-      }).where(eq(conversation.id, conv.id));
-      delivered++;
-    } catch (err) {
-      console.error(`[broadcast ${id}] send to ${r.phone} failed:`, err);
-      failed++;
-    }
-  }
-
-  // Final status
-  const finalStatus = failed === recipients.length ? "failed" : "sent";
-  const [updated] = await db.update(broadcast).set({
-    status: finalStatus,
-    sentAt: new Date(),
-    deliveredCount: delivered,
-    failedCount: failed,
-    updatedAt: new Date(),
   }).where(eq(broadcast.id, id)).returning();
+
+  await enqueueJob('broadcast_send', { broadcastId: id, userId });
 
   return c.json({
     broadcast: updated,
-    sent: delivered,
-    failed,
-    total: recipients.length,
+    status: 'queued',
+    recipient_count: recipients.length,
   });
 });
 

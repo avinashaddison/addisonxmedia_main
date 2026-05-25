@@ -481,6 +481,23 @@ admin.patch("/api/admin/upgrade-requests/:id", requireAdmin(["super_admin", "bil
   if (body.status) {
     const valid = ["requested", "contacted", "paid", "completed", "declined", "cancelled"];
     if (!valid.includes(body.status)) return c.json({ error: "Invalid status" }, 400);
+
+    // State machine guard: validate transition
+    const VALID_TRANSITIONS: Record<string, string[]> = {
+      requested: ['contacted', 'paid', 'completed', 'declined', 'cancelled'],
+      contacted: ['paid', 'completed', 'declined', 'cancelled'],
+      paid: ['completed', 'declined'],
+      completed: [],
+      declined: [],
+      cancelled: [],
+    };
+    const [current] = await db.select({ status: upgradeRequest.status }).from(upgradeRequest).where(eq(upgradeRequest.id, id)).limit(1);
+    if (!current) return c.json({ error: "Not found" }, 404);
+    const allowed = VALID_TRANSITIONS[current.status] ?? [];
+    if (!allowed.includes(body.status)) {
+      return c.json({ error: 'invalid_transition', from: current.status, to: body.status, allowed }, 400);
+    }
+
     set.status = body.status;
   }
   if ("admin_notes" in body) set.adminNotes = body.admin_notes ?? null;

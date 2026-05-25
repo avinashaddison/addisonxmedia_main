@@ -12,6 +12,8 @@ import { resolve } from "node:path";
 import { sql } from "drizzle-orm";
 import { auth } from "./auth";
 import { db, warmupDb, pgClient } from "./db/client";
+import { registerHandler, startJobWorker, stopJobWorker } from "./lib/job-queue";
+import { handleBroadcastSend } from "./jobs/broadcast-send";
 import logger, { requestLogger } from "./lib/logger";
 import { rateLimit } from "./middleware/rateLimit";
 import { csrfProtection } from "./middleware/csrf";
@@ -208,11 +210,15 @@ const server = serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, (info) => 
   const mode = SERVE_STATIC ? "API + static frontend" : "API only";
   logger.info({ mode, port: info.port }, `Listening on http://0.0.0.0:${info.port}`);
   warmupDb();
+  // Register job handlers and start the background worker
+  registerHandler('broadcast_send', handleBroadcastSend);
+  startJobWorker();
 });
 
 // Graceful shutdown — Render sends SIGTERM before stopping the container.
 const shutdown = (signal: string) => {
   logger.info({ signal }, 'Received signal, shutting down gracefully');
+  stopJobWorker();
   server.close(() => {
     logger.info('HTTP server closed');
     pgClient.end({ timeout: 5 }).then(() => {

@@ -811,3 +811,27 @@ export const userActivityLog = pgTable("user_activity_log", {
 }));
 
 export type UserActivityLog = typeof userActivityLog.$inferSelect;
+
+// ============================================================
+// Background Job Queue
+// ============================================================
+
+export const jobQueue = pgTable("job_queue", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: text("type").notNull(),
+  payload: jsonb("payload").notNull().default(sql`'{}'::jsonb`),
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(3),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull().defaultNow(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  failedAt: timestamp("failed_at", { withTimezone: true }),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pendingIdx: index("job_queue_pending_idx").on(t.status, t.scheduledFor),
+  typeIdx: index("job_queue_type_idx").on(t.type, t.createdAt),
+}));
+
+export type JobQueue = typeof jobQueue.$inferSelect;

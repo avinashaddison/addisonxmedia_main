@@ -12,7 +12,7 @@
  */
 
 import { Hono } from "hono";
-import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, ne, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { booking, contact } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
@@ -95,6 +95,33 @@ app.patch("/bookings/:id", async (c) => {
   if (typeof body.booking_date === "string") updates.bookingDate = body.booking_date;
   if (typeof body.booking_time === "string") updates.bookingTime = body.booking_time;
 
+  // Conflict detection when date or time changes
+  if (typeof body.booking_date === "string" || typeof body.booking_time === "string") {
+    // Fetch current booking to get the unchanged date/time
+    const [current] = await db.select({
+      bookingDate: booking.bookingDate,
+      bookingTime: booking.bookingTime,
+    }).from(booking)
+      .where(and(eq(booking.id, id), eq(booking.ownerId, userId)))
+      .limit(1);
+    if (!current) return c.json({ error: "Booking not found" }, 404);
+
+    const checkDate = body.booking_date ?? current.bookingDate;
+    const checkTime = body.booking_time ?? current.bookingTime;
+
+    const [conflict] = await db.select({ id: booking.id }).from(booking)
+      .where(and(
+        eq(booking.ownerId, userId),
+        eq(booking.bookingDate, checkDate),
+        eq(booking.bookingTime, checkTime),
+        ne(booking.id, id),
+        sql`${booking.status} NOT IN ('cancelled', 'no_show')`
+      )).limit(1);
+    if (conflict) {
+      return c.json({ error: 'Time slot already booked', conflict_booking_id: conflict.id }, 409);
+    }
+  }
+
   const [row] = await db.update(booking)
     .set(updates)
     .where(and(eq(booking.id, id), eq(booking.ownerId, userId)))
@@ -148,6 +175,18 @@ app.post("/bookings", async (c) => {
       }).returning({ id: contact.id });
       contactId = created.id;
     }
+  }
+
+  // Conflict detection: check if same owner + date + time already booked
+  const [conflict] = await db.select({ id: booking.id }).from(booking)
+    .where(and(
+      eq(booking.ownerId, userId),
+      eq(booking.bookingDate, body.booking_date),
+      eq(booking.bookingTime, body.booking_time),
+      sql`${booking.status} NOT IN ('cancelled', 'no_show')`
+    )).limit(1);
+  if (conflict) {
+    return c.json({ error: 'Time slot already booked', conflict_booking_id: conflict.id }, 409);
   }
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
