@@ -240,7 +240,7 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const qc = useQueryClient();
 
-  const { data: messages = [], isLoading } = useMessages(conversation.id);
+  const { data: messages = [], isLoading, error: messagesError } = useMessages(conversation.id);
   const sendMut = useSendMessage();
 
   // Mark-paid mutation — fired by the "Payment received" button on a
@@ -548,7 +548,30 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
           </div>
         )}
 
-        {!isLoading && messages.length === 0 && (
+        {!isLoading && messages.length === 0 && messagesError && (
+          // Surfacing the load error explicitly is far more helpful than the
+          // generic "No messages yet" empty state — when a 401 / 403 / 500 is
+          // silently swallowed, the user just sees an empty chat and can't
+          // tell the difference between "really empty" and "auth/network died".
+          <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+            <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-3">
+              <span className="text-destructive text-lg font-bold">!</span>
+            </div>
+            <p className="text-[13px] font-semibold text-destructive">Couldn't load messages</p>
+            <p className="text-[11px] text-muted-foreground mt-1 max-w-md break-words">
+              {(messagesError as Error)?.message || "Unknown error"}
+            </p>
+            <button
+              type="button"
+              onClick={() => qc.invalidateQueries({ queryKey: ["messages", conversation.id] })}
+              className="mt-3 text-[11px] font-medium text-primary hover:underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!isLoading && messages.length === 0 && !messagesError && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="w-12 h-12 rounded-full bg-card flex items-center justify-center mb-3 shadow-sm">
               <Sparkles className="w-5 h-5 text-primary" />
