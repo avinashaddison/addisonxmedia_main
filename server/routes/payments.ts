@@ -171,7 +171,7 @@ app.post("/payments/upi/send", async (c) => {
     body: messageBody,
     mediaUrl: qrUrl,
     status: sentLive ? "sent" : "queued",
-    twilioSid: metaMessageId,
+    externalMessageId: metaMessageId,
   });
 
   // Bump conversation
@@ -280,7 +280,7 @@ app.post("/payments/mark-received", async (c) => {
         direction: "outbound",
         body: thankYouBody,
         status: "sent",
-        twilioSid: sent.messages?.[0]?.id ?? null,
+        externalMessageId: sent.messages?.[0]?.id ?? null,
       });
       thankYouSent = true;
     } else {

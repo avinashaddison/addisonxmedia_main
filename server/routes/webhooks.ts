@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import { and, eq, sql } from "drizzle-orm";
+import { createHmac } from "node:crypto";
 import { db } from "../db/client";
 import { contact, conversation, message, metaConfig, webhookOrphan, upgradeRequest, user } from "../db/schema";
 import { verifyWebhookSignature as verifyCashfreeSignature } from "../integrations/cashfree";
+import logger from "../lib/logger";
 
 // Meta WhatsApp webhook receiver.
 //
@@ -24,7 +26,7 @@ app.get("/webhooks/meta", (c) => {
   const expected = process.env.META_WEBHOOK_VERIFY_TOKEN;
 
   if (!expected) {
-    console.error("[webhooks/meta] META_WEBHOOK_VERIFY_TOKEN not set in env");
+    logger.error('META_WEBHOOK_VERIFY_TOKEN not set in env');
     return c.text("Verify token not configured", 500);
   }
   if (mode === "subscribe" && token === expected && challenge) {
@@ -35,7 +37,31 @@ app.get("/webhooks/meta", (c) => {
 
 // POST — incoming events. We care about "messages" right now (status updates can be added later).
 app.post("/webhooks/meta", async (c) => {
-  const payload = await c.req.json().catch(() => null);
+  // Read raw body first for signature verification
+  const rawBody = await c.req.text();
+
+  // Verify X-Hub-Signature-256 if META_APP_SECRET is configured
+  const metaAppSecret = process.env.META_APP_SECRET;
+  if (metaAppSecret) {
+    const signature = c.req.header("X-Hub-Signature-256") ?? "";
+    const expected = "sha256=" + createHmac("sha256", metaAppSecret).update(rawBody).digest("hex");
+    if (!signature || signature !== expected) {
+      return c.json({ error: "Invalid signature" }, 401);
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    return c.json({ error: "Webhook signature verification not configured" }, 503);
+  } else {
+    logger.warn('META_APP_SECRET not set -- skipping signature verification');
+  }
+
+  // Parse JSON from the raw text
+  let payload: any;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    payload = null;
+  }
+
   if (!payload || payload.object !== "whatsapp_business_account") {
     return c.json({ ignored: true }, 200);
   }
@@ -50,7 +76,7 @@ app.post("/webhooks/meta", async (c) => {
       }
     }
   } catch (err) {
-    console.error("[webhooks/meta] processing error", err);
+    logger.error({ err }, 'Meta webhook processing error');
   }
   return c.json({ ok: true }, 200);
 });
@@ -76,7 +102,7 @@ async function processMessagesChange(value: any) {
         phoneNumberId,
         displayPhoneNumber: displayPhoneNumber ?? null,
         raw: value,
-      }).catch((e) => console.error("[webhook_orphan insert]", e));
+      }).catch((e) => logger.error({ err: e }, 'webhook_orphan insert failed'));
       return;
     }
     for (const m of messages) {
@@ -92,9 +118,9 @@ async function processMessagesChange(value: any) {
         fromName,
         messagePreview: preview,
         raw: m,
-      }).catch((e) => console.error("[webhook_orphan insert]", e));
+      }).catch((e) => logger.error({ err: e }, 'webhook_orphan insert failed'));
     }
-    console.warn(`[webhooks/meta] orphaned ${messages.length} message(s) for unknown phone_number_id ${phoneNumberId}`);
+    logger.warn({ phoneNumberId, count: messages.length }, 'Orphaned messages for unknown phone_number_id');
     return;
   }
   const userId = cfg.userId;
@@ -121,11 +147,11 @@ async function handleStatusUpdate(userId: string, s: any) {
   const metaMessageId: string | undefined = s.id;
   const next = STATUS_MAP[s.status];
   if (!metaMessageId || !next) return;
-  // We store Meta's message id in `twilio_sid` (column repurposed during the
-  // Twilio→Meta migration). Match by that + owner_id for safety.
+  // We store Meta's message id in `external_message_id`.
+  // Match by that + owner_id for safety.
   await db.update(message)
     .set({ status: next })
-    .where(and(eq(message.twilioSid, metaMessageId), eq(message.ownerId, userId)));
+    .where(and(eq(message.externalMessageId, metaMessageId), eq(message.ownerId, userId)));
 }
 
 async function handleInboundMessage(userId: string, contacts: any[], m: any) {
@@ -214,6 +240,14 @@ async function handleInboundMessage(userId: string, contacts: any[], m: any) {
     );
   }
 
+  // Deduplication: skip if we already have this Meta message id for this owner
+  const [existing] = await db.select({ id: message.id }).from(message)
+    .where(and(eq(message.externalMessageId, m.id), eq(message.ownerId, userId))).limit(1);
+  if (existing) {
+    logger.debug({ externalMessageId: m.id, ownerId: userId }, 'Duplicate message skipped');
+    return;
+  }
+
   await db.insert(message).values({
     conversationId: convId,
     ownerId: userId,
@@ -221,7 +255,7 @@ async function handleInboundMessage(userId: string, contacts: any[], m: any) {
     body,
     mediaUrl,
     status: "delivered",
-    twilioSid: m.id, // Reuse the column for Meta message id (rename later)
+    externalMessageId: m.id, // Meta message id
     createdAt: new Date(Number(m.timestamp) * 1000),
   });
 }
@@ -284,13 +318,13 @@ app.post("/webhooks/cashfree", async (c) => {
   const timestamp = c.req.header("x-webhook-timestamp") ?? "";
 
   if (!signature || !timestamp) {
-    console.warn("[webhooks/cashfree] missing signature/timestamp headers");
+    logger.warn('Cashfree webhook missing signature/timestamp headers');
     return c.json({ error: "missing signature" }, 400);
   }
 
   const ok = verifyCashfreeSignature({ rawBody, signature, timestamp });
   if (!ok) {
-    console.warn("[webhooks/cashfree] signature verify failed");
+    logger.warn('Cashfree webhook signature verify failed');
     return c.json({ error: "invalid signature" }, 401);
   }
 
@@ -324,7 +358,7 @@ app.post("/webhooks/cashfree", async (c) => {
     const eventType = payload.type;
     const orderId = payload.data?.order?.order_id;
     if (!orderId) {
-      console.warn("[webhooks/cashfree] no order_id in payload", eventType);
+      logger.warn({ eventType }, 'Cashfree webhook: no order_id in payload');
       return c.json({ ok: true, ignored: "no_order_id" });
     }
 
@@ -334,7 +368,7 @@ app.post("/webhooks/cashfree", async (c) => {
     const [req] = await db.select().from(upgradeRequest)
       .where(eq(upgradeRequest.cashfreeOrderId, orderId)).limit(1);
     if (!req) {
-      console.warn(`[webhooks/cashfree] unknown order_id: ${orderId} (${eventType})`);
+      logger.warn({ orderId, eventType }, 'Cashfree webhook: unknown order_id');
       return c.json({ ok: true, ignored: "unknown_order" });
     }
 
@@ -361,7 +395,7 @@ app.post("/webhooks/cashfree", async (c) => {
             .where(and(eq(upgradeRequest.id, req.id), sql_neq_completed));
         });
       }
-      console.log(`[webhooks/cashfree] activated ${req.targetPlan} for user=${req.userId} (order=${orderId})`);
+      logger.info({ plan: req.targetPlan, userId: req.userId, orderId }, 'Cashfree: plan activated');
     } else if (eventType === "PAYMENT_FAILED_WEBHOOK" || paymentStatus === "FAILED" || paymentStatus === "USER_DROPPED") {
       // Don't touch user.plan — just mark the request declined so the
       // upgrade UI can surface a retry CTA.
@@ -371,10 +405,10 @@ app.post("/webhooks/cashfree", async (c) => {
           adminNotes: `Cashfree: ${payload.data?.payment?.payment_message ?? paymentStatus}`,
         }).where(eq(upgradeRequest.id, req.id));
       }
-      console.log(`[webhooks/cashfree] payment ${paymentStatus} for order=${orderId}`);
+      logger.info({ paymentStatus, orderId }, 'Cashfree: payment failed/dropped');
     }
   } catch (err) {
-    console.error("[webhooks/cashfree] processing error", err);
+    logger.error({ err }, 'Cashfree webhook processing error');
     // Still return 200 — we already verified signature; surfacing 500 makes
     // Cashfree retry which can mess with idempotency. Logs are the safety net.
   }

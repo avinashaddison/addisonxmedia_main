@@ -3154,10 +3154,18 @@ app.post("/biz/:slug/order", async (c) => {
 
   await db.insert(orderItem).values(lineRows.map((r) => ({ ...r, orderId: order!.id })));
 
-  // Bump coupon used_count atomically
+  // Bump coupon used_count atomically with max_uses guard to prevent race conditions
   if (couponId) {
-    void db.update(coupon).set({ usedCount: sql`${coupon.usedCount} + 1`, updatedAt: new Date() })
-      .where(eq(coupon.id, couponId)).catch(() => {});
+    const [updated] = await db.execute(sql`
+      UPDATE coupon SET used_count = used_count + 1, updated_at = NOW()
+      WHERE id = ${couponId} AND (max_uses IS NULL OR used_count < max_uses)
+      RETURNING id
+    `);
+    if (!updated) {
+      // Coupon exhausted between validation and order creation - order still
+      // goes through but discount was already applied. Log but don't fail.
+      console.warn(`[coupon] usage limit reached for coupon ${couponId} during order`);
+    }
   }
 
   // Mirror to CRM contact (dedupe by phone) so the seller can WhatsApp them

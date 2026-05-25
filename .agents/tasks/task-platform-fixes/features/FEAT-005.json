@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "Business logic improvements: webhook deduplication, booking conflict detection, plan enforcement middleware, state machine for upgrade requests, background job queue for broadcasts, standardized error responses",
+  "status": "completed",
+  "steps": [
+    "1. WEBHOOK DEDUPLICATION (server/routes/webhooks.ts): In handleInboundMessage(), before inserting the message, check if a message with the same externalMessageId (formerly twilioSid) already exists for this owner. If it does, skip the insert and return early. This prevents duplicate processing when Meta retries.",
+    "2. BOOKING CONFLICT DETECTION (server/routes/booking.ts): In POST /bookings and PATCH /bookings/:id (when date/time changes), check if another booking exists for the same owner + date + time range that overlaps. Query: SELECT 1 FROM booking WHERE owner_id = ? AND booking_date = ? AND booking_time = ? AND status NOT IN ('cancelled', 'no_show') AND id != ?. If conflict found, return 409 with { error: 'Time slot already booked', conflict_booking_id: ... }.",
+    "3. PLAN ENFORCEMENT MIDDLEWARE (server/middleware/requirePlan.ts): Create a middleware factory `requirePlan(...allowedPlans: string[])` that checks the user's current plan from the DB. If user.plan is not in allowedPlans, return 403 { error: 'upgrade_required', required_plans: [...], current_plan: '...' }. Cache the plan lookup per request (use c.var). Apply to: POST /ai/reply-suggestions (require 'growth', 'scale', 'enterprise'), POST /ai/ad-copy (require 'growth', 'scale', 'enterprise'), POST /broadcasts/:id/send (require 'growth', 'scale', 'enterprise').",
+    "4. STATE MACHINE GUARD (server/routes/billing.ts, server/routes/admin.ts): Define valid upgrade_request state transitions: requested -> contacted | paid | completed | declined | cancelled; contacted -> paid | completed | declined | cancelled; paid -> completed | declined. In PATCH /api/admin/upgrade-requests/:id, before updating status, validate the transition is allowed. If not, return 400 { error: 'invalid_transition', from: '...', to: '...', allowed: [...] }.",
+    "5. BACKGROUND JOB QUEUE FOR BROADCASTS (server/lib/job-queue.ts): Create a simple job table (migration 0030_job_queue.sql): CREATE TABLE job_queue (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), type TEXT NOT NULL, payload JSONB NOT NULL, status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0, max_attempts INTEGER NOT NULL DEFAULT 3, scheduled_for TIMESTAMPTZ NOT NULL DEFAULT now(), started_at TIMESTAMPTZ, completed_at TIMESTAMPTZ, failed_at TIMESTAMPTZ, error TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now()); CREATE INDEX job_queue_pending_idx ON job_queue(status, scheduled_for) WHERE status = 'pending';. Add to schema.ts. Create server/lib/job-queue.ts with enqueueJob(type, payload) and a processJobs() worker that polls every 5s. Refactor POST /broadcasts/:id/send in server/routes/crm.ts to enqueue a 'broadcast_send' job instead of sending synchronously. The worker picks it up and runs the same send logic. Return immediately with { broadcast: updated, status: 'queued' }.",
+    "6. STANDARDIZED ERROR RESPONSES (server/lib/errors.ts): Create a helper: `export function apiError(c: Context, status: number, code: string, detail?: string)` that returns `c.json({ error: code, code, detail: detail ?? null }, status)`. Also create typed error codes: 'not_found', 'unauthorized', 'forbidden', 'validation_error', 'rate_limited', 'upgrade_required', 'internal_error', 'service_unavailable'. Use in new code. Do NOT refactor all existing routes - just make it available and use in the new middleware/routes."
+  ],
+  "acceptance_criteria": [
+    "Duplicate Meta message IDs are not re-processed",
+    "Double-booking same time slot returns 409",
+    "AI endpoints return 403 for 'starter' plan users",
+    "Invalid state transitions on upgrade requests return 400",
+    "POST /broadcasts/:id/send returns immediately with queued status",
+    "apiError helper is available and used in new code"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit to verify no type errors",
+    "Run npx vitest run to verify tests pass"
+  ],
+  "blocked_reason": null,
+  "findings": "All 6 business logic improvements implemented. (1) Webhook deduplication checks externalMessageId before insert. (2) Booking conflict detection added to both POST and PATCH with ne() to exclude self. (3) requirePlan middleware created and applied to /ai/reply-suggestions, /ai/ad-copy, and /broadcasts/:id/send. (4) State machine guard validates transitions in PATCH upgrade-requests/:id. (5) Background job queue with migration, schema, enqueueJob/processJobs, and broadcast-send refactored to async via job worker. (6) server/lib/errors.ts with typed apiError helper. tsc --noEmit and vitest run both pass clean. Removed unused imports (sendTemplateMessage, decrypt, MetaApiError, inArray, conversation, message) from crm.ts."
+}

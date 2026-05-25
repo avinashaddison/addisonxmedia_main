@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Critical security fixes: mass assignment protection, CSRF, webhook signature verification, stack trace removal, crypto hard-fail",
+  "status": "completed",
+  "steps": [
+    "1. MASS ASSIGNMENT (server/routes/crm.ts, server/routes/inbox.ts): Replace all `toCamel<Record<string, any>>(await c.req.json())` + `...body` spread patterns with explicit Zod schemas per PATCH endpoint. Create server/lib/validators.ts with Zod schemas: patchContactSchema (allows only: name, phone, email, source, tag, score, notes), patchDealSchema (allows only: title, value, currency, stage, probability, expectedCloseDate, closedAt), patchCampaignSchema (allows only: name, description, channel, status, budget, audienceSize, scheduledAt), patchBroadcastSchema (allows only: title, body, templateName, templateLanguage, audienceTag, status, scheduledAt, recipientCount), patchConversationSchema (allows only: status, unreadCount), patchTaskSchema (allows only: title, notes, dueAt, priority, status, contactId, completedAt). Import and use z.parse() in each PATCH handler instead of spreading raw body.",
+    "2. CSRF PROTECTION (server/middleware/csrf.ts): Create a double-submit cookie CSRF middleware. On every response, set a csrf_token cookie (HttpOnly=false, SameSite=Lax). For POST/PATCH/DELETE, require X-CSRF-Token header matching the cookie. Apply to all /api/* routes EXCEPT /api/webhooks/* (webhooks have their own auth). Add the middleware in server/index.ts after cors() but before routes.",
+    "3. META WEBHOOK SIGNATURE (server/routes/webhooks.ts): In the POST /webhooks/meta handler, BEFORE parsing JSON, read the raw body. Verify X-Hub-Signature-256 header using HMAC-SHA256 with process.env.META_APP_SECRET. If META_APP_SECRET is not set, log a warning but continue (backward compatible). If set but signature fails, return 401.",
+    "4. STACK TRACE REMOVAL (server/routes/billing.ts): In the outer catch of POST /billing/cashfree/create-order (around line 210), remove the `stack` field from the error response. Replace with just `{ error: 'server_error', message: 'Internal error' }` when NODE_ENV === 'production'. Keep detailed message only in development.",
+    "5. CRYPTO HARD-FAIL (server/crypto.ts): Change the existing console.warn to throw an Error if MASTER_KEY is missing/short AND NODE_ENV === 'production'. In non-production, keep the current fallback behavior with the warning."
+  ],
+  "acceptance_criteria": [
+    "PATCH /contacts/:id with { ownerId: 'attacker' } is rejected or the field is stripped",
+    "POST/PATCH/DELETE to /api/* without X-CSRF-Token header returns 403 (when csrf_token cookie is present)",
+    "POST /webhooks/meta with invalid X-Hub-Signature-256 returns 401 when META_APP_SECRET is set",
+    "POST /billing/cashfree/create-order error response contains no stack trace when NODE_ENV=production",
+    "Server crashes at startup if MASTER_KEY is missing in NODE_ENV=production"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit to verify no type errors",
+    "Run npx vitest run to verify tests pass"
+  ],
+  "blocked_reason": null,
+  "findings": "All 5 fixes implemented successfully. tsc --noEmit passes clean. Vitest passes. @hono/zod-validator installed but not directly used (we use z.parse() directly which is simpler). CSRF middleware adds X-CSRF-Token to allowHeaders in cors config."
+}

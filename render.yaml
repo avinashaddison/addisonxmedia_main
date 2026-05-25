@@ -14,7 +14,7 @@ services:
     region: singapore
     # `--include=dev` ensures vite + typescript are available for the build step
     # (they live in devDependencies). tsx (the prod runtime) is in dependencies.
-    buildCommand: npm install --include=dev && npm run build
+    buildCommand: npm install --include=dev && npm run build && npm run db:migrate
     startCommand: npm start
     healthCheckPath: /health
     autoDeploy: true
@@ -53,12 +53,6 @@ services:
         sync: false
       # Cloudinary direct upload (drag-and-drop ad images/videos). Without
       # these, the wizard falls back to URL-paste mode.
-      - key: CLOUDINARY_CLOUD_NAME
-        sync: false
-      - key: CLOUDINARY_UPLOAD_PRESET
-        sync: false
-      # Cloudinary — enables drag-and-drop image/video upload in the Ads wizard.
-      # Both must be set; when blank, the wizard falls back to URL-paste only.
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_UPLOAD_PRESET

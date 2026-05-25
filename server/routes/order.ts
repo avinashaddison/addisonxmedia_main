@@ -130,29 +130,41 @@ app.post("/orders", async (c) => {
   const discount = Math.max(0, Number(body.discount_inr) || 0);
   const total = Math.max(0, subtotal + shipping - discount);
 
-  const orderNumber = await nextOrderNumber(userId);
-  const [order] = await db.insert(orderTbl).values({
-    ownerId: userId,
-    orderNumber,
-    customerName: name,
-    customerPhone: body.customer_phone ?? null,
-    customerEmail: body.customer_email ?? null,
-    customerAddress: body.customer_address ?? null,
-    subtotalInr: String(subtotal),
-    shippingInr: String(shipping),
-    discountInr: String(discount),
-    totalInr: String(total),
-    status: "new",
-    paymentMethod: body.payment_method ?? null,
-    paymentStatus: ["pending", "paid", "refunded"].includes(body.payment_status ?? "")
-      ? (body.payment_status as "pending" | "paid" | "refunded")
-      : "pending",
-    source: "manual",
-    notes: body.notes ?? null,
-  }).returning();
+  // Retry loop to handle order number race condition (unique index on owner_id + order_number)
+  let order: typeof orderTbl.$inferSelect | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const orderNumber = await nextOrderNumber(userId);
+      const [created] = await db.insert(orderTbl).values({
+        ownerId: userId,
+        orderNumber,
+        customerName: name,
+        customerPhone: body.customer_phone ?? null,
+        customerEmail: body.customer_email ?? null,
+        customerAddress: body.customer_address ?? null,
+        subtotalInr: String(subtotal),
+        shippingInr: String(shipping),
+        discountInr: String(discount),
+        totalInr: String(total),
+        status: "new",
+        paymentMethod: body.payment_method ?? null,
+        paymentStatus: ["pending", "paid", "refunded"].includes(body.payment_status ?? "")
+          ? (body.payment_status as "pending" | "paid" | "refunded")
+          : "pending",
+        source: "manual",
+        notes: body.notes ?? null,
+      }).returning();
+      order = created;
+      break;
+    } catch (e: any) {
+      if (e?.code === "23505" && attempt < 2) continue;
+      throw e;
+    }
+  }
+  if (!order) return c.json({ error: "Could not create order - please try again" }, 500);
 
   if (lineRows.length > 0) {
-    await db.insert(orderItem).values(lineRows.map((r) => ({ ...r, orderId: order.id })));
+    await db.insert(orderItem).values(lineRows.map((r) => ({ ...r, orderId: order!.id })));
   }
 
   // Mirror to CRM contact (dedupe by phone)

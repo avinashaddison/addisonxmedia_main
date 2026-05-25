@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-009",
+  "type": "fix",
+  "description": "Critical review fixes: CSRF cookie Secure flag + first-request bypass, Meta webhook fail-closed in production, job queue row-claim race, Zod validators proper types, data export row cap, pagination server-side default cap, booking conflict transaction",
+  "status": "completed",
+  "steps": [
+    "1. CSRF cookie: add Secure flag and fix first-request bypass",
+    "2. Meta webhook: fail-closed in production when META_APP_SECRET is not set",
+    "3. Job queue: atomic row claim with FOR UPDATE SKIP LOCKED",
+    "4. Zod validators: replace z.any() with proper types",
+    "5. Data export: add 10k row cap with truncation indicator",
+    "6. Pagination: add server-side default .limit(1000) on non-paginated path",
+    "7. Booking conflict: wrap check+insert in transaction"
+  ],
+  "acceptance_criteria": [
+    "CSRF cookie includes secure: true in production",
+    "First POST/PATCH/DELETE without csrf_token cookie returns 403",
+    "Meta webhook returns 503 when META_APP_SECRET unset in production",
+    "Zod validators reject invalid types (e.g. name: 42)",
+    "Data export queries have .limit(10000)",
+    "Non-paginated queries have .limit(1000)",
+    "Booking conflict check+insert wrapped in db.transaction()"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit to verify no type errors",
+    "Run npx vitest run --config vitest.config.server.ts to verify tests pass"
+  ],
+  "blocked_reason": null,
+  "findings": "All 7 critical review fixes implemented and verified. tsc --noEmit passes clean, all 18 vitest tests pass, npm run build succeeds. Job queue now uses raw SQL with FOR UPDATE SKIP LOCKED (returns snake_case columns from DB so uses job.max_attempts instead of job.maxAttempts). PATCH booking with date/time changes wraps in transaction; if no date/time change the update proceeds without transaction (no conflict check needed)."
+}

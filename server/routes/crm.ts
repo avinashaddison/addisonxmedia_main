@@ -1,20 +1,27 @@
 import { Hono } from "hono";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   broadcast,
   campaign,
   contact,
-  conversation,
   deal,
-  message,
   metaConfig,
   task,
 } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
+import { requirePlan } from "../middleware/requirePlan";
 import { toCamel } from "../utils";
-import { sendTemplateMessage, MetaApiError } from "../integrations/meta";
-import { decrypt } from "../crypto";
+import { enqueueJob } from "../lib/job-queue";
+import {
+  patchContactSchema,
+  patchDealSchema,
+  patchCampaignSchema,
+  patchBroadcastSchema,
+  patchTaskSchema,
+} from "../lib/validators";
+import { parsePaginationParams, encodeCursor, wantsPagination } from "../lib/pagination";
+import { logActivity } from "../lib/activity-log";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -24,10 +31,22 @@ app.use("*", requireAuth);
 // ============================================================
 
 app.get("/contacts", async (c) => {
+  if (!wantsPagination(c)) {
+    const rows = await db.select().from(contact)
+      .where(eq(contact.ownerId, c.var.userId))
+      .orderBy(desc(contact.createdAt))
+      .limit(1000);
+    return c.json(rows);
+  }
+  const { limit, cursor } = parsePaginationParams(c);
+  const conds = [eq(contact.ownerId, c.var.userId)];
+  if (cursor) conds.push(lt(contact.createdAt, cursor));
   const rows = await db.select().from(contact)
-    .where(eq(contact.ownerId, c.var.userId))
-    .orderBy(desc(contact.createdAt));
-  return c.json(rows);
+    .where(and(...conds))
+    .orderBy(desc(contact.createdAt))
+    .limit(limit);
+  const next_cursor = rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt) : null;
+  return c.json({ data: rows, next_cursor });
 });
 
 app.post("/contacts", async (c) => {
@@ -121,6 +140,11 @@ app.post("/contacts/bulk", async (c) => {
     })
     .returning({ id: contact.id });
 
+  logActivity(c.var.userId, 'bulk_import', {
+    resourceType: 'contact',
+    metadata: { imported: inserted.length },
+  });
+
   return c.json({
     imported: inserted.length,
     skipped: errors.length,
@@ -130,7 +154,8 @@ app.post("/contacts/bulk", async (c) => {
 
 app.patch("/contacts/:id", async (c) => {
   const id = c.req.param("id");
-  const body = toCamel<Record<string, any>>(await c.req.json());
+  const raw = toCamel<Record<string, any>>(await c.req.json());
+  const body = patchContactSchema.parse(raw);
   const [row] = await db.update(contact)
     .set({ ...body, updatedAt: new Date() })
     .where(and(eq(contact.id, id), eq(contact.ownerId, c.var.userId)))
@@ -150,12 +175,26 @@ app.delete("/contacts/:id", async (c) => {
 // ============================================================
 
 app.get("/deals", async (c) => {
+  if (!wantsPagination(c)) {
+    const rows = await db.query.deal.findMany({
+      where: eq(deal.ownerId, c.var.userId),
+      orderBy: [desc(deal.updatedAt)],
+      with: { contact: true },
+      limit: 1000,
+    } as any);
+    return c.json(rows);
+  }
+  const { limit, cursor } = parsePaginationParams(c);
+  const conds = [eq(deal.ownerId, c.var.userId)];
+  if (cursor) conds.push(lt(deal.updatedAt, cursor));
   const rows = await db.query.deal.findMany({
-    where: eq(deal.ownerId, c.var.userId),
+    where: and(...conds),
     orderBy: [desc(deal.updatedAt)],
     with: { contact: true },
+    limit,
   } as any);
-  return c.json(rows);
+  const next_cursor = rows.length === limit ? encodeCursor((rows[rows.length - 1] as any).updatedAt) : null;
+  return c.json({ data: rows, next_cursor });
 });
 
 app.post("/deals", async (c) => {
@@ -183,7 +222,8 @@ app.post("/deals", async (c) => {
 
 app.patch("/deals/:id", async (c) => {
   const id = c.req.param("id");
-  const body = toCamel<Record<string, any>>(await c.req.json());
+  const raw = toCamel<Record<string, any>>(await c.req.json());
+  const body = patchDealSchema.parse(raw);
 
   // Snapshot previous stage so we can detect won-transitions and fire
   // a Meta Conversions API Purchase event server-side.
@@ -220,10 +260,22 @@ app.delete("/deals/:id", async (c) => {
 // ============================================================
 
 app.get("/campaigns", async (c) => {
+  if (!wantsPagination(c)) {
+    const rows = await db.select().from(campaign)
+      .where(eq(campaign.ownerId, c.var.userId))
+      .orderBy(desc(campaign.createdAt))
+      .limit(1000);
+    return c.json(rows);
+  }
+  const { limit, cursor } = parsePaginationParams(c);
+  const conds = [eq(campaign.ownerId, c.var.userId)];
+  if (cursor) conds.push(lt(campaign.createdAt, cursor));
   const rows = await db.select().from(campaign)
-    .where(eq(campaign.ownerId, c.var.userId))
-    .orderBy(desc(campaign.createdAt));
-  return c.json(rows);
+    .where(and(...conds))
+    .orderBy(desc(campaign.createdAt))
+    .limit(limit);
+  const next_cursor = rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt) : null;
+  return c.json({ data: rows, next_cursor });
 });
 
 app.post("/campaigns", async (c) => {
@@ -243,7 +295,8 @@ app.post("/campaigns", async (c) => {
 
 app.patch("/campaigns/:id", async (c) => {
   const id = c.req.param("id");
-  const body = toCamel<Record<string, any>>(await c.req.json());
+  const raw = toCamel<Record<string, any>>(await c.req.json());
+  const body = patchCampaignSchema.parse(raw);
   const [row] = await db.update(campaign)
     .set({ ...body, updatedAt: new Date() })
     .where(and(eq(campaign.id, id), eq(campaign.ownerId, c.var.userId)))
@@ -263,10 +316,22 @@ app.delete("/campaigns/:id", async (c) => {
 // ============================================================
 
 app.get("/broadcasts", async (c) => {
+  if (!wantsPagination(c)) {
+    const rows = await db.select().from(broadcast)
+      .where(eq(broadcast.ownerId, c.var.userId))
+      .orderBy(desc(broadcast.createdAt))
+      .limit(1000);
+    return c.json(rows);
+  }
+  const { limit, cursor } = parsePaginationParams(c);
+  const conds = [eq(broadcast.ownerId, c.var.userId)];
+  if (cursor) conds.push(lt(broadcast.createdAt, cursor));
   const rows = await db.select().from(broadcast)
-    .where(eq(broadcast.ownerId, c.var.userId))
-    .orderBy(desc(broadcast.createdAt));
-  return c.json(rows);
+    .where(and(...conds))
+    .orderBy(desc(broadcast.createdAt))
+    .limit(limit);
+  const next_cursor = rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt) : null;
+  return c.json({ data: rows, next_cursor });
 });
 
 app.post("/broadcasts", async (c) => {
@@ -288,7 +353,8 @@ app.post("/broadcasts", async (c) => {
 
 app.patch("/broadcasts/:id", async (c) => {
   const id = c.req.param("id");
-  const body = toCamel<Record<string, any>>(await c.req.json());
+  const raw = toCamel<Record<string, any>>(await c.req.json());
+  const body = patchBroadcastSchema.parse(raw);
   const [row] = await db.update(broadcast)
     .set({ ...body, updatedAt: new Date() })
     .where(and(eq(broadcast.id, id), eq(broadcast.ownerId, c.var.userId)))
@@ -303,13 +369,12 @@ app.delete("/broadcasts/:id", async (c) => {
   return c.body(null, 204);
 });
 
-// Actually send a broadcast via Meta. Iterates the audience, calls Meta's
-// /messages endpoint with the approved template, records each send as an
-// outbound message in the originating contact's conversation.
+// Enqueue broadcast send as a background job. The actual send logic runs
+// in server/jobs/broadcast-send.ts via the job queue worker.
 //
 // Audience selection: if `audience_tag` is set on the broadcast, send to only
 // contacts with that tag. Otherwise, send to all of the user's contacts.
-app.post("/broadcasts/:id/send", async (c) => {
+app.post("/broadcasts/:id/send", requirePlan('growth', 'scale', 'enterprise'), async (c) => {
   const id = c.req.param("id");
   const userId = c.var.userId;
 
@@ -326,101 +391,33 @@ app.post("/broadcasts/:id/send", async (c) => {
     return c.json({ error: "WhatsApp not connected. Configure Meta in Settings." }, 412);
   }
 
-  // Pick audience
+  // Pick audience to get recipient count
   const audienceWhere = bc.audienceTag
     ? and(eq(contact.ownerId, userId), eq(contact.tag, bc.audienceTag))
     : eq(contact.ownerId, userId);
   const recipients = await db.select({
-    id: contact.id, phone: contact.phone, name: contact.name,
+    id: contact.id,
   }).from(contact).where(audienceWhere);
 
   if (recipients.length === 0) {
     return c.json({ error: "No contacts in audience" }, 400);
   }
 
-  // Mark as sending
-  await db.update(broadcast).set({
+  // Mark as sending and enqueue background job
+  const [updated] = await db.update(broadcast).set({
     status: "sending",
     recipientCount: recipients.length,
     updatedAt: new Date(),
-  }).where(eq(broadcast.id, id));
-
-  let delivered = 0;
-  let failed = 0;
-  const recipientIds = recipients.map((r) => r.id);
-
-  // Find or create a conversation per recipient so the broadcast is visible in inbox
-  const existingConvs = await db.select().from(conversation)
-    .where(and(eq(conversation.ownerId, userId), inArray(conversation.contactId, recipientIds)));
-  const convByContact = new Map(existingConvs.map((cv) => [cv.contactId, cv]));
-
-  // Bulk-create missing conversations
-  const missingContactIds = recipientIds.filter((cid) => !convByContact.has(cid));
-  if (missingContactIds.length > 0) {
-    const newConvs = await db.insert(conversation).values(
-      missingContactIds.map((cid) => ({
-        contactId: cid,
-        ownerId: userId,
-        status: "open" as const,
-        unreadCount: 0,
-      }))
-    ).returning();
-    for (const cv of newConvs) convByContact.set(cv.contactId, cv);
-  }
-
-  // Send sequentially. (Meta has rate limits; for big lists, queue this in a worker.)
-  for (const r of recipients) {
-    try {
-      const sent = await sendTemplateMessage(
-        {
-          accessToken: decrypt(meta.accessToken),
-          phoneNumberId: meta.phoneNumberId,
-          businessAccountId: meta.businessAccountId,
-        },
-        r.phone.replace(/^\+/, ""),
-        bc.templateName,
-        bc.templateLanguage ?? "en",
-        // Pass contact name as first parameter (templates often use {{1}} for name)
-        [r.name]
-      );
-      const metaMsgId = sent.messages?.[0]?.id ?? null;
-      const conv = convByContact.get(r.id)!;
-      await db.insert(message).values({
-        conversationId: conv.id,
-        ownerId: userId,
-        senderId: userId,
-        direction: "outbound",
-        body: bc.body,
-        status: "sent",
-        twilioSid: metaMsgId,
-      });
-      await db.update(conversation).set({
-        lastMessageAt: new Date(),
-        lastMessagePreview: bc.body.slice(0, 200),
-        updatedAt: new Date(),
-      }).where(eq(conversation.id, conv.id));
-      delivered++;
-    } catch (err) {
-      console.error(`[broadcast ${id}] send to ${r.phone} failed:`, err);
-      failed++;
-    }
-  }
-
-  // Final status
-  const finalStatus = failed === recipients.length ? "failed" : "sent";
-  const [updated] = await db.update(broadcast).set({
-    status: finalStatus,
-    sentAt: new Date(),
-    deliveredCount: delivered,
-    failedCount: failed,
-    updatedAt: new Date(),
   }).where(eq(broadcast.id, id)).returning();
+
+  await enqueueJob('broadcast_send', { broadcastId: id, userId });
+
+  logActivity(userId, 'broadcast_send', { resourceType: 'broadcast', resourceId: id });
 
   return c.json({
     broadcast: updated,
-    sent: delivered,
-    failed,
-    total: recipients.length,
+    status: 'queued',
+    recipient_count: recipients.length,
   });
 });
 
@@ -429,12 +426,26 @@ app.post("/broadcasts/:id/send", async (c) => {
 // ============================================================
 
 app.get("/tasks", async (c) => {
+  if (!wantsPagination(c)) {
+    const rows = await db.query.task.findMany({
+      where: eq(task.ownerId, c.var.userId),
+      orderBy: [sql`${task.dueAt} ASC NULLS LAST`, desc(task.createdAt)],
+      with: { contact: true },
+      limit: 1000,
+    } as any);
+    return c.json(rows);
+  }
+  const { limit, cursor } = parsePaginationParams(c);
+  const conds = [eq(task.ownerId, c.var.userId)];
+  if (cursor) conds.push(lt(task.createdAt, cursor));
   const rows = await db.query.task.findMany({
-    where: eq(task.ownerId, c.var.userId),
+    where: and(...conds),
     orderBy: [sql`${task.dueAt} ASC NULLS LAST`, desc(task.createdAt)],
     with: { contact: true },
+    limit,
   } as any);
-  return c.json(rows);
+  const next_cursor = rows.length === limit ? encodeCursor((rows[rows.length - 1] as any).createdAt) : null;
+  return c.json({ data: rows, next_cursor });
 });
 
 app.post("/tasks", async (c) => {
@@ -461,7 +472,8 @@ app.post("/tasks", async (c) => {
 
 app.patch("/tasks/:id", async (c) => {
   const id = c.req.param("id");
-  const body = toCamel<Record<string, any>>(await c.req.json());
+  const raw = toCamel<Record<string, any>>(await c.req.json());
+  const body = patchTaskSchema.parse(raw);
   const [row] = await db.update(task)
     .set({ ...body, updatedAt: new Date() })
     .where(and(eq(task.id, id), eq(task.ownerId, c.var.userId)))

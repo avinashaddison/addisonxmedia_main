@@ -16,7 +16,7 @@
  */
 
 import { Hono } from "hono";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { coupon } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
@@ -165,6 +165,19 @@ export async function validateCoupon(
     : Math.round((cartSubtotal * value) / 100);
 
   return { ok: true, coupon: row, discountInr: discount };
+}
+
+/** Atomically increment coupon used_count, respecting max_uses.
+ *  Returns true if the increment succeeded, false if the coupon usage limit
+ *  has been reached (race-safe). */
+export async function redeemCoupon(couponId: string): Promise<boolean> {
+  const result = await db.execute(sql`
+    UPDATE coupon SET used_count = used_count + 1, updated_at = NOW()
+    WHERE id = ${couponId} AND (max_uses IS NULL OR used_count < max_uses)
+    RETURNING id
+  `);
+  const rows = (result as any).rows ?? result;
+  return Array.isArray(rows) && rows.length > 0;
 }
 
 export default app;

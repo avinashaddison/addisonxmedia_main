@@ -158,7 +158,7 @@ app.post("/commerce/send-products", async (c) => {
       direction: "outbound", body: lines,
       mediaUrl: p.photoUrl ?? null,
       status: sentLive ? "sent" : "queued",
-      twilioSid: metaMsgId,
+      externalMessageId: metaMsgId,
     });
     if (sentLive) sentCount += 1;
   }
@@ -295,7 +295,7 @@ app.post("/commerce/order-from-message", async (c) => {
     conversationId: conv.id, ownerId: userId, senderId: userId,
     direction: "outbound", body: messageBody,
     mediaUrl: qrUrl, status: sentLive ? "sent" : "queued",
-    twilioSid: metaMsgId,
+    externalMessageId: metaMsgId,
   });
 
   await db.update(conversation).set({
@@ -372,7 +372,7 @@ app.post("/commerce/quick-status", async (c) => {
       await db.insert(message).values({
         conversationId: conv.id, ownerId: userId, senderId: userId,
         direction: "outbound", body: messageBody, status: sentLive ? "sent" : "queued",
-        twilioSid: metaMsgId,
+        externalMessageId: metaMsgId,
       });
       await db.update(conversation).set({
         lastMessageAt: new Date(),

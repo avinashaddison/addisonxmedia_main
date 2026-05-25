@@ -1,0 +1,23 @@
+{
+  "id": "FEAT-006",
+  "type": "feat",
+  "description": "Missing features: data export endpoint, email verification enforcement, user activity logging integration",
+  "status": "completed",
+  "steps": [
+    "1. DATA EXPORT ENDPOINT (server/routes/billing.ts or new file server/routes/export.ts): Add GET /api/export/my-data that requires auth. Collects all of the authenticated user's data: contacts, conversations, messages, deals, tasks, campaigns, broadcasts, orders, bookings, profile. Return as a JSON blob { contacts: [...], conversations: [...], ... }. This satisfies DPDP (Indian data protection) compliance for data portability. Mount in server/index.ts.",
+    "2. EMAIL VERIFICATION ENFORCEMENT: In server/auth/index.ts (Better Auth config), check if a flag is set. Create a middleware server/middleware/requireVerifiedEmail.ts that checks if the session user's emailVerified field is true. If not, return 403 { error: 'email_not_verified', detail: 'Please verify your email address' }. Apply this middleware to /api/* routes AFTER requireAuth but make it configurable via an environment variable REQUIRE_EMAIL_VERIFICATION=true. Default to false for backward compatibility.",
+    "3. USER ACTIVITY LOGGING (server/lib/activity-log.ts): Create a helper function `logActivity(userId: string, action: string, opts?: { resourceType?: string, resourceId?: string, ipAddress?: string, userAgent?: string, metadata?: Record<string, unknown> })` that inserts into the user_activity_log table (created in FEAT-003). Add activity logging calls to critical actions: sign-in success (in a post-auth hook or middleware), password change, plan upgrade completion, data export, contact bulk import, broadcast send. Keep it fire-and-forget (no await, catch errors silently)."
+  ],
+  "acceptance_criteria": [
+    "GET /api/export/my-data returns all user data as JSON with proper auth",
+    "When REQUIRE_EMAIL_VERIFICATION=true, unverified users get 403 on API calls",
+    "Activity log entries are created for critical user actions",
+    "Activity logging never blocks or fails the main request"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit to verify no type errors",
+    "Run npx vitest run to verify tests pass"
+  ],
+  "blocked_reason": null,
+  "findings": "All three sub-features implemented cleanly. TypeScript compilation passes with no errors. Activity logging uses fire-and-forget pattern (no await). Email verification middleware disabled by default (REQUIRE_EMAIL_VERIFICATION env var). Export route mounted at /api/export/my-data."
+}

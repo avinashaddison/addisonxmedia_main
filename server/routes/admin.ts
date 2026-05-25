@@ -10,6 +10,8 @@ import { requireAdmin, auditLog, type AdminVariables } from "../middleware/admin
 import { sendMail } from "../lib/mailer";
 import { staffInviteTemplate, suspensionTemplate, refundTemplate } from "../lib/email-templates";
 import { invalidateSeoCache } from "../lib/seo";
+import { escapeSqlLike } from "../utils";
+import { logActivity } from "../lib/activity-log";
 
 const admin = new Hono<{ Variables: AdminVariables }>();
 
@@ -28,6 +30,9 @@ admin.get("/api/admin/me", async (c) => {
   if (!u || !u.isStaff || !u.adminRole) return c.json({ error: "Not staff" }, 403);
   db.update(user).set({ adminLastLoginAt: new Date() }).where(eq(user.id, u.id))
     .catch((e) => console.error("[admin_last_login update]", e));
+  logActivity(u.id, 'admin_login', {
+    ipAddress: c.req.header('x-forwarded-for')?.split(',')[0]?.trim(),
+  });
   return c.json({
     id: u.id,
     email: u.email,
@@ -92,7 +97,7 @@ admin.get("/api/admin/workspaces", async (c) => {
 
   const conds = [];
   if (!includeStaff) conds.push(eq(user.isStaff, false));
-  if (q) conds.push(or(ilike(user.email, `%${q}%`), ilike(user.name, `%${q}%`))!);
+  if (q) conds.push(or(ilike(user.email, `%${escapeSqlLike(q)}%`), ilike(user.name, `%${escapeSqlLike(q)}%`))!);
   if (status && status !== "all") conds.push(eq(user.accountStatus, status));
 
   const rows = await db
@@ -275,8 +280,9 @@ admin.post("/api/admin/impersonate", async (c) => {
 
   // Two cookies: the secure one server-side enforces; a JS-readable hint cookie
   // lets the customer-app banner know to render.
-  c.header("Set-Cookie", `addisonx_impersonating=${sess.id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${4 * 3600}`, { append: true });
-  c.header("Set-Cookie", `addisonx_impersonating_hint=1; Path=/; SameSite=Lax; Max-Age=${4 * 3600}`, { append: true });
+  const secureSuffix = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  c.header("Set-Cookie", `addisonx_impersonating=${sess.id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${4 * 3600}${secureSuffix}`, { append: true });
+  c.header("Set-Cookie", `addisonx_impersonating_hint=1; Path=/; SameSite=Lax; Max-Age=${4 * 3600}${secureSuffix}`, { append: true });
   return c.json({ ok: true, sessionId: sess.id, expiresAt });
 });
 
@@ -285,8 +291,9 @@ admin.post("/api/admin/impersonate/end", async (c) => {
     .set({ endedAt: new Date() })
     .where(and(eq(impersonationSession.adminUserId, c.get("adminUserId")), isNull(impersonationSession.endedAt)));
   await auditLog(c, "impersonate_end", null);
-  c.header("Set-Cookie", "addisonx_impersonating=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0", { append: true });
-  c.header("Set-Cookie", "addisonx_impersonating_hint=; Path=/; SameSite=Lax; Max-Age=0", { append: true });
+  const secureSuffix = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  c.header("Set-Cookie", `addisonx_impersonating=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureSuffix}`, { append: true });
+  c.header("Set-Cookie", `addisonx_impersonating_hint=; Path=/; SameSite=Lax; Max-Age=0${secureSuffix}`, { append: true });
   return c.json({ ok: true });
 });
 
@@ -478,6 +485,23 @@ admin.patch("/api/admin/upgrade-requests/:id", requireAdmin(["super_admin", "bil
   if (body.status) {
     const valid = ["requested", "contacted", "paid", "completed", "declined", "cancelled"];
     if (!valid.includes(body.status)) return c.json({ error: "Invalid status" }, 400);
+
+    // State machine guard: validate transition
+    const VALID_TRANSITIONS: Record<string, string[]> = {
+      requested: ['contacted', 'paid', 'completed', 'declined', 'cancelled'],
+      contacted: ['paid', 'completed', 'declined', 'cancelled'],
+      paid: ['completed', 'declined'],
+      completed: [],
+      declined: [],
+      cancelled: [],
+    };
+    const [current] = await db.select({ status: upgradeRequest.status }).from(upgradeRequest).where(eq(upgradeRequest.id, id)).limit(1);
+    if (!current) return c.json({ error: "Not found" }, 404);
+    const allowed = VALID_TRANSITIONS[current.status] ?? [];
+    if (!allowed.includes(body.status)) {
+      return c.json({ error: 'invalid_transition', from: current.status, to: body.status, allowed }, 400);
+    }
+
     set.status = body.status;
   }
   if ("admin_notes" in body) set.adminNotes = body.admin_notes ?? null;
@@ -662,28 +686,6 @@ admin.get("/api/system/flags", async (c) => {
   return c.json(safe);
 });
 
-/** Public read-only — returns Cloudinary unsigned-upload config if set on
- *  the server. The browser uses cloudName + uploadPreset to POST directly
- *  to https://api.cloudinary.com/v1_1/<cloudName>/(image|video)/upload.
- *  Both values are technically public (visible in any browser network tab)
- *  so returning them here is safe. When not set, frontend falls back to
- *  URL-paste mode. */
-admin.get("/api/system/uploads/config", async (c) => {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME ?? "";
-  const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET ?? "";
-  const enabled = Boolean(cloudName && uploadPreset);
-  return c.json({
-    enabled,
-    cloudName: enabled ? cloudName : null,
-    uploadPreset: enabled ? uploadPreset : null,
-    // Max file size client-side guard. Cloudinary free tier individual file
-    // limit is 100MB images / 100MB video. We cap at 25MB for images so ad
-    // creatives stay within Meta's 30MB limit too.
-    maxImageMb: 25,
-    maxVideoMb: 100,
-  });
-});
-
 admin.get("/api/admin/settings", async (c) => {
   const rows = await db.select().from(systemSetting).orderBy(systemSetting.category, systemSetting.key);
   return c.json(rows);
@@ -860,7 +862,7 @@ admin.get("/api/admin/diagnostics/inspect", requireAdmin(["super_admin", "modera
   const qRaw = c.req.query("q")?.trim();
   if (!qRaw) return c.json({ error: "q parameter required" }, 400);
   const q = qRaw.toLowerCase();
-  const qLike = `%${q}%`;
+  const qLike = `%${escapeSqlLike(q)}%`;
 
   // 1. Find candidate users by email substring OR exact id match.
   const userMatches = await db.select({

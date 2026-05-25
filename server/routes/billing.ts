@@ -24,6 +24,8 @@ import {
   getOrder as cfGetOrder, priceFor, isValidPlanKey, isValidCycle,
   type PlanKey, type BillingCycle,
 } from "../integrations/cashfree";
+import logger from "../lib/logger";
+import { logActivity } from "../lib/activity-log";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -108,8 +110,13 @@ app.post("/billing/request-upgrade", async (c) => {
     status: "requested",
   }).returning();
 
-  // Notify admin — stdout for now, plumb to Slack/email when needed
-  console.log(`[billing] new upgrade request: user=${userId} → ${body.target_plan} (${cycle})`);
+  // Notify admin -- stdout for now, plumb to Slack/email when needed
+  logger.info({ userId, targetPlan: body.target_plan, cycle }, 'New upgrade request');
+
+  logActivity(userId, 'upgrade_requested', {
+    resourceType: 'upgrade_request',
+    metadata: { targetPlan: body.target_plan },
+  });
 
   return c.json({ ok: true, request: row });
 });
@@ -283,7 +290,7 @@ app.post("/billing/cashfree/create-order", async (c) => {
     // Cashfree error — surface the actual message so the customer (and us
     // looking at logs) can see what's wrong instead of a generic 502.
     const e = err as { message?: string; code?: string; type?: string; status?: number; raw?: unknown };
-    console.error("[cashfree create-order]", err);
+    logger.error({ err }, 'Cashfree create-order failed');
     return c.json({
       error: "cashfree_create_failed",
       message: e?.message ?? "Cashfree rejected the order",
@@ -329,11 +336,16 @@ app.post("/billing/cashfree/create-order", async (c) => {
     // Catch-all — DB error, env error, anything that escaped the inner try.
     // Without this, Hono propagates the throw and Render's edge gives the
     // browser a bare "502 Bad Gateway" with no JSON body.
-    console.error("[cashfree create-order outer]", err);
+    logger.error({ err }, 'Cashfree create-order outer error');
+    if (process.env.NODE_ENV === "production") {
+      return c.json({
+        error: "server_error",
+        message: "An internal error occurred",
+      }, 500);
+    }
     return c.json({
       error: "server_error",
       message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack?.split("\n").slice(0, 4).join(" · ") : null,
     }, 500);
   }
 });
@@ -355,7 +367,7 @@ app.get("/billing/cashfree/verify/:orderId", async (c) => {
   if (!req) return c.json({ error: "Order not found" }, 404);
 
   const order = await cfGetOrder(orderId).catch((err) => {
-    console.error("[cashfree verify]", err);
+    logger.error({ err, orderId }, 'Cashfree verify failed');
     return null;
   });
   if (!order) return c.json({ error: "Cashfree lookup failed" }, 502);

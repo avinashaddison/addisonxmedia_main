@@ -6,6 +6,17 @@
 // snake_case column names. Drizzle gives us camelCase, so we convert keys on
 // the way out (response → snake_case for components).
 
+import type {
+  Contact,
+  Conversation,
+  Message,
+  Deal,
+  Campaign,
+  Broadcast,
+  Task,
+  Profile,
+} from "./api-types";
+
 class ApiError extends Error {
   status: number;
   body: Record<string, unknown> | null;
@@ -61,7 +72,7 @@ const del = (p: string) => request<void>(p, { method: "DELETE" });
 
 export const api = {
   // Profile
-  getProfile: () => get<any>("/profile"),
+  getProfile: () => get<Profile>("/profile"),
   updateProfile: (data: {
     display_name?: string | null;
     phone?: string | null;
@@ -70,11 +81,11 @@ export const api = {
     instagram_url?: string | null;
     website_url?: string | null;
     facebook_url?: string | null;
-  }) => patch<any>("/profile", data),
+  }) => patch<Profile>("/profile", data),
 
   // Sidebar / dashboard
   getSidebarBadges: () => get<{ inbox: number; tasks: number }>("/sidebar/badges"),
-  getDashboard: () => get<any>("/dashboard"),
+  getDashboard: () => get<Record<string, unknown>>("/dashboard"),
   // Money Machine view — "₹X spent → ₹Y won → Z× ROAS". Joins deals +
   // conversation attribution + ad spend snapshot. Designed for non-technical
   // owners — no impressions, no CPM, just money in / money out.
@@ -97,25 +108,25 @@ export const api = {
     open_pipeline_count: number;
     series_7d: Array<{ date: string; revenue_inr: number; deals: number }>;
   }>("/dashboard/money"),
-  getAnalytics: () => get<any>("/analytics"),
-  search: (q: string) => get<any>(`/search?q=${encodeURIComponent(q)}`),
+  getAnalytics: () => get<Record<string, unknown>>("/analytics"),
+  search: (q: string) => get<Record<string, unknown>>(`/search?q=${encodeURIComponent(q)}`),
   seed: () => post<{ seeded?: boolean; skipped?: boolean }>("/seed"),
 
   // Contacts
-  listContacts: () => get<any[]>("/contacts"),
-  createContact: (data: any) => post<any>("/contacts", data),
-  upsertContact: (data: any) => post<any>("/contacts/upsert", data),
-  bulkContacts: (contacts: any[]) =>
+  listContacts: () => get<Contact[]>("/contacts"),
+  createContact: (data: Record<string, unknown>) => post<Contact>("/contacts", data),
+  upsertContact: (data: Record<string, unknown>) => post<Contact>("/contacts/upsert", data),
+  bulkContacts: (contacts: Record<string, unknown>[]) =>
     post<{ imported: number; skipped: number; errors: Array<{ row: number; reason: string }> }>(
       "/contacts/bulk", { contacts }
     ),
-  updateContact: (id: string, data: any) => patch<any>(`/contacts/${id}`, data),
+  updateContact: (id: string, data: Record<string, unknown>) => patch<Contact>(`/contacts/${id}`, data),
   deleteContact: (id: string) => del(`/contacts/${id}`),
 
   // Conversations
-  listConversations: () => get<any[]>("/conversations"),
-  createConversation: (data: any) => post<any>("/conversations", data),
-  updateConversation: (id: string, data: any) => patch<any>(`/conversations/${id}`, data),
+  listConversations: () => get<Conversation[]>("/conversations"),
+  createConversation: (data: Record<string, unknown>) => post<Conversation>("/conversations", data),
+  updateConversation: (id: string, data: Record<string, unknown>) => patch<Conversation>(`/conversations/${id}`, data),
   deleteConversation: (id: string) => del(`/conversations/${id}`),
   inboxStatus: () => get<{
     meta_connected: boolean;
@@ -128,33 +139,33 @@ export const api = {
   }>("/inbox/status"),
 
   // Messages
-  listMessages: (conversationId: string) => get<any[]>(`/conversations/${conversationId}/messages`),
-  sendMessage: (conversationId: string, data: any) =>
-    post<any>(`/conversations/${conversationId}/messages`, data),
+  listMessages: (conversationId: string) => get<Message[]>(`/conversations/${conversationId}/messages`),
+  sendMessage: (conversationId: string, data: Record<string, unknown>) =>
+    post<Message>(`/conversations/${conversationId}/messages`, data),
 
   // Deals
-  listDeals: () => get<any[]>("/deals"),
-  createDeal: (data: any) => post<any>("/deals", data),
-  updateDeal: (id: string, data: any) => patch<any>(`/deals/${id}`, data),
+  listDeals: () => get<Deal[]>("/deals"),
+  createDeal: (data: Record<string, unknown>) => post<Deal>("/deals", data),
+  updateDeal: (id: string, data: Record<string, unknown>) => patch<Deal>(`/deals/${id}`, data),
   deleteDeal: (id: string) => del(`/deals/${id}`),
 
   // Campaigns
-  listCampaigns: () => get<any[]>("/campaigns"),
-  createCampaign: (data: any) => post<any>("/campaigns", data),
-  updateCampaign: (id: string, data: any) => patch<any>(`/campaigns/${id}`, data),
+  listCampaigns: () => get<Campaign[]>("/campaigns"),
+  createCampaign: (data: Record<string, unknown>) => post<Campaign>("/campaigns", data),
+  updateCampaign: (id: string, data: Record<string, unknown>) => patch<Campaign>(`/campaigns/${id}`, data),
   deleteCampaign: (id: string) => del(`/campaigns/${id}`),
 
   // Broadcasts
-  listBroadcasts: () => get<any[]>("/broadcasts"),
-  createBroadcast: (data: any) => post<any>("/broadcasts", data),
-  updateBroadcast: (id: string, data: any) => patch<any>(`/broadcasts/${id}`, data),
+  listBroadcasts: () => get<Broadcast[]>("/broadcasts"),
+  createBroadcast: (data: Record<string, unknown>) => post<Broadcast>("/broadcasts", data),
+  updateBroadcast: (id: string, data: Record<string, unknown>) => patch<Broadcast>(`/broadcasts/${id}`, data),
   deleteBroadcast: (id: string) => del(`/broadcasts/${id}`),
-  sendBroadcast: (id: string) => post<{ sent: number; failed: number; total: number; broadcast: any }>(`/broadcasts/${id}/send`),
+  sendBroadcast: (id: string) => post<{ sent: number; failed: number; total: number; broadcast: Broadcast }>(`/broadcasts/${id}/send`),
 
   // Tasks
-  listTasks: () => get<any[]>("/tasks"),
-  createTask: (data: any) => post<any>("/tasks", data),
-  updateTask: (id: string, data: any) => patch<any>(`/tasks/${id}`, data),
+  listTasks: () => get<Task[]>("/tasks"),
+  createTask: (data: Record<string, unknown>) => post<Task>("/tasks", data),
+  updateTask: (id: string, data: Record<string, unknown>) => patch<Task>(`/tasks/${id}`, data),
   deleteTask: (id: string) => del(`/tasks/${id}`),
 
   // Meta WhatsApp integration
@@ -172,10 +183,10 @@ export const api = {
     phone_number_id: string;
     business_account_id?: string;
     force?: boolean;
-  }) => post<any>("/integrations/meta", data),
+  }) => post<{ ok: boolean; id?: string; phone_number_id: string }>("/integrations/meta", data),
   testMetaConfig: () => post<{ ok: boolean; display_phone_number?: string; verified_name?: string; quality_rating?: string; error?: string }>("/integrations/meta/test"),
   deleteMetaConfig: () => del("/integrations/meta"),
-  listMetaTemplates: () => get<{ data: Array<{ name: string; language: string; status: string; category: string; components: any[] }> }>("/integrations/meta/templates"),
+  listMetaTemplates: () => get<{ data: Array<{ name: string; language: string; status: string; category: string; components: Record<string, unknown>[] }> }>("/integrations/meta/templates"),
 
   // Create a new WhatsApp message template — submitted to Meta for review.
   createMetaTemplate: (body: {
@@ -490,7 +501,7 @@ export const api = {
     } | null;
   }>("/billing/me"),
   requestUpgrade: (data: { target_plan: string; billing_cycle?: "monthly" | "annual"; customer_note?: string }) =>
-    post<{ ok: true; request: any }>("/billing/request-upgrade", data),
+    post<{ ok: true; request: Record<string, unknown> }>("/billing/request-upgrade", data),
   cancelUpgradeRequest: (id: string) => del(`/billing/upgrade-request/${id}`),
   getReplySuggestions: (conversationId: string) =>
     post<ReplySuggestionsResult>("/ai/reply-suggestions", { conversation_id: conversationId }),

@@ -12,7 +12,7 @@
  */
 
 import { Hono } from "hono";
-import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, ne, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { booking, contact } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
@@ -95,6 +95,42 @@ app.patch("/bookings/:id", async (c) => {
   if (typeof body.booking_date === "string") updates.bookingDate = body.booking_date;
   if (typeof body.booking_time === "string") updates.bookingTime = body.booking_time;
 
+  // Conflict detection when date or time changes
+  if (typeof body.booking_date === "string" || typeof body.booking_time === "string") {
+    return await db.transaction(async (tx) => {
+      // Fetch current booking to get the unchanged date/time
+      const [current] = await tx.select({
+        bookingDate: booking.bookingDate,
+        bookingTime: booking.bookingTime,
+      }).from(booking)
+        .where(and(eq(booking.id, id), eq(booking.ownerId, userId)))
+        .limit(1);
+      if (!current) return c.json({ error: "Booking not found" }, 404);
+
+      const checkDate = body.booking_date ?? current.bookingDate;
+      const checkTime = body.booking_time ?? current.bookingTime;
+
+      const [conflict] = await tx.select({ id: booking.id }).from(booking)
+        .where(and(
+          eq(booking.ownerId, userId),
+          eq(booking.bookingDate, checkDate),
+          eq(booking.bookingTime, checkTime),
+          ne(booking.id, id),
+          sql`${booking.status} NOT IN ('cancelled', 'no_show')`
+        )).limit(1);
+      if (conflict) {
+        return c.json({ error: 'Time slot already booked', conflict_booking_id: conflict.id }, 409);
+      }
+
+      const [row] = await tx.update(booking)
+        .set(updates)
+        .where(and(eq(booking.id, id), eq(booking.ownerId, userId)))
+        .returning();
+      if (!row) return c.json({ error: "Booking not found" }, 404);
+      return c.json(row);
+    });
+  }
+
   const [row] = await db.update(booking)
     .set(updates)
     .where(and(eq(booking.id, id), eq(booking.ownerId, userId)))
@@ -150,31 +186,47 @@ app.post("/bookings", async (c) => {
     }
   }
 
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      const bookingNumber = await nextBookingNumber(userId);
-      const [row] = await db.insert(booking).values({
-        ownerId: userId,
-        bookingNumber,
-        serviceName,
-        servicePriceInr: String(Math.max(0, Number(body.service_price_inr) || 0)),
-        serviceDurationMin: body.service_duration_min ?? null,
-        bookingDate: body.booking_date,
-        bookingTime: body.booking_time,
-        customerName,
-        customerPhone: body.customer_phone ?? null,
-        customerEmail: body.customer_email ?? null,
-        notes: body.notes ?? null,
-        status: "new",
-        source: "manual",
-        contactId,
-      }).returning();
-      return c.json({ ok: true, booking: row }, 201);
-    } catch (e) {
-      if (attempt === 4) throw e;
+  // Conflict detection + insert wrapped in a transaction to prevent TOCTOU race
+  return await db.transaction(async (tx) => {
+    const [conflict] = await tx.select({ id: booking.id }).from(booking)
+      .where(and(
+        eq(booking.ownerId, userId),
+        eq(booking.bookingDate, body.booking_date),
+        eq(booking.bookingTime, body.booking_time),
+        sql`${booking.status} NOT IN ('cancelled', 'no_show')`
+      )).limit(1);
+    if (conflict) {
+      return c.json({ error: 'Time slot already booked', conflict_booking_id: conflict.id }, 409);
     }
-  }
-  return c.json({ error: "Could not create booking" }, 500);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        const [maxRow] = await tx.select({ max: sql<number>`COALESCE(MAX(${booking.bookingNumber}), 0)` })
+          .from(booking).where(eq(booking.ownerId, userId));
+        const bookingNumber = Number(maxRow?.max ?? 0) + 1;
+        const [row] = await tx.insert(booking).values({
+          ownerId: userId,
+          bookingNumber,
+          serviceName,
+          servicePriceInr: String(Math.max(0, Number(body.service_price_inr) || 0)),
+          serviceDurationMin: body.service_duration_min ?? null,
+          bookingDate: body.booking_date,
+          bookingTime: body.booking_time,
+          customerName,
+          customerPhone: body.customer_phone ?? null,
+          customerEmail: body.customer_email ?? null,
+          notes: body.notes ?? null,
+          status: "new",
+          source: "manual",
+          contactId,
+        }).returning();
+        return c.json({ ok: true, booking: row }, 201);
+      } catch (e) {
+        if (attempt === 4) throw e;
+      }
+    }
+    return c.json({ error: "Could not create booking" }, 500);
+  });
 });
 
 export default app;
