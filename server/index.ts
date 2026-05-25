@@ -5,6 +5,7 @@ config({ path: ".env.local" });
 config({ path: ".env" });
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { bodyLimit } from "hono/body-limit";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { readFile } from "node:fs/promises";
@@ -93,6 +94,12 @@ app.use("/api/auth/*", async (c, next) => {
 });
 // General API: 600 requests per IP per minute (10 rps avg).
 app.use("/api/*", rateLimit({ scope: "api", windowMs: 60_000, max: 600 }));
+
+// Request body size limit — 1MB for all API routes.
+app.use("/api/*", bodyLimit({
+  maxSize: 1024 * 1024,
+  onError: (c) => c.json({ error: "Request body too large", max: "1MB" }, 413),
+}));
 
 // Mount Better Auth — handles /api/auth/sign-up, /sign-in, /sign-out, /session, etc.
 app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));

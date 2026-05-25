@@ -7,6 +7,8 @@ import type { Context, Next } from "hono";
 type Bucket = { tokens: number; resetAt: number };
 const buckets = new Map<string, Bucket>();
 
+const MAX_BUCKETS = 100_000;
+
 // Sweep expired buckets every 60s so the map doesn't grow unbounded.
 setInterval(() => {
   const now = Date.now();
@@ -40,6 +42,15 @@ export const rateLimit = (opts: RateLimitOpts) => async (c: Context, next: Next)
   const bucket = buckets.get(key);
 
   if (!bucket || bucket.resetAt < now) {
+    // Evict oldest 10% if the map has grown too large
+    if (buckets.size >= MAX_BUCKETS) {
+      const entries = Array.from(buckets.entries());
+      entries.sort((a, b) => a[1].resetAt - b[1].resetAt);
+      const evictCount = Math.ceil(MAX_BUCKETS * 0.1);
+      for (let i = 0; i < evictCount && i < entries.length; i++) {
+        buckets.delete(entries[i][0]);
+      }
+    }
     buckets.set(key, { tokens: opts.max - 1, resetAt: now + opts.windowMs });
     c.header("X-RateLimit-Limit", String(opts.max));
     c.header("X-RateLimit-Remaining", String(opts.max - 1));

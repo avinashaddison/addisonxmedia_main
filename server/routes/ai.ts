@@ -17,6 +17,7 @@ import { db } from "../db/client";
 import { contact, conversation, message, product } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
 import { rateLimit } from "../middleware/rateLimit";
+import { escapeSqlLike } from "../utils";
 import { chat, chatJson, isAiConfigured } from "../integrations/openai";
 import { checkAiCap, logAiUsage, getUsageSummary } from "../lib/ai-usage";
 import { getPersonaWithDefaults, updatePersona, type Persona } from "../lib/ai-persona";
@@ -166,7 +167,7 @@ app.post("/ai/reply-suggestions", async (c) => {
     const tokens = inboundLower.split(/[^a-z0-9]+/).filter((t) => t.length >= 2 && !STOP.has(t));
     let matches: typeof product.$inferSelect[] = [];
     if (tokens.length > 0) {
-      const conditions = tokens.map((t) => or(ilike(product.name, `%${t}%`), ilike(product.description, `%${t}%`))!);
+      const conditions = tokens.map((t) => or(ilike(product.name, `%${escapeSqlLike(t)}%`), ilike(product.description, `%${escapeSqlLike(t)}%`))!);
       matches = await db.select().from(product)
         .where(and(eq(product.ownerId, userId), eq(product.status, "active"), or(...conditions)!))
         .orderBy(asc(product.sortOrder), asc(product.createdAt))

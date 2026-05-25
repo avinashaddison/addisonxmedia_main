@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   broadcast,
@@ -22,6 +22,7 @@ import {
   patchBroadcastSchema,
   patchTaskSchema,
 } from "../lib/validators";
+import { parsePaginationParams, encodeCursor, wantsPagination } from "../lib/pagination";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -31,10 +32,21 @@ app.use("*", requireAuth);
 // ============================================================
 
 app.get("/contacts", async (c) => {
+  if (!wantsPagination(c)) {
+    const rows = await db.select().from(contact)
+      .where(eq(contact.ownerId, c.var.userId))
+      .orderBy(desc(contact.createdAt));
+    return c.json(rows);
+  }
+  const { limit, cursor } = parsePaginationParams(c);
+  const conds = [eq(contact.ownerId, c.var.userId)];
+  if (cursor) conds.push(lt(contact.createdAt, cursor));
   const rows = await db.select().from(contact)
-    .where(eq(contact.ownerId, c.var.userId))
-    .orderBy(desc(contact.createdAt));
-  return c.json(rows);
+    .where(and(...conds))
+    .orderBy(desc(contact.createdAt))
+    .limit(limit);
+  const next_cursor = rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt) : null;
+  return c.json({ data: rows, next_cursor });
 });
 
 app.post("/contacts", async (c) => {
@@ -158,12 +170,25 @@ app.delete("/contacts/:id", async (c) => {
 // ============================================================
 
 app.get("/deals", async (c) => {
+  if (!wantsPagination(c)) {
+    const rows = await db.query.deal.findMany({
+      where: eq(deal.ownerId, c.var.userId),
+      orderBy: [desc(deal.updatedAt)],
+      with: { contact: true },
+    } as any);
+    return c.json(rows);
+  }
+  const { limit, cursor } = parsePaginationParams(c);
+  const conds = [eq(deal.ownerId, c.var.userId)];
+  if (cursor) conds.push(lt(deal.updatedAt, cursor));
   const rows = await db.query.deal.findMany({
-    where: eq(deal.ownerId, c.var.userId),
+    where: and(...conds),
     orderBy: [desc(deal.updatedAt)],
     with: { contact: true },
+    limit,
   } as any);
-  return c.json(rows);
+  const next_cursor = rows.length === limit ? encodeCursor((rows[rows.length - 1] as any).updatedAt) : null;
+  return c.json({ data: rows, next_cursor });
 });
 
 app.post("/deals", async (c) => {
@@ -229,10 +254,21 @@ app.delete("/deals/:id", async (c) => {
 // ============================================================
 
 app.get("/campaigns", async (c) => {
+  if (!wantsPagination(c)) {
+    const rows = await db.select().from(campaign)
+      .where(eq(campaign.ownerId, c.var.userId))
+      .orderBy(desc(campaign.createdAt));
+    return c.json(rows);
+  }
+  const { limit, cursor } = parsePaginationParams(c);
+  const conds = [eq(campaign.ownerId, c.var.userId)];
+  if (cursor) conds.push(lt(campaign.createdAt, cursor));
   const rows = await db.select().from(campaign)
-    .where(eq(campaign.ownerId, c.var.userId))
-    .orderBy(desc(campaign.createdAt));
-  return c.json(rows);
+    .where(and(...conds))
+    .orderBy(desc(campaign.createdAt))
+    .limit(limit);
+  const next_cursor = rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt) : null;
+  return c.json({ data: rows, next_cursor });
 });
 
 app.post("/campaigns", async (c) => {
@@ -273,10 +309,21 @@ app.delete("/campaigns/:id", async (c) => {
 // ============================================================
 
 app.get("/broadcasts", async (c) => {
+  if (!wantsPagination(c)) {
+    const rows = await db.select().from(broadcast)
+      .where(eq(broadcast.ownerId, c.var.userId))
+      .orderBy(desc(broadcast.createdAt));
+    return c.json(rows);
+  }
+  const { limit, cursor } = parsePaginationParams(c);
+  const conds = [eq(broadcast.ownerId, c.var.userId)];
+  if (cursor) conds.push(lt(broadcast.createdAt, cursor));
   const rows = await db.select().from(broadcast)
-    .where(eq(broadcast.ownerId, c.var.userId))
-    .orderBy(desc(broadcast.createdAt));
-  return c.json(rows);
+    .where(and(...conds))
+    .orderBy(desc(broadcast.createdAt))
+    .limit(limit);
+  const next_cursor = rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt) : null;
+  return c.json({ data: rows, next_cursor });
 });
 
 app.post("/broadcasts", async (c) => {
@@ -440,12 +487,25 @@ app.post("/broadcasts/:id/send", async (c) => {
 // ============================================================
 
 app.get("/tasks", async (c) => {
+  if (!wantsPagination(c)) {
+    const rows = await db.query.task.findMany({
+      where: eq(task.ownerId, c.var.userId),
+      orderBy: [sql`${task.dueAt} ASC NULLS LAST`, desc(task.createdAt)],
+      with: { contact: true },
+    } as any);
+    return c.json(rows);
+  }
+  const { limit, cursor } = parsePaginationParams(c);
+  const conds = [eq(task.ownerId, c.var.userId)];
+  if (cursor) conds.push(lt(task.createdAt, cursor));
   const rows = await db.query.task.findMany({
-    where: eq(task.ownerId, c.var.userId),
+    where: and(...conds),
     orderBy: [sql`${task.dueAt} ASC NULLS LAST`, desc(task.createdAt)],
     with: { contact: true },
+    limit,
   } as any);
-  return c.json(rows);
+  const next_cursor = rows.length === limit ? encodeCursor((rows[rows.length - 1] as any).createdAt) : null;
+  return c.json({ data: rows, next_cursor });
 });
 
 app.post("/tasks", async (c) => {

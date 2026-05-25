@@ -10,6 +10,7 @@ import { requireAdmin, auditLog, type AdminVariables } from "../middleware/admin
 import { sendMail } from "../lib/mailer";
 import { staffInviteTemplate, suspensionTemplate, refundTemplate } from "../lib/email-templates";
 import { invalidateSeoCache } from "../lib/seo";
+import { escapeSqlLike } from "../utils";
 
 const admin = new Hono<{ Variables: AdminVariables }>();
 
@@ -92,7 +93,7 @@ admin.get("/api/admin/workspaces", async (c) => {
 
   const conds = [];
   if (!includeStaff) conds.push(eq(user.isStaff, false));
-  if (q) conds.push(or(ilike(user.email, `%${q}%`), ilike(user.name, `%${q}%`))!);
+  if (q) conds.push(or(ilike(user.email, `%${escapeSqlLike(q)}%`), ilike(user.name, `%${escapeSqlLike(q)}%`))!);
   if (status && status !== "all") conds.push(eq(user.accountStatus, status));
 
   const rows = await db
@@ -275,8 +276,9 @@ admin.post("/api/admin/impersonate", async (c) => {
 
   // Two cookies: the secure one server-side enforces; a JS-readable hint cookie
   // lets the customer-app banner know to render.
-  c.header("Set-Cookie", `addisonx_impersonating=${sess.id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${4 * 3600}`, { append: true });
-  c.header("Set-Cookie", `addisonx_impersonating_hint=1; Path=/; SameSite=Lax; Max-Age=${4 * 3600}`, { append: true });
+  const secureSuffix = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  c.header("Set-Cookie", `addisonx_impersonating=${sess.id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${4 * 3600}${secureSuffix}`, { append: true });
+  c.header("Set-Cookie", `addisonx_impersonating_hint=1; Path=/; SameSite=Lax; Max-Age=${4 * 3600}${secureSuffix}`, { append: true });
   return c.json({ ok: true, sessionId: sess.id, expiresAt });
 });
 
@@ -285,8 +287,9 @@ admin.post("/api/admin/impersonate/end", async (c) => {
     .set({ endedAt: new Date() })
     .where(and(eq(impersonationSession.adminUserId, c.get("adminUserId")), isNull(impersonationSession.endedAt)));
   await auditLog(c, "impersonate_end", null);
-  c.header("Set-Cookie", "addisonx_impersonating=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0", { append: true });
-  c.header("Set-Cookie", "addisonx_impersonating_hint=; Path=/; SameSite=Lax; Max-Age=0", { append: true });
+  const secureSuffix = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  c.header("Set-Cookie", `addisonx_impersonating=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureSuffix}`, { append: true });
+  c.header("Set-Cookie", `addisonx_impersonating_hint=; Path=/; SameSite=Lax; Max-Age=0${secureSuffix}`, { append: true });
   return c.json({ ok: true });
 });
 
@@ -860,7 +863,7 @@ admin.get("/api/admin/diagnostics/inspect", requireAdmin(["super_admin", "modera
   const qRaw = c.req.query("q")?.trim();
   if (!qRaw) return c.json({ error: "q parameter required" }, 400);
   const q = qRaw.toLowerCase();
-  const qLike = `%${q}%`;
+  const qLike = `%${escapeSqlLike(q)}%`;
 
   // 1. Find candidate users by email substring OR exact id match.
   const userMatches = await db.select({

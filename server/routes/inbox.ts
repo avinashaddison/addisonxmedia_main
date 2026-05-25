@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { contact, conversation, message, metaConfig } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
@@ -10,6 +10,7 @@ import {
 import { toCamel } from "../utils";
 import { decrypt } from "../crypto";
 import { patchConversationSchema } from "../lib/validators";
+import { parsePaginationParams, encodeCursor, wantsPagination } from "../lib/pagination";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -101,7 +102,15 @@ app.get("/conversations", async (c) => {
   // the inbox list doesn't render them. Adding them back is safe once the
   // migration has been applied everywhere.
   try {
-    const rows = await db
+    const paginated = wantsPagination(c);
+    const { limit, cursor } = paginated ? parsePaginationParams(c) : { limit: 0, cursor: null };
+
+    const baseConds = [eq(conversation.ownerId, c.var.userId)];
+    if (paginated && cursor) {
+      baseConds.push(sql`COALESCE(${conversation.lastMessageAt}, ${conversation.createdAt}) < ${cursor}`);
+    }
+
+    let query = db
       .select({
         id: conversation.id,
         ownerId: conversation.ownerId,
@@ -127,10 +136,14 @@ app.get("/conversations", async (c) => {
       })
       .from(conversation)
       .leftJoin(contact, eq(contact.id, conversation.contactId))
-      .where(eq(conversation.ownerId, c.var.userId))
+      .where(and(...baseConds))
       .orderBy(sql`${conversation.lastMessageAt} DESC NULLS LAST`, desc(conversation.createdAt));
 
-    const shaped = rows.map((r) => ({
+    const rows = paginated
+      ? await (query as any).limit(limit)
+      : await query;
+
+    const shaped = rows.map((r: any) => ({
       id: r.id,
       ownerId: r.ownerId,
       contactId: r.contactId,
@@ -157,7 +170,13 @@ app.get("/conversations", async (c) => {
         : null,
     }));
 
-    return c.json(shaped);
+    if (!paginated) {
+      return c.json(shaped);
+    }
+    const next_cursor = shaped.length === limit
+      ? encodeCursor(shaped[shaped.length - 1].lastMessageAt ?? shaped[shaped.length - 1].createdAt)
+      : null;
+    return c.json({ data: shaped, next_cursor });
   } catch (err) {
     // Surface the actual DB error to logs + frontend so future "500 with no
     // detail" can be debugged in one round-trip instead of three.
@@ -360,10 +379,21 @@ app.get("/conversations/:id/messages", async (c) => {
     .limit(1);
   if (!conv) return c.json({ error: "Not found" }, 404);
 
+  if (!wantsPagination(c)) {
+    const rows = await db.select().from(message)
+      .where(eq(message.conversationId, conversationId))
+      .orderBy(asc(message.createdAt));
+    return c.json(rows);
+  }
+  const { limit, cursor } = parsePaginationParams(c);
+  const conds: any[] = [eq(message.conversationId, conversationId)];
+  if (cursor) conds.push(gt(message.createdAt, cursor));
   const rows = await db.select().from(message)
-    .where(eq(message.conversationId, conversationId))
-    .orderBy(asc(message.createdAt));
-  return c.json(rows);
+    .where(and(...conds))
+    .orderBy(asc(message.createdAt))
+    .limit(limit);
+  const next_cursor = rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt) : null;
+  return c.json({ data: rows, next_cursor });
 });
 
 app.post("/conversations/:id/messages", async (c) => {

@@ -28,3 +28,9 @@ export const toCamel = <T = Record<string, any>>(obj: unknown): T => {
     ])
   ) as T;
 };
+
+/** Escape special SQL LIKE/ILIKE wildcard characters so user input is treated
+ *  as literal text rather than pattern metacharacters. */
+export function escapeSqlLike(str: string): string {
+  return str.replace(/[\\%_]/g, "\\$&");
+}
