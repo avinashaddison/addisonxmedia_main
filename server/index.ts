@@ -1,5 +1,6 @@
 import { config } from "dotenv";
 import { Hono } from "hono";
+import { ZodError } from "zod";
 
 config({ path: ".env.local" });
 config({ path: ".env" });
@@ -68,6 +69,9 @@ app.use("*", csrfProtection);
 // instead of a Hono default HTML stack trace.
 app.onError((err, c) => {
   logger.error({ method: c.req.method, path: c.req.path, err }, 'Unhandled error');
+  if (err instanceof ZodError) {
+    return c.json({ error: 'validation_error', code: 'validation_error', detail: err.issues }, 400);
+  }
   if (err instanceof Error && /not.?found/i.test(err.message)) {
     return c.json({ error: err.message }, 404);
   }

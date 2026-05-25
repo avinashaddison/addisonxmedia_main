@@ -431,6 +431,7 @@ app.get("/tasks", async (c) => {
       where: eq(task.ownerId, c.var.userId),
       orderBy: [sql`${task.dueAt} ASC NULLS LAST`, desc(task.createdAt)],
       with: { contact: true },
+      limit: 1000,
     } as any);
     return c.json(rows);
   }
