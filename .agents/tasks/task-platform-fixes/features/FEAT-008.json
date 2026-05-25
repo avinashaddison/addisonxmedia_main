@@ -2,7 +2,7 @@
   "id": "FEAT-008",
   "type": "feat",
   "description": "Frontend improvements: error boundaries, TanStack Query defaults, typed API layer. Plus README update.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. ERROR BOUNDARIES (src/components/ErrorBoundary.tsx): Create a reusable ErrorBoundary component using React class component pattern (componentDidCatch). Show a friendly error card with 'Something went wrong' message and a 'Try again' button that calls this.setState to reset. Create src/components/SectionErrorBoundary.tsx that wraps ErrorBoundary with section-specific styling.",
     "2. WRAP MAJOR SECTIONS: In the main layout or router file, wrap major route sections (Dashboard, Inbox, CRM, Ads, Settings, Commerce) with <ErrorBoundary>. Find the router configuration (likely in src/App.tsx or similar) and add error boundaries around lazy-loaded route components.",
@@ -22,5 +22,5 @@
     "Run npx tsc --noEmit to verify type correctness"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "ErrorBoundary component and QueryClient defaults were already implemented in prior commits. Typed all remaining any types in api.ts (25+ replacements) and rewrote the README. Zero any types remain in api.ts. Build and tsc --noEmit both pass cleanly."
 }
