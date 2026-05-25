@@ -2,7 +2,7 @@
   "id": "FEAT-005",
   "type": "feat",
   "description": "Business logic improvements: webhook deduplication, booking conflict detection, plan enforcement middleware, state machine for upgrade requests, background job queue for broadcasts, standardized error responses",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. WEBHOOK DEDUPLICATION (server/routes/webhooks.ts): In handleInboundMessage(), before inserting the message, check if a message with the same externalMessageId (formerly twilioSid) already exists for this owner. If it does, skip the insert and return early. This prevents duplicate processing when Meta retries.",
     "2. BOOKING CONFLICT DETECTION (server/routes/booking.ts): In POST /bookings and PATCH /bookings/:id (when date/time changes), check if another booking exists for the same owner + date + time range that overlaps. Query: SELECT 1 FROM booking WHERE owner_id = ? AND booking_date = ? AND booking_time = ? AND status NOT IN ('cancelled', 'no_show') AND id != ?. If conflict found, return 409 with { error: 'Time slot already booked', conflict_booking_id: ... }.",
@@ -24,5 +24,5 @@
     "Run npx vitest run to verify tests pass"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 6 business logic improvements implemented. (1) Webhook deduplication checks externalMessageId before insert. (2) Booking conflict detection added to both POST and PATCH with ne() to exclude self. (3) requirePlan middleware created and applied to /ai/reply-suggestions, /ai/ad-copy, and /broadcasts/:id/send. (4) State machine guard validates transitions in PATCH upgrade-requests/:id. (5) Background job queue with migration, schema, enqueueJob/processJobs, and broadcast-send refactored to async via job worker. (6) server/lib/errors.ts with typed apiError helper. tsc --noEmit and vitest run both pass clean. Removed unused imports (sendTemplateMessage, decrypt, MetaApiError, inArray, conversation, message) from crm.ts."
 }
