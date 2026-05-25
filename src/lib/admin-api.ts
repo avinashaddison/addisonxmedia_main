@@ -1,11 +1,17 @@
 // Admin API client — separate from the customer-facing api.ts.
 // All routes are /api/admin/* and require is_staff = true on the user.
 
+/** Read the csrf_token cookie value (set by the server on every response). */
+function getCsrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
 async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api/admin${path}`, {
     ...init,
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken(), ...(init?.headers || {}) },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));

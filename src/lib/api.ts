@@ -39,12 +39,19 @@ const toSnake = (obj: unknown): unknown => {
   );
 };
 
+/** Read the csrf_token cookie value (set by the server on every response). */
+function getCsrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      "X-CSRF-Token": getCsrfToken(),
       ...(init?.headers || {}),
     },
   });

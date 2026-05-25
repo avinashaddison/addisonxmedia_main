@@ -18,10 +18,19 @@ export const csrfProtection = createMiddleware(async (c, next) => {
   // Check CSRF on state-changing methods for /api/* (except webhooks)
   const method = c.req.method;
   const path = c.req.path;
+  // Exempt paths that must always work regardless of CSRF state:
+  // - webhooks (external systems can't send CSRF tokens)
+  // - auth endpoints (sign-in/sign-up/sign-out happen before/after session lifecycle)
+  const CSRF_EXEMPT_PATHS = [
+    "/api/webhooks/",
+    "/api/auth/",
+  ];
+  const isExempt = CSRF_EXEMPT_PATHS.some((p) => path.startsWith(p));
+
   const needsCheck =
     (method === "POST" || method === "PATCH" || method === "DELETE") &&
     path.startsWith("/api/") &&
-    !path.startsWith("/api/webhooks/");
+    !isExempt;
 
   if (needsCheck) {
     if (!token) {
