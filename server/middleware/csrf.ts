@@ -15,13 +15,20 @@ export const csrfProtection = createMiddleware(async (c, next) => {
   // Read existing csrf cookie
   let token = getCookie(c, "csrf_token");
 
-  // Check CSRF on state-changing methods for /api/* (except webhooks)
+  // Check CSRF on state-changing methods for /api/* (except webhooks and auth)
+  //
+  // /api/auth/* is handled by Better Auth, which has its own CSRF protection
+  // via signed session cookies + sameSite=Lax. Better Auth's React client
+  // does NOT send X-CSRF-Token, so applying our double-submit check on top
+  // of it would block every sign-in / sign-out / password-reset request
+  // with a 403. We delegate CSRF to Better Auth on those routes.
   const method = c.req.method;
   const path = c.req.path;
   const needsCheck =
     (method === "POST" || method === "PATCH" || method === "DELETE") &&
     path.startsWith("/api/") &&
-    !path.startsWith("/api/webhooks/");
+    !path.startsWith("/api/webhooks/") &&
+    !path.startsWith("/api/auth/");
 
   if (needsCheck) {
     if (!token) {
