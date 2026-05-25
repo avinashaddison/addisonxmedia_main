@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-007",
+  "type": "feat",
+  "description": "Testing infrastructure: set up backend Vitest config, write tests for crypto, auth middleware, webhook processing, and payment flow",
+  "status": "completed",
+  "steps": [
+    "1. BACKEND TEST SETUP: Create a separate vitest config for backend: vitest.config.server.ts that uses node environment (not jsdom), includes server/**/*.test.ts. Add script to package.json: 'test:server': 'vitest run --config vitest.config.server.ts'. Create server/test/helpers.ts with test utilities: a function to create a Hono test app with mock auth middleware (sets c.var.userId to a test id), a mock db helper.",
+    "2. CRYPTO TESTS (server/crypto.test.ts): Test encrypt/decrypt round-trip (encrypt a string, decrypt it, assert equal). Test decrypt of pre-encryption plaintext returns as-is (legacy fallback). Test decrypt of corrupted ciphertext throws. Test encrypt produces different output each time (random IV).",
+    "3. AUTH MIDDLEWARE TESTS (server/middleware/auth.test.ts): Using Hono's test client, test: request without session cookie returns 401. Test with valid session returns 200 and sets userId. Test impersonation cookie behavior (mock the DB query). These tests mock the Better Auth session lookup.",
+    "4. WEBHOOK TESTS (server/routes/webhooks.test.ts): Test Meta webhook GET verification (correct token returns challenge, wrong token returns 403). Test POST with valid message payload (mock DB operations). Test POST with non-whatsapp_business_account object returns 200 with ignored:true. Test signature verification when META_APP_SECRET is set.",
+    "5. PAYMENT/BILLING TESTS (server/routes/billing.test.ts): Test GET /billing/me returns plan info. Test POST /billing/request-upgrade validates plan. Test POST /billing/request-upgrade rejects upgrade to current plan. Test DELETE /billing/upgrade-request/:id only works for own requests. Mock DB calls."
+  ],
+  "acceptance_criteria": [
+    "vitest.config.server.ts exists and targets server/**/*.test.ts",
+    "At least 4 test files exist: crypto.test.ts, auth.test.ts, webhooks.test.ts, billing.test.ts",
+    "All tests pass with npx vitest run --config vitest.config.server.ts",
+    "Tests use proper mocking (no real DB connections needed)"
+  ],
+  "verification": [
+    "Run npx vitest run --config vitest.config.server.ts and confirm all tests pass"
+  ],
+  "blocked_reason": null,
+  "findings": "All 18 tests pass across 4 test files. The auth middleware test required mocking drizzle-orm operators (and, eq, gt, isNull) and the leftJoin chain in the db mock. The crypto module uses a logger import that auto-resolved without needing a mock because MASTER_KEY env var was set before import. TypeScript compiles cleanly with --noEmit."
+}
