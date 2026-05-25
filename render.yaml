@@ -14,7 +14,7 @@ services:
     region: singapore
     # `--include=dev` ensures vite + typescript are available for the build step
     # (they live in devDependencies). tsx (the prod runtime) is in dependencies.
-    buildCommand: npm install --include=dev && npm run build
+    buildCommand: npm install --include=dev && npm run build && npm run db:migrate
     startCommand: npm start
     healthCheckPath: /health
     autoDeploy: true
