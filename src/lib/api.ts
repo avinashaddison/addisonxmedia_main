@@ -39,12 +39,26 @@ const toSnake = (obj: unknown): unknown => {
   );
 };
 
+// Read the csrf_token cookie set by the server's CSRF middleware. The cookie
+// is intentionally httpOnly:false so JS can read it (double-submit pattern).
+// We send its value back as the X-CSRF-Token header on every state-changing
+// request — the server checks they match.
+function readCsrfCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const isMutation = method === "POST" || method === "PATCH" || method === "DELETE" || method === "PUT";
+  const csrfToken = isMutation ? readCsrfCookie() : null;
   const res = await fetch(`/api${path}`, {
     ...init,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
       ...(init?.headers || {}),
     },
   });
