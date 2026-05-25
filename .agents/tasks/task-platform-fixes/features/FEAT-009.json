@@ -2,7 +2,7 @@
   "id": "FEAT-009",
   "type": "fix",
   "description": "Critical review fixes: CSRF cookie Secure flag + first-request bypass, Meta webhook fail-closed in production, job queue row-claim race, Zod validators proper types, data export row cap, pagination server-side default cap, booking conflict transaction",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. CSRF cookie: add Secure flag and fix first-request bypass",
     "2. Meta webhook: fail-closed in production when META_APP_SECRET is not set",
@@ -26,5 +26,5 @@
     "Run npx vitest run --config vitest.config.server.ts to verify tests pass"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "All 7 critical review fixes implemented and verified. tsc --noEmit passes clean, all 18 vitest tests pass, npm run build succeeds. Job queue now uses raw SQL with FOR UPDATE SKIP LOCKED (returns snake_case columns from DB so uses job.max_attempts instead of job.maxAttempts). PATCH booking with date/time changes wraps in transaction; if no date/time change the update proceeds without transaction (no conflict check needed)."
 }
