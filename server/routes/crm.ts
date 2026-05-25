@@ -21,6 +21,7 @@ import {
   patchTaskSchema,
 } from "../lib/validators";
 import { parsePaginationParams, encodeCursor, wantsPagination } from "../lib/pagination";
+import { logActivity } from "../lib/activity-log";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -137,6 +138,11 @@ app.post("/contacts/bulk", async (c) => {
       },
     })
     .returning({ id: contact.id });
+
+  logActivity(c.var.userId, 'bulk_import', {
+    resourceType: 'contact',
+    metadata: { imported: inserted.length },
+  });
 
   return c.json({
     imported: inserted.length,
@@ -401,6 +407,8 @@ app.post("/broadcasts/:id/send", requirePlan('growth', 'scale', 'enterprise'), a
   }).where(eq(broadcast.id, id)).returning();
 
   await enqueueJob('broadcast_send', { broadcastId: id, userId });
+
+  logActivity(userId, 'broadcast_send', { resourceType: 'broadcast', resourceId: id });
 
   return c.json({
     broadcast: updated,

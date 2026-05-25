@@ -11,6 +11,7 @@ import { sendMail } from "../lib/mailer";
 import { staffInviteTemplate, suspensionTemplate, refundTemplate } from "../lib/email-templates";
 import { invalidateSeoCache } from "../lib/seo";
 import { escapeSqlLike } from "../utils";
+import { logActivity } from "../lib/activity-log";
 
 const admin = new Hono<{ Variables: AdminVariables }>();
 
@@ -29,6 +30,9 @@ admin.get("/api/admin/me", async (c) => {
   if (!u || !u.isStaff || !u.adminRole) return c.json({ error: "Not staff" }, 403);
   db.update(user).set({ adminLastLoginAt: new Date() }).where(eq(user.id, u.id))
     .catch((e) => console.error("[admin_last_login update]", e));
+  logActivity(u.id, 'admin_login', {
+    ipAddress: c.req.header('x-forwarded-for')?.split(',')[0]?.trim(),
+  });
   return c.json({
     id: u.id,
     email: u.email,

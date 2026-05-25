@@ -25,6 +25,7 @@ import {
   type PlanKey, type BillingCycle,
 } from "../integrations/cashfree";
 import logger from "../lib/logger";
+import { logActivity } from "../lib/activity-log";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -111,6 +112,11 @@ app.post("/billing/request-upgrade", async (c) => {
 
   // Notify admin -- stdout for now, plumb to Slack/email when needed
   logger.info({ userId, targetPlan: body.target_plan, cycle }, 'New upgrade request');
+
+  logActivity(userId, 'upgrade_requested', {
+    resourceType: 'upgrade_request',
+    metadata: { targetPlan: body.target_plan },
+  });
 
   return c.json({ ok: true, request: row });
 });

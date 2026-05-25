@@ -39,6 +39,8 @@ import orderPaymentRoutes from "./routes/order-payment";
 import sitePageRoutes from "./routes/site-page";
 import commerceRoutes from "./routes/commerce";
 import bookingRoutes from "./routes/booking";
+import exportRoutes from "./routes/export";
+import { requireVerifiedEmail } from "./middleware/requireVerifiedEmail";
 import { getSeoSettings, injectSeo, buildSitemapXml, buildRobotsTxt } from "./lib/seo";
 
 const app = new Hono();
@@ -123,6 +125,10 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 // sub-apps doesn't bleed into webhook paths.
 app.route("/api", webhookRoutes);
 
+// Email verification enforcement — applied AFTER auth handler + webhooks but
+// BEFORE the main API routes. Disabled by default; set REQUIRE_EMAIL_VERIFICATION=true.
+app.use('/api/*', requireVerifiedEmail);
+
 // Admin + public system endpoints BEFORE the per-resource sub-apps. crm/inbox/
 // meta/integrations each register `app.use("*", requireAuth)` which would
 // otherwise eat unrelated paths like /api/system/flags (public) or /api/admin/me
@@ -151,6 +157,7 @@ app.route("/", orderPaymentRoutes);
 app.route("/api", sitePageRoutes);
 app.route("/api", commerceRoutes);
 app.route("/api", bookingRoutes);
+app.route("/api", exportRoutes);
 
 // Public website renderer — no /api prefix. /biz/:slug is the public URL
 // customers share, so it lives next to /sitemap.xml as a top-level route.
