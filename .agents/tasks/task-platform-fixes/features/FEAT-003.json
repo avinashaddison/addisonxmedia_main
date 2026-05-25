@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "fix",
   "description": "Database fixes: missing indexes, foreign key, duplicate route, render.yaml duplicates. Plus schema migration for activity log table and column rename.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. ADD MISSING INDEXES (server/db/migrations/0026_security_indexes.sql): Create a new migration file that adds indexes: CREATE INDEX IF NOT EXISTS session_user_id_idx ON session(user_id); CREATE INDEX IF NOT EXISTS account_user_id_idx ON account(user_id); CREATE INDEX IF NOT EXISTS verification_identifier_idx ON verification(identifier); CREATE INDEX IF NOT EXISTS two_factor_user_id_idx ON two_factor(user_id);",
     "2. ADD FOREIGN KEY ON orderTbl.contactId (server/db/schema.ts): In the orderTbl definition, change `contactId: uuid('contact_id')` to `contactId: uuid('contact_id').references(() => contact.id, { onDelete: 'set null' })`. Also create migration 0027_order_contact_fk.sql: ALTER TABLE customer_order ADD CONSTRAINT customer_order_contact_id_fk FOREIGN KEY (contact_id) REFERENCES contact(id) ON DELETE SET NULL;",
@@ -25,5 +25,5 @@
     "Run grep -r 'twilioSid' server/ to confirm no remaining references"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 7 sub-tasks completed successfully. TypeScript compiles with zero errors. No remaining twilioSid/twilio_sid references in server code (only in the migration SQL that performs the rename). render.yaml has exactly 1 CLOUDINARY_CLOUD_NAME and 1 CLOUDINARY_UPLOAD_PRESET. admin.ts has exactly 1 /api/system/uploads/config handler."
 }
