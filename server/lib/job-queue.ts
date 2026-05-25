@@ -1,6 +1,6 @@
 import { db } from '../db/client';
 import { jobQueue } from '../db/schema';
-import { and, eq, lte, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import logger from './logger';
 
 export async function enqueueJob(type: string, payload: Record<string, unknown>) {
@@ -16,15 +16,19 @@ export function registerHandler(type: string, handler: (payload: any) => Promise
 }
 
 export async function processJobs() {
-  // Claim one pending job
-  const [job] = await db.update(jobQueue)
-    .set({ status: 'processing', startedAt: new Date(), attempts: sql`${jobQueue.attempts} + 1` })
-    .where(and(
-      eq(jobQueue.status, 'pending'),
-      lte(jobQueue.scheduledFor, new Date()),
-    ))
-    .returning();
-
+  // Atomic job claim using CTE with row lock
+  const claimed = await db.execute(sql`
+    UPDATE job_queue SET status = 'processing', started_at = now(), attempts = attempts + 1
+    WHERE id = (
+      SELECT id FROM job_queue
+      WHERE status = 'pending' AND scheduled_for <= now()
+      ORDER BY scheduled_for
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING *
+  `);
+  const job = (claimed.rows ?? claimed)?.[0] as any;
   if (!job) return;
 
   const handler = handlers[job.type];
@@ -38,7 +42,7 @@ export async function processJobs() {
     await db.update(jobQueue).set({ status: 'completed', completedAt: new Date() }).where(eq(jobQueue.id, job.id));
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
-    if (job.attempts >= job.maxAttempts) {
+    if (job.attempts >= job.max_attempts) {
       await db.update(jobQueue).set({ status: 'failed', error, failedAt: new Date() }).where(eq(jobQueue.id, job.id));
     } else {
       await db.update(jobQueue).set({ status: 'pending', error }).where(eq(jobQueue.id, job.id));

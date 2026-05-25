@@ -141,7 +141,7 @@ app.get("/conversations", async (c) => {
 
     const rows = paginated
       ? await (query as any).limit(limit)
-      : await query;
+      : await (query as any).limit(1000);
 
     const shaped = rows.map((r: any) => ({
       id: r.id,
@@ -382,7 +382,8 @@ app.get("/conversations/:id/messages", async (c) => {
   if (!wantsPagination(c)) {
     const rows = await db.select().from(message)
       .where(eq(message.conversationId, conversationId))
-      .orderBy(asc(message.createdAt));
+      .orderBy(asc(message.createdAt))
+      .limit(1000);
     return c.json(rows);
   }
   const { limit, cursor } = parsePaginationParams(c);

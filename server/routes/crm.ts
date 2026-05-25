@@ -34,7 +34,8 @@ app.get("/contacts", async (c) => {
   if (!wantsPagination(c)) {
     const rows = await db.select().from(contact)
       .where(eq(contact.ownerId, c.var.userId))
-      .orderBy(desc(contact.createdAt));
+      .orderBy(desc(contact.createdAt))
+      .limit(1000);
     return c.json(rows);
   }
   const { limit, cursor } = parsePaginationParams(c);
@@ -179,6 +180,7 @@ app.get("/deals", async (c) => {
       where: eq(deal.ownerId, c.var.userId),
       orderBy: [desc(deal.updatedAt)],
       with: { contact: true },
+      limit: 1000,
     } as any);
     return c.json(rows);
   }
@@ -261,7 +263,8 @@ app.get("/campaigns", async (c) => {
   if (!wantsPagination(c)) {
     const rows = await db.select().from(campaign)
       .where(eq(campaign.ownerId, c.var.userId))
-      .orderBy(desc(campaign.createdAt));
+      .orderBy(desc(campaign.createdAt))
+      .limit(1000);
     return c.json(rows);
   }
   const { limit, cursor } = parsePaginationParams(c);
@@ -316,7 +319,8 @@ app.get("/broadcasts", async (c) => {
   if (!wantsPagination(c)) {
     const rows = await db.select().from(broadcast)
       .where(eq(broadcast.ownerId, c.var.userId))
-      .orderBy(desc(broadcast.createdAt));
+      .orderBy(desc(broadcast.createdAt))
+      .limit(1000);
     return c.json(rows);
   }
   const { limit, cursor } = parsePaginationParams(c);

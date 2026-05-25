@@ -48,6 +48,8 @@ app.post("/webhooks/meta", async (c) => {
     if (!signature || signature !== expected) {
       return c.json({ error: "Invalid signature" }, 401);
     }
+  } else if (process.env.NODE_ENV === 'production') {
+    return c.json({ error: "Webhook signature verification not configured" }, 503);
   } else {
     logger.warn('META_APP_SECRET not set -- skipping signature verification');
   }
