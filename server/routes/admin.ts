@@ -665,28 +665,6 @@ admin.get("/api/system/flags", async (c) => {
   return c.json(safe);
 });
 
-/** Public read-only — returns Cloudinary unsigned-upload config if set on
- *  the server. The browser uses cloudName + uploadPreset to POST directly
- *  to https://api.cloudinary.com/v1_1/<cloudName>/(image|video)/upload.
- *  Both values are technically public (visible in any browser network tab)
- *  so returning them here is safe. When not set, frontend falls back to
- *  URL-paste mode. */
-admin.get("/api/system/uploads/config", async (c) => {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME ?? "";
-  const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET ?? "";
-  const enabled = Boolean(cloudName && uploadPreset);
-  return c.json({
-    enabled,
-    cloudName: enabled ? cloudName : null,
-    uploadPreset: enabled ? uploadPreset : null,
-    // Max file size client-side guard. Cloudinary free tier individual file
-    // limit is 100MB images / 100MB video. We cap at 25MB for images so ad
-    // creatives stay within Meta's 30MB limit too.
-    maxImageMb: 25,
-    maxVideoMb: 100,
-  });
-});
-
 admin.get("/api/admin/settings", async (c) => {
   const rows = await db.select().from(systemSetting).orderBy(systemSetting.category, systemSetting.key);
   return c.json(rows);

@@ -506,7 +506,7 @@ app.post("/conversations/:id/messages", async (c) => {
     body: bodyText,
     mediaUrl: body.media_url ?? null,
     status: initialStatus,
-    twilioSid: metaMessageId, // Repurposed for Meta message id
+    externalMessageId: metaMessageId, // Repurposed for Meta message id
     isAiGenerated: body.is_ai_generated ?? false,
   }).returning();
 

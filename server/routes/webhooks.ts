@@ -144,11 +144,11 @@ async function handleStatusUpdate(userId: string, s: any) {
   const metaMessageId: string | undefined = s.id;
   const next = STATUS_MAP[s.status];
   if (!metaMessageId || !next) return;
-  // We store Meta's message id in `twilio_sid` (column repurposed during the
-  // Twilio→Meta migration). Match by that + owner_id for safety.
+  // We store Meta's message id in `external_message_id`.
+  // Match by that + owner_id for safety.
   await db.update(message)
     .set({ status: next })
-    .where(and(eq(message.twilioSid, metaMessageId), eq(message.ownerId, userId)));
+    .where(and(eq(message.externalMessageId, metaMessageId), eq(message.ownerId, userId)));
 }
 
 async function handleInboundMessage(userId: string, contacts: any[], m: any) {
@@ -244,7 +244,7 @@ async function handleInboundMessage(userId: string, contacts: any[], m: any) {
     body,
     mediaUrl,
     status: "delivered",
-    twilioSid: m.id, // Reuse the column for Meta message id (rename later)
+    externalMessageId: m.id, // Meta message id
     createdAt: new Date(Number(m.timestamp) * 1000),
   });
 }

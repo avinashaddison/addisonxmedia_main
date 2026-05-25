@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Database fixes: missing indexes, foreign key, duplicate route, render.yaml duplicates. Plus schema migration for activity log table and column rename.",
+  "status": "in_progress",
+  "steps": [
+    "1. ADD MISSING INDEXES (server/db/migrations/0026_security_indexes.sql): Create a new migration file that adds indexes: CREATE INDEX IF NOT EXISTS session_user_id_idx ON session(user_id); CREATE INDEX IF NOT EXISTS account_user_id_idx ON account(user_id); CREATE INDEX IF NOT EXISTS verification_identifier_idx ON verification(identifier); CREATE INDEX IF NOT EXISTS two_factor_user_id_idx ON two_factor(user_id);",
+    "2. ADD FOREIGN KEY ON orderTbl.contactId (server/db/schema.ts): In the orderTbl definition, change `contactId: uuid('contact_id')` to `contactId: uuid('contact_id').references(() => contact.id, { onDelete: 'set null' })`. Also create migration 0027_order_contact_fk.sql: ALTER TABLE customer_order ADD CONSTRAINT customer_order_contact_id_fk FOREIGN KEY (contact_id) REFERENCES contact(id) ON DELETE SET NULL;",
+    "3. FIX DUPLICATE ROUTE (server/routes/admin.ts): There are two identical `admin.get('/api/system/uploads/config', ...)` handlers. Remove the SECOND one (the duplicate around line 570-590) which is a copy of the first one (around line 500-525). Keep the first one which has the CLOUDINARY_URL parsing logic.",
+    "4. FIX RENDER.YAML DUPLICATES (render.yaml): Remove the second pair of CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET entries (lines that appear after the comment '# Cloudinary -- enables drag-and-drop image/video upload in the Ads wizard.'). Keep only the first pair.",
+    "5. USER ACTIVITY LOG TABLE (server/db/migrations/0028_user_activity_log.sql): Create migration: CREATE TABLE user_activity_log (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id TEXT NOT NULL REFERENCES \"user\"(id) ON DELETE CASCADE, action TEXT NOT NULL, resource_type TEXT, resource_id TEXT, ip_address TEXT, user_agent TEXT, metadata JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT now()); CREATE INDEX user_activity_log_user_idx ON user_activity_log(user_id, created_at); CREATE INDEX user_activity_log_action_idx ON user_activity_log(action, created_at);. Also add the table definition to server/db/schema.ts.",
+    "6. RENAME twilioSid COLUMN: Create migration 0029_rename_twilio_sid.sql: ALTER TABLE message RENAME COLUMN twilio_sid TO external_message_id;. Update the schema.ts message table definition: change twilioSid field name to externalMessageId and column name to 'external_message_id'. Update ALL references to twilioSid across: server/routes/inbox.ts, server/routes/crm.ts, server/routes/webhooks.ts (handleStatusUpdate and handleInboundMessage both use message.twilioSid).",
+    "7. ADD .env TO .gitignore: Add '.env' and '.env.local' to the .gitignore file (after the existing content)."
+  ],
+  "acceptance_criteria": [
+    "Migration files 0026, 0027, 0028, 0029 exist with valid SQL",
+    "schema.ts reflects FK on orderTbl.contactId, new userActivityLog table, renamed externalMessageId field",
+    "No duplicate /api/system/uploads/config route in admin.ts",
+    "render.yaml has exactly one CLOUDINARY_CLOUD_NAME and one CLOUDINARY_UPLOAD_PRESET entry",
+    "All references to twilioSid are renamed to externalMessageId throughout server/ code",
+    ".env and .env.local are in .gitignore"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit to verify no type errors from the renamed column",
+    "Run grep -r 'twilioSid' server/ to confirm no remaining references"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

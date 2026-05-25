@@ -450,7 +450,7 @@ app.post("/broadcasts/:id/send", async (c) => {
         direction: "outbound",
         body: bc.body,
         status: "sent",
-        twilioSid: metaMsgId,
+        externalMessageId: metaMsgId,
       });
       await db.update(conversation).set({
         lastMessageAt: new Date(),

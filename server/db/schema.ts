@@ -90,7 +90,9 @@ export const session = pgTable("session", {
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  userIdIdx: index("session_user_id_idx").on(t.userId),
+}));
 
 export const account = pgTable("account", {
   id: text("id").primaryKey(),
@@ -106,7 +108,9 @@ export const account = pgTable("account", {
   password: text("password"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  userIdIdx: index("account_user_id_idx").on(t.userId),
+}));
 
 export const verification = pgTable("verification", {
   id: text("id").primaryKey(),
@@ -115,7 +119,9 @@ export const verification = pgTable("verification", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  identifierIdx: index("verification_identifier_idx").on(t.identifier),
+}));
 
 // ============================================================
 // Enums (ported from supabase/migrations)
@@ -220,7 +226,7 @@ export const message = pgTable("message", {
   body: text("body").notNull(),
   mediaUrl: text("media_url"),
   status: messageStatusEnum("status").notNull().default("sent"),
-  twilioSid: text("twilio_sid"),
+  externalMessageId: text("external_message_id"),
   isAiGenerated: boolean("is_ai_generated").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -456,7 +462,9 @@ export const twoFactor = pgTable("two_factor", {
   backupCodes: text("backup_codes").notNull(),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   verified: boolean("verified").default(false),
-});
+}, (t) => ({
+  userIdIdx: index("two_factor_user_id_idx").on(t.userId),
+}));
 
 // Key-value system settings (feature flags, mode toggles)
 export const systemSetting = pgTable("system_setting", {
@@ -644,7 +652,7 @@ export const orderTbl = pgTable("customer_order", {
   paymentStatus: text("payment_status").notNull().default("pending"),  // pending | paid | refunded
   source: text("source").notNull().default("website"),      // website | whatsapp | manual
   notes: text("notes"),
-  contactId: uuid("contact_id"),
+  contactId: uuid("contact_id").references(() => contact.id, { onDelete: "set null" }),
   couponId: uuid("coupon_id"),
   couponCode: text("coupon_code"),
   shippingZoneId: uuid("shipping_zone_id"),
@@ -782,3 +790,24 @@ export const booking = pgTable("booking", {
 }));
 
 export type Booking = typeof booking.$inferSelect;
+
+// ============================================================
+// User Activity Log -- tracks user-facing actions (non-admin)
+// ============================================================
+
+export const userActivityLog = pgTable("user_activity_log", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  action: text("action").notNull(),
+  resourceType: text("resource_type"),
+  resourceId: text("resource_id"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userIdx: index("user_activity_log_user_idx").on(t.userId, t.createdAt),
+  actionIdx: index("user_activity_log_action_idx").on(t.action, t.createdAt),
+}));
+
+export type UserActivityLog = typeof userActivityLog.$inferSelect;

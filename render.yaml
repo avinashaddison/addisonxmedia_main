@@ -57,9 +57,3 @@ services:
         sync: false
       - key: CLOUDINARY_UPLOAD_PRESET
         sync: false
-      # Cloudinary — enables drag-and-drop image/video upload in the Ads wizard.
-      # Both must be set; when blank, the wizard falls back to URL-paste only.
-      - key: CLOUDINARY_CLOUD_NAME
-        sync: false
-      - key: CLOUDINARY_UPLOAD_PRESET
-        sync: false
