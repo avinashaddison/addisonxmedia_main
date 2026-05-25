@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "DevOps improvements: structured logging with pino, graceful shutdown, deep health check, DB connection pooling configuration",
+  "status": "in_progress",
+  "steps": [
+    "1. STRUCTURED LOGGING: Install pino package (npm install pino). Create server/lib/logger.ts that exports a configured pino logger instance. In production, use level='info' with JSON output. In dev, use level='debug' with pino-pretty-like format (or just plain pino). Export a `createRequestLogger` middleware for Hono that logs method, path, status, duration, and a generated request-id (uuid from crypto.randomUUID()). Set the request-id on the context via c.set('requestId', id) and add X-Request-Id response header.",
+    "2. REPLACE console.log/warn/error: In server/index.ts, replace `app.use(logger())` (Hono's default) with the new pino-based request logger middleware. In other key files (server/routes/webhooks.ts, server/routes/billing.ts, server/routes/crm.ts, server/routes/inbox.ts, server/crypto.ts), replace console.log/warn/error with the pino logger import. Do NOT do an exhaustive replacement of every console.log in every file - focus on the main server entry and the critical route files.",
+    "3. GRACEFUL SHUTDOWN (server/index.ts): After the serve() call, add a SIGTERM handler that: (a) logs 'Received SIGTERM, shutting down gracefully', (b) calls server.close() (capture the server return from serve()), (c) waits up to 10 seconds for in-flight requests, (d) closes the DB connection via the postgres client's end() method (export client from db/client.ts), (e) exits with code 0. Also handle SIGINT the same way.",
+    "4. DEEP HEALTH CHECK (server/index.ts): Enhance the existing GET /health endpoint. Run `SELECT 1` via the db client. If it fails or takes > 5000ms, return { ok: false, db: 'unreachable' } with status 503. On success return { ok: true, ts: ..., db: 'ok' } with status 200.",
+    "5. DB CONNECTION POOLING (server/db/client.ts): The current config already has max:5, idle_timeout:20, connect_timeout:30, max_lifetime:1800. These are reasonable for Neon. Add explicit comments explaining why these values. Also export the raw `client` (postgres instance) so server/index.ts can call `client.end()` during graceful shutdown."
+  ],
+  "acceptance_criteria": [
+    "Server logs in structured JSON format in production",
+    "Each request gets a unique X-Request-Id header",
+    "SIGTERM causes graceful drain and process exit",
+    "GET /health returns 503 when DB is unreachable",
+    "DB client is properly closed during shutdown"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit to verify no type errors",
+    "Run npm run build to verify frontend still builds"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

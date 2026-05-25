@@ -4,14 +4,15 @@ import { Hono } from "hono";
 config({ path: ".env.local" });
 config({ path: ".env" });
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
 import { bodyLimit } from "hono/body-limit";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { sql } from "drizzle-orm";
 import { auth } from "./auth";
-import { warmupDb } from "./db/client";
+import { db, warmupDb, pgClient } from "./db/client";
+import logger, { requestLogger } from "./lib/logger";
 import { rateLimit } from "./middleware/rateLimit";
 import { csrfProtection } from "./middleware/csrf";
 import crmRoutes from "./routes/crm";
@@ -40,7 +41,7 @@ import { getSeoSettings, injectSeo, buildSitemapXml, buildRobotsTxt } from "./li
 
 const app = new Hono();
 
-app.use(logger());
+app.use('*', requestLogger);
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:8080")
   .split(",").map((s) => s.trim()).filter(Boolean);
@@ -62,14 +63,26 @@ app.use("*", csrfProtection);
 // Global error handler — catches throws from any route, returns clean JSON
 // instead of a Hono default HTML stack trace.
 app.onError((err, c) => {
-  console.error(`[${c.req.method} ${c.req.path}]`, err);
+  logger.error({ method: c.req.method, path: c.req.path, err }, 'Unhandled error');
   if (err instanceof Error && /not.?found/i.test(err.message)) {
     return c.json({ error: err.message }, 404);
   }
   return c.json({ error: "Internal server error" }, 500);
 });
 
-app.get("/health", (c) => c.json({ ok: true, ts: new Date().toISOString() }));
+app.get("/health", async (c) => {
+  try {
+    const start = Date.now();
+    await db.execute(sql`SELECT 1`);
+    const dbLatency = Date.now() - start;
+    if (dbLatency > 5000) {
+      return c.json({ ok: false, ts: new Date().toISOString(), db: 'slow', db_latency_ms: dbLatency }, 503);
+    }
+    return c.json({ ok: true, ts: new Date().toISOString(), db: 'ok', db_latency_ms: dbLatency });
+  } catch (err) {
+    return c.json({ ok: false, ts: new Date().toISOString(), db: 'unreachable', error: (err as Error).message }, 503);
+  }
+});
 
 // Rate limits — strict on auth MUTATIONS (brute-force protection), generous on data API.
 // We only rate-limit endpoints that change state. Read-only routes like
@@ -191,10 +204,26 @@ if (SERVE_STATIC) {
 const port = Number(process.env.PORT ?? 3001);
 // Bind on all interfaces in production so the platform (Render, Fly, etc) can
 // reach the port. Locally we still default to all-interfaces — same behavior.
-serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, (info) => {
+const server = serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, (info) => {
   const mode = SERVE_STATIC ? "API + static frontend" : "API only";
-  console.log(`[${mode}] listening on http://0.0.0.0:${info.port}`);
+  logger.info({ mode, port: info.port }, `Listening on http://0.0.0.0:${info.port}`);
   warmupDb();
 });
+
+// Graceful shutdown — Render sends SIGTERM before stopping the container.
+const shutdown = (signal: string) => {
+  logger.info({ signal }, 'Received signal, shutting down gracefully');
+  server.close(() => {
+    logger.info('HTTP server closed');
+    pgClient.end({ timeout: 5 }).then(() => {
+      logger.info('Database connections closed');
+      process.exit(0);
+    }).catch(() => process.exit(1));
+  });
+  // Force exit after 10s if drain hasn't completed
+  setTimeout(() => { logger.error('Forced shutdown after timeout'); process.exit(1); }, 10_000).unref();
+};
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 export type AppType = typeof app;

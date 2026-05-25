@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
+import logger from "./lib/logger";
 
 // AES-256-GCM envelope encryption for sensitive secrets stored in DB
 // (currently: Meta access tokens). Algorithm:
@@ -17,9 +18,9 @@ if (!MASTER_KEY || MASTER_KEY.length < 32) {
         "Generate one: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\""
     );
   }
-  console.warn(
-    "[crypto] MASTER_KEY not set or too short (need >=32 chars). " +
-      "Falling back to a derived dev key — DO NOT USE IN PRODUCTION.\n" +
+  logger.warn(
+    "MASTER_KEY not set or too short (need >=32 chars). " +
+      "Falling back to a derived dev key -- DO NOT USE IN PRODUCTION.\n" +
       "Generate one: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\""
   );
 }

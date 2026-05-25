@@ -4,6 +4,7 @@ import { createHmac } from "node:crypto";
 import { db } from "../db/client";
 import { contact, conversation, message, metaConfig, webhookOrphan, upgradeRequest, user } from "../db/schema";
 import { verifyWebhookSignature as verifyCashfreeSignature } from "../integrations/cashfree";
+import logger from "../lib/logger";
 
 // Meta WhatsApp webhook receiver.
 //
@@ -25,7 +26,7 @@ app.get("/webhooks/meta", (c) => {
   const expected = process.env.META_WEBHOOK_VERIFY_TOKEN;
 
   if (!expected) {
-    console.error("[webhooks/meta] META_WEBHOOK_VERIFY_TOKEN not set in env");
+    logger.error('META_WEBHOOK_VERIFY_TOKEN not set in env');
     return c.text("Verify token not configured", 500);
   }
   if (mode === "subscribe" && token === expected && challenge) {
@@ -48,7 +49,7 @@ app.post("/webhooks/meta", async (c) => {
       return c.json({ error: "Invalid signature" }, 401);
     }
   } else {
-    console.warn("[webhooks/meta] META_APP_SECRET not set — skipping signature verification");
+    logger.warn('META_APP_SECRET not set -- skipping signature verification');
   }
 
   // Parse JSON from the raw text
@@ -73,7 +74,7 @@ app.post("/webhooks/meta", async (c) => {
       }
     }
   } catch (err) {
-    console.error("[webhooks/meta] processing error", err);
+    logger.error({ err }, 'Meta webhook processing error');
   }
   return c.json({ ok: true }, 200);
 });
@@ -99,7 +100,7 @@ async function processMessagesChange(value: any) {
         phoneNumberId,
         displayPhoneNumber: displayPhoneNumber ?? null,
         raw: value,
-      }).catch((e) => console.error("[webhook_orphan insert]", e));
+      }).catch((e) => logger.error({ err: e }, 'webhook_orphan insert failed'));
       return;
     }
     for (const m of messages) {
@@ -115,9 +116,9 @@ async function processMessagesChange(value: any) {
         fromName,
         messagePreview: preview,
         raw: m,
-      }).catch((e) => console.error("[webhook_orphan insert]", e));
+      }).catch((e) => logger.error({ err: e }, 'webhook_orphan insert failed'));
     }
-    console.warn(`[webhooks/meta] orphaned ${messages.length} message(s) for unknown phone_number_id ${phoneNumberId}`);
+    logger.warn({ phoneNumberId, count: messages.length }, 'Orphaned messages for unknown phone_number_id');
     return;
   }
   const userId = cfg.userId;
@@ -307,13 +308,13 @@ app.post("/webhooks/cashfree", async (c) => {
   const timestamp = c.req.header("x-webhook-timestamp") ?? "";
 
   if (!signature || !timestamp) {
-    console.warn("[webhooks/cashfree] missing signature/timestamp headers");
+    logger.warn('Cashfree webhook missing signature/timestamp headers');
     return c.json({ error: "missing signature" }, 400);
   }
 
   const ok = verifyCashfreeSignature({ rawBody, signature, timestamp });
   if (!ok) {
-    console.warn("[webhooks/cashfree] signature verify failed");
+    logger.warn('Cashfree webhook signature verify failed');
     return c.json({ error: "invalid signature" }, 401);
   }
 
@@ -347,7 +348,7 @@ app.post("/webhooks/cashfree", async (c) => {
     const eventType = payload.type;
     const orderId = payload.data?.order?.order_id;
     if (!orderId) {
-      console.warn("[webhooks/cashfree] no order_id in payload", eventType);
+      logger.warn({ eventType }, 'Cashfree webhook: no order_id in payload');
       return c.json({ ok: true, ignored: "no_order_id" });
     }
 
@@ -357,7 +358,7 @@ app.post("/webhooks/cashfree", async (c) => {
     const [req] = await db.select().from(upgradeRequest)
       .where(eq(upgradeRequest.cashfreeOrderId, orderId)).limit(1);
     if (!req) {
-      console.warn(`[webhooks/cashfree] unknown order_id: ${orderId} (${eventType})`);
+      logger.warn({ orderId, eventType }, 'Cashfree webhook: unknown order_id');
       return c.json({ ok: true, ignored: "unknown_order" });
     }
 
@@ -384,7 +385,7 @@ app.post("/webhooks/cashfree", async (c) => {
             .where(and(eq(upgradeRequest.id, req.id), sql_neq_completed));
         });
       }
-      console.log(`[webhooks/cashfree] activated ${req.targetPlan} for user=${req.userId} (order=${orderId})`);
+      logger.info({ plan: req.targetPlan, userId: req.userId, orderId }, 'Cashfree: plan activated');
     } else if (eventType === "PAYMENT_FAILED_WEBHOOK" || paymentStatus === "FAILED" || paymentStatus === "USER_DROPPED") {
       // Don't touch user.plan — just mark the request declined so the
       // upgrade UI can surface a retry CTA.
@@ -394,10 +395,10 @@ app.post("/webhooks/cashfree", async (c) => {
           adminNotes: `Cashfree: ${payload.data?.payment?.payment_message ?? paymentStatus}`,
         }).where(eq(upgradeRequest.id, req.id));
       }
-      console.log(`[webhooks/cashfree] payment ${paymentStatus} for order=${orderId}`);
+      logger.info({ paymentStatus, orderId }, 'Cashfree: payment failed/dropped');
     }
   } catch (err) {
-    console.error("[webhooks/cashfree] processing error", err);
+    logger.error({ err }, 'Cashfree webhook processing error');
     // Still return 200 — we already verified signature; surfacing 500 makes
     // Cashfree retry which can mess with idempotency. Logs are the safety net.
   }
