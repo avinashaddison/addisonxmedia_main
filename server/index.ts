@@ -12,6 +12,7 @@ import { resolve } from "node:path";
 import { auth } from "./auth";
 import { warmupDb } from "./db/client";
 import { rateLimit } from "./middleware/rateLimit";
+import { csrfProtection } from "./middleware/csrf";
 import crmRoutes from "./routes/crm";
 import inboxRoutes from "./routes/inbox";
 import metaRoutes from "./routes/meta";
@@ -48,10 +49,14 @@ app.use(
   cors({
     origin: allowedOrigins,
     credentials: true,
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
     allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   })
 );
+
+// CSRF double-submit cookie protection — must be after cors so preflight
+// OPTIONS responses include the CSRF cookie, but before route mounts.
+app.use("*", csrfProtection);
 
 // Global error handler — catches throws from any route, returns clean JSON
 // instead of a Hono default HTML stack trace.

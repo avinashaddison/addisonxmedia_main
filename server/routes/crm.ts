@@ -15,6 +15,13 @@ import { requireAuth, type AuthVariables } from "../middleware/auth";
 import { toCamel } from "../utils";
 import { sendTemplateMessage, MetaApiError } from "../integrations/meta";
 import { decrypt } from "../crypto";
+import {
+  patchContactSchema,
+  patchDealSchema,
+  patchCampaignSchema,
+  patchBroadcastSchema,
+  patchTaskSchema,
+} from "../lib/validators";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -130,7 +137,8 @@ app.post("/contacts/bulk", async (c) => {
 
 app.patch("/contacts/:id", async (c) => {
   const id = c.req.param("id");
-  const body = toCamel<Record<string, any>>(await c.req.json());
+  const raw = toCamel<Record<string, any>>(await c.req.json());
+  const body = patchContactSchema.parse(raw);
   const [row] = await db.update(contact)
     .set({ ...body, updatedAt: new Date() })
     .where(and(eq(contact.id, id), eq(contact.ownerId, c.var.userId)))
@@ -183,7 +191,8 @@ app.post("/deals", async (c) => {
 
 app.patch("/deals/:id", async (c) => {
   const id = c.req.param("id");
-  const body = toCamel<Record<string, any>>(await c.req.json());
+  const raw = toCamel<Record<string, any>>(await c.req.json());
+  const body = patchDealSchema.parse(raw);
 
   // Snapshot previous stage so we can detect won-transitions and fire
   // a Meta Conversions API Purchase event server-side.
@@ -243,7 +252,8 @@ app.post("/campaigns", async (c) => {
 
 app.patch("/campaigns/:id", async (c) => {
   const id = c.req.param("id");
-  const body = toCamel<Record<string, any>>(await c.req.json());
+  const raw = toCamel<Record<string, any>>(await c.req.json());
+  const body = patchCampaignSchema.parse(raw);
   const [row] = await db.update(campaign)
     .set({ ...body, updatedAt: new Date() })
     .where(and(eq(campaign.id, id), eq(campaign.ownerId, c.var.userId)))
@@ -288,7 +298,8 @@ app.post("/broadcasts", async (c) => {
 
 app.patch("/broadcasts/:id", async (c) => {
   const id = c.req.param("id");
-  const body = toCamel<Record<string, any>>(await c.req.json());
+  const raw = toCamel<Record<string, any>>(await c.req.json());
+  const body = patchBroadcastSchema.parse(raw);
   const [row] = await db.update(broadcast)
     .set({ ...body, updatedAt: new Date() })
     .where(and(eq(broadcast.id, id), eq(broadcast.ownerId, c.var.userId)))
@@ -461,7 +472,8 @@ app.post("/tasks", async (c) => {
 
 app.patch("/tasks/:id", async (c) => {
   const id = c.req.param("id");
-  const body = toCamel<Record<string, any>>(await c.req.json());
+  const raw = toCamel<Record<string, any>>(await c.req.json());
+  const body = patchTaskSchema.parse(raw);
   const [row] = await db.update(task)
     .set({ ...body, updatedAt: new Date() })
     .where(and(eq(task.id, id), eq(task.ownerId, c.var.userId)))

@@ -9,6 +9,7 @@ import {
 } from "../integrations/meta";
 import { toCamel } from "../utils";
 import { decrypt } from "../crypto";
+import { patchConversationSchema } from "../lib/validators";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -233,7 +234,8 @@ app.post("/conversations", async (c) => {
 
 app.patch("/conversations/:id", async (c) => {
   const id = c.req.param("id");
-  const body = toCamel<Record<string, any>>(await c.req.json());
+  const raw = toCamel<Record<string, any>>(await c.req.json());
+  const body = patchConversationSchema.parse(raw);
   const [row] = await db.update(conversation)
     .set({ ...body, updatedAt: new Date() })
     .where(and(eq(conversation.id, id), eq(conversation.ownerId, c.var.userId)))

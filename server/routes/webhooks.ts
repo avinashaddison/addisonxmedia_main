@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { and, eq, sql } from "drizzle-orm";
+import { createHmac } from "node:crypto";
 import { db } from "../db/client";
 import { contact, conversation, message, metaConfig, webhookOrphan, upgradeRequest, user } from "../db/schema";
 import { verifyWebhookSignature as verifyCashfreeSignature } from "../integrations/cashfree";
@@ -35,7 +36,29 @@ app.get("/webhooks/meta", (c) => {
 
 // POST — incoming events. We care about "messages" right now (status updates can be added later).
 app.post("/webhooks/meta", async (c) => {
-  const payload = await c.req.json().catch(() => null);
+  // Read raw body first for signature verification
+  const rawBody = await c.req.text();
+
+  // Verify X-Hub-Signature-256 if META_APP_SECRET is configured
+  const metaAppSecret = process.env.META_APP_SECRET;
+  if (metaAppSecret) {
+    const signature = c.req.header("X-Hub-Signature-256") ?? "";
+    const expected = "sha256=" + createHmac("sha256", metaAppSecret).update(rawBody).digest("hex");
+    if (!signature || signature !== expected) {
+      return c.json({ error: "Invalid signature" }, 401);
+    }
+  } else {
+    console.warn("[webhooks/meta] META_APP_SECRET not set — skipping signature verification");
+  }
+
+  // Parse JSON from the raw text
+  let payload: any;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    payload = null;
+  }
+
   if (!payload || payload.object !== "whatsapp_business_account") {
     return c.json({ ignored: true }, 200);
   }

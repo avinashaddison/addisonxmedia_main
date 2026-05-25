@@ -330,10 +330,15 @@ app.post("/billing/cashfree/create-order", async (c) => {
     // Without this, Hono propagates the throw and Render's edge gives the
     // browser a bare "502 Bad Gateway" with no JSON body.
     console.error("[cashfree create-order outer]", err);
+    if (process.env.NODE_ENV === "production") {
+      return c.json({
+        error: "server_error",
+        message: "An internal error occurred",
+      }, 500);
+    }
     return c.json({
       error: "server_error",
       message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack?.split("\n").slice(0, 4).join(" · ") : null,
     }, 500);
   }
 });
