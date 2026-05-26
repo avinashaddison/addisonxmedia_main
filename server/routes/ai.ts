@@ -14,14 +14,14 @@
 import { Hono } from "hono";
 import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "../db/client";
-import { contact, conversation, message, product } from "../db/schema";
+import { contact, conversation, message, product, aiAgent } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
 import { rateLimit } from "../middleware/rateLimit";
 import { requirePlan } from "../middleware/requirePlan";
 import { escapeSqlLike } from "../utils";
 import { chat, chatJson, isAiConfigured } from "../integrations/openai";
 import { checkAiCap, logAiUsage, getUsageSummary } from "../lib/ai-usage";
-import { getPersonaWithDefaults, updatePersona, type Persona } from "../lib/ai-persona";
+import { getPersonaWithDefaults, updatePersona, type Persona, seedAgentsIfEmpty } from "../lib/ai-persona";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -43,6 +43,143 @@ app.use(
 app.get("/ai/usage", async (c) => {
   const summary = await getUsageSummary(c.var.userId);
   return c.json(summary);
+});
+
+app.get("/ai/agents", async (c) => {
+  const userId = c.var.userId;
+  await seedAgentsIfEmpty(userId);
+  const agents = await db.select().from(aiAgent).where(eq(aiAgent.ownerId, userId)).orderBy(desc(aiAgent.createdAt));
+  return c.json(agents.map(a => ({
+    id: a.id,
+    owner_id: a.ownerId,
+    name: a.name,
+    type: a.type,
+    business_name: a.businessName,
+    what_we_sell: a.whatWeSell,
+    tone: a.tone,
+    response_language: a.responseLanguage,
+    always_say: a.alwaysSay,
+    never_say: a.neverSay,
+    escalate_keywords: a.escalateKeywords,
+    products: a.products,
+    knowledge_base: a.knowledgeBase,
+    is_active: a.isActive,
+    created_at: a.createdAt,
+    updated_at: a.updatedAt,
+  })));
+});
+
+app.post("/ai/agents", async (c) => {
+  const userId = c.var.userId;
+  const body = await c.req.json<any>();
+  const [agent] = await db.insert(aiAgent).values({
+    ownerId: userId,
+    name: body.name || "New Custom Agent",
+    type: "custom",
+    businessName: body.business_name || "",
+    whatWeSell: body.what_we_sell || "",
+    tone: body.tone || "friendly",
+    responseLanguage: body.response_language || "hinglish",
+    alwaysSay: body.always_say || "",
+    neverSay: body.never_say || "",
+    escalateKeywords: body.escalate_keywords || "refund, complaint, legal, lawyer, scam, police, cheating, fraud",
+    products: body.products || [],
+    knowledgeBase: body.knowledge_base || "",
+    isActive: false,
+  }).returning();
+
+  return c.json({
+    id: agent.id,
+    owner_id: agent.ownerId,
+    name: agent.name,
+    type: agent.type,
+    business_name: agent.businessName,
+    what_we_sell: agent.whatWeSell,
+    tone: agent.tone,
+    response_language: agent.responseLanguage,
+    always_say: agent.alwaysSay,
+    never_say: agent.neverSay,
+    escalate_keywords: agent.escalateKeywords,
+    products: agent.products,
+    knowledge_base: agent.knowledgeBase,
+    is_active: agent.isActive,
+    created_at: agent.createdAt,
+    updated_at: agent.updatedAt,
+  }, 201);
+});
+
+app.patch("/ai/agents/:id", async (c) => {
+  const userId = c.var.userId;
+  const id = c.req.param("id");
+  const body = await c.req.json<any>();
+
+  const updateSet: any = { updatedAt: new Date() };
+  if (body.name !== undefined) updateSet.name = body.name;
+  if (body.business_name !== undefined) updateSet.businessName = body.business_name;
+  if (body.what_we_sell !== undefined) updateSet.whatWeSell = body.what_we_sell;
+  if (body.tone !== undefined) updateSet.tone = body.tone;
+  if (body.response_language !== undefined) updateSet.responseLanguage = body.response_language;
+  if (body.always_say !== undefined) updateSet.alwaysSay = body.always_say;
+  if (body.never_say !== undefined) updateSet.neverSay = body.never_say;
+  if (body.escalate_keywords !== undefined) updateSet.escalateKeywords = body.escalate_keywords;
+  if (body.products !== undefined) updateSet.products = body.products;
+  if (body.knowledge_base !== undefined) updateSet.knowledgeBase = body.knowledge_base;
+
+  const [agent] = await db.update(aiAgent)
+    .set(updateSet)
+    .where(and(eq(aiAgent.id, id), eq(aiAgent.ownerId, userId)))
+    .returning();
+
+  if (!agent) return c.json({ error: "Agent not found" }, 404);
+
+  return c.json({
+    id: agent.id,
+    owner_id: agent.ownerId,
+    name: agent.name,
+    type: agent.type,
+    business_name: agent.businessName,
+    what_we_sell: agent.whatWeSell,
+    tone: agent.tone,
+    response_language: agent.responseLanguage,
+    always_say: agent.alwaysSay,
+    never_say: agent.neverSay,
+    escalate_keywords: agent.escalateKeywords,
+    products: agent.products,
+    knowledge_base: agent.knowledgeBase,
+    is_active: agent.isActive,
+    created_at: agent.createdAt,
+    updated_at: agent.updatedAt,
+  });
+});
+
+app.post("/ai/agents/:id/activate", async (c) => {
+  const userId = c.var.userId;
+  const id = c.req.param("id");
+
+  const [agent] = await db.select().from(aiAgent).where(and(eq(aiAgent.id, id), eq(aiAgent.ownerId, userId))).limit(1);
+  if (!agent) return c.json({ error: "Agent not found" }, 404);
+
+  await db.update(aiAgent).set({ isActive: false, updatedAt: new Date() }).where(eq(aiAgent.ownerId, userId));
+  await db.update(aiAgent).set({ isActive: true, updatedAt: new Date() }).where(eq(aiAgent.id, id));
+
+  return c.json({ ok: true });
+});
+
+app.delete("/ai/agents/:id", async (c) => {
+  const userId = c.var.userId;
+  const id = c.req.param("id");
+
+  const [agent] = await db.select().from(aiAgent).where(and(eq(aiAgent.id, id), eq(aiAgent.ownerId, userId))).limit(1);
+  if (!agent) return c.json({ error: "Agent not found" }, 404);
+  if (agent.type === "prebuilt_sales") {
+    return c.json({ error: "Cannot delete a prebuilt agent" }, 400);
+  }
+  if (agent.isActive) {
+    return c.json({ error: "Cannot delete an active agent. Please activate another agent first." }, 400);
+  }
+
+  await db.delete(aiAgent).where(eq(aiAgent.id, id));
+  return c.json({ ok: true });
 });
 
 /** Read the workspace's AI persona (falls back to defaults if no row yet). */
@@ -161,7 +298,17 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
 
   let productContext = "";
   let suggestedProducts: Array<{ id: string; name: string; price: number; photoUrl: string | null }> = [];
-  if (looksLikeShopping) {
+  
+  if (persona.products && Array.isArray(persona.products) && persona.products.length > 0) {
+    suggestedProducts = persona.products.map((p: any, idx: number) => ({
+      id: `agent-prod-${idx}`,
+      name: p.name,
+      price: Number(p.price) || 0,
+      photoUrl: null
+    }));
+    productContext = "\n\nAVAILABLE PRODUCTS/AI TOOLS (Reference these products with their exact name, price, and validity in your replies to convince the buyer):\n"
+      + persona.products.map((p: any) => `• ${p.name} — ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`).join("\n");
+  } else if (looksLikeShopping) {
     // Try keyword search across product name + description using significant
     // words from the inbound message (drop common stop words).
     const STOP = new Set(["i", "me", "you", "the", "a", "an", "is", "are", "want", "need", "buy", "order", "send", "show", "how", "much", "do", "have", "available", "any", "some", "this", "that", "what", "for", "to", "in", "on", "of", "and", "or"]);
@@ -197,16 +344,24 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
     : "";
   const alwaysLine = persona.always_say ? `ALWAYS: ${persona.always_say}` : "";
   const neverLine = persona.never_say ? `NEVER: ${persona.never_say}` : "";
+  const kbLine = persona.knowledge_base
+    ? `KNOWLEDGE BASE / EXTRA BUSINESS CONTEXT (ground your answers on this info):\n${persona.knowledge_base}`
+    : "";
 
   const systemPrompt = [
     `You are Addison AI, a sales assistant helping ${persona.business_name || "an Indian SMB"} reply to a WhatsApp customer.`,
     businessLine,
     sellsLine,
-    `Tone: ${TONE_INSTRUCTIONS[persona.tone]}`,
-    `Language: ${LANGUAGE_INSTRUCTIONS[persona.response_language]}`,
+    `Tone: ${TONE_INSTRUCTIONS[persona.tone as keyof typeof TONE_INSTRUCTIONS] || TONE_INSTRUCTIONS.friendly}`,
+    `Language: ${LANGUAGE_INSTRUCTIONS[persona.response_language as keyof typeof LANGUAGE_INSTRUCTIONS] || LANGUAGE_INSTRUCTIONS.hinglish}`,
     `Lead temperature: ${TAG_INSTRUCTIONS[ctc.tag as keyof typeof TAG_INSTRUCTIONS] ?? TAG_INSTRUCTIONS.cold}`,
     alwaysLine,
     neverLine,
+    kbLine,
+    "",
+    "Style & Tone Guidelines:",
+    "- DYNAMIC STYLE MATCHING: Analyze the customer's previous messages. Match their sentence length, language script (English/Hindi/Hinglish), emoji usage density, and formality. If they write very short messages, keep your replies extremely short. If they are casual and use Hinglish, write natural Hinglish.",
+    "- CONVERSION FOCUS: You are a highly talented salesman. Convince the buyer by showing product benefits, addressing their needs, and moving them toward buying. Keep the conversation flow concise (short chat target) with a clear call-to-action (CTA).",
     "",
     "Generate exactly 3 reply DRAFTS for the operator to choose from. Each must be:",
     "- 1-3 sentences max",

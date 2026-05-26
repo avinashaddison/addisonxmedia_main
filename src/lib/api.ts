@@ -15,6 +15,7 @@ import type {
   Broadcast,
   Task,
   Profile,
+  AiAgent,
 } from "./api-types";
 
 class ApiError extends Error {
@@ -717,6 +718,13 @@ export const api = {
     rates: { marketing: number; utility: number; authentication: number };
     note: string;
   }>("/billing/meta-estimate"),
+
+  // Multiple AI Agents
+  listAgents: () => get<AiAgent[]>("/ai/agents"),
+  createAgent: (data: Partial<AiAgent>) => post<AiAgent>("/ai/agents", data),
+  updateAgent: (id: string, data: Partial<AiAgent>) => patch<AiAgent>(`/ai/agents/${id}`, data),
+  activateAgent: (id: string) => post<{ ok: boolean }>(`/ai/agents/${id}/activate`),
+  deleteAgent: (id: string) => del(`/ai/agents/${id}`),
 };
 
 export type BookingDto = {

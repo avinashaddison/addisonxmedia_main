@@ -133,3 +133,28 @@ export type Profile = {
   created_at: string;
   updated_at: string;
 };
+
+export type AiAgentProduct = {
+  name: string;
+  price: number;
+  validity: string;
+};
+
+export type AiAgent = {
+  id: string;
+  owner_id: string;
+  name: string;
+  type: "prebuilt_sales" | "custom";
+  business_name: string;
+  what_we_sell: string;
+  tone: string;
+  response_language: string;
+  always_say: string;
+  never_say: string;
+  escalate_keywords: string;
+  products: AiAgentProduct[];
+  knowledge_base: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};

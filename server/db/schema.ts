@@ -526,6 +526,33 @@ export const aiPersona = pgTable("workspace_ai_persona", {
 export type AiPersona = typeof aiPersona.$inferSelect;
 
 // ============================================================
+// AI Agent — support for multiple agents (custom + prebuilt)
+// ============================================================
+export const aiAgent = pgTable("ai_agent", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("custom"),                                              // 'prebuilt_sales' | 'custom'
+  businessName: text("business_name").notNull().default(""),
+  whatWeSell: text("what_we_sell").notNull().default(""),
+  tone: text("tone").notNull().default("friendly"),                                            // 'friendly' | 'professional' | 'casual' | 'urgent_sales'
+  responseLanguage: text("response_language").notNull().default("hinglish"),                   // 'hinglish' | 'hindi' | 'english'
+  alwaysSay: text("always_say").notNull().default(""),
+  neverSay: text("never_say").notNull().default(""),
+  escalateKeywords: text("escalate_keywords").notNull().default("refund, complaint, legal, lawyer, scam, police, cheating, fraud"),
+  products: jsonb("products").default(sql`'[]'::jsonb`),                                       // Array<{ name: string, price: number, validity: string }>
+  knowledgeBase: text("knowledge_base").default(""),
+  isActive: boolean("is_active").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerIdx: index("ai_agent_owner_idx").on(t.ownerId),
+  ownerActiveIdx: index("ai_agent_owner_active_idx").on(t.ownerId, t.isActive),
+}));
+
+export type AiAgent = typeof aiAgent.$inferSelect;
+
+// ============================================================
 // BILLING — plan upgrade requests (manual fulfillment until Razorpay live)
 // ============================================================
 // Customer clicks "Upgrade to Growth" in /app/upgrade → row inserted here.
