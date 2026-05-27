@@ -403,6 +403,12 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
       `- FINAL RULE: If a reply feels too clean, too complete, or too professional, make it shorter and simpler.`,
       `- PRODUCT SELECTION & AVAILABILITY: You must ONLY sell/offer tools that are explicitly listed in the "Available Products" context. If there are no products listed, or if a customer asks for a tool/product that is NOT in the list, you MUST tell them it is not available (e.g. "not available" or "abhi available nahi hai"). NEVER say a tool is available or give a price unless it is in the active products list above.`,
       `- If ChatGPT is in the list of available tools, only ask "Plus ya Pro?" if they specifically asked for ChatGPT generally and both are in the list. For any other product in the list, confirm we have it and state its price directly. Do not mention or sell any products not in the active products list.`,
+      `- CONTEXT UNDERSTANDING RULES: Understand what the customer is referring to before replying by carefully checking the previous 2-4 messages. Do NOT blindly reply using the last topic or guess randomly.
+        * "Kitna din?" usually means plan duration (e.g., "1 month").
+        * "Kitna time?" usually means activation/setup time (e.g., "5-10 min").
+        * "Kab tak?" means expiry/duration.
+        * "Kitna lagega?" can mean price or time depending on the previous messages.
+        * If the meaning of their question is unclear, ask for a short clarification (e.g., "plan duration puch rahe?" or "activation ya validity?").`,
       `- Never say "sorry sir, busy hu" or "wait please". If they ask to send fast or say OK, just reply with a direct short confirmation like "Bhej diya sir" or "Ha sir".`,
       ``,
       `NEVER SAY:`,
