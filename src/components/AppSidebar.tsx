@@ -65,7 +65,7 @@ const groups: { label: string; items: NavItem[] }[] = [
   {
     label: "AI",
     items: [
-      { icon: Brain, label: "AI Training", id: "ai-training", hint: "Teach Addison about your business", smart: true },
+      { icon: Brain, label: "Agent Playground", id: "ai-training", hint: "Teach Addison about your business", smart: true },
     ],
   },
   {
