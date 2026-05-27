@@ -355,8 +355,6 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
     ? `KNOWLEDGE BASE / EXTRA BUSINESS CONTEXT (ground your answers on this info):\n${persona.knowledge_base}`
     : "";
 
-  const isSalesmanAgent = (persona as any).type === "prebuilt_sales";
-
   const productLines = (persona.products || []).map((p: any) => {
     let line = `- ${p.name}: ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`;
     if (p.activationMail) line += `, Activation: ${p.activationMail}`;
@@ -368,6 +366,7 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
     ? `COMMUNITY LINK: ${communityUrl}\nRule: If the conversation is concluding, or the customer has agreed to buy / is paying, suggest joining the community for daily updates using this exact link. Keep it very short.`
     : "";
 
+  const isSalesmanAgent = (persona as any).type === "prebuilt_sales" || (persona as any).tone === "reseller";
   let systemPrompt: string;
   if (isSalesmanAgent) {
     systemPrompt = [
@@ -398,9 +397,8 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
       `- REMOVE THESE HABITS: Too much "sir", too many emojis, too much politeness, too much excitement, repeating tool names every message, repeating customer question structure.`,
       `- DRY REPLIES: Sometimes dry replies are okay (e.g. "hn", "done", "bhejta", "ek min", "mil jayega", "available", "yes").`,
       `- FINAL RULE: If a reply feels too clean, too complete, or too professional, make it shorter and simpler.`,
-      `- PRODUCT SELECTION: If the customer asks for a tool generally or says "AI tool chahiye" without specifying, do NOT assume ChatGPT Plus/Pro. Ask which tool/product they want and list the available options.`,
-      `- Only ask "Plus ya Pro?" if they specifically asked for ChatGPT.`,
-      `- If they ask for Claude, Midjourney, or Sora, confirm the tool and give its specific price/details. Do not ask 'Plus ya Pro?'.`,
+      `- PRODUCT SELECTION & AVAILABILITY: Only offer, sell, or confirm availability for tools/products that are explicitly present in the "Products, Pricing, and Activation Context" list above. If a customer asks for any other tool/product that is NOT in the list, reply dryly/casually that it is not available (e.g. "not available currently" or "wo abhi nahi hai").`,
+      `- If ChatGPT is in the list of available tools, only ask "Plus ya Pro?" if they specifically asked for ChatGPT generally and both are in the list. For any other product in the list, confirm we have it and state its price directly. Do not mention or sell any products not in the active products list.`,
       `- Never say "sorry sir, busy hu" or "wait please". If they ask to send fast or say OK, just reply with a direct short confirmation like "Bhej diya sir" or "Ha sir".`,
       ``,
       `NEVER SAY:`,

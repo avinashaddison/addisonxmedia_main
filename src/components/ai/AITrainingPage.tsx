@@ -19,6 +19,7 @@ const TONE_OPTIONS: { value: string; label: string; description: string; emoji: 
   { value: "professional", label: "Professional",  description: "Polished and formal. No emojis. Use proper salutations.", emoji: "💼" },
   { value: "casual",       label: "Casual",        description: "Chill, conversational, no jargon. D2C, lifestyle, food.", emoji: "👋" },
   { value: "urgent_sales", label: "Urgent sales",  description: "Pushes toward a close. Use only for offers/discounts.", emoji: "🔥" },
+  { value: "reseller",     label: "WhatsApp Reseller", description: "Indian WhatsApp reseller style (dry, fast, casual Hinglish).", emoji: "📱" },
 ];
 
 const LANG_OPTIONS: { value: string; label: string; sub: string }[] = [
