@@ -31,25 +31,26 @@ const formatINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
 const productDetailsTemplate = (productName: string, price: number, validity: string, mail: string, time: string, contactName: string) => {
-  return `📦 *Product Details: ${productName}*\n\n` +
-         `Hi ${contactName}! Yahan is product ki details hain:\n\n` +
-         `💵 *Price:* ₹${price.toLocaleString("en-IN")}\n` +
-         `⏳ *Validity:* ${validity}\n` +
-         `📩 *Delivery Method:* ${mail}\n` +
-         `⏱️ *Delivery Time:* ${time}\n\n` +
-         `Agar aap purchase karna chahte hain to abhi reply karein! 👍`;
+  const deliveryDesc = mail.toLowerCase().includes("provide") || mail.toLowerCase().includes("pass")
+    ? "Login details hum provide karenge"
+    : "Aapki email id pe active ho jayega";
+
+  return `Hi ${contactName}, ${productName} mil jayega bro. Pricing aur baaki details niche check kar lo 👇\n\n` +
+         `• *Price:* ₹${price.toLocaleString("en-IN")} only\n` +
+         `• *Validity:* ${validity}\n` +
+         `• *Delivery:* ${deliveryDesc} (${time} ke andar)\n\n` +
+         `Fully premium and working account rahega. Let me know agar set up karna hai to! 👍`;
 };
 
 const allProductsListTemplate = (products: any[], contactName: string) => {
   let listText = "";
-  products.forEach((p, idx) => {
-    listText += `${idx + 1}. *${p.name}* - ₹${p.price.toLocaleString("en-IN")} (${p.validity})\n`;
+  products.forEach((p) => {
+    listText += `• *${p.name}* — ₹${p.price.toLocaleString("en-IN")} (${p.validity})\n`;
   });
   
-  return `🛍️ *Our Products & AI Tools List*\n\n` +
-         `Hi ${contactName}! Hamare saare products ki list aur unki pricing yahan hai:\n\n` +
+  return `Hi ${contactName}, ye rahi hamare active AI tools aur premium subscriptions ki pricing list 👇\n\n` +
          `${listText}\n` +
-         `Aapko jo bhi tool purchase karna hai, hume uska number ya naam likh kar reply karein! 😊`;
+         `Aapko isme se jo bhi subscription chahiye, bas uska naam reply me bhej do, active karwa denge! 😊`;
 };
 
 export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
