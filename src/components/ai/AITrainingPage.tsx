@@ -711,6 +711,7 @@ const LivePreview = ({ agent }: { agent: AiAgent }) => {
     hinglish: "Hi! Aap ka query receive ho gaya 🙏 — bata dijiye kya help chahiye?",
     hindi: "नमस्ते! आपकी जानकारी प्राप्त हो गई 🙏 — बताइए हम कैसे मदद कर सकते हैं?",
     english: "Hi there! Got your message 🙏 — happy to help. What do you need?",
+    auto: "Hi! Aap ka query receive ho gaya 🙏 — bata dijiye kya help chahiye?",
   };
   const toneTags: Record<string, string> = {
     friendly: "Friendly",
