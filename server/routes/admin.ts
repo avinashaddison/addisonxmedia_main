@@ -12,6 +12,7 @@ import { staffInviteTemplate, suspensionTemplate, refundTemplate } from "../lib/
 import { invalidateSeoCache } from "../lib/seo";
 import { escapeSqlLike } from "../utils";
 import { logActivity } from "../lib/activity-log";
+import { seedPrebuiltTemplatesIfEmpty } from "../lib/ai-persona";
 
 const admin = new Hono<{ Variables: AdminVariables }>();
 
@@ -1377,6 +1378,7 @@ admin.post("/api/admin/diagnostics/reassign-chats", requireAdmin(["super_admin"]
 /* ─────────── Prebuilt Agents (Agent Playground) ─────────── */
 
 admin.get("/api/admin/prebuilt-agents", async (c) => {
+  await seedPrebuiltTemplatesIfEmpty();
   const agents = await db.select().from(prebuiltAgent).orderBy(desc(prebuiltAgent.createdAt));
   return c.json(agents.map(a => ({
     id: a.id,
