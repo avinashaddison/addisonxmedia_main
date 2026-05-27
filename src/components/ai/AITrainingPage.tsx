@@ -493,8 +493,8 @@ export const AITrainingPage = () => {
                       </Button>
                     </div>
                   </div>
-                )}
                 </div>
+              )}
               </div>
             </Section>
 
