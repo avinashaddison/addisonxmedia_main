@@ -30,6 +30,7 @@ export type Persona = {
     activationTime?: string;
   }>;
   knowledge_base?: string;
+  system_prompt?: string;
   is_active?: boolean;
 };
 
@@ -223,6 +224,7 @@ export const getPersonaWithDefaults = async (userId: string): Promise<Persona> =
     escalate_keywords: active.escalateKeywords,
     products: active.products as Persona["products"],
     knowledge_base: active.knowledgeBase ?? "",
+    system_prompt: active.systemPrompt ?? "",
     is_active: active.isActive,
   };
 };
@@ -253,6 +255,7 @@ export const updatePersona = async (
   if (patch.escalate_keywords !== undefined) updateSet.escalateKeywords = patch.escalate_keywords;
   if (patch.products !== undefined) updateSet.products = patch.products;
   if (patch.knowledge_base !== undefined) updateSet.knowledgeBase = patch.knowledge_base;
+  if (patch.system_prompt !== undefined) updateSet.systemPrompt = patch.system_prompt;
 
   await db.update(aiAgent)
     .set(updateSet)

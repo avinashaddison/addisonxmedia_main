@@ -61,8 +61,8 @@ app.get("/ai/agents", async (c) => {
     always_say: a.alwaysSay,
     never_say: a.neverSay,
     escalate_keywords: a.escalateKeywords,
-    products: a.products,
     knowledge_base: a.knowledgeBase,
+    system_prompt: a.systemPrompt,
     is_active: a.isActive,
     created_at: a.createdAt,
     updated_at: a.updatedAt,
@@ -85,6 +85,7 @@ app.post("/ai/agents", async (c) => {
     escalateKeywords: body.escalate_keywords || "refund, complaint, legal, lawyer, scam, police, cheating, fraud",
     products: body.products || [],
     knowledgeBase: body.knowledge_base || "",
+    systemPrompt: body.system_prompt || "",
     isActive: false,
   }).returning();
 
@@ -102,6 +103,7 @@ app.post("/ai/agents", async (c) => {
     escalate_keywords: agent.escalateKeywords,
     products: agent.products,
     knowledge_base: agent.knowledgeBase,
+    system_prompt: agent.systemPrompt,
     is_active: agent.isActive,
     created_at: agent.createdAt,
     updated_at: agent.updatedAt,
@@ -124,6 +126,7 @@ app.patch("/ai/agents/:id", async (c) => {
   if (body.escalate_keywords !== undefined) updateSet.escalateKeywords = body.escalate_keywords;
   if (body.products !== undefined) updateSet.products = body.products;
   if (body.knowledge_base !== undefined) updateSet.knowledgeBase = body.knowledge_base;
+  if (body.system_prompt !== undefined) updateSet.systemPrompt = body.system_prompt;
 
   const [agent] = await db.update(aiAgent)
     .set(updateSet)
@@ -146,6 +149,7 @@ app.patch("/ai/agents/:id", async (c) => {
     escalate_keywords: agent.escalateKeywords,
     products: agent.products,
     knowledge_base: agent.knowledgeBase,
+    system_prompt: agent.systemPrompt,
     is_active: agent.isActive,
     created_at: agent.createdAt,
     updated_at: agent.updatedAt,
@@ -373,7 +377,15 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
 
   const isSalesmanAgent = (persona as any).type === "prebuilt_sales" || (persona as any).tone === "reseller";
   let systemPrompt: string;
-  if (isSalesmanAgent) {
+  if (persona.system_prompt && persona.system_prompt.trim()) {
+    systemPrompt = [
+      persona.system_prompt.trim(),
+      ``,
+      `Products, Pricing, and Activation Context:`,
+      productContext,
+      communityLine,
+    ].filter(Boolean).join("\n");
+  } else if (isSalesmanAgent) {
     systemPrompt = [
       `You are NOT a customer support bot. You are a real Indian WhatsApp reseller selling AI tool accounts representing "${persona.business_name || "AI Tool Shop"}".`,
       `Your ONLY goal: Sound like a real human chatting naturally on WhatsApp.`,

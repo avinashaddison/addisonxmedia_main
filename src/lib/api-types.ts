@@ -157,6 +157,7 @@ export type AiAgent = {
   escalate_keywords: string;
   products: AiAgentProduct[];
   knowledge_base: string;
+  system_prompt: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

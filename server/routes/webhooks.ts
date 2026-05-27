@@ -380,7 +380,15 @@ async function triggerAgentReply(
   // Build system prompt (same logic as /ai/reply-suggestions but condensed)
   const isSalesmanAgent = (persona as any).type === "prebuilt_sales" || (persona as any).tone === "reseller";
   let systemPrompt: string;
-  if (isSalesmanAgent) {
+  if (persona.system_prompt && persona.system_prompt.trim()) {
+    systemPrompt = [
+      persona.system_prompt.trim(),
+      ``,
+      `Products, Pricing, and Activation Context:`,
+      productContext,
+      communityLine,
+    ].filter(Boolean).join("\n");
+  } else if (isSalesmanAgent) {
     systemPrompt = [
       `You are NOT a customer support bot. You are a real Indian WhatsApp reseller selling AI tool accounts representing "${persona.business_name || "AI Tool Shop"}".`,
       `Your ONLY goal: Sound like a real human chatting naturally on WhatsApp.`,

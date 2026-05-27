@@ -545,6 +545,7 @@ export const aiAgent = pgTable("ai_agent", {
   escalateKeywords: text("escalate_keywords").notNull().default("refund, complaint, legal, lawyer, scam, police, cheating, fraud"),
   products: jsonb("products").default(sql`'[]'::jsonb`),                                       // Array<{ name: string, price: number, validity: string }>
   knowledgeBase: text("knowledge_base").default(""),
+  systemPrompt: text("system_prompt").default(""),
   isActive: boolean("is_active").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

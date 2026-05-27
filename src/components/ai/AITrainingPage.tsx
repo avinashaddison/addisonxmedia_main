@@ -502,6 +502,18 @@ export const AITrainingPage = () => {
               </Field>
             </Section>
 
+            {/* AI Brain */}
+            <Section icon={<Sparkles className="w-4 h-4 text-[#FF6A1F]" />} title="AI Brain (System Prompt)" desc="Write custom system instructions, rules, or few-shot examples to program your AI's behavior directly">
+              <Field label="System Prompt Instructions" hint="This will override the default prompt rules and act as the AI's core programming. (catalog availability & community links are still automatically appended).">
+                <Textarea
+                  rows={6}
+                  value={form.system_prompt || ""}
+                  onChange={(e) => set("system_prompt", e.target.value)}
+                  placeholder="e.g. You are a real Indian WhatsApp reseller. Speak casual Hinglish, keep replies to 1-2 lines, and mirror the customer's style naturally."
+                />
+              </Field>
+            </Section>
+
             {/* Tone */}
             <Section icon={<MessageSquareText className="w-4 h-4" />} title="Tone" desc="Choose this agent's fallback tone when customer matching isn't active">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -749,6 +761,7 @@ const LivePreview = ({ agent }: { agent: AiAgent }) => {
         <Row label="Language" value={agent.response_language} />
         <Row label="Tools/Products" value={agent.products ? `${agent.products.length} products` : "0 products"} />
         <Row label="KB Size" value={agent.knowledge_base ? `${agent.knowledge_base.length} chars` : "0 chars"} />
+        <Row label="AI Brain" value={agent.system_prompt ? `${agent.system_prompt.length} chars` : "0 chars"} />
       </div>
 
       <p className="text-[10px] text-foreground/55 mt-3 leading-snug">
