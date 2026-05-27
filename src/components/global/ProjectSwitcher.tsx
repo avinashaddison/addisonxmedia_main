@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ChevronDown, Plus, Trash2, Check, Folder, Loader2 } from "lucide-react";
+import { ChevronDown, Plus, Trash2, Check, Folder, Loader2, BadgeCheck } from "lucide-react";
 
 type ProjectSwitcherProps = {
   collapsed?: boolean;
@@ -129,17 +129,30 @@ export const ProjectSwitcher = ({ collapsed = false }: ProjectSwitcherProps) => 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="mx-auto w-10 h-10 rounded-xl bg-gradient-to-br from-[#FFF1D6] to-[#FFE3B3] hover:from-[#FFE3B3] hover:to-[#FFD28C] border-2 border-[#E8B968] flex items-center justify-center text-[#B8651A] font-bold transition shadow-sm"
+              className={cn(
+                "mx-auto w-10 h-10 rounded-xl flex items-center justify-center font-bold transition shadow-sm relative group",
+                activeWorkspace?.metaConnected
+                  ? "bg-gradient-to-br from-[#E6F7EE] to-[#C2F0D5] hover:from-[#C2F0D5] hover:to-[#A3E7BF] border-2 border-[#0E8A4B] text-[#0A6E3C]"
+                  : "bg-gradient-to-br from-[#FFF1D6] to-[#FFE3B3] hover:from-[#FFE3B3] hover:to-[#FFD28C] border-2 border-[#E8B968] text-[#B8651A]"
+              )}
               title={activeName}
             >
               {initials}
+              {activeWorkspace?.metaConnected && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-background flex items-center justify-center text-white shadow-sm">
+                  <BadgeCheck className="w-2.5 h-2.5 fill-white stroke-none" />
+                </span>
+              )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="left" className="w-56 font-sans">
-            <DropdownMenuLabel className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider">
-              Switch Project
+          <DropdownMenuContent align="left" className="w-64 p-1.5 font-sans border-border bg-popover/95 backdrop-blur-md rounded-xl shadow-xl">
+            <DropdownMenuLabel className="text-[10px] font-extrabold text-[#B8651A] uppercase tracking-wider px-2.5 py-1.5 flex items-center justify-between">
+              <span>Switch Project</span>
+              <span className="text-[8px] font-normal text-muted-foreground normal-case bg-muted px-1.5 py-0.5 rounded">
+                {workspaces.length} active
+              </span>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="my-1 bg-border/60" />
             
             {workspaces.map((w) => {
               const isSelected = w.id === activeWorkspaceId;
@@ -149,14 +162,17 @@ export const ProjectSwitcher = ({ collapsed = false }: ProjectSwitcherProps) => 
                 <DropdownMenuItem
                   key={w.id}
                   onClick={() => handleSelect(w.id)}
-                  className="flex items-center justify-between cursor-pointer py-2 px-2.5 rounded-lg text-[13px] group"
+                  className={cn(
+                    "flex items-center justify-between cursor-pointer py-2 px-2.5 rounded-lg text-[13px] group transition-colors",
+                    isSelected ? "bg-muted/40 font-medium" : "hover:bg-muted/30"
+                  )}
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <Check className={cn("w-4 h-4 text-primary flex-shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
+                    <Check className={cn("w-4 h-4 text-[#B8651A] flex-shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
                     <span className={cn("truncate", isSelected ? "font-bold text-foreground" : "text-muted-foreground")}>{w.name}</span>
                     {w.metaConnected && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#E6F7EE] text-[#0A6E3C] border border-[#0E8A4B]/20">
-                        <Check className="w-2.5 h-2.5 stroke-[3.5] text-[#0A6E3C]" /> Verified
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#E6F7EE] text-[#0A6E3C] border border-[#0E8A4B]/20 flex-shrink-0">
+                        <BadgeCheck className="w-3 h-3 text-[#0E8A4B] fill-current opacity-85" /> Verified Project
                       </span>
                     )}
                   </div>
@@ -176,38 +192,52 @@ export const ProjectSwitcher = ({ collapsed = false }: ProjectSwitcherProps) => 
               );
             })}
 
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="my-1 bg-border/60" />
             <DropdownMenuItem
               onClick={() => setOpenCreate(true)}
-              className="flex items-center gap-2 cursor-pointer py-2 px-2.5 rounded-lg text-[13px] text-primary hover:text-primary font-semibold"
+              className="flex items-center gap-2 cursor-pointer py-2 px-2.5 rounded-lg text-[13px] text-[#B8651A] hover:text-[#9c5212] hover:bg-[#FFF1D6]/40 font-bold transition-all"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Create New Project</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
         <div className="flex flex-col gap-1 w-full max-w-[200px]">
-          <span className="text-[10px] font-black uppercase tracking-wider text-[#B8651A]/80 pl-0.5">
-            Project Management:
-          </span>
+          <div className="flex items-center gap-1.5 pl-1 mb-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#B8651A] animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#B8651A] font-sans">
+              Project Management
+            </span>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="w-full h-9 px-3 rounded-xl bg-card border border-border hover:border-foreground/20 hover:bg-muted/50 flex items-center justify-between gap-2 transition text-[13px] font-bold text-foreground shadow-sm"
+                className={cn(
+                  "w-full h-10 px-3 rounded-xl bg-card border flex items-center justify-between gap-2 transition text-[13px] font-bold text-foreground shadow-sm group",
+                  activeWorkspace?.metaConnected 
+                    ? "border-emerald-500/20 hover:border-emerald-500/35 hover:bg-emerald-500/[0.02]" 
+                    : "border-border hover:border-foreground/20 hover:bg-muted/50"
+                )}
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Folder className="w-4 h-4 text-[#B8651A] flex-shrink-0" />
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <Folder className={cn("w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform duration-200", activeWorkspace?.metaConnected ? "text-[#0E8A4B]" : "text-[#B8651A]")} />
                   <span className="truncate">{activeName}</span>
+                  {activeWorkspace?.metaConnected && (
+                    <BadgeCheck className="w-4 h-4 text-[#0E8A4B] fill-[#E6F7EE]/80 flex-shrink-0" title="Verified Project" />
+                  )}
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 group-hover:translate-y-0.5 transition-transform duration-200" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="center" className="w-56 font-sans">
-              <DropdownMenuLabel className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider">
-                Switch Project
+            <DropdownMenuContent align="center" className="w-64 p-1.5 font-sans border-border bg-popover/95 backdrop-blur-md rounded-xl shadow-xl">
+              <DropdownMenuLabel className="text-[10px] font-extrabold text-[#B8651A] uppercase tracking-wider px-2.5 py-1.5 flex items-center justify-between">
+                <span>Switch Project</span>
+                <span className="text-[8px] font-normal text-muted-foreground normal-case bg-muted px-1.5 py-0.5 rounded">
+                  {workspaces.length} active
+                </span>
               </DropdownMenuLabel>
-              <DropdownMenuSeparator />
+              <DropdownMenuSeparator className="my-1 bg-border/60" />
               
               {workspaces.map((w) => {
                 const isSelected = w.id === activeWorkspaceId;
@@ -217,14 +247,17 @@ export const ProjectSwitcher = ({ collapsed = false }: ProjectSwitcherProps) => 
                   <DropdownMenuItem
                     key={w.id}
                     onClick={() => handleSelect(w.id)}
-                    className="flex items-center justify-between cursor-pointer py-2 px-2.5 rounded-lg text-[13px] group"
+                    className={cn(
+                      "flex items-center justify-between cursor-pointer py-2 px-2.5 rounded-lg text-[13px] group transition-colors",
+                      isSelected ? "bg-muted/40 font-medium" : "hover:bg-muted/30"
+                    )}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <Check className={cn("w-4 h-4 text-primary flex-shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
+                      <Check className={cn("w-4 h-4 text-[#B8651A] flex-shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
                       <span className={cn("truncate", isSelected ? "font-bold text-foreground" : "text-muted-foreground")}>{w.name}</span>
                       {w.metaConnected && (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#E6F7EE] text-[#0A6E3C] border border-[#0E8A4B]/20">
-                          <Check className="w-2.5 h-2.5 stroke-[3.5] text-[#0A6E3C]" /> Verified
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#E6F7EE] text-[#0A6E3C] border border-[#0E8A4B]/20 flex-shrink-0">
+                          <BadgeCheck className="w-3 h-3 text-[#0E8A4B] fill-current opacity-85" /> Verified Project
                         </span>
                       )}
                     </div>
@@ -244,12 +277,12 @@ export const ProjectSwitcher = ({ collapsed = false }: ProjectSwitcherProps) => 
                 );
               })}
 
-              <DropdownMenuSeparator />
+              <DropdownMenuSeparator className="my-1 bg-border/60" />
               <DropdownMenuItem
                 onClick={() => setOpenCreate(true)}
-                className="flex items-center gap-2 cursor-pointer py-2 px-2.5 rounded-lg text-[13px] text-primary hover:text-primary font-semibold"
+                className="flex items-center gap-2 cursor-pointer py-2 px-2.5 rounded-lg text-[13px] text-[#B8651A] hover:text-[#9c5212] hover:bg-[#FFF1D6]/40 font-bold transition-all"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 stroke-[2.5]" />
                 <span>Create New Project</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -289,7 +322,7 @@ export const ProjectSwitcher = ({ collapsed = false }: ProjectSwitcherProps) => 
               <Button
                 type="submit"
                 disabled={creating || !newProjectName.trim()}
-                className="h-10 rounded-xl font-bold bg-[#0E8A4B] text-white hover:bg-[#0A6E3C]"
+                className="h-10 rounded-xl font-bold bg-[#B8651A] text-white hover:bg-[#9c5212] transition-colors"
               >
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Project"}
               </Button>
