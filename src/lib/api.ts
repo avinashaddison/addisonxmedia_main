@@ -54,12 +54,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
   const isMutation = method === "POST" || method === "PATCH" || method === "DELETE" || method === "PUT";
   const csrfToken = isMutation ? readCsrfCookie() : null;
+  const workspaceId = typeof localStorage !== "undefined" ? localStorage.getItem("addisonx_active_workspace") : null;
   const res = await fetch(`/api${path}`, {
     ...init,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+      ...(workspaceId ? { "X-Workspace-Id": workspaceId } : {}),
       ...(init?.headers || {}),
     },
   });
@@ -730,6 +732,11 @@ export const api = {
   updateAgent: (id: string, data: Partial<AiAgent>) => patch<AiAgent>(`/ai/agents/${id}`, data),
   activateAgent: (id: string) => post<{ ok: boolean }>(`/ai/agents/${id}/activate`),
   deleteAgent: (id: string) => del(`/ai/agents/${id}`),
+
+  // Workspaces
+  listWorkspaces: () => get<{ workspaces: Array<{ id: string; name: string; workspace_user_id: string }>; active_workspace_id: string }>("/workspaces"),
+  createWorkspace: (name: string) => post<{ id: string; name: string; workspace_user_id: string }>("/workspaces", { name }),
+  deleteWorkspace: (id: string) => del(`/workspaces/${id}`),
 };
 
 export type BookingDto = {

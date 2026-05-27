@@ -42,6 +42,7 @@ import commerceRoutes from "./routes/commerce";
 import bookingRoutes from "./routes/booking";
 import exportRoutes from "./routes/export";
 import { requireVerifiedEmail } from "./middleware/requireVerifiedEmail";
+import workspaceRoutes from "./routes/workspaces";
 import { getSeoSettings, injectSeo, buildSitemapXml, buildRobotsTxt } from "./lib/seo";
 
 const app = new Hono();
@@ -56,7 +57,7 @@ app.use(
   cors({
     origin: allowedOrigins,
     credentials: true,
-    allowHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
+    allowHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Workspace-Id"],
     allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   })
 );
@@ -148,6 +149,7 @@ app.route("/api", metaApiRoutes);
 app.route("/api", adsRoutes);
 app.route("/api", paymentsRoutes);
 app.route("/api", aiRoutes);
+app.route("/api", workspaceRoutes);
 app.route("/api", billingRoutes);
 app.route("/api", siteRoutes);
 app.route("/api", productRoutes);

@@ -449,6 +449,20 @@ export const broadcastRelations = relations(broadcast, ({ one }) => ({
   campaign: one(campaign, { fields: [broadcast.campaignId], references: [campaign.id] }),
 }));
 
+export const workspace = pgTable("workspace", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerUserId: text("owner_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  workspaceUserId: text("workspace_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const workspaceRelations = relations(workspace, ({ one }) => ({
+  owner: one(user, { fields: [workspace.ownerUserId], references: [user.id] }),
+  workspaceUser: one(user, { fields: [workspace.workspaceUserId], references: [user.id] }),
+}));
+
+export type Workspace = typeof workspace.$inferSelect;
 export type User = typeof user.$inferSelect;
 export type Profile = typeof profile.$inferSelect;
 export type Contact = typeof contact.$inferSelect;

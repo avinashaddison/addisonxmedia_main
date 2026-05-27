@@ -17,6 +17,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { prefetchPage } from "@/lib/prefetch";
 import { useConversations } from "@/hooks/useInboxData";
+import { ProjectSwitcher } from "./global/ProjectSwitcher";
 
 const SIDEBAR_COLLAPSED_KEY = "addisonx-sidebar-collapsed";
 
@@ -283,6 +284,10 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
 
       {/* Nav */}
       <nav className="relative flex-1 overflow-y-auto py-3 px-2.5 space-y-5">
+        <div className={cn("px-1 mb-2", collapsed ? "flex justify-center" : "")}>
+          <ProjectSwitcher collapsed={collapsed} />
+        </div>
+
         {/* Website mode — back arrow returns to primary sidebar */}
         {mode === "website" && (
           <button

@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { CommandPalette } from "./CommandPalette";
 import { NotificationCenter } from "./NotificationCenter";
 import { ThemeToggle } from "../ThemeToggle";
+import { ProjectSwitcher } from "./ProjectSwitcher";
 
 type Props = { onNavigate: (page: string) => void; onMenuClick?: () => void };
 
@@ -62,18 +63,7 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
       )}
 
       <div className="flex-1 flex items-center justify-center min-w-0">
-        <button
-          onClick={() => setPaletteOpen(true)}
-          className="group w-full max-w-md h-9 pl-3 pr-2 rounded-xl bg-muted/50 hover:bg-muted/80 border border-transparent hover:border-border flex items-center gap-2 transition-all"
-        >
-          <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <span className="flex-1 text-left text-[13px] text-muted-foreground truncate">
-            Search or jump to…
-          </span>
-          <kbd className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-card border border-border text-[9px] font-bold text-muted-foreground flex-shrink-0">
-            ⌘K
-          </kbd>
-        </button>
+        <ProjectSwitcher />
       </div>
 
       {/* Status bar — chips for WhatsApp API live-state + current plan with
