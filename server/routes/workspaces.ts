@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "../db/client";
-import { user as userTable, workspace, profile } from "../db/schema";
+import { user as userTable, workspace, profile, metaConfig } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
 import crypto from "crypto";
 
@@ -17,8 +17,10 @@ app.get("/workspaces", async (c) => {
       name: workspace.name,
       workspaceUserId: workspace.workspaceUserId,
       createdAt: workspace.createdAt,
+      metaConnected: sql<boolean>`CASE WHEN ${metaConfig.accessToken} IS NOT NULL AND ${metaConfig.accessToken} != '' THEN true ELSE false END`,
     })
     .from(workspace)
+    .leftJoin(metaConfig, eq(metaConfig.userId, workspace.workspaceUserId))
     .where(eq(workspace.ownerUserId, ownerUserId))
     .orderBy(workspace.createdAt);
 

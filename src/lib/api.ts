@@ -734,7 +734,7 @@ export const api = {
   deleteAgent: (id: string) => del(`/ai/agents/${id}`),
 
   // Workspaces
-  listWorkspaces: () => get<{ workspaces: Array<{ id: string; name: string; workspace_user_id: string }>; active_workspace_id: string }>("/workspaces"),
+  listWorkspaces: () => get<{ workspaces: Array<{ id: string; name: string; workspace_user_id: string; metaConnected?: boolean }>; active_workspace_id: string }>("/workspaces"),
   createWorkspace: (name: string) => post<{ id: string; name: string; workspace_user_id: string }>("/workspaces", { name }),
   deleteWorkspace: (id: string) => del(`/workspaces/${id}`),
 };

@@ -125,73 +125,137 @@ export const ProjectSwitcher = ({ collapsed = false }: ProjectSwitcherProps) => 
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          {collapsed ? (
+      {collapsed ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <button
               className="mx-auto w-10 h-10 rounded-xl bg-gradient-to-br from-[#FFF1D6] to-[#FFE3B3] hover:from-[#FFE3B3] hover:to-[#FFD28C] border-2 border-[#E8B968] flex items-center justify-center text-[#B8651A] font-bold transition shadow-sm"
               title={activeName}
             >
               {initials}
             </button>
-          ) : (
-            <button
-              className="w-full max-w-[200px] h-9 px-3 rounded-xl bg-card border border-border hover:border-foreground/20 hover:bg-muted/50 flex items-center justify-between gap-2 transition text-[13px] font-bold text-foreground shadow-sm"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <Folder className="w-4 h-4 text-[#B8651A] flex-shrink-0" />
-                <span className="truncate">{activeName}</span>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-            </button>
-          )}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align={collapsed ? "left" : "center"} className="w-56 font-sans">
-          <DropdownMenuLabel className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider">
-            Switch Project
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          
-          {workspaces.map((w) => {
-            const isSelected = w.id === activeWorkspaceId;
-            const isDefault = workspaces[0]?.id === w.id;
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="left" className="w-56 font-sans">
+            <DropdownMenuLabel className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider">
+              Switch Project
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            
+            {workspaces.map((w) => {
+              const isSelected = w.id === activeWorkspaceId;
+              const isDefault = workspaces[0]?.id === w.id;
 
-            return (
-              <DropdownMenuItem
-                key={w.id}
-                onClick={() => handleSelect(w.id)}
-                className="flex items-center justify-between cursor-pointer py-2 px-2.5 rounded-lg text-[13px] group"
+              return (
+                <DropdownMenuItem
+                  key={w.id}
+                  onClick={() => handleSelect(w.id)}
+                  className="flex items-center justify-between cursor-pointer py-2 px-2.5 rounded-lg text-[13px] group"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Check className={cn("w-4 h-4 text-primary flex-shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
+                    <span className={cn("truncate", isSelected ? "font-bold text-foreground" : "text-muted-foreground")}>{w.name}</span>
+                    {w.metaConnected && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#E6F7EE] text-[#0A6E3C] border border-[#0E8A4B]/20">
+                        <Check className="w-2.5 h-2.5 stroke-[3.5] text-[#0A6E3C]" /> Verified
+                      </span>
+                    )}
+                  </div>
+                  {!isDefault && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingId(w.id);
+                      }}
+                      className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      title="Delete Project"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </DropdownMenuItem>
+              );
+            })}
+
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => setOpenCreate(true)}
+              className="flex items-center gap-2 cursor-pointer py-2 px-2.5 rounded-lg text-[13px] text-primary hover:text-primary font-semibold"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Project</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <div className="flex flex-col gap-1 w-full max-w-[200px]">
+          <span className="text-[10px] font-black uppercase tracking-wider text-[#B8651A]/80 pl-0.5">
+            Project Management:
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="w-full h-9 px-3 rounded-xl bg-card border border-border hover:border-foreground/20 hover:bg-muted/50 flex items-center justify-between gap-2 transition text-[13px] font-bold text-foreground shadow-sm"
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <Check className={cn("w-4 h-4 text-primary flex-shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
-                  <span className={cn("truncate", isSelected ? "font-bold text-foreground" : "text-muted-foreground")}>{w.name}</span>
+                  <Folder className="w-4 h-4 text-[#B8651A] flex-shrink-0" />
+                  <span className="truncate">{activeName}</span>
                 </div>
-                {!isDefault && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeletingId(w.id);
-                    }}
-                    className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
-                    title="Delete Project"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </DropdownMenuItem>
-            );
-          })}
+                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className="w-56 font-sans">
+              <DropdownMenuLabel className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider">
+                Switch Project
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              
+              {workspaces.map((w) => {
+                const isSelected = w.id === activeWorkspaceId;
+                const isDefault = workspaces[0]?.id === w.id;
 
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => setOpenCreate(true)}
-            className="flex items-center gap-2 cursor-pointer py-2 px-2.5 rounded-lg text-[13px] text-primary hover:text-primary font-semibold"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create New Project</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+                return (
+                  <DropdownMenuItem
+                    key={w.id}
+                    onClick={() => handleSelect(w.id)}
+                    className="flex items-center justify-between cursor-pointer py-2 px-2.5 rounded-lg text-[13px] group"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Check className={cn("w-4 h-4 text-primary flex-shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
+                      <span className={cn("truncate", isSelected ? "font-bold text-foreground" : "text-muted-foreground")}>{w.name}</span>
+                      {w.metaConnected && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#E6F7EE] text-[#0A6E3C] border border-[#0E8A4B]/20">
+                          <Check className="w-2.5 h-2.5 stroke-[3.5] text-[#0A6E3C]" /> Verified
+                        </span>
+                      )}
+                    </div>
+                    {!isDefault && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingId(w.id);
+                        }}
+                        className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        title="Delete Project"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </DropdownMenuItem>
+                );
+              })}
+
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setOpenCreate(true)}
+                className="flex items-center gap-2 cursor-pointer py-2 px-2.5 rounded-lg text-[13px] text-primary hover:text-primary font-semibold"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create New Project</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
 
       {/* Create Project Dialog */}
       <Dialog open={openCreate} onOpenChange={setOpenCreate}>
