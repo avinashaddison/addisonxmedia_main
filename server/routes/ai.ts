@@ -303,45 +303,23 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
   let productContext = "";
   let suggestedProducts: Array<{ id: string; name: string; price: number; photoUrl: string | null }> = [];
   
-  if (persona.products && Array.isArray(persona.products) && persona.products.length > 0) {
+  const hasProducts = persona.products && Array.isArray(persona.products) && persona.products.length > 0;
+  if (hasProducts) {
     suggestedProducts = persona.products.map((p: any, idx: number) => ({
       id: `agent-prod-${idx}`,
       name: p.name,
       price: Number(p.price) || 0,
       photoUrl: null
     }));
-    productContext = "\n\nAVAILABLE PRODUCTS/AI TOOLS (Reference these products with their exact name, price, validity, activation option, and setup duration in your replies to convince the buyer):\n"
-      + persona.products.map((p: any) => {
-        let line = `• ${p.name} — ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`;
-        if (p.activationMail) line += `, Activation: ${p.activationMail}`;
-        if (p.activationTime) line += `, Setup time: ${p.activationTime}`;
-        return line;
-      }).join("\n");
-  } else if (looksLikeShopping) {
-    // Try keyword search across product name + description using significant
-    // words from the inbound message (drop common stop words).
-    const STOP = new Set(["i", "me", "you", "the", "a", "an", "is", "are", "want", "need", "buy", "order", "send", "show", "how", "much", "do", "have", "available", "any", "some", "this", "that", "what", "for", "to", "in", "on", "of", "and", "or"]);
-    const tokens = inboundLower.split(/[^a-z0-9]+/).filter((t) => t.length >= 2 && !STOP.has(t));
-    let matches: typeof product.$inferSelect[] = [];
-    if (tokens.length > 0) {
-      const conditions = tokens.map((t) => or(ilike(product.name, `%${escapeSqlLike(t)}%`), ilike(product.description, `%${escapeSqlLike(t)}%`))!);
-      matches = await db.select().from(product)
-        .where(and(eq(product.ownerId, userId), eq(product.status, "active"), or(...conditions)!))
-        .orderBy(asc(product.sortOrder), asc(product.createdAt))
-        .limit(6);
-    }
-    // If no specific match, fall back to top 4 active products
-    if (matches.length === 0) {
-      matches = await db.select().from(product)
-        .where(and(eq(product.ownerId, userId), eq(product.status, "active")))
-        .orderBy(asc(product.sortOrder), asc(product.createdAt))
-        .limit(4);
-    }
-    suggestedProducts = matches.map((p) => ({ id: p.id, name: p.name, price: Number(p.priceInr) || 0, photoUrl: p.photoUrl }));
-    if (matches.length > 0) {
-      productContext = "\n\nMATCHING PRODUCTS (customer asked about products — reference these by exact name + price in your reply):\n"
-        + matches.map((p) => `• ${p.name} — ₹${Number(p.priceInr).toLocaleString("en-IN")}${p.description ? ` (${p.description})` : ""}`).join("\n");
-    }
+    const productLines = persona.products.map((p: any) => {
+      let line = `- ${p.name}: ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`;
+      if (p.activationMail) line += `, Activation: ${p.activationMail}`;
+      if (p.activationTime) line += `, Setup time: ${p.activationTime}`;
+      return line;
+    }).join("\n");
+    productContext = `Available Products:\n${productLines}`;
+  } else {
+    productContext = `WARNING: No products are currently available/configured in the system. Everything is OUT OF STOCK. If the customer asks for any product, tool, subscription, or account, you MUST tell them it is not available. Do not ask qualifying questions like "Plus ya Pro?". Simply reply that it is not available/out of stock.`;
   }
 
   // 6. Build prompt + call OpenAI in JSON mode
@@ -357,20 +335,41 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
     ? `KNOWLEDGE BASE / EXTRA BUSINESS CONTEXT (ground your answers on this info):\n${persona.knowledge_base}`
     : "";
 
-  const productLines = (persona.products || []).map((p: any) => {
-    let line = `- ${p.name}: ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`;
-    if (p.activationMail) line += `, Activation: ${p.activationMail}`;
-    if (p.activationTime) line += `, Setup time: ${p.activationTime}`;
-    return line;
-  }).join("\n");
-
-  productContext = productLines.trim()
-    ? `Available Products:\n${productLines}`
-    : `WARNING: No products are currently available/configured in the system. Everything is OUT OF STOCK. If the customer asks for any product, tool, subscription, or account, you MUST tell them it is not available.`;
-
   const communityLine = communityUrl
     ? `COMMUNITY LINK: ${communityUrl}\nRule: If the conversation is concluding, or the customer has agreed to buy / is paying, suggest joining the community for daily updates using this exact link. Keep it very short.`
     : "";
+
+  const resellerExamples = hasProducts
+    ? [
+        `SHORT REPLY MODE & STYLE EXAMPLES (Note: These examples are for tone and formatting reference only. Do NOT copy these product names, prices, or availability unless they are present in the Available Products list above):`,
+        `Customer: "hello" → Reply: "hello bhai"`,
+        `Customer: "kaise ho" → Reply: "badhiya 🙂\ntum batao"`,
+        `Customer: "available?" → Reply: "haa"`,
+        `Customer: "price?" → Reply: "1499"`,
+        `Customer: "time?" → Reply: "5-10 min"`,
+        `Customer: "mail me?" → Reply: "haan"`,
+        `Customer: "Claude chahiye" → Reply: "Yes sir 🙂\nPro?"`,
+        `Customer: "Pro" → Reply: "Available hai sir 🙂"`,
+        `Customer: "Price?" (Claude) → Reply: "1499"`,
+        `Customer: "Netflix milega?" → Reply: "nahi bhai available nahi hai"`,
+        `Customer: "prime video?" → Reply: "nahi hai bhai"`,
+        `Customer: "Warranty?" → Reply: "Working warranty rahega"`,
+        `Customer: "Payment?" → Reply: "UPI de deta hu"`,
+        `Customer: "Payment done" → Reply: "Received sir 🙂\nSetup karta hu."`,
+        `Customer: "Aur tools?" → Reply: "${(persona.products || []).map((p: any) => p.name).slice(0, 4).join(', ')}"`,
+        `Customer: "Tumhara naam?" → Reply: "Addison bol sakte ho"`,
+      ]
+    : [
+        `SHORT REPLY MODE & STYLE EXAMPLES (Everything is OUT OF STOCK / unavailable, deny all product/tool requests):`,
+        `Customer: "hello" → Reply: "hello bhai"`,
+        `Customer: "kaise ho" → Reply: "badhiya 🙂\ntum batao"`,
+        `Customer: "available?" → Reply: "abhi stock nahi hai sir"`,
+        `Customer: "chatgpt chahiye" → Reply: "nahi bhai abhi available nahi hai"`,
+        `Customer: "price?" → Reply: "out of stock hai sab"`,
+        `Customer: "Claude milega?" → Reply: "nahi bhai abhi stock nahi hai"`,
+        `Customer: "prime video?" → Reply: "nahi hai bhai"`,
+        `Customer: "Tumhara naam?" → Reply: "Addison bol sakte ho"`,
+      ];
 
   const isSalesmanAgent = (persona as any).type === "prebuilt_sales" || (persona as any).tone === "reseller";
   let systemPrompt: string;
@@ -438,21 +437,7 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
       `- Never talk like customer support.`,
       `- Never force urgency.`,
       ``,
-      `SHORT REPLY MODE & STYLE EXAMPLES (Note: These examples are for tone and formatting reference only. Do NOT copy these product names, prices, or availability unless they are present in the Available Products list above):`,
-      `Customer: "hello" → Reply: "hello bhai"`,
-      `Customer: "kaise ho" → Reply: "badhiya 🙂\ntum batao"`,
-      `Customer: "available?" → Reply: "haa"`,
-      `Customer: "price?" → Reply: "1499"`,
-      `Customer: "time?" → Reply: "5-10 min"`,
-      `Customer: "mail me?" → Reply: "haan"`,
-      `Customer: "Claude chahiye" → Reply: "Yes sir 🙂\nPro?"`,
-      `Customer: "Pro" → Reply: "Available hai sir 🙂"`,
-      `Customer: "Price?" (Claude) → Reply: "1499"`,
-      `Customer: "Warranty?" → Reply: "Working warranty rahega"`,
-      `Customer: "Payment?" → Reply: "UPI de deta hu"`,
-      `Customer: "Payment done" → Reply: "Received sir 🙂\nSetup karta hu."`,
-      `Customer: "Aur tools?" → Reply: "ChatGPT, Claude, Midjourney, Sora"`,
-      `Customer: "Tumhara naam?" → Reply: "Addison bol sakte ho"`,
+      ...resellerExamples,
       ``,
       `BAD AI REPLIES (NEVER USE):`,
       `❌ "Great! How can I assist you today?"`,
@@ -501,7 +486,7 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
       neverLine,
       kbLine,
       "",
-      `Available Products / ToolsContext:\n${productLines}`,
+      productContext,
       communityLine,
       "",
       "Style & Tone Guidelines:",

@@ -343,6 +343,40 @@ async function triggerAgentReply(
     ? `COMMUNITY LINK: ${communityUrl}\nRule: If the conversation is concluding, or the customer has agreed to buy / is paying, suggest joining the community for daily updates using this exact link. Keep it very short. Example: 'Sir daily updates ke liye community join kar lijiye: ${communityUrl}'`
     : "";
 
+  const hasProducts = persona.products && Array.isArray(persona.products) && persona.products.length > 0;
+
+  const resellerExamples = hasProducts
+    ? [
+        `SHORT REPLY MODE & STYLE EXAMPLES (Note: These examples are for tone and formatting reference only. Do NOT copy these product names, prices, or availability unless they are present in the Available Products list above):`,
+        `Customer: "hello" → Reply: "hello bhai"`,
+        `Customer: "kaise ho" → Reply: "badhiya 🙂\ntum batao"`,
+        `Customer: "available?" → Reply: "haa"`,
+        `Customer: "price?" → Reply: "1499"`,
+        `Customer: "time?" → Reply: "5-10 min"`,
+        `Customer: "mail me?" → Reply: "haan"`,
+        `Customer: "Claude chahiye" → Reply: "Yes sir 🙂\nPro?"`,
+        `Customer: "Pro" → Reply: "Available hai sir 🙂"`,
+        `Customer: "Price?" (Claude) → Reply: "1499"`,
+        `Customer: "Netflix milega?" → Reply: "nahi bhai available nahi hai"`,
+        `Customer: "prime video?" → Reply: "nahi hai bhai"`,
+        `Customer: "Warranty?" → Reply: "Working warranty rahega"`,
+        `Customer: "Payment?" → Reply: "UPI de deta hu"`,
+        `Customer: "Payment done" → Reply: "Received sir 🙂\nSetup karta hu."`,
+        `Customer: "Aur tools?" → Reply: "${(persona.products || []).map((p: any) => p.name).slice(0, 4).join(', ')}"`,
+        `Customer: "Tumhara naam?" → Reply: "Addison bol sakte ho"`,
+      ]
+    : [
+        `SHORT REPLY MODE & STYLE EXAMPLES (Everything is OUT OF STOCK / unavailable, deny all product/tool requests):`,
+        `Customer: "hello" → Reply: "hello bhai"`,
+        `Customer: "kaise ho" → Reply: "badhiya 🙂\ntum batao"`,
+        `Customer: "available?" → Reply: "abhi stock nahi hai sir"`,
+        `Customer: "chatgpt chahiye" → Reply: "nahi bhai abhi available nahi hai"`,
+        `Customer: "price?" → Reply: "out of stock hai sab"`,
+        `Customer: "Claude milega?" → Reply: "nahi bhai abhi stock nahi hai"`,
+        `Customer: "prime video?" → Reply: "nahi hai bhai"`,
+        `Customer: "Tumhara naam?" → Reply: "Addison bol sakte ho"`,
+      ];
+
   // Build system prompt (same logic as /ai/reply-suggestions but condensed)
   const isSalesmanAgent = (persona as any).type === "prebuilt_sales" || (persona as any).tone === "reseller";
   let systemPrompt: string;
@@ -419,21 +453,7 @@ async function triggerAgentReply(
       `3. Set the "note" field to the name of the tool (e.g., "ChatGPT Plus").`,
       `4. Make the "reply" text state that you are sending the QR code (keep it extremely short, e.g. "Payment QR bhej raha hu sir 🙂").`,
       ``,
-      `SHORT REPLY MODE & STYLE EXAMPLES (Note: These examples are for tone and formatting reference only. Do NOT copy these product names, prices, or availability unless they are present in the Available Products list above):`,
-      `Customer: "hello" → Reply: "hello bhai"`,
-      `Customer: "kaise ho" → Reply: "badhiya 🙂\ntum batao"`,
-      `Customer: "available?" → Reply: "haa"`,
-      `Customer: "price?" → Reply: "1499"`,
-      `Customer: "time?" → Reply: "5-10 min"`,
-      `Customer: "mail me?" → Reply: "haan"`,
-      `Customer: "Claude chahiye" → Reply: "Yes sir 🙂\nPro?"`,
-      `Customer: "Pro" → Reply: "Available hai sir 🙂"`,
-      `Customer: "Price?" (Claude) → Reply: "1499"`,
-      `Customer: "Warranty?" → Reply: "Working warranty rahega"`,
-      `Customer: "Payment?" → Reply: "UPI de deta hu"`,
-      `Customer: "Payment done" → Reply: "Received sir 🙂\nSetup karta hu."`,
-      `Customer: "Aur tools?" → Reply: "ChatGPT, Claude, Midjourney, Sora"`,
-      `Customer: "Tumhara naam?" → Reply: "Addison bol sakte ho"`,
+      ...resellerExamples,
       ``,
       `BAD AI REPLIES (NEVER USE):`,
       `❌ "Great! How can I assist you today?"`,
@@ -486,7 +506,7 @@ async function triggerAgentReply(
       persona.never_say ? `NEVER: ${persona.never_say}` : "",
       persona.knowledge_base ? `CONTEXT:\n${persona.knowledge_base}` : "",
       "",
-      `Available Products / ToolsContext:\n${productLines}`,
+      productContext,
       communityLine,
       "",
       "Keep replies concise (1-3 sentences). Match the customer's language and energy.",
