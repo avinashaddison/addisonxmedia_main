@@ -364,7 +364,7 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
     return line;
   }).join("\n");
 
-  const productContext = productLines.trim()
+  productContext = productLines.trim()
     ? `Available Products:\n${productLines}`
     : `WARNING: No products are currently available/configured in the system. Everything is OUT OF STOCK. If the customer asks for any product, tool, subscription, or account, you MUST tell them it is not available.`;
 
