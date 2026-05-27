@@ -36,6 +36,7 @@ const AdminSettings = lazy(() => import("./pages/admin/AdminSettings.tsx"));
 const AdminSecurity = lazy(() => import("./pages/admin/AdminSecurity.tsx"));
 const AdminDiagnostics = lazy(() => import("./pages/admin/AdminDiagnostics.tsx"));
 const AdminMetaApi = lazy(() => import("./pages/admin/AdminMetaApi.tsx"));
+const AdminAgentPlayground = lazy(() => import("./pages/admin/AdminAgentPlayground.tsx"));
 const UpgradeReturn = lazy(() => import("./pages/UpgradeReturn.tsx"));
 
 // Sensible global defaults — was using vanilla `new QueryClient()` which means
@@ -126,6 +127,7 @@ const App = () => (
                 <Route path="security" element={<AdminSecurity />} />
                 <Route path="diagnostics" element={<AdminDiagnostics />} />
                 <Route path="meta-api" element={<AdminMetaApi />} />
+                <Route path="agent-playground" element={<AdminAgentPlayground />} />
               </Route>
 
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

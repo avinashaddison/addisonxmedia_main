@@ -529,6 +529,29 @@ export const aiPersona = pgTable("workspace_ai_persona", {
 export type AiPersona = typeof aiPersona.$inferSelect;
 
 // ============================================================
+// AI — prebuilt agent templates managed by admin
+// ============================================================
+export const prebuiltAgent = pgTable("prebuilt_agent", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  businessName: text("business_name").notNull().default(""),
+  whatWeSell: text("what_we_sell").notNull().default(""),
+  tone: text("tone").notNull().default("friendly"),
+  responseLanguage: text("response_language").notNull().default("hinglish"),
+  alwaysSay: text("always_say").notNull().default(""),
+  neverSay: text("never_say").notNull().default(""),
+  escalateKeywords: text("escalate_keywords").notNull().default("refund, complaint, legal, lawyer, scam, police, cheating, fraud"),
+  products: jsonb("products").default(sql`'[]'::jsonb`),
+  knowledgeBase: text("knowledge_base").default(""),
+  systemPrompt: text("system_prompt").default(""),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PrebuiltAgent = typeof prebuiltAgent.$inferSelect;
+
+// ============================================================
 // AI Agent — support for multiple agents (custom + prebuilt)
 // ============================================================
 export const aiAgent = pgTable("ai_agent", {
@@ -546,6 +569,7 @@ export const aiAgent = pgTable("ai_agent", {
   products: jsonb("products").default(sql`'[]'::jsonb`),                                       // Array<{ name: string, price: number, validity: string }>
   knowledgeBase: text("knowledge_base").default(""),
   systemPrompt: text("system_prompt").default(""),
+  prebuiltId: uuid("prebuilt_id").references(() => prebuiltAgent.id, { onDelete: "set null" }),
   isActive: boolean("is_active").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

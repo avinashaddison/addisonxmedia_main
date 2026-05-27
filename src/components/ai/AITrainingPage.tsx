@@ -141,6 +141,8 @@ export const AITrainingPage = () => {
   const set = <K extends keyof AiAgent>(k: K, v: AiAgent[K]) =>
     setForm((f) => (f ? { ...f, [k]: v } : f));
 
+  const isPrebuilt = form.type === "prebuilt_sales" || !!form.prebuilt_id;
+
   const dirty = selectedAgent && JSON.stringify(selectedAgent) !== JSON.stringify(form);
 
   const handleAddProduct = () => {
@@ -197,7 +199,7 @@ export const AITrainingPage = () => {
             size="sm"
             className="gap-1.5 bg-[#0E8A4B] hover:bg-[#0A6E3B] text-white shadow-[0_2px_0_0_#073D22]"
             onClick={() => form && save.mutate(form)}
-            disabled={!dirty || save.isPending}
+            disabled={!dirty || save.isPending || isPrebuilt}
           >
             {save.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             Save training
@@ -222,7 +224,7 @@ export const AITrainingPage = () => {
               {agents.map((agent) => {
                 const active = agent.id === selectedAgentId;
                 const live = agent.is_active;
-                const isPrebuilt = agent.type === "prebuilt_sales";
+                const isPrebuilt = agent.type === "prebuilt_sales" || !!agent.prebuilt_id;
                 
                 return (
                   <button
@@ -347,7 +349,7 @@ export const AITrainingPage = () => {
                   <Input
                     value={form.name}
                     onChange={(e) => set("name", e.target.value)}
-                    disabled={form.type === "prebuilt_sales"}
+                    disabled={isPrebuilt}
                     placeholder="e.g. AI Tools Salesman"
                   />
                 </Field>
@@ -355,6 +357,7 @@ export const AITrainingPage = () => {
                   <Input
                     value={form.business_name}
                     onChange={(e) => set("business_name", e.target.value)}
+                    disabled={isPrebuilt}
                     placeholder="e.g. Sharma Sweets"
                   />
                 </Field>
@@ -365,6 +368,7 @@ export const AITrainingPage = () => {
                   rows={3}
                   value={form.what_we_sell}
                   onChange={(e) => set("what_we_sell", e.target.value)}
+                  disabled={isPrebuilt}
                   placeholder="e.g. Sharma Sweets sells fresh premium Indian sweets, namkeen, and gift packs online."
                 />
               </Field>
@@ -386,14 +390,16 @@ export const AITrainingPage = () => {
                             {p.activationTime && ` · ⏱️ ${p.activationTime}`}
                           </p>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                          onClick={() => handleRemoveProduct(idx)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        {!isPrebuilt && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                            onClick={() => handleRemoveProduct(idx)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -402,7 +408,8 @@ export const AITrainingPage = () => {
                 )}
 
                 {/* Add product fields */}
-                <div className="bg-muted/15 border-2 border-dashed border-[#E8B968]/70 rounded-xl p-3 space-y-3">
+                {!isPrebuilt && (
+                  <div className="bg-muted/15 border-2 border-dashed border-[#E8B968]/70 rounded-xl p-3 space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
                     <div className="sm:col-span-5 space-y-1">
                       <Label className="text-[9.5px] font-black uppercase text-foreground/65">Tool / Product Name</Label>
@@ -486,6 +493,7 @@ export const AITrainingPage = () => {
                       </Button>
                     </div>
                   </div>
+                )}
                 </div>
               </div>
             </Section>
@@ -497,6 +505,7 @@ export const AITrainingPage = () => {
                   rows={4}
                   value={form.knowledge_base || ""}
                   onChange={(e) => set("knowledge_base", e.target.value)}
+                  disabled={isPrebuilt}
                   placeholder="e.g. Payments are secure. Support is available via email support@company.com. Standard set up takes less than 24 hours. Refunds can be claimed within 7 days."
                 />
               </Field>
@@ -509,6 +518,7 @@ export const AITrainingPage = () => {
                   rows={6}
                   value={form.system_prompt || ""}
                   onChange={(e) => set("system_prompt", e.target.value)}
+                  disabled={isPrebuilt}
                   placeholder="e.g. You are a real Indian WhatsApp reseller. Speak casual Hinglish, keep replies to 1-2 lines, and mirror the customer's style naturally."
                 />
               </Field>
@@ -523,12 +533,16 @@ export const AITrainingPage = () => {
                     <button
                       key={opt.value}
                       type="button"
-                      onClick={() => set("tone", opt.value)}
+                      onClick={() => !isPrebuilt && set("tone", opt.value)}
+                      disabled={isPrebuilt}
                       className={cn(
-                        "relative rounded-xl border-2 p-3 text-left transition-all hover:-translate-y-0.5",
+                        "relative rounded-xl border-2 p-3 text-left transition-all",
+                        !isPrebuilt && "hover:-translate-y-0.5",
                         active
                           ? "border-[#0E8A4B] bg-[#E6F7EE] shadow-[0_3px_0_0_#0E8A4B]"
-                          : "border-[#E8B968] bg-white hover:border-[#FF6A1F]/40"
+                          : "border-[#E8B968] bg-white",
+                        !active && !isPrebuilt && "hover:border-[#FF6A1F]/40",
+                        isPrebuilt && "cursor-not-allowed"
                       )}
                     >
                       {active && <CheckCircle2 className="absolute top-2 right-2 w-3.5 h-3.5 text-[#0E8A4B]" />}
@@ -550,12 +564,15 @@ export const AITrainingPage = () => {
                     <button
                       key={opt.value}
                       type="button"
-                      onClick={() => set("response_language", opt.value)}
+                      onClick={() => !isPrebuilt && set("response_language", opt.value)}
+                      disabled={isPrebuilt}
                       className={cn(
                         "rounded-xl border-2 p-3 text-left transition-all",
                         active
                           ? "border-[#0E8A4B] bg-[#E6F7EE] shadow-[0_3px_0_0_#0E8A4B]"
-                          : "border-[#E8B968] bg-white hover:border-[#FF6A1F]/40"
+                          : "border-[#E8B968] bg-white",
+                        !active && !isPrebuilt && "hover:border-[#FF6A1F]/40",
+                        isPrebuilt && "cursor-not-allowed"
                       )}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -576,6 +593,7 @@ export const AITrainingPage = () => {
                   rows={2}
                   value={form.always_say}
                   onChange={(e) => set("always_say", e.target.value)}
+                  disabled={isPrebuilt}
                   placeholder="e.g. Free trial is available."
                 />
               </Field>
@@ -584,6 +602,7 @@ export const AITrainingPage = () => {
                   rows={2}
                   value={form.never_say}
                   onChange={(e) => set("never_say", e.target.value)}
+                  disabled={isPrebuilt}
                   placeholder="e.g. Do not promise possession dates."
                 />
               </Field>
@@ -591,6 +610,7 @@ export const AITrainingPage = () => {
                 <Input
                   value={form.escalate_keywords}
                   onChange={(e) => set("escalate_keywords", e.target.value)}
+                  disabled={isPrebuilt}
                   placeholder="refund, complaint, legal, lawyer"
                 />
               </Field>

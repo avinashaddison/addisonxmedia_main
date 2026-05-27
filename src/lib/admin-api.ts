@@ -1,6 +1,8 @@
 // Admin API client — separate from the customer-facing api.ts.
 // All routes are /api/admin/* and require is_staff = true on the user.
 
+import type { PrebuiltAgent } from "./api-types";
+
 async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api/admin${path}`, {
     ...init,
@@ -199,6 +201,14 @@ export const adminApi = {
   settings: () => adminRequest<SystemSetting[]>("/settings"),
   updateSetting: (key: string, value: string) =>
     adminRequest<{ ok: true }>(`/settings/${key}`, { method: "PATCH", body: JSON.stringify({ value }) }),
+
+  listPrebuiltAgents: () => adminRequest<PrebuiltAgent[]>("/prebuilt-agents"),
+  createPrebuiltAgent: (data: Partial<PrebuiltAgent>) =>
+    adminRequest<PrebuiltAgent>("/prebuilt-agents", { method: "POST", body: JSON.stringify(data) }),
+  updatePrebuiltAgent: (id: string, data: Partial<PrebuiltAgent>) =>
+    adminRequest<PrebuiltAgent>(`/prebuilt-agents/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deletePrebuiltAgent: (id: string) =>
+    adminRequest<{ ok: true }>(`/prebuilt-agents/${id}`, { method: "DELETE" }),
 };
 
 export type AdminUpgradeRequest = {

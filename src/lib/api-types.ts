@@ -143,6 +143,24 @@ export type AiAgentProduct = {
   activationTime?: string;
 };
 
+export type PrebuiltAgent = {
+  id: string;
+  name: string;
+  business_name: string;
+  what_we_sell: string;
+  tone: string;
+  response_language: string;
+  always_say: string;
+  never_say: string;
+  escalate_keywords: string;
+  products: AiAgentProduct[];
+  knowledge_base: string;
+  system_prompt: string;
+  is_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AiAgent = {
   id: string;
   owner_id: string;
@@ -158,6 +176,7 @@ export type AiAgent = {
   products: AiAgentProduct[];
   knowledge_base: string;
   system_prompt: string;
+  prebuilt_id?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

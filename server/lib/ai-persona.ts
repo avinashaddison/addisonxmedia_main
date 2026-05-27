@@ -6,7 +6,7 @@
 
 import { eq, and } from "drizzle-orm";
 import { db } from "../db/client";
-import { aiAgent, aiPersona, user } from "../db/schema";
+import { aiAgent, aiPersona, user, prebuiltAgent } from "../db/schema";
 
 export type PersonaTone = "friendly" | "professional" | "casual" | "urgent_sales" | "reseller";
 export type PersonaLanguage = "hinglish" | "hindi" | "english" | "auto";
@@ -44,14 +44,22 @@ const DEFAULT_PERSONA: Persona = {
   escalate_keywords: "refund, complaint, legal, lawyer, scam, police, cheating, fraud",
 };
 
-const PREBUILT_SALESMAN: Omit<typeof aiAgent.$inferInsert, "ownerId"> = {
-  name: "AI Tools Salesman",
-  type: "prebuilt_sales",
-  businessName: "AI Tool Shop",
-  whatWeSell: "Premium AI tools — ChatGPT Plus, Claude Pro, Midjourney, Sora, and other top AI subscriptions. We are trusted resellers providing fast delivery and working warranty.",
-  tone: "casual",
-  responseLanguage: "hinglish",
-  alwaysSay: `You are NOT a customer support bot. You are a real Indian WhatsApp reseller selling AI tool accounts. Your ONLY goal: Sound like a real human chatting naturally on WhatsApp.
+const VALID_TONES: PersonaTone[] = ["friendly", "professional", "casual", "urgent_sales", "reseller"];
+const VALID_LANGUAGES: PersonaLanguage[] = ["hinglish", "hindi", "english", "auto"];
+
+/** Seed default prebuilt agent templates if they don't exist in the database. */
+export const seedPrebuiltTemplatesIfEmpty = async (): Promise<void> => {
+  const existing = await db.select().from(prebuiltAgent).limit(1);
+  if (existing.length > 0) return;
+
+  await db.insert(prebuiltAgent).values({
+    id: "a0e0a0e0-a0e0-4a0e-a0e0-a0e0a0e0a0e0", // Fixed UUID for AI Tools Salesman
+    name: "AI Tools Salesman",
+    businessName: "AI Tool Shop",
+    whatWeSell: "Premium AI tools — ChatGPT Plus, Claude Pro, Midjourney, Sora, and other top AI subscriptions. We are trusted resellers providing fast delivery and working warranty.",
+    tone: "casual",
+    responseLanguage: "hinglish",
+    alwaysSay: `You are NOT a customer support bot. You are a real Indian WhatsApp reseller selling AI tool accounts. Your ONLY goal: Sound like a real human chatting naturally on WhatsApp.
 CRITICAL RULES:
 - Keep replies VERY short (Maximum 1-2 lines).
 - Reply fast and direct.
@@ -74,20 +82,20 @@ CRITICAL RULES:
   * "Kab tak?" means expiry/duration.
   * "Kitna lagega?" can mean price or time depending on the previous messages.
   * If the meaning of their question is unclear, ask for a short clarification (e.g. "plan duration puch rahe?" or "activation ya validity?").`,
-  neverSay: `Never write long paragraphs. Never over explain. Never ask too many questions together. Never push customer repeatedly. Never send payment QR before customer asks or confirms.
+    neverSay: `Never write long paragraphs. Never over explain. Never ask too many questions together. Never push customer repeatedly. Never send payment QR before customer asks or confirms.
 Never deny being AI awkwardly like "No sir, I am real human". Never repeat same line again and again. Never send links randomly. Never send community/Instagram links unless customer asks. Never talk like customer support. Never force urgency.
 Never say: "Dear customer", "Kindly", "Please be informed", "We are delighted", "Happy to help", "As an AI", "Premium experience", "Convenient time", "Schedule demo", "Our team", "Valued customer".
 Do NOT use 🙂 in every reply. Do NOT always ask questions or sound too helpful/polite.
 Do NOT mention or offer any tools/products that are not explicitly present in our active products list.`,
-  escalateKeywords: "refund, complaint, legal, lawyer, scam, police, cheating, fraud",
-  products: [
-    { name: "ChatGPT Plus", price: 999, validity: "Monthly", activationMail: "Activation On your Mail", activationTime: "10 min" },
-    { name: "ChatGPT Pro", price: 8999, validity: "Monthly", activationMail: "Activation On your Mail", activationTime: "30 min" },
-    { name: "Claude Pro", price: 1499, validity: "Monthly", activationMail: "Mail and Pass Provide by us", activationTime: "10 min" },
-    { name: "Midjourney Standard", price: 1999, validity: "Monthly", activationMail: "Mail and Pass Provide by us", activationTime: "30 min" },
-    { name: "Sora Plan", price: 2999, validity: "Monthly", activationMail: "Activation On your Mail", activationTime: "1 hour" },
-  ],
-  knowledgeBase: `Fast delivery — account ready in 5-10 minutes after payment. Payment via UPI (Google Pay, PhonePe, Paytm) or card. Working warranty included — if any issue we fix it. Accounts are shared/family plan type — safe to use. No technical setup needed, just login and start. We handle many customers daily so process is smooth.
+    escalateKeywords: "refund, complaint, legal, lawyer, scam, police, cheating, fraud",
+    products: [
+      { name: "ChatGPT Plus", price: 999, validity: "Monthly", activationMail: "Activation On your Mail", activationTime: "10 min" },
+      { name: "ChatGPT Pro", price: 8999, validity: "Monthly", activationMail: "Activation On your Mail", activationTime: "30 min" },
+      { name: "Claude Pro", price: 1499, validity: "Monthly", activationMail: "Mail and Pass Provide by us", activationTime: "10 min" },
+      { name: "Midjourney Standard", price: 1999, validity: "Monthly", activationMail: "Mail and Pass Provide by us", activationTime: "30 min" },
+      { name: "Sora Plan", price: 2999, validity: "Monthly", activationMail: "Activation On your Mail", activationTime: "1 hour" },
+    ],
+    knowledgeBase: `Fast delivery — account ready in 5-10 minutes after payment. Payment via UPI (Google Pay, PhonePe, Paytm) or card. Working warranty included — if any issue we fix it. Accounts are shared/family plan type — safe to use. No technical setup needed, just login and start. We handle many customers daily so process is smooth.
 
 SHORT REPLY MODE & STYLE EXAMPLES:
 Customer: "hello" → Reply: "hello bhai"
@@ -125,16 +133,84 @@ GOOD HUMAN REPLIES:
 ✅ "done"
 ✅ "bhejta"
 ✅ "ek min"`,
-  isActive: false,
+    systemPrompt: "",
+    isEnabled: true,
+  });
 };
 
-const VALID_TONES: PersonaTone[] = ["friendly", "professional", "casual", "urgent_sales", "reseller"];
-const VALID_LANGUAGES: PersonaLanguage[] = ["hinglish", "hindi", "english", "auto"];
+/** Synchronize enabled templates to user workspace copies, and delete disabled copies. */
+export const syncPrebuiltAgents = async (userId: string): Promise<void> => {
+  await seedPrebuiltTemplatesIfEmpty();
+
+  // Fetch all enabled prebuilt agents
+  const enabledTemplates = await db.select().from(prebuiltAgent).where(eq(prebuiltAgent.isEnabled, true));
+  const templateIds = enabledTemplates.map(t => t.id);
+
+  // Fetch user's current agents
+  const userAgents = await db.select().from(aiAgent).where(eq(aiAgent.ownerId, userId));
+  const userPrebuiltCopies = userAgents.filter(a => a.prebuiltId || a.type === "prebuilt_sales");
+
+  // 1. Sync or insert enabled templates
+  for (const template of enabledTemplates) {
+    const copy = userPrebuiltCopies.find(
+      a => a.prebuiltId === template.id || 
+      (template.name === "AI Tools Salesman" && a.type === "prebuilt_sales")
+    );
+
+    const values = {
+      name: template.name,
+      businessName: template.businessName,
+      whatWeSell: template.whatWeSell,
+      tone: template.tone,
+      responseLanguage: template.responseLanguage,
+      alwaysSay: template.alwaysSay,
+      neverSay: template.neverSay,
+      escalateKeywords: template.escalateKeywords,
+      products: template.products,
+      knowledgeBase: template.knowledgeBase,
+      systemPrompt: template.systemPrompt,
+      prebuiltId: template.id,
+      type: "prebuilt_sales",
+    };
+
+    if (!copy) {
+      await db.insert(aiAgent).values({
+        ownerId: userId,
+        isActive: false,
+        ...values,
+      });
+    } else {
+      await db.update(aiAgent).set(values).where(eq(aiAgent.id, copy.id));
+    }
+  }
+
+  // 2. Cascade delete copies that are no longer enabled globally
+  for (const userAgentCopy of userPrebuiltCopies) {
+    const isStillEnabled = templateIds.includes(userAgentCopy.prebuiltId ?? "");
+    const isLegacySalesman = userAgentCopy.type === "prebuilt_sales" && !userAgentCopy.prebuiltId;
+    const isSalesmanTemplateEnabled = enabledTemplates.some(t => t.name === "AI Tools Salesman");
+
+    const activeCopyMatchesTemplate = isLegacySalesman ? isSalesmanTemplateEnabled : isStillEnabled;
+
+    if (!activeCopyMatchesTemplate) {
+      if (userAgentCopy.isActive) {
+        const defaultAgent = userAgents.find(a => a.type === "custom");
+        if (defaultAgent) {
+          await db.update(aiAgent).set({ isActive: true, updatedAt: new Date() }).where(eq(aiAgent.id, defaultAgent.id));
+        }
+      }
+      await db.delete(aiAgent).where(eq(aiAgent.id, userAgentCopy.id));
+    }
+  }
+};
 
 /** Seed default agents if none exist for this user. */
 export const seedAgentsIfEmpty = async (userId: string): Promise<void> => {
   const existing = await db.select().from(aiAgent).where(eq(aiAgent.ownerId, userId)).limit(1);
-  if (existing.length > 0) return;
+  if (existing.length > 0) {
+    await syncPrebuiltAgents(userId);
+    return;
+  }
 
   // Try to migrate data from legacy aiPersona
   const [legacy] = await db.select().from(aiPersona).where(eq(aiPersona.userId, userId)).limit(1);
@@ -175,27 +251,14 @@ export const seedAgentsIfEmpty = async (userId: string): Promise<void> => {
     isActive: true,
   });
 
-  // Insert prebuilt salesman agent (inactive)
-  await db.insert(aiAgent).values({
-    ownerId: userId,
-    ...PREBUILT_SALESMAN,
-  });
+  // Sync templates
+  await syncPrebuiltAgents(userId);
 };
 
 /** Read the active agent for the workspace. */
 export const getActiveAgent = async (userId: string): Promise<typeof aiAgent.$inferSelect> => {
   await seedAgentsIfEmpty(userId);
-
-  // Sync existing prebuilt salesman to the latest prompt rules
-  await db.update(aiAgent)
-    .set({
-      whatWeSell: PREBUILT_SALESMAN.whatWeSell,
-      alwaysSay: PREBUILT_SALESMAN.alwaysSay,
-      neverSay: PREBUILT_SALESMAN.neverSay,
-      knowledgeBase: PREBUILT_SALESMAN.knowledgeBase,
-      products: PREBUILT_SALESMAN.products,
-    })
-    .where(and(eq(aiAgent.ownerId, userId), eq(aiAgent.type, "prebuilt_sales")));
+  await syncPrebuiltAgents(userId);
 
   const [active] = await db.select().from(aiAgent)
     .where(and(eq(aiAgent.ownerId, userId), eq(aiAgent.isActive, true)))
@@ -263,3 +326,4 @@ export const updatePersona = async (
 
   return getPersonaWithDefaults(userId);
 };
+

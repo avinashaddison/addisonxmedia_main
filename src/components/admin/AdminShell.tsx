@@ -3,7 +3,7 @@ import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Building2, Users, CreditCard, ScrollText, ShieldCheck,
   Activity, Settings, LogOut, ChevronsLeft, ChevronsRight, Loader2,
-  Crown, Lock, Shuffle,
+  Crown, Lock, Shuffle, Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +31,7 @@ const GROUPS: NavGroup[] = [
       { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
       { icon: Building2, label: "Workspaces", path: "/admin/workspaces" },
       { icon: Users, label: "Users", path: "/admin/users" },
+      { icon: Brain, label: "Agent Playground", path: "/admin/agent-playground" },
     ],
   },
   {

@@ -3,7 +3,7 @@ import { db } from "../db/client";
 import {
   user, contact, conversation, message, deal, campaign, broadcast, task,
   adminAuditLog, impersonationSession, metaConfig, systemSetting, upgradeRequest,
-  webhookOrphan, profile,
+  webhookOrphan, profile, prebuiltAgent,
 } from "../db/schema";
 import { eq, desc, asc, sql, and, gt, isNull, or, ilike, count, inArray } from "drizzle-orm";
 import { requireAdmin, auditLog, type AdminVariables } from "../middleware/admin";
@@ -1372,6 +1372,149 @@ admin.post("/api/admin/diagnostics/reassign-chats", requireAdmin(["super_admin"]
   });
 
   return c.json({ ok: true, result });
+});
+
+/* ─────────── Prebuilt Agents (Agent Playground) ─────────── */
+
+admin.get("/api/admin/prebuilt-agents", async (c) => {
+  const agents = await db.select().from(prebuiltAgent).orderBy(desc(prebuiltAgent.createdAt));
+  return c.json(agents.map(a => ({
+    id: a.id,
+    name: a.name,
+    business_name: a.businessName,
+    what_we_sell: a.whatWeSell,
+    tone: a.tone,
+    response_language: a.responseLanguage,
+    always_say: a.alwaysSay,
+    never_say: a.neverSay,
+    escalate_keywords: a.escalateKeywords,
+    products: a.products || [],
+    knowledge_base: a.knowledgeBase,
+    system_prompt: a.systemPrompt,
+    is_enabled: a.isEnabled,
+    created_at: a.createdAt,
+    updated_at: a.updatedAt,
+  })));
+});
+
+admin.post("/api/admin/prebuilt-agents", async (c) => {
+  const body = await c.req.json<any>();
+  const [agent] = await db.insert(prebuiltAgent).values({
+    name: body.name || "New Prebuilt Agent",
+    businessName: body.business_name || "",
+    whatWeSell: body.what_we_sell || "",
+    tone: body.tone || "friendly",
+    responseLanguage: body.response_language || "hinglish",
+    alwaysSay: body.always_say || "",
+    neverSay: body.never_say || "",
+    escalateKeywords: body.escalate_keywords || "refund, complaint, legal, lawyer, scam, police, cheating, fraud",
+    products: body.products || [],
+    knowledgeBase: body.knowledge_base || "",
+    systemPrompt: body.system_prompt || "",
+    isEnabled: body.is_enabled !== undefined ? body.is_enabled : true,
+  }).returning();
+
+  await auditLog(c, "create_prebuilt_agent", agent.id, { name: agent.name });
+
+  return c.json({
+    id: agent.id,
+    name: agent.name,
+    business_name: agent.businessName,
+    what_we_sell: agent.whatWeSell,
+    tone: agent.tone,
+    response_language: agent.responseLanguage,
+    always_say: agent.alwaysSay,
+    never_say: agent.neverSay,
+    escalate_keywords: agent.escalateKeywords,
+    products: agent.products,
+    knowledge_base: agent.knowledgeBase,
+    system_prompt: agent.systemPrompt,
+    is_enabled: agent.isEnabled,
+    created_at: agent.createdAt,
+    updated_at: agent.updatedAt,
+  }, 201);
+});
+
+admin.get("/api/admin/prebuilt-agents/:id", async (c) => {
+  const id = c.req.param("id");
+  const [agent] = await db.select().from(prebuiltAgent).where(eq(prebuiltAgent.id, id)).limit(1);
+  if (!agent) return c.json({ error: "Prebuilt agent template not found" }, 404);
+
+  return c.json({
+    id: agent.id,
+    name: agent.name,
+    business_name: agent.businessName,
+    what_we_sell: agent.whatWeSell,
+    tone: agent.tone,
+    response_language: agent.responseLanguage,
+    always_say: agent.alwaysSay,
+    never_say: agent.neverSay,
+    escalate_keywords: agent.escalateKeywords,
+    products: agent.products,
+    knowledge_base: agent.knowledgeBase,
+    system_prompt: agent.systemPrompt,
+    is_enabled: agent.isEnabled,
+    created_at: agent.createdAt,
+    updated_at: agent.updatedAt,
+  });
+});
+
+admin.patch("/api/admin/prebuilt-agents/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<any>();
+
+  const updateSet: any = { updatedAt: new Date() };
+  if (body.name !== undefined) updateSet.name = body.name;
+  if (body.business_name !== undefined) updateSet.businessName = body.business_name;
+  if (body.what_we_sell !== undefined) updateSet.whatWeSell = body.what_we_sell;
+  if (body.tone !== undefined) updateSet.tone = body.tone;
+  if (body.response_language !== undefined) updateSet.responseLanguage = body.response_language;
+  if (body.always_say !== undefined) updateSet.alwaysSay = body.always_say;
+  if (body.never_say !== undefined) updateSet.neverSay = body.never_say;
+  if (body.escalate_keywords !== undefined) updateSet.escalateKeywords = body.escalate_keywords;
+  if (body.products !== undefined) updateSet.products = body.products;
+  if (body.knowledge_base !== undefined) updateSet.knowledgeBase = body.knowledge_base;
+  if (body.system_prompt !== undefined) updateSet.systemPrompt = body.system_prompt;
+  if (body.is_enabled !== undefined) updateSet.isEnabled = body.is_enabled;
+
+  const [agent] = await db.update(prebuiltAgent)
+    .set(updateSet)
+    .where(eq(prebuiltAgent.id, id))
+    .returning();
+
+  if (!agent) return c.json({ error: "Prebuilt agent template not found" }, 404);
+
+  await auditLog(c, "update_prebuilt_agent", id, { name: agent.name, isEnabled: agent.isEnabled });
+
+  return c.json({
+    id: agent.id,
+    name: agent.name,
+    business_name: agent.businessName,
+    what_we_sell: agent.whatWeSell,
+    tone: agent.tone,
+    response_language: agent.responseLanguage,
+    always_say: agent.alwaysSay,
+    never_say: agent.neverSay,
+    escalate_keywords: agent.escalateKeywords,
+    products: agent.products,
+    knowledge_base: agent.knowledgeBase,
+    system_prompt: agent.systemPrompt,
+    is_enabled: agent.isEnabled,
+    created_at: agent.createdAt,
+    updated_at: agent.updatedAt,
+  });
+});
+
+admin.delete("/api/admin/prebuilt-agents/:id", async (c) => {
+  const id = c.req.param("id");
+  const [agent] = await db.select().from(prebuiltAgent).where(eq(prebuiltAgent.id, id)).limit(1);
+  if (!agent) return c.json({ error: "Prebuilt agent template not found" }, 404);
+
+  await db.delete(prebuiltAgent).where(eq(prebuiltAgent.id, id));
+
+  await auditLog(c, "delete_prebuilt_agent", id, { name: agent.name });
+
+  return c.json({ ok: true });
 });
 
 export default admin;
