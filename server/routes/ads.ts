@@ -488,6 +488,8 @@ app.post("/ads/campaigns", async (c) => {
       page_id: string;
       image_url?: string;
       video_url?: string;
+      instagram_media_id?: string;
+      instagram_actor_id?: string;
       headline: string;
       body: string;
       link_url: string;
@@ -672,7 +674,7 @@ app.post("/ads/campaigns", async (c) => {
     lastStep = "creative";
     let videoId: string | undefined = undefined;
 
-    if (body.creative.video_url) {
+    if (body.creative.video_url && !body.creative.instagram_media_id) {
       lastStep = "ad_video";
       // Upload video URL to Meta's advideos endpoint first
       const videoRes = await adsFetch<{ id: string }>(`/act_${creds.adAccountId}/advideos`, {
@@ -693,6 +695,8 @@ app.post("/ads/campaigns", async (c) => {
       pageId: body.creative.page_id,
       imageUrl: body.creative.image_url,
       videoId,
+      instagramMediaId: body.creative.instagram_media_id,
+      instagramActorId: body.creative.instagram_actor_id,
       headline: body.creative.headline,
       body: body.creative.body,
       linkUrl: body.creative.link_url,
@@ -1022,7 +1026,8 @@ app.get("/ads/pages/:id/instagram-videos", async (c) => {
           timestamp: new Date(Date.now() - 172800000).toISOString(),
         }
       ],
-      demo: true
+      demo: true,
+      instagramActorId: "ig_demo_actor"
     });
   }
 
@@ -1060,7 +1065,7 @@ app.get("/ads/pages/:id/instagram-videos", async (c) => {
         timestamp: m.timestamp,
       }));
 
-    return c.json({ videos, demo: false });
+    return c.json({ videos, instagramActorId: igId, demo: false });
   } catch (e) {
     const err = onApiError(e);
     return c.json({ error: err.error, videos: [] }, 500);

@@ -177,6 +177,8 @@ export const CreateCampaignPage = () => {
   const [targetingExpansion, setTargetingExpansion] = useState(true);
   // Ad creative
   const [adImageUrl, setAdImageUrl]     = useState("");
+  const [instagramMediaId, setInstagramMediaId] = useState<string | null>(null);
+  const [instagramActorId, setInstagramActorId] = useState<string | null>(null);
   const [creativeType, setCreativeType] = useState<"image" | "video">("image");
   const [adHeadline, setAdHeadline]     = useState("");
   const [adBody, setAdBody]             = useState("");
@@ -353,6 +355,8 @@ export const CreateCampaignPage = () => {
           page_id: pageId,
           image_url: creativeType === "image" ? (adImageUrl || undefined) : undefined,
           video_url: creativeType === "video" ? (adImageUrl || undefined) : undefined,
+          instagram_media_id: creativeType === "video" ? (instagramMediaId || undefined) : undefined,
+          instagram_actor_id: creativeType === "video" ? (instagramActorId || undefined) : undefined,
           headline: adHeadline,
           body: adBody,
           link_url: resolvedLinkUrl,
@@ -665,6 +669,8 @@ export const CreateCampaignPage = () => {
                 targetingExpansion={targetingExpansion} setTargetingExpansion={setTargetingExpansion}
                 creativeType={creativeType} setCreativeType={setCreativeType}
                 adImageUrl={adImageUrl} setAdImageUrl={setAdImageUrl}
+                instagramMediaId={instagramMediaId} setInstagramMediaId={setInstagramMediaId}
+                instagramActorId={instagramActorId} setInstagramActorId={setInstagramActorId}
                 adHeadline={adHeadline} setAdHeadline={setAdHeadline}
                 adBody={adBody} setAdBody={setAdBody}
                 adLinkUrl={adLinkUrl} setAdLinkUrl={setAdLinkUrl}
@@ -860,6 +866,8 @@ type StepAudienceCreativeProps = {
   targetingExpansion: boolean; setTargetingExpansion: (v: boolean) => void;
   creativeType: "image" | "video"; setCreativeType: (v: "image" | "video") => void;
   adImageUrl: string; setAdImageUrl: (v: string) => void;
+  instagramMediaId: string | null; setInstagramMediaId: (v: string | null) => void;
+  instagramActorId: string | null; setInstagramActorId: (v: string | null) => void;
   adHeadline: string; setAdHeadline: (v: string) => void;
   adBody: string; setAdBody: (v: string) => void;
   adLinkUrl: string; setAdLinkUrl: (v: string) => void;
@@ -1350,7 +1358,7 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
       <div className="flex gap-2 mb-4">
         <button
           type="button"
-          onClick={() => { p.setCreativeType("image"); p.setAdImageUrl(""); }}
+          onClick={() => { p.setCreativeType("image"); p.setAdImageUrl(""); p.setInstagramMediaId(null); p.setInstagramActorId(null); }}
           className={cn(
             "flex-1 px-3 py-2 rounded-xl border-2 text-[12px] font-extrabold transition-all",
             p.creativeType === "image" ? "border-[#D4308E] bg-[#FCE5F0] text-[#A11A6A]" : "border-[#E8B968] bg-white hover:bg-[#FFF6E8]"
@@ -1358,7 +1366,7 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
         >Image Ad</button>
         <button
           type="button"
-          onClick={() => { p.setCreativeType("video"); p.setAdImageUrl(""); }}
+          onClick={() => { p.setCreativeType("video"); p.setAdImageUrl(""); p.setInstagramMediaId(null); p.setInstagramActorId(null); }}
           className={cn(
             "flex-1 px-3 py-2 rounded-xl border-2 text-[12px] font-extrabold transition-all",
             p.creativeType === "video" ? "border-[#D4308E] bg-[#FCE5F0] text-[#A11A6A]" : "border-[#E8B968] bg-white hover:bg-[#FFF6E8]"
@@ -1374,7 +1382,21 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
           ? "1200×628px recommended · drag & drop upload via Cloudinary, ya public URL paste karein."
           : "MP4 recommended · upload, paste URL, ya Instagram video select karein."}
       </p>
-      <AdMediaInput value={p.adImageUrl} onChange={p.setAdImageUrl} resource={p.creativeType} pageId={p.pageId} />
+      <AdMediaInput
+        value={p.adImageUrl}
+        onChange={(url, meta) => {
+          p.setAdImageUrl(url);
+          if (meta) {
+            p.setInstagramMediaId(meta.instagram_media_id || null);
+            p.setInstagramActorId(meta.instagram_actor_id || null);
+          } else {
+            p.setInstagramMediaId(null);
+            p.setInstagramActorId(null);
+          }
+        }}
+        resource={p.creativeType}
+        pageId={p.pageId}
+      />
     </Card>
 
     <Card accent="#D4308E">

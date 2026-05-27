@@ -31,7 +31,7 @@ export const AdMediaInput = ({
   pageId,
 }: {
   value: string;
-  onChange: (url: string) => void;
+  onChange: (url: string, meta?: { instagram_media_id?: string; instagram_actor_id?: string }) => void;
   resource?: "image" | "video";
   pageId?: string;
 }) => {
@@ -222,7 +222,7 @@ export const AdMediaInput = ({
                   return (
                     <div
                       key={vid.id}
-                      onClick={() => onChange(vid.media_url)}
+                      onClick={() => onChange(vid.media_url, { instagram_media_id: vid.id, instagram_actor_id: igData?.instagramActorId })}
                       className={cn(
                         "relative group cursor-pointer rounded-lg overflow-hidden border-2 transition-all aspect-square bg-black flex flex-col justify-between",
                         isSelected ? "border-[#FF6A1F] ring-2 ring-[#FF6A1F]/30" : "border-transparent hover:border-[#E8B968]/60"

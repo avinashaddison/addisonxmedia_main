@@ -30,6 +30,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const fmtINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
@@ -88,6 +91,21 @@ export const CampaignAnalyticsPage = () => {
     onError: (e) => toast.error(String(e)),
   });
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editBudget, setEditBudget] = useState("");
+
+  const updateCampaignMut = useMutation({
+    mutationFn: (vars: { name: string; daily_budget_inr: number }) =>
+      api.updateAdCampaign(id!, vars),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ads"] });
+      toast.success("Campaign updated successfully");
+      setEditOpen(false);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : String(e)),
+  });
+
   if (!id) return null;
 
   if (analyticsQ.isPending) {
@@ -139,15 +157,30 @@ export const CampaignAnalyticsPage = () => {
           </p>
         </div>
         {!isDemo && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => togglePause.mutate(isActive ? "PAUSED" : "ACTIVE")}
-            disabled={togglePause.isPending}
-          >
-            {togglePause.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (isActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />)}
-            {isActive ? "Pause" : "Resume"}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditName(data.campaign?.name || "");
+                setEditBudget(String(Math.round((Number(data.campaign?.daily_budget) || 0) / 100)));
+                setEditOpen(true);
+              }}
+              className="border-2 border-[#E8B968] hover:bg-[#FFE8C7] transition font-bold"
+            >
+              Edit Campaign
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => togglePause.mutate(isActive ? "PAUSED" : "ACTIVE")}
+              disabled={togglePause.isPending}
+              className="border-2 border-[#E8B968] hover:bg-[#FFE8C7] transition font-bold"
+            >
+              {togglePause.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (isActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />)}
+              {isActive ? "Pause" : "Resume"}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -260,6 +293,77 @@ export const CampaignAnalyticsPage = () => {
           </Card>
         </div>
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-[425px] border-2 border-[#E8B968] bg-[#FFF6E8] p-6 rounded-2xl shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-[18px] font-black text-foreground">Edit Campaign</DialogTitle>
+            <DialogDescription className="text-[12px] text-foreground/60">
+              Update your Meta campaign's name and daily budget.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-name" className="text-[11px] uppercase tracking-wider font-extrabold text-[#B8651A]">
+                Campaign Name
+              </Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="border-2 border-[#E8B968] focus-visible:ring-[#FF6A1F] focus-visible:border-[#FF6A1F]"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-budget" className="text-[11px] uppercase tracking-wider font-extrabold text-[#B8651A]">
+                Daily Budget (₹)
+              </Label>
+              <Input
+                id="edit-budget"
+                type="number"
+                min="100"
+                value={editBudget}
+                onChange={(e) => setEditBudget(e.target.value)}
+                className="border-2 border-[#E8B968] focus-visible:ring-[#FF6A1F] focus-visible:border-[#FF6A1F]"
+              />
+              <p className="text-[10px] text-foreground/55 font-medium">Meta requires a minimum budget of ₹100 per day.</p>
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditOpen(false)}
+              className="border-2 border-[#E8B968] hover:bg-[#FFE8C7] transition font-bold"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (!editName.trim()) {
+                  toast.error("Campaign name cannot be empty");
+                  return;
+                }
+                const b = Number(editBudget);
+                if (isNaN(b) || b < 100) {
+                  toast.error("Daily budget must be at least ₹100");
+                  return;
+                }
+                updateCampaignMut.mutate({
+                  name: editName.trim(),
+                  daily_budget_inr: b,
+                });
+              }}
+              disabled={updateCampaignMut.isPending}
+              className="bg-[#FF6A1F] hover:bg-[#E85C12] text-white font-extrabold shadow-md hover:shadow-lg transition-all"
+            >
+              {updateCampaignMut.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

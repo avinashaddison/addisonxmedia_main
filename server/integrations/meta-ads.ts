@@ -622,6 +622,8 @@ export type AdCreativeCreate = {
   imageUrl?: string;
   imageHash?: string;
   videoId?: string;
+  instagramMediaId?: string;
+  instagramActorId?: string;
   headline: string;
   body: string;
   linkUrl: string;
@@ -629,6 +631,22 @@ export type AdCreativeCreate = {
 };
 
 export async function createAdCreative(creds: AdsCredentials, body: AdCreativeCreate): Promise<{ id: string }> {
+  if (body.instagramMediaId) {
+    // Creative from existing Instagram post/reel
+    return adsFetch(`/${actId(creds.adAccountId)}/adcreatives`, {
+      method: "POST",
+      token: creds.accessToken,
+      body: JSON.stringify({
+        name: body.name,
+        object_story_spec: {
+          page_id: body.pageId,
+          instagram_actor_id: body.instagramActorId,
+        },
+        source_instagram_media_id: body.instagramMediaId,
+      }),
+    });
+  }
+
   if (body.videoId) {
     // Video creative payload
     return adsFetch(`/${actId(creds.adAccountId)}/adcreatives`, {
