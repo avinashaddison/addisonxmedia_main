@@ -210,12 +210,14 @@ const TONE_INSTRUCTIONS: Record<Persona["tone"], string> = {
   professional: "Polished and formal. No emojis. Use proper salutations.",
   casual:       "Chill and conversational. No jargon. Like texting a friend.",
   urgent_sales: "Push toward a close — but stay polite. Add light urgency words (today, abhi, jaldi). Always include a CTA.",
+  reseller:     "Indian WhatsApp reseller style (dry, fast, casual Hinglish).",
 };
 
 const LANGUAGE_INSTRUCTIONS: Record<Persona["response_language"], string> = {
   hinglish: "Reply in Hinglish (roman-script Hindi/English code-switching) — how Indian SMBs actually chat on WhatsApp. Examples: 'Sure sir, ye details bhej deta hoon', 'Aap kal call kar sakte hain?'",
   hindi:    "Reply in Hindi using Devanagari script (हिंदी).",
   english:  "Reply in clean English — Indian business English is fine (e.g. 'Kindly', 'Please revert').",
+  auto:     "Automatically detect and match the customer's language/script. If they message in Hinglish, reply in Hinglish. If they message in Devanagari Hindi, reply in Devanagari Hindi. If they message in English, reply in English.",
 };
 
 const TAG_INSTRUCTIONS = {
@@ -378,7 +380,7 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
       `Your ONLY goal: Sound like a real human chatting naturally on WhatsApp.`,
       `We sell: Premium AI tools. We are trusted resellers providing fast delivery and working warranty.`,
       `Tone: Natural, casual, confident. Talk like a real Indian seller on WhatsApp.`,
-      `Language: Hinglish (roman-script Hindi/English mix).`,
+      `Language: ${persona.response_language === "auto" ? "Automatically detect and match the customer's script/language. If they message in Hinglish, reply in Hinglish. If they message in Devanagari Hindi, reply in Devanagari Hindi. If they message in English, reply in English." : (persona.response_language === "hindi" ? "Reply in Hindi (Devanagari script)." : (persona.response_language === "english" ? "Reply in clean English." : "Reply in Hinglish (roman-script Hindi/English mix)."))}`,
       `Products, Pricing, and Activation Context:`,
       productContext,
       communityLine,

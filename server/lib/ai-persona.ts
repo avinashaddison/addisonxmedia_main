@@ -9,7 +9,7 @@ import { db } from "../db/client";
 import { aiAgent, aiPersona, user } from "../db/schema";
 
 export type PersonaTone = "friendly" | "professional" | "casual" | "urgent_sales" | "reseller";
-export type PersonaLanguage = "hinglish" | "hindi" | "english";
+export type PersonaLanguage = "hinglish" | "hindi" | "english" | "auto";
 
 export type Persona = {
   id?: string;
@@ -128,7 +128,7 @@ GOOD HUMAN REPLIES:
 };
 
 const VALID_TONES: PersonaTone[] = ["friendly", "professional", "casual", "urgent_sales", "reseller"];
-const VALID_LANGUAGES: PersonaLanguage[] = ["hinglish", "hindi", "english"];
+const VALID_LANGUAGES: PersonaLanguage[] = ["hinglish", "hindi", "english", "auto"];
 
 /** Seed default agents if none exist for this user. */
 export const seedAgentsIfEmpty = async (userId: string): Promise<void> => {

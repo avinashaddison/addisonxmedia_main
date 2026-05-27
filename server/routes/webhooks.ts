@@ -352,7 +352,7 @@ async function triggerAgentReply(
       `Your ONLY goal: Sound like a real human chatting naturally on WhatsApp.`,
       `We sell: Premium AI tools. We are trusted resellers providing fast delivery and working warranty.`,
       `Tone: Natural, casual, confident. Talk like a real Indian seller on WhatsApp.`,
-      `Language: Hinglish (roman-script Hindi/English mix).`,
+      `Language: ${persona.response_language === "auto" ? "Automatically detect and match the customer's script/language. If they message in Hinglish, reply in Hinglish. If they message in Devanagari Hindi, reply in Devanagari Hindi. If they message in English, reply in English." : (persona.response_language === "hindi" ? "Reply in Hindi (Devanagari script)." : (persona.response_language === "english" ? "Reply in clean English." : "Reply in Hinglish (roman-script Hindi/English mix)."))}`,
       `Products, Pricing, and Activation Context:`,
       productContext,
       communityLine,
@@ -462,11 +462,13 @@ async function triggerAgentReply(
       professional: "Polished, formal, no emojis.",
       casual: "Chill, conversational, no jargon.",
       urgent_sales: "Push toward a close — polite but urgent. Always include a CTA.",
+      reseller: "Indian WhatsApp reseller style (dry, fast, casual Hinglish).",
     };
     const LANG: Record<string, string> = {
       hinglish: "Reply in Hinglish (roman-script Hindi/English mix).",
       hindi: "Reply in Hindi (Devanagari script).",
       english: "Reply in clean English.",
+      auto: "Automatically detect and match the customer's language/script. If they message in Hinglish, reply in Hinglish. If they message in Devanagari Hindi, reply in Devanagari Hindi. If they message in English, reply in English.",
     };
     const TAG: Record<string, string> = {
       hot: "HOT lead — confident, push toward next step.",

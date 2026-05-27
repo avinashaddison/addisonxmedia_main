@@ -974,7 +974,7 @@ export type AiPersona = {
   business_name: string;
   what_we_sell: string;
   tone: "friendly" | "professional" | "casual" | "urgent_sales" | "reseller";
-  response_language: "hinglish" | "hindi" | "english";
+  response_language: "hinglish" | "hindi" | "english" | "auto";
   always_say: string;
   never_say: string;
   escalate_keywords: string;

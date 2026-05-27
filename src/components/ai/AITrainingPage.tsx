@@ -23,6 +23,7 @@ const TONE_OPTIONS: { value: string; label: string; description: string; emoji: 
 ];
 
 const LANG_OPTIONS: { value: string; label: string; sub: string }[] = [
+  { value: "auto",     label: "Auto (Detect)",         sub: "Match the customer's script/language dynamically (Hinglish/Hindi/English)" },
   { value: "hinglish", label: "Hinglish",            sub: "Roman script, code-switches like a real Indian convo (recommended)" },
   { value: "hindi",    label: "Hindi (Devanagari)",  sub: "Pure हिंदी. Use only if your customers prefer it" },
   { value: "english",  label: "English",             sub: "Pure English. Best for SaaS / B2B" },
