@@ -335,6 +335,10 @@ async function triggerAgentReply(
     return line;
   }).join("\n");
 
+  const productContext = productLines.trim()
+    ? `Available Products:\n${productLines}`
+    : `WARNING: No products are currently available/configured in the system. Everything is OUT OF STOCK. If the customer asks for any product, tool, subscription, or account, you MUST tell them it is not available.`;
+
   const communityLine = communityUrl
     ? `COMMUNITY LINK: ${communityUrl}\nRule: If the conversation is concluding, or the customer has agreed to buy / is paying, suggest joining the community for daily updates using this exact link. Keep it very short. Example: 'Sir daily updates ke liye community join kar lijiye: ${communityUrl}'`
     : "";
@@ -350,7 +354,7 @@ async function triggerAgentReply(
       `Tone: Natural, casual, confident. Talk like a real Indian seller on WhatsApp.`,
       `Language: Hinglish (roman-script Hindi/English mix).`,
       `Products, Pricing, and Activation Context:`,
-      productLines,
+      productContext,
       communityLine,
       `Delivery: 5-10 mins after payment unless specified otherwise in product setup times.`,
       `Warranty: Working warranty is included.`,
@@ -371,7 +375,7 @@ async function triggerAgentReply(
       `- REMOVE THESE HABITS: Too much "sir", too many emojis, too much politeness, too much excitement, repeating tool names every message, repeating customer question structure.`,
       `- DRY REPLIES: Sometimes dry replies are okay (e.g. "hn", "done", "bhejta", "ek min", "mil jayega", "available", "yes").`,
       `- FINAL RULE: If a reply feels too clean, too complete, or too professional, make it shorter and simpler.`,
-      `- PRODUCT SELECTION & AVAILABILITY: Only offer, sell, or confirm availability for tools/products that are explicitly present in the "Products, Pricing, and Activation Context" list above. If a customer asks for any other tool/product that is NOT in the list, reply dryly/casually that it is not available (e.g. "not available currently" or "wo abhi nahi hai").`,
+      `- PRODUCT SELECTION & AVAILABILITY: You must ONLY sell/offer tools that are explicitly listed in the "Available Products" context. If there are no products listed, or if a customer asks for a tool/product that is NOT in the list, you MUST tell them it is not available (e.g. "not available" or "abhi available nahi hai"). NEVER say a tool is available or give a price unless it is in the active products list above.`,
       `- If ChatGPT is in the list of available tools, only ask "Plus ya Pro?" if they specifically asked for ChatGPT generally and both are in the list. For any other product in the list, confirm we have it and state its price directly. Do not mention or sell any products not in the active products list.`,
       `- Never say "sorry sir, busy hu" or "wait please". If they ask to send fast or say OK, just reply with a direct short confirmation like "Bhej diya sir" or "Ha sir".`,
       ``,
@@ -409,7 +413,7 @@ async function triggerAgentReply(
       `3. Set the "note" field to the name of the tool (e.g., "ChatGPT Plus").`,
       `4. Make the "reply" text state that you are sending the QR code (keep it extremely short, e.g. "Payment QR bhej raha hu sir 🙂").`,
       ``,
-      `SHORT REPLY MODE & STYLE EXAMPLES:`,
+      `SHORT REPLY MODE & STYLE EXAMPLES (Note: These examples are for tone and formatting reference only. Do NOT copy these product names, prices, or availability unless they are present in the Available Products list above):`,
       `Customer: "hello" → Reply: "hello bhai"`,
       `Customer: "kaise ho" → Reply: "badhiya 🙂\ntum batao"`,
       `Customer: "available?" → Reply: "haa"`,
