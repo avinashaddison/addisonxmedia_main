@@ -116,6 +116,31 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
   const contactDeals = allDeals.filter((d) => d.contact_id === contact.id);
   const contactTasks = allTasks.filter((t) => t.contact_id === contact.id);
 
+  const { data: conversations = [] } = useQuery({
+    queryKey: ["conversations"],
+    queryFn: () => api.listConversations(),
+    enabled: !!conversationId,
+  });
+  const conversation = conversations.find((c: any) => c.id === conversationId);
+
+  const [agentToggling, setAgentToggling] = useState(false);
+
+  const handleToggleAgentMode = async () => {
+    if (!conversationId || agentToggling) return;
+    const current = conversation?.agent_mode ?? false;
+    const next = !current;
+    setAgentToggling(true);
+    try {
+      await api.toggleAgentMode(conversationId, next);
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success(next ? "🤖 Agent ON — AI will auto-reply" : "Agent OFF");
+    } catch (e) {
+      toast.error("Failed to toggle agent mode");
+    } finally {
+      setAgentToggling(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -173,9 +198,36 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
     <div className="w-full lg:w-[340px] h-full bg-white border-l-2 border-[#E8B968] flex flex-col flex-shrink-0 overflow-hidden">
       {/* Header */}
       <div className="h-16 flex items-center justify-between px-4 border-b-2 border-[#E8B968] bg-[#FFF6E8] flex-shrink-0">
-        <h3 className="text-[14px] font-black tracking-tight">
-          {activeTab === "leads" ? "Lead ki details" : "Digital product"}
-        </h3>
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="text-[14px] font-black tracking-tight truncate">
+            {activeTab === "leads" ? "Lead ki details" : "Digital product"}
+          </h3>
+          {/* Cool UI Toggle for Agent Mode */}
+          {conversationId && activeTab === "leads" && (
+            <div className="flex items-center gap-1.5 bg-white border border-[#E8B968] rounded-full px-2 py-0.5 shadow-sm scale-90 flex-shrink-0">
+              <span className="text-[9px] font-black uppercase text-foreground/75 flex items-center gap-0.5">
+                <Sparkles className="w-2.5 h-2.5 text-[#0E8A4B]" />
+                AI
+              </span>
+              <button
+                onClick={handleToggleAgentMode}
+                disabled={agentToggling}
+                className={cn(
+                  "relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                  conversation?.agent_mode ? "bg-[#0E8A4B]" : "bg-gray-200"
+                )}
+                title={conversation?.agent_mode ? "Agent Mode is ON (AI auto-replies)" : "Agent Mode is OFF"}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out",
+                    conversation?.agent_mode ? "translate-x-4" : "translate-x-0"
+                  )}
+                />
+              </button>
+            </div>
+          )}
+        </div>
         {onClose && (
           <button
             onClick={onClose}

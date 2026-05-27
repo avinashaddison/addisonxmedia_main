@@ -14,7 +14,7 @@
 import { Hono } from "hono";
 import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "../db/client";
-import { contact, conversation, message, product, aiAgent } from "../db/schema";
+import { contact, conversation, message, product, aiAgent, profile } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
 import { rateLimit } from "../middleware/rateLimit";
 import { requirePlan } from "../middleware/requirePlan";
@@ -268,8 +268,10 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
     });
   }
 
-  // 3. Load persona
+  // 3. Load persona + profile for community url
   const persona = await getPersonaWithDefaults(userId);
+  const [pf] = await db.select().from(profile).where(eq(profile.userId, userId)).limit(1);
+  const communityUrl = pf?.whatsappCommunityUrl ?? null;
 
   // 4. Escalate-keyword detection — short-circuit BEFORE burning tokens
   const escalateList = persona.escalate_keywords
@@ -306,8 +308,13 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
       price: Number(p.price) || 0,
       photoUrl: null
     }));
-    productContext = "\n\nAVAILABLE PRODUCTS/AI TOOLS (Reference these products with their exact name, price, and validity in your replies to convince the buyer):\n"
-      + persona.products.map((p: any) => `• ${p.name} — ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`).join("\n");
+    productContext = "\n\nAVAILABLE PRODUCTS/AI TOOLS (Reference these products with their exact name, price, validity, activation option, and setup duration in your replies to convince the buyer):\n"
+      + persona.products.map((p: any) => {
+        let line = `• ${p.name} — ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`;
+        if (p.activationMail) line += `, Activation: ${p.activationMail}`;
+        if (p.activationTime) line += `, Setup time: ${p.activationTime}`;
+        return line;
+      }).join("\n");
   } else if (looksLikeShopping) {
     // Try keyword search across product name + description using significant
     // words from the inbound message (drop common stop words).
@@ -350,20 +357,28 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
 
   const isSalesmanAgent = (persona as any).type === "prebuilt_sales";
 
+  const productLines = (persona.products || []).map((p: any) => {
+    let line = `- ${p.name}: ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`;
+    if (p.activationMail) line += `, Activation: ${p.activationMail}`;
+    if (p.activationTime) line += `, Setup time: ${p.activationTime}`;
+    return line;
+  }).join("\n");
+
+  const communityLine = communityUrl
+    ? `COMMUNITY LINK: ${communityUrl}\nRule: If the conversation is concluding, or the customer has agreed to buy / is paying, suggest joining the community for daily updates using this exact link. Keep it very short.`
+    : "";
+
   let systemPrompt: string;
   if (isSalesmanAgent) {
     systemPrompt = [
       `You are a human-like WhatsApp AI salesman/reseller representing "${persona.business_name || "AI Tool Shop"}".`,
-      `We sell: Premium AI tools — ChatGPT Plus, Claude Pro, Midjourney, Sora, and other top AI subscriptions. We are trusted resellers providing fast delivery and working warranty.`,
+      `We sell: Premium AI tools. We are trusted resellers providing fast delivery and working warranty.`,
       `Tone: Natural, casual, confident. Talk like a real Indian seller on WhatsApp.`,
       `Language: Hinglish (roman-script Hindi/English mix).`,
-      `Products & Pricing context:`,
-      `- ChatGPT Plus: ₹999/month`,
-      `- ChatGPT Pro: ₹8999/month`,
-      `- Claude Pro: ₹1499/month`,
-      `- Midjourney Standard: ₹1999/month`,
-      `- Sora Plan: ₹2999/month`,
-      `Delivery: 5-10 mins after payment.`,
+      `Products, Pricing, and Activation Context:`,
+      productLines,
+      communityLine,
+      `Delivery: 5-10 mins after payment unless specified otherwise in product setup times.`,
       `Warranty: Working warranty is included.`,
       `Payment: UPI (Paytm, GPay, PhonePe).`,
       ``,
@@ -386,9 +401,10 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
       `- Never use "Dear customer", "We are delighted", "Please be informed", "As an AI", or professional email tone.`,
       `- Keep chat smooth and human.`,
       `- Reply like a real reseller handling many customers daily.`,
-      `- If the customer asks for a tool generally or says "AI tool chahiye" without specifying, do NOT ask "Plus ya Pro?". Ask which tool they want (ChatGPT, Claude, Midjourney, or Sora).`,
+      `- PRODUCT SELECTION: If the customer asks for a tool generally or says "AI tool chahiye" without specifying which one, do NOT assume ChatGPT Plus/Pro. Ask which tool/product they want and list the available options.`,
       `- Only ask "Plus ya Pro?" if they specifically asked for ChatGPT.`,
       `- If they ask for Claude, Midjourney, or Sora, confirm the tool and give its specific price/details. Do not ask 'Plus ya Pro?'.`,
+      `- PAYMENT LINK / QR: Only suggest payment links or details when they explicitly ask for payment options, say they are ready to buy, or say they want to proceed. Do NOT send or suggest payment info just because they asked about prices or product details.`,
       ``,
       `Tone Examples to follow:`,
       `Customer: "AI tool chahiye" → Reply: "Kaunsa tool chahiye sir? ChatGPT, Claude, Midjourney, ya Sora?"`,
@@ -426,9 +442,14 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
       neverLine,
       kbLine,
       "",
+      `Available Products / ToolsContext:\n${productLines}`,
+      communityLine,
+      "",
       "Style & Tone Guidelines:",
       "- DYNAMIC STYLE MATCHING: Analyze the customer's previous messages. Match their sentence length, language script (English/Hindi/Hinglish), emoji usage density, and formality. If they write very short messages, keep your replies extremely short. If they are casual and use Hinglish, write natural Hinglish.",
       "- CONVERSION FOCUS: You are a highly talented salesman. Convince the buyer by showing product benefits, addressing their needs, and moving them toward buying. Keep the conversation flow concise (short chat target) with a clear call-to-action (CTA).",
+      "- PRODUCT SELECTION: If the customer asks for a product generally without specifying which one (e.g. 'ai tool chahiye'), do NOT assume a specific product. Ask which product/tool they want and list the available options.",
+      "- PAYMENT INFO / QR: Only suggest payment links or details when they explicitly ask for payment options, say they want to pay, or say they want to buy. Do NOT suggest payment info just because they asked about prices or product details.",
       "",
       "Generate exactly 3 reply DRAFTS for the operator to choose from. Each must be:",
       "- 1-3 sentences max",

@@ -22,7 +22,13 @@ export type Persona = {
   always_say: string;
   never_say: string;
   escalate_keywords: string;
-  products?: Array<{ name: string; price: number; validity: string }>;
+  products?: Array<{
+    name: string;
+    price: number;
+    validity: string;
+    activationMail?: string;
+    activationTime?: string;
+  }>;
   knowledge_base?: string;
   is_active?: boolean;
 };
@@ -48,11 +54,11 @@ const PREBUILT_SALESMAN: Omit<typeof aiAgent.$inferInsert, "ownerId"> = {
   neverSay: `Never write long paragraphs. Never use corporate language like "Dear customer", "We are delighted", "Please be informed". Never sound desperate or push too hard. Never say "As an AI". Never use formal email tone. Never over-explain. Never promise custom discounts. Never say refunds are available. Never use hollow filler phrases.`,
   escalateKeywords: "refund, complaint, legal, lawyer, scam, police, cheating, fraud",
   products: [
-    { name: "ChatGPT Plus", price: 999, validity: "Monthly" },
-    { name: "ChatGPT Pro", price: 8999, validity: "Monthly" },
-    { name: "Claude Pro", price: 1499, validity: "Monthly" },
-    { name: "Midjourney Standard", price: 1999, validity: "Monthly" },
-    { name: "Sora Plan", price: 2999, validity: "Monthly" },
+    { name: "ChatGPT Plus", price: 999, validity: "Monthly", activationMail: "Activation On your Mail", activationTime: "10 min" },
+    { name: "ChatGPT Pro", price: 8999, validity: "Monthly", activationMail: "Activation On your Mail", activationTime: "30 min" },
+    { name: "Claude Pro", price: 1499, validity: "Monthly", activationMail: "Mail and Pass Provide by us", activationTime: "10 min" },
+    { name: "Midjourney Standard", price: 1999, validity: "Monthly", activationMail: "Mail and Pass Provide by us", activationTime: "30 min" },
+    { name: "Sora Plan", price: 2999, validity: "Monthly", activationMail: "Activation On your Mail", activationTime: "1 hour" },
   ],
   knowledgeBase: `Fast delivery — account ready in 5-10 minutes after payment. Payment via UPI (Google Pay, PhonePe, Paytm) or card. Working warranty included — if any issue we fix it. Accounts are shared/family plan type — safe to use. No technical setup needed, just login and start. We handle many customers daily so process is smooth.
 

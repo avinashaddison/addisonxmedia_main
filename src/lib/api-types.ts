@@ -139,6 +139,8 @@ export type AiAgentProduct = {
   name: string;
   price: number;
   validity: string;
+  activationMail?: string;
+  activationTime?: string;
 };
 
 export type AiAgent = {
