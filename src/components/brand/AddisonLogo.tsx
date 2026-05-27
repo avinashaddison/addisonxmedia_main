@@ -119,16 +119,16 @@ export const AddisonLogo = ({
         <>
           <span className="bg-foreground/25 flex-shrink-0 mx-2.5" style={{ width: 2, height: size * 0.85 }} aria-hidden />
           <div className="flex flex-col leading-none min-w-0" style={{ gap: size * 0.08 }}>
-            <div className="font-black tracking-tight whitespace-nowrap" style={{ color: BRAND_INK, fontSize: size * 0.46, lineHeight: 1 }}>
+            <div className="font-black tracking-tight whitespace-nowrap text-foreground" style={{ fontSize: size * 0.46, lineHeight: 1 }}>
               AddisonX
             </div>
-            <div className="font-black tracking-tight whitespace-nowrap" style={{ color: BRAND_INK, fontSize: size * 0.46, lineHeight: 1 }}>
+            <div className="font-black tracking-tight whitespace-nowrap text-foreground" style={{ fontSize: size * 0.46, lineHeight: 1 }}>
               Media<span style={{ color: BRAND_RED }}>.</span>Com
             </div>
             {withTagline && (
               <div className="flex items-center gap-1.5 mt-0.5" style={{ fontSize: size * 0.2 }} aria-hidden>
                 <span className="block flex-shrink-0" style={{ width: size * 0.2, height: 1.5, background: BRAND_RED }} />
-                <span className="font-bold italic tracking-tight whitespace-nowrap" style={{ color: BRAND_INK }}>
+                <span className="font-bold italic tracking-tight whitespace-nowrap text-foreground">
                   From Local to <span style={{ color: BRAND_RED }}>Viral</span>
                 </span>
                 <span style={{ fontSize: size * 0.22, lineHeight: 1 }} aria-hidden>🚀</span>

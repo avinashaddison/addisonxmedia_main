@@ -65,61 +65,61 @@
   }
 
   .dark {
-    --background: 144 20% 6%;
-    --foreground: 144 10% 92%;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
 
-    --card: 144 15% 10%;
-    --card-foreground: 144 10% 92%;
+    --card: 240 10% 5.9%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 144 15% 9%;
-    --popover-foreground: 144 10% 92%;
+    --popover: 240 10% 5.9%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 142 70% 45%;
-    --primary-foreground: 144 20% 6%;
-    --primary-soft: 142 40% 14%;
-    --primary-glow: 142 80% 55%;
+    --primary: 142 72% 50%;
+    --primary-foreground: 240 10% 3.9%;
+    --primary-soft: 142 30% 12%;
+    --primary-glow: 142 80% 60%;
 
-    --secondary: 144 12% 15%;
-    --secondary-foreground: 144 10% 92%;
+    --secondary: 240 4% 15%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 144 12% 15%;
-    --muted-foreground: 144 8% 65%;
+    --muted: 240 4% 12%;
+    --muted-foreground: 240 5% 65%;
 
     --accent: 32 95% 60%;
-    --accent-foreground: 144 20% 6%;
-    --accent-soft: 32 50% 15%;
+    --accent-foreground: 240 10% 3.9%;
+    --accent-soft: 32 40% 14%;
 
-    --destructive: 0 72% 55%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 70% 45%;
-    --success-foreground: 144 20% 6%;
-    --success-soft: 142 40% 14%;
+    --success: 142 72% 50%;
+    --success-foreground: 240 10% 3.9%;
+    --success-soft: 142 30% 12%;
 
-    --warning: 38 92% 55%;
-    --warning-foreground: 144 20% 6%;
-    --warning-soft: 38 40% 18%;
+    --warning: 45 93% 47%;
+    --warning-foreground: 240 10% 3.9%;
+    --warning-soft: 45 40% 15%;
 
-    --hot: 0 75% 60%;
+    --hot: 326 100% 60%;
     --hot-foreground: 0 0% 100%;
-    --hot-soft: 0 50% 18%;
+    --hot-soft: 326 40% 15%;
 
-    --border: 144 10% 18%;
-    --input: 144 10% 18%;
-    --ring: 142 70% 45%;
+    --border: 240 6% 16%;
+    --input: 240 6% 16%;
+    --ring: 142 72% 50%;
 
-    --sidebar-background: 144 15% 8%;
-    --sidebar-foreground: 144 8% 75%;
-    --sidebar-primary: 142 70% 45%;
-    --sidebar-primary-foreground: 144 20% 6%;
-    --sidebar-accent: 142 40% 14%;
-    --sidebar-accent-foreground: 142 70% 80%;
-    --sidebar-border: 144 10% 16%;
-    --sidebar-ring: 142 70% 45%;
+    --sidebar-background: 240 10% 4.8%;
+    --sidebar-foreground: 240 5% 70%;
+    --sidebar-primary: 142 72% 50%;
+    --sidebar-primary-foreground: 240 10% 3.9%;
+    --sidebar-accent: 240 6% 10%;
+    --sidebar-accent-foreground: 142 72% 50%;
+    --sidebar-border: 240 6% 12%;
+    --sidebar-ring: 142 72% 50%;
 
-    --chat-bg: 144 20% 5%;
-    --chat-outgoing: 142 40% 16%;
-    --chat-incoming: 144 12% 12%;
+    --chat-bg: 240 10% 3.5%;
+    --chat-outgoing: 142 30% 15%;
+    --chat-incoming: 240 6% 12%;
   }
 
   .cool-dark {
@@ -540,5 +540,29 @@
   .divide-zinc-200 > :not([hidden]) ~ :not([hidden]),
   .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
     border-color: hsl(var(--border)) !important;
+  }
+
+  /* Invert AddisonX logo image in dark/cool-dark modes to turn dark ink to crisp white */
+  img[src="/logo.png"], img[src*="logo.png"] {
+    filter: invert(1) brightness(2) contrast(1) !important;
+    mix-blend-mode: screen !important;
+  }
+  img[src="/logo-mark.png"], img[src*="logo-mark.png"] {
+    filter: invert(1) brightness(2) contrast(1) !important;
+    mix-blend-mode: screen !important;
+  }
+
+  /* Make the BrandLockup cream pill dark-adapted so it blends beautifully */
+  .bg-gradient-to-br.from-white.via-\[\#FFF6E8\].to-\[\#FFF1D6\] {
+    background-image: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--card)) 100%) !important;
+  }
+  .border-\[\#FFD23F\] {
+    border-color: hsl(var(--border)) !important;
+  }
+  .shadow-\[0_4px_0_0_\#E8B400\] {
+    box-shadow: 0 4px 0 0 hsl(var(--border)) !important;
+  }
+  .group-hover\:shadow-\[0_2px_0_0_\#E8B400\]:hover {
+    box-shadow: 0 2px 0 0 hsl(var(--border)) !important;
   }
 }
