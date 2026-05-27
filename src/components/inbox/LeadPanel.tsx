@@ -31,26 +31,24 @@ const formatINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
 const productDetailsTemplate = (productName: string, price: number, validity: string, mail: string, time: string, contactName: string) => {
-  const deliveryDesc = mail.toLowerCase().includes("provide") || mail.toLowerCase().includes("pass")
-    ? "Login details hum provide karenge"
-    : "Aapki email id pe active ho jayega";
-
-  return `Hi ${contactName}, ${productName} mil jayega bro. Pricing aur baaki details niche check kar lo 👇\n\n` +
-         `• *Price:* ₹${price.toLocaleString("en-IN")} only\n` +
-         `• *Validity:* ${validity}\n` +
-         `• *Delivery:* ${deliveryDesc} (${time} ke andar)\n\n` +
-         `Fully premium and working account rahega. Let me know agar set up karna hai to! 👍`;
+  return `📦 *Product Details: ${productName}*\n\n` +
+         `Hi ${contactName}! Yahan is product ki details hain:\n\n` +
+         `💵 *Price:* ₹${price.toLocaleString("en-IN")}\n` +
+         `⏳ *Validity:* ${validity}\n` +
+         `📩 *Delivery Method:* ${mail}\n` +
+         `⏱️ *Delivery Time:* ${time}`;
 };
 
-const allProductsListTemplate = (products: any[], contactName: string) => {
+const allProductsListTemplate = (products: any[]) => {
   let listText = "";
   products.forEach((p) => {
-    listText += `• *${p.name}* — ₹${p.price.toLocaleString("en-IN")} (${p.validity})\n`;
+    const valText = p.validity.toLowerCase() === "monthly" ? "month" : p.validity.toLowerCase() === "yearly" ? "year" : p.validity.toLowerCase();
+    listText += `• ${p.name} — ₹${p.price}/${valText}\n`;
   });
   
-  return `Hi ${contactName}, ye rahi hamare active AI tools aur premium subscriptions ki pricing list 👇\n\n` +
+  return `available tools 👇\n\n` +
          `${listText}\n` +
-         `Aapko isme se jo bhi subscription chahiye, bas uska naam reply me bhej do, active karwa denge! 😊`;
+         `jo chahiye uska naam bhej do 🙂`;
 };
 
 export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
@@ -111,8 +109,7 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
     if (!conversationId || !activeAgent?.products?.length) return;
     setSendingAll(true);
     try {
-      const first = contact.name.split(/\s+/)[0] || contact.name;
-      const body = allProductsListTemplate(activeAgent.products, first);
+      const body = allProductsListTemplate(activeAgent.products);
       await api.sendMessage(conversationId, { body, direction: "outbound", status: "sent" });
       qc.invalidateQueries({ queryKey: ["messages", conversationId] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
