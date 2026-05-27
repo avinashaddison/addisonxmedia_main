@@ -3,11 +3,25 @@
 
 import type { PrebuiltAgent } from "./api-types";
 
+function readCsrfCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
 async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const isMutation = method === "POST" || method === "PATCH" || method === "DELETE" || method === "PUT";
+  const csrfToken = isMutation ? readCsrfCookie() : null;
+
   const res = await fetch(`/api/admin${path}`, {
     ...init,
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+      ...(init?.headers || {}),
+    },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
