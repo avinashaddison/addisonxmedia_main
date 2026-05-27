@@ -44,6 +44,7 @@ export const patchBroadcastSchema = z.object({
 export const patchConversationSchema = z.object({
   status: z.enum(["open", "closed", "archived"]),
   unreadCount: z.coerce.number().int().min(0),
+  agentMode: z.boolean(),
 }).partial();
 
 export const patchTaskSchema = z.object({

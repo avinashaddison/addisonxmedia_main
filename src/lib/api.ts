@@ -143,6 +143,8 @@ export const api = {
   createConversation: (data: Record<string, unknown>) => post<Conversation>("/conversations", data),
   updateConversation: (id: string, data: Record<string, unknown>) => patch<Conversation>(`/conversations/${id}`, data),
   deleteConversation: (id: string) => del(`/conversations/${id}`),
+  toggleAgentMode: (id: string, enabled: boolean) =>
+    patch<Conversation>(`/conversations/${id}`, { agent_mode: enabled }),
   inboxStatus: () => get<{
     meta_connected: boolean;
     meta_enabled: boolean;

@@ -5,6 +5,7 @@ import {
   ChevronDown, Image as ImageIcon, Wand2, AlertTriangle,
   Package, RotateCcw, ShieldOff, FileText, Mic, Film, X,
   Brain, RefreshCcw, ShieldAlert, EyeOff, ArrowLeft, Info,
+  QrCode, Power,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -183,6 +184,60 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
   const [showTemplates, setShowTemplates] = useState(false);
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
+
+  // ── Agent Mode toggle ─────────────────────────────────────────────────────
+  const [agentMode, setAgentMode] = useState<boolean>(conversation.agent_mode ?? false);
+  const [agentToggling, setAgentToggling] = useState(false);
+
+  // Sync agentMode when switching conversations
+  useEffect(() => {
+    setAgentMode(conversation.agent_mode ?? false);
+  }, [conversation.id, conversation.agent_mode]);
+
+  const handleToggleAgentMode = async () => {
+    if (agentToggling) return;
+    const next = !agentMode;
+    setAgentMode(next); // optimistic
+    setAgentToggling(true);
+    try {
+      await api.toggleAgentMode(conversation.id, next);
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success(next ? "🤖 Agent ON — AI will auto-reply" : "Agent OFF");
+    } catch (e) {
+      setAgentMode(!next); // rollback
+      toast.error("Failed to toggle agent mode");
+    } finally {
+      setAgentToggling(false);
+    }
+  };
+
+  // ── QR Send panel ─────────────────────────────────────────────────────────
+  const [showQrPanel, setShowQrPanel] = useState(false);
+  const [qrAmount, setQrAmount] = useState("");
+  const [qrNote, setQrNote] = useState("");
+  const [qrSending, setQrSending] = useState(false);
+
+  const handleSendQr = async () => {
+    const amount = parseFloat(qrAmount);
+    if (!amount || amount <= 0) { toast.error("Enter a valid amount"); return; }
+    setQrSending(true);
+    try {
+      await api.sendUpiPaymentRequest({
+        conversation_id: conversation.id,
+        amount_inr: amount,
+        note: qrNote.trim() || undefined,
+      });
+      toast.success(`✅ QR sent to ${contact.name}`);
+      qc.invalidateQueries({ queryKey: ["messages", conversation.id] });
+      setShowQrPanel(false);
+      setQrAmount("");
+      setQrNote("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "QR send failed");
+    } finally {
+      setQrSending(false);
+    }
+  };
 
   // Pending media attachment (uploaded but not sent yet)
   type Attachment = {
@@ -498,6 +553,30 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
               Dry-run · not connected
             </a>
           )}
+
+          {/* Agent Mode toggle */}
+          <button
+            id="agent-mode-toggle"
+            onClick={handleToggleAgentMode}
+            disabled={agentToggling}
+            title={agentMode ? "Agent ON — AI is auto-replying. Click to turn off." : "Agent OFF — click to enable AI auto-reply"}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all border",
+              agentMode
+                ? "bg-[#0E8A4B] text-white border-[#0A6E3C] shadow-[0_2px_0_0_#0A6E3C]"
+                : "bg-white/10 text-white/80 border-white/25 hover:bg-white/20",
+              agentToggling && "opacity-60"
+            )}
+            aria-pressed={agentMode}
+          >
+            {agentToggling
+              ? <Loader2 className="w-3 h-3 animate-spin" />
+              : <Bot className="w-3 h-3" strokeWidth={2.5} />
+            }
+            <span className="hidden sm:inline">{agentMode ? "Agent ON" : "Agent"}</span>
+            {agentMode && <span className="w-1.5 h-1.5 rounded-full bg-[#FFD23F] animate-pulse" />}
+          </button>
+
           {/* Lead info — opens LeadPanel on mobile/tablet where it isn't
               permanently visible. Hidden on lg+ where LeadPanel sits inline. */}
           {onShowLead && (
@@ -960,6 +1039,23 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
               Send products
             </button>
 
+            {/* Send QR — UPI payment QR to customer */}
+            <button
+              id="send-qr-btn"
+              onClick={() => setShowQrPanel(!showQrPanel)}
+              className={cn(
+                "h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider transition-all border",
+                showQrPanel
+                  ? "bg-[#3C50E0] text-white border-[#2533A8] shadow-[0_2px_0_0_#1E2880]"
+                  : "bg-[#E4E8FF] text-[#3C50E0] border-[#3C50E0]/40 hover:bg-[#C8CFFF] hover:-translate-y-0.5"
+              )}
+              aria-label="Send UPI payment QR to customer"
+              title="Send a UPI payment QR code to the customer"
+            >
+              <QrCode className="w-3 h-3" strokeWidth={2.5} />
+              Send QR
+            </button>
+
             <div className="flex-1" />
 
             {/* Tiny char counter — appears only when typing */}
@@ -969,6 +1065,61 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
               </span>
             )}
           </div>
+
+          {/* QR send panel — inline below chips */}
+          {showQrPanel && (
+            <div className="mx-2.5 mb-2 rounded-xl border-2 border-[#3C50E0] bg-[#E4E8FF] p-3 animate-fade-in">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <QrCode className="w-3.5 h-3.5 text-[#3C50E0]" strokeWidth={2.5} />
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#1E2880]">Send Payment QR</span>
+                </div>
+                <button onClick={() => setShowQrPanel(false)} className="w-6 h-6 rounded-md hover:bg-[#3C50E0]/15 text-[#3C50E0] flex items-center justify-center transition">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-[#1E2880] mb-1 block">Amount (₹)</label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[13px] font-extrabold text-[#3C50E0]">₹</span>
+                    <input
+                      id="qr-amount-input"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={qrAmount}
+                      onChange={(e) => setQrAmount(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") void handleSendQr(); }}
+                      placeholder="0"
+                      className="w-full pl-7 pr-2 py-1.5 rounded-lg border-2 border-[#3C50E0]/40 bg-white text-[14px] font-extrabold text-[#1E2880] placeholder:text-foreground/30 focus:outline-none focus:border-[#3C50E0] transition"
+                    />
+                  </div>
+                </div>
+                <div className="flex-[1.5]">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-[#1E2880] mb-1 block">Note (optional)</label>
+                  <input
+                    id="qr-note-input"
+                    type="text"
+                    value={qrNote}
+                    onChange={(e) => setQrNote(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleSendQr(); }}
+                    placeholder="e.g. ChatGPT Plus order"
+                    className="w-full px-2.5 py-1.5 rounded-lg border-2 border-[#3C50E0]/40 bg-white text-[13px] placeholder:text-foreground/30 focus:outline-none focus:border-[#3C50E0] transition"
+                  />
+                </div>
+                <button
+                  onClick={handleSendQr}
+                  disabled={qrSending || !qrAmount}
+                  className="h-[38px] px-4 rounded-xl bg-[#3C50E0] text-white text-[11px] font-extrabold border-2 border-[#2533A8] shadow-[0_2px_0_0_#1E2880] hover:-translate-y-0.5 hover:bg-[#2533A8] active:translate-y-0 active:shadow-none transition-all disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {qrSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  Send
+                </button>
+              </div>
+              <p className="text-[10px] text-[#3C50E0]/70 font-medium mt-2">QR will be sent as a WhatsApp image · UPI VPA must be set in Settings</p>
+            </div>
+          )}
 
           {/* Textarea + send */}
           <div className="flex items-end gap-2 px-2.5 pb-2">

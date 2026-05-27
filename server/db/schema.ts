@@ -202,6 +202,9 @@ export const conversation = pgTable("conversation", {
   unreadCount: integer("unread_count").notNull().default(0),
   lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
   lastMessagePreview: text("last_message_preview"),
+  // AI Agent Mode — when true, every inbound message triggers an auto-reply
+  // using the workspace's active AI agent persona (fire-and-forget on webhook).
+  agentMode: boolean("agent_mode").notNull().default(false),
   // Ad-to-Sale attribution — populated from Meta's CTW referral payload on the
   // first inbound message. NULL for organic (non-ad) conversations.
   sourceAdId: text("source_ad_id"),

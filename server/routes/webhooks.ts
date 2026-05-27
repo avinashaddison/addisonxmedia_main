@@ -1,9 +1,14 @@
 import { Hono } from "hono";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { createHmac } from "node:crypto";
 import { db } from "../db/client";
 import { contact, conversation, message, metaConfig, webhookOrphan, upgradeRequest, user } from "../db/schema";
 import { verifyWebhookSignature as verifyCashfreeSignature } from "../integrations/cashfree";
+import { sendTextMessage } from "../integrations/meta";
+import { decrypt } from "../crypto";
+import { getPersonaWithDefaults } from "../lib/ai-persona";
+import { chatJson, isAiConfigured } from "../integrations/openai";
+import { checkAiCap, logAiUsage } from "../lib/ai-usage";
 import logger from "../lib/logger";
 
 // Meta WhatsApp webhook receiver.
@@ -258,6 +263,169 @@ async function handleInboundMessage(userId: string, contacts: any[], m: any) {
     externalMessageId: m.id, // Meta message id
     createdAt: new Date(Number(m.timestamp) * 1000),
   });
+
+  // ── Agent Mode auto-reply ──────────────────────────────────────────────────
+  // If agent_mode is ON for this conversation, fire an AI reply immediately.
+  // We do this fire-and-forget (void) so the webhook 200 is never delayed.
+  const conv = existingConv
+    ? existingConv
+    : await db.select().from(conversation).where(eq(conversation.id, convId)).limit(1).then(r => r[0]);
+
+  if (conv?.agentMode) {
+    void triggerAgentReply(userId, convId, ctc.id, body).catch((err) =>
+      logger.error({ err, convId }, "Agent auto-reply failed")
+    );
+  }
+}
+
+/**
+ * Fire an AI auto-reply for a conversation that has agentMode = true.
+ * Called fire-and-forget from handleInboundMessage — must never throw.
+ */
+async function triggerAgentReply(
+  userId: string,
+  convId: string,
+  contactId: string,
+  inboundBody: string,
+): Promise<void> {
+  // Prerequisites: AI configured, Meta connected
+  if (!isAiConfigured()) return;
+  const [cfg] = await db.select().from(metaConfig).where(eq(metaConfig.userId, userId)).limit(1);
+  if (!cfg?.enabled || !cfg.accessToken) return;
+
+  // Load contact tag for persona context
+  const [ctc] = await db
+    .select({ name: contact.name, tag: contact.tag })
+    .from(contact).where(eq(contact.id, contactId)).limit(1);
+  if (!ctc) return;
+
+  // Escalation keyword check — skip auto-reply if escalate keyword detected
+  const persona = await getPersonaWithDefaults(userId);
+  const escalateList = persona.escalate_keywords
+    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const lower = inboundBody.toLowerCase();
+  if (escalateList.some((kw) => kw.length > 0 && lower.includes(kw))) {
+    logger.info({ convId }, "Agent mode: escalate keyword detected, skipping auto-reply");
+    return;
+  }
+
+  // Cap check
+  const gate = await checkAiCap(userId, "auto_reply");
+  if (!gate.allowed) {
+    logger.warn({ convId, reason: gate.reason }, "Agent mode: AI cap reached");
+    return;
+  }
+
+  // Load last 6 messages for context
+  const recent = await db
+    .select({ direction: message.direction, body: message.body })
+    .from(message)
+    .where(eq(message.conversationId, convId))
+    .orderBy(desc(message.createdAt))
+    .limit(6);
+  const history = recent.slice().reverse();
+
+  // Build system prompt (same logic as /ai/reply-suggestions but condensed)
+  const isSalesmanAgent = (persona as any).type === "prebuilt_sales";
+  const TONE: Record<string, string> = {
+    friendly: "Warm, helpful, light emojis OK.",
+    professional: "Polished, formal, no emojis.",
+    casual: "Chill, conversational, no jargon.",
+    urgent_sales: "Push toward a close — polite but urgent. Always include a CTA.",
+  };
+  const LANG: Record<string, string> = {
+    hinglish: "Reply in Hinglish (roman-script Hindi/English mix).",
+    hindi: "Reply in Hindi (Devanagari script).",
+    english: "Reply in clean English.",
+  };
+  const TAG: Record<string, string> = {
+    hot: "HOT lead — confident, push toward next step.",
+    warm: "WARM lead — build value, gentle nudge.",
+    cold: "COLD lead — light touch, just get them to reply.",
+  };
+
+  const systemPrompt = [
+    `You are ${persona.business_name || "an AI sales assistant"} replying to a WhatsApp customer.`,
+    persona.what_we_sell ? `What we sell: ${persona.what_we_sell}` : "",
+    `Tone: ${TONE[persona.tone] ?? TONE.friendly}`,
+    `Language: ${LANG[persona.response_language] ?? LANG.hinglish}`,
+    `Lead: ${TAG[ctc.tag] ?? TAG.cold}`,
+    persona.always_say ? `ALWAYS: ${persona.always_say}` : "",
+    persona.never_say ? `NEVER: ${persona.never_say}` : "",
+    persona.knowledge_base ? `CONTEXT:\n${persona.knowledge_base}` : "",
+    "",
+    isSalesmanAgent
+      ? ["STYLE: You are a real Indian WhatsApp reseller. Keep replies 1-3 lines MAX. Never write paragraphs. Sound natural and confident. Lead with the answer."].join("")
+      : "Keep replies concise (1-3 sentences). Match the customer's language and energy.",
+    "",
+    `Output ONLY the reply text. No JSON, no labels, no quotes — just the message to send.`,
+  ].filter(Boolean).join("\n");
+
+  const historyText = history
+    .map((m) => `${m.direction === "inbound" ? "CUSTOMER" : "YOU"}: ${m.body}`)
+    .join("\n");
+  const userPrompt = `Conversation so far:\n${historyText}\n\nCustomer's latest message: "${inboundBody}"\n\nWrite your reply now:`;
+
+  let replyText: string;
+  try {
+    const result = await chatJson<{ reply: string }>(
+      [
+        { role: "system", content: systemPrompt + '\n\nReturn JSON: {"reply": "<your message>"}' },
+        { role: "user", content: userPrompt },
+      ],
+      { model: "gpt-4o-mini", temperature: 0.75, maxTokens: 300 },
+    );
+    replyText = (result.json?.reply ?? "").trim();
+    await logAiUsage({
+      userId,
+      feature: "auto_reply",
+      model: result.model,
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      costInr: result.costInr,
+      ok: true,
+    });
+  } catch (e) {
+    await logAiUsage({ userId, feature: "auto_reply", model: "gpt-4o-mini", promptTokens: 0, completionTokens: 0, costInr: 0, ok: false, errorMessage: String(e) });
+    throw e;
+  }
+
+  if (!replyText) return;
+
+  // Send via Meta
+  const [recipientContact] = await db.select({ phone: contact.phone }).from(contact)
+    .where(eq(contact.id, contactId)).limit(1);
+  if (!recipientContact) return;
+
+  const creds = {
+    accessToken: decrypt(cfg.accessToken),
+    phoneNumberId: cfg.phoneNumberId,
+    businessAccountId: cfg.businessAccountId,
+  };
+  const to = recipientContact.phone.replace(/^\+/, "");
+  const sent = await sendTextMessage(creds, to, replyText);
+  const metaMessageId = sent.messages?.[0]?.id ?? null;
+
+  // Persist outbound message
+  const [outMsg] = await db.insert(message).values({
+    conversationId: convId,
+    ownerId: userId,
+    senderId: userId,
+    direction: "outbound",
+    body: replyText,
+    status: "sent",
+    externalMessageId: metaMessageId,
+    isAiGenerated: true,
+  }).returning();
+
+  // Update conversation preview
+  await db.update(conversation).set({
+    lastMessageAt: outMsg.createdAt,
+    lastMessagePreview: replyText.slice(0, 200),
+    updatedAt: new Date(),
+  }).where(eq(conversation.id, convId));
+
+  logger.info({ convId, chars: replyText.length }, "Agent mode: auto-reply sent");
 }
 
 function extractMessageBody(m: any): string {

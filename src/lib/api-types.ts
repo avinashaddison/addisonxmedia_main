@@ -35,6 +35,7 @@ export type Conversation = {
   assigned_to: string | null;
   status: ConversationStatus;
   unread_count: number;
+  agent_mode: boolean;
   last_message_at: string | null;
   last_message_preview: string | null;
   created_at: string;
