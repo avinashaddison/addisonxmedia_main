@@ -5,7 +5,7 @@ import {
   ChevronDown, Image as ImageIcon, Wand2, AlertTriangle,
   Package, RotateCcw, ShieldOff, FileText, Mic, Film, X,
   Brain, RefreshCcw, ShieldAlert, EyeOff, ArrowLeft, Info,
-  QrCode, Power,
+  QrCode, Power, Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +19,7 @@ import { PaymentRequestCard, parsePaymentRequest } from "./PaymentRequestCard";
 import { ProductPickerDialog } from "./ProductPickerDialog";
 import { api } from "@/lib/api";
 import { useCloudinaryConfig, useCloudinaryUpload } from "@/hooks/useCloudinaryUpload";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 type Props = {
   conversation: ConversationWithContact;
@@ -188,6 +189,77 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
   // ── Agent Mode toggle ─────────────────────────────────────────────────────
   const [agentMode, setAgentMode] = useState<boolean>(conversation.agent_mode ?? false);
   const [agentToggling, setAgentToggling] = useState(false);
+
+  // ── Chat Export handlers ──────────────────────────────────────────────────
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportChat = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const allMsgs = await api.listMessages(conversation.id);
+      const contactName = conversation.contact.name;
+      const contactPhone = conversation.contact.phone;
+      
+      const header = [
+        "--------------------------------------------------",
+        `Chat Export with ${contactName} (${contactPhone})`,
+        `Exported on: ${new Date().toLocaleDateString("en-IN")}`,
+        "--------------------------------------------------\n"
+      ].join("\n");
+
+      const body = allMsgs.map((m) => {
+        const time = new Date(m.created_at).toLocaleTimeString("en-IN", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true
+        });
+        const sender = m.direction === "inbound" ? contactName : "You";
+        return `[${time}] ${sender}: ${m.body}`;
+      }).join("\n");
+
+      const blob = new Blob([header + body], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${contactName.replace(/\s+/g, "_")}_chat_export.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Chat exported successfully!");
+    } catch (e) {
+      toast.error("Failed to export chat");
+      console.error(e);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportChatJson = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const allMsgs = await api.listMessages(conversation.id);
+      const contactName = conversation.contact.name;
+      
+      const blob = new Blob([JSON.stringify(allMsgs, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${contactName.replace(/\s+/g, "_")}_chat_export.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Chat exported in JSON format!");
+    } catch (e) {
+      toast.error("Failed to export chat");
+      console.error(e);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Sync agentMode when switching conversations
   useEffect(() => {
@@ -589,9 +661,31 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
               <Info className="w-4 h-4" strokeWidth={2.5} />
             </button>
           )}
-          <button className="w-9 h-9 rounded-lg hover:bg-white/15 flex items-center justify-center text-white transition" aria-label="More options">
-            <MoreVertical className="w-4 h-4" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-9 h-9 rounded-lg hover:bg-white/15 flex items-center justify-center text-white transition" aria-label="More options">
+                <MoreVertical className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 bg-white border border-[#E8B968] shadow-md rounded-xl p-1 z-50">
+              <DropdownMenuItem
+                onClick={handleExportChat}
+                disabled={exporting}
+                className="text-[12px] font-extrabold cursor-pointer flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#FFF6E8] hover:text-[#FF6A1F] focus:bg-[#FFF6E8] focus:text-[#FF6A1F] transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export Chat (.txt)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleExportChatJson}
+                disabled={exporting}
+                className="text-[12px] font-extrabold cursor-pointer flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#FFF6E8] hover:text-[#FF6A1F] focus:bg-[#FFF6E8] focus:text-[#FF6A1F] transition-colors"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Export Chat (.json)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
