@@ -185,3 +185,23 @@ export type AiAgent = {
   created_at: string;
   updated_at: string;
 };
+
+export type Eligible24hChat = {
+  conversation_id: string;
+  contact_id: string;
+  contact_name: string;
+  contact_phone: string;
+  last_inbound_at: string;
+  expires_at: string;
+  minutes_remaining: number;
+};
+
+export type BulkSend24hResponse = {
+  sent_count: number;
+  failed_count: number;
+  details: Array<{
+    contact_id: string;
+    status: "sent" | "failed";
+    error?: string;
+  }>;
+};

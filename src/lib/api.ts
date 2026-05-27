@@ -16,6 +16,8 @@ import type {
   Task,
   Profile,
   AiAgent,
+  Eligible24hChat,
+  BulkSend24hResponse,
 } from "./api-types";
 
 class ApiError extends Error {
@@ -180,6 +182,9 @@ export const api = {
   updateBroadcast: (id: string, data: Record<string, unknown>) => patch<Broadcast>(`/broadcasts/${id}`, data),
   deleteBroadcast: (id: string) => del(`/broadcasts/${id}`),
   sendBroadcast: (id: string) => post<{ sent: number; failed: number; total: number; broadcast: Broadcast }>(`/broadcasts/${id}/send`),
+  getEligible24h: () => get<{ eligible_chats: Eligible24hChat[] }>("/broadcasts/eligible-24h"),
+  sendBulk24h: (data: { body: string; contact_ids?: string[] }) =>
+    post<BulkSend24hResponse>("/broadcasts/bulk-send-24h", data),
 
   // Tasks
   listTasks: () => get<Task[]>("/tasks"),

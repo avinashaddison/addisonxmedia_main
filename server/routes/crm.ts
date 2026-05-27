@@ -8,7 +8,11 @@ import {
   deal,
   metaConfig,
   task,
+  message,
+  conversation,
 } from "../db/schema";
+import { decrypt } from "../crypto";
+import { sendTextMessage } from "../integrations/meta";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
 import { requirePlan } from "../middleware/requirePlan";
 import { toCamel } from "../utils";
@@ -418,6 +422,173 @@ app.post("/broadcasts/:id/send", requirePlan('growth', 'scale', 'enterprise'), a
     broadcast: updated,
     status: 'queued',
     recipient_count: recipients.length,
+  });
+});
+
+// GET /broadcasts/eligible-24h — get all active 24-hour free chat windows
+app.get("/broadcasts/eligible-24h", async (c) => {
+  const userId = c.var.userId;
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  // Find all conversations where the latest inbound message is in the last 24 hours
+  const rows = await db
+    .select({
+      conversationId: conversation.id,
+      contactId: contact.id,
+      contactName: contact.name,
+      contactPhone: contact.phone,
+      lastInboundAt: sql<Date>`MAX(${message.createdAt})`,
+    })
+    .from(conversation)
+    .innerJoin(contact, eq(conversation.contactId, contact.id))
+    .innerJoin(message, eq(conversation.id, message.conversationId))
+    .where(
+      and(
+        eq(conversation.ownerId, userId),
+        eq(message.direction, "inbound"),
+        sql`${message.createdAt} >= ${twentyFourHoursAgo}`
+      )
+    )
+    .groupBy(conversation.id, contact.id, contact.name, contact.phone)
+    .orderBy(desc(sql`MAX(${message.createdAt})`));
+
+  const eligibleChats = rows.map((r) => {
+    const lastInboundAt = new Date(r.lastInboundAt);
+    const expiresAt = new Date(lastInboundAt.getTime() + 24 * 60 * 60 * 1000);
+    const minutesRemaining = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / (60 * 1000)));
+
+    return {
+      conversation_id: r.conversationId,
+      contact_id: r.contactId,
+      contact_name: r.contactName,
+      contact_phone: r.contactPhone,
+      last_inbound_at: lastInboundAt.toISOString(),
+      expires_at: expiresAt.toISOString(),
+      minutes_remaining: minutesRemaining,
+    };
+  });
+
+  return c.json({ eligible_chats: eligibleChats });
+});
+
+// POST /broadcasts/bulk-send-24h — bulk-send text message to eligible 24h chats
+app.post("/broadcasts/bulk-send-24h", requirePlan('growth', 'scale', 'enterprise'), async (c) => {
+  const userId = c.var.userId;
+  const body = await c.req.json();
+  const textBody = body.body?.trim();
+  const targetContactIds = body.contact_ids as string[] | undefined;
+
+  if (!textBody) {
+    return c.json({ error: "Message body is required" }, 400);
+  }
+
+  // 1. Get Meta credentials
+  const [meta] = await db.select().from(metaConfig)
+    .where(eq(metaConfig.userId, userId)).limit(1);
+  if (!meta || !meta.enabled) {
+    return c.json({ error: "WhatsApp not connected. Configure Meta in Settings." }, 412);
+  }
+
+  // 2. Fetch all eligible conversations (to verify they are within 24h window)
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select({
+      conversationId: conversation.id,
+      contactId: contact.id,
+      contactName: contact.name,
+      contactPhone: contact.phone,
+      lastInboundAt: sql<Date>`MAX(${message.createdAt})`,
+    })
+    .from(conversation)
+    .innerJoin(contact, eq(conversation.contactId, contact.id))
+    .innerJoin(message, eq(conversation.id, message.conversationId))
+    .where(
+      and(
+        eq(conversation.ownerId, userId),
+        eq(message.direction, "inbound"),
+        sql`${message.createdAt} >= ${twentyFourHoursAgo}`
+      )
+    )
+    .groupBy(conversation.id, contact.id, contact.name, contact.phone);
+
+  let eligible = rows.map((r) => ({
+    conversationId: r.conversationId,
+    contactId: r.contactId,
+    contactName: r.contactName,
+    contactPhone: r.contactPhone,
+  }));
+
+  // If a subset of contacts was selected, filter by those IDs
+  if (targetContactIds && targetContactIds.length > 0) {
+    eligible = eligible.filter((ch) => targetContactIds.includes(ch.contactId));
+  }
+
+  if (eligible.length === 0) {
+    return c.json({ error: "No eligible contacts found within 24-hour window" }, 400);
+  }
+
+  const credentials = {
+    accessToken: decrypt(meta.accessToken),
+    phoneNumberId: meta.phoneNumberId,
+    businessAccountId: meta.businessAccountId,
+  };
+
+  let sentCount = 0;
+  let failedCount = 0;
+  const details: Array<{ contact_id: string; status: "sent" | "failed"; error?: string }> = [];
+
+  for (const ch of eligible) {
+    // Personalize message body (replace {{name}} with the contact's name)
+    const personalizedBody = textBody.replace(/{{\s*name\s*}}/gi, ch.contactName);
+
+    try {
+      const response = await sendTextMessage(
+        credentials,
+        ch.contactPhone.replace(/^\+/, ""),
+        personalizedBody
+      );
+
+      const metaMsgId = response.messages?.[0]?.id ?? null;
+
+      // Save outbound message to DB
+      await db.insert(message).values({
+        conversationId: ch.conversationId,
+        ownerId: userId,
+        senderId: userId,
+        direction: "outbound",
+        body: personalizedBody,
+        status: "sent",
+        externalMessageId: metaMsgId,
+      });
+
+      // Update conversation last message timestamp & preview
+      await db.update(conversation).set({
+        lastMessageAt: new Date(),
+        lastMessagePreview: personalizedBody.slice(0, 200),
+        updatedAt: new Date(),
+      }).where(eq(conversation.id, ch.conversationId));
+
+      sentCount++;
+      details.push({ contact_id: ch.contactId, status: "sent" });
+    } catch (err) {
+      failedCount++;
+      details.push({
+        contact_id: ch.contactId,
+        status: "failed",
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  logActivity(userId, 'bulk_send_24h', {
+    resourceType: 'broadcast',
+    metadata: { sentCount, failedCount },
+  });
+
+  return c.json({
+    sent_count: sentCount,
+    failed_count: failedCount,
+    details,
   });
 });
 
