@@ -3,7 +3,7 @@ import { db } from "../db/client";
 import {
   user, contact, conversation, message, deal, campaign, broadcast, task,
   adminAuditLog, impersonationSession, metaConfig, systemSetting, upgradeRequest,
-  webhookOrphan, profile, prebuiltAgent,
+  webhookOrphan, profile, prebuiltAgent, aiAgent,
 } from "../db/schema";
 import { eq, desc, asc, sql, and, gt, isNull, or, ilike, count, inArray } from "drizzle-orm";
 import { requireAdmin, auditLog, type AdminVariables } from "../middleware/admin";
@@ -1486,6 +1486,39 @@ admin.patch("/api/admin/prebuilt-agents/:id", async (c) => {
 
   if (!agent) return c.json({ error: "Prebuilt agent template not found" }, 404);
 
+  // If template is disabled, run the cascade deactivation and deletion on user copies
+  if (agent.isEnabled === false) {
+    const userCopies = await db.select().from(aiAgent).where(eq(aiAgent.prebuiltId, id));
+    for (const copy of userCopies) {
+      if (copy.isActive) {
+        // Find default custom agent and activate it
+        const [defaultAgent] = await db.select().from(aiAgent).where(and(eq(aiAgent.ownerId, copy.ownerId), eq(aiAgent.type, "custom"))).limit(1);
+        if (defaultAgent) {
+          await db.update(aiAgent).set({ isActive: true, updatedAt: new Date() }).where(eq(aiAgent.id, defaultAgent.id));
+        }
+      }
+      await db.delete(aiAgent).where(eq(aiAgent.id, copy.id));
+    }
+  } else {
+    // If it is updated and enabled, propagate all changes immediately to all active copies!
+    await db.update(aiAgent)
+      .set({
+        name: agent.name,
+        businessName: agent.businessName,
+        whatWeSell: agent.whatWeSell,
+        tone: agent.tone,
+        responseLanguage: agent.responseLanguage,
+        alwaysSay: agent.alwaysSay,
+        neverSay: agent.neverSay,
+        escalateKeywords: agent.escalateKeywords,
+        products: agent.products,
+        knowledgeBase: agent.knowledgeBase,
+        systemPrompt: agent.systemPrompt,
+        updatedAt: new Date(),
+      })
+      .where(eq(aiAgent.prebuiltId, id));
+  }
+
   await auditLog(c, "update_prebuilt_agent", id, { name: agent.name, isEnabled: agent.isEnabled });
 
   return c.json({
@@ -1511,6 +1544,19 @@ admin.delete("/api/admin/prebuilt-agents/:id", async (c) => {
   const id = c.req.param("id");
   const [agent] = await db.select().from(prebuiltAgent).where(eq(prebuiltAgent.id, id)).limit(1);
   if (!agent) return c.json({ error: "Prebuilt agent template not found" }, 404);
+
+  // Cascade deactivate and delete all user copies
+  const userCopies = await db.select().from(aiAgent).where(eq(aiAgent.prebuiltId, id));
+  for (const copy of userCopies) {
+    if (copy.isActive) {
+      // Find default custom agent and activate it
+      const [defaultAgent] = await db.select().from(aiAgent).where(and(eq(aiAgent.ownerId, copy.ownerId), eq(aiAgent.type, "custom"))).limit(1);
+      if (defaultAgent) {
+        await db.update(aiAgent).set({ isActive: true, updatedAt: new Date() }).where(eq(aiAgent.id, defaultAgent.id));
+      }
+    }
+    await db.delete(aiAgent).where(eq(aiAgent.id, copy.id));
+  }
 
   await db.delete(prebuiltAgent).where(eq(prebuiltAgent.id, id));
 

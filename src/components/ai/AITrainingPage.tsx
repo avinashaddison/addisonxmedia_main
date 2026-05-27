@@ -36,6 +36,7 @@ export const AITrainingPage = () => {
   const { data: agents = [], isLoading: agentsLoading } = useQuery({
     queryKey: ["ai-agents"],
     queryFn: () => api.listAgents(),
+    refetchInterval: 5000,
   });
 
   const { data: usage } = useQuery({
@@ -65,7 +66,17 @@ export const AITrainingPage = () => {
   const [form, setForm] = useState<AiAgent | null>(null);
   useEffect(() => {
     if (selectedAgent) {
-      setForm(selectedAgent);
+      setForm((prev) => {
+        if (!prev || prev.id !== selectedAgent.id) {
+          return selectedAgent;
+        }
+        const isPrebuilt = selectedAgent.type === "prebuilt_sales" || !!selectedAgent.prebuilt_id;
+        const isDirty = JSON.stringify(selectedAgent) !== JSON.stringify(prev);
+        if (!isDirty || isPrebuilt) {
+          return selectedAgent;
+        }
+        return prev;
+      });
     }
   }, [selectedAgent]);
 

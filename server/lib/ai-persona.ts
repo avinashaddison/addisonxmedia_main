@@ -4,7 +4,7 @@
  * Handles seeding default agents (Custom Addison and AI Tools Salesman prebuilt agent).
  */
 
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { db } from "../db/client";
 import { aiAgent, aiPersona, user, prebuiltAgent } from "../db/schema";
 
@@ -142,6 +142,15 @@ GOOD HUMAN REPLIES:
 export const syncPrebuiltAgents = async (userId: string): Promise<void> => {
   await seedPrebuiltTemplatesIfEmpty();
 
+  // Link legacy copies that don't have prebuiltId to the default prebuilt agent ID
+  await db.update(aiAgent)
+    .set({ prebuiltId: "a0e0a0e0-a0e0-4a0e-a0e0-a0e0a0e0a0e0" })
+    .where(and(
+      eq(aiAgent.ownerId, userId),
+      eq(aiAgent.type, "prebuilt_sales"),
+      isNull(aiAgent.prebuiltId)
+    ));
+
   // Fetch all enabled prebuilt agents
   const enabledTemplates = await db.select().from(prebuiltAgent).where(eq(prebuiltAgent.isEnabled, true));
   const templateIds = enabledTemplates.map(t => t.id);
@@ -180,7 +189,24 @@ export const syncPrebuiltAgents = async (userId: string): Promise<void> => {
         ...values,
       });
     } else {
-      await db.update(aiAgent).set(values).where(eq(aiAgent.id, copy.id));
+      const hasChanged =
+        copy.name !== template.name ||
+        copy.businessName !== template.businessName ||
+        copy.whatWeSell !== template.whatWeSell ||
+        copy.tone !== template.tone ||
+        copy.responseLanguage !== template.responseLanguage ||
+        copy.alwaysSay !== template.alwaysSay ||
+        copy.neverSay !== template.neverSay ||
+        copy.escalateKeywords !== template.escalateKeywords ||
+        (copy.knowledgeBase ?? "") !== (template.knowledgeBase ?? "") ||
+        (copy.systemPrompt ?? "") !== (template.systemPrompt ?? "") ||
+        copy.prebuiltId !== template.id ||
+        copy.type !== "prebuilt_sales" ||
+        JSON.stringify(copy.products || []) !== JSON.stringify(template.products || []);
+
+      if (hasChanged) {
+        await db.update(aiAgent).set(values).where(eq(aiAgent.id, copy.id));
+      }
     }
   }
 
