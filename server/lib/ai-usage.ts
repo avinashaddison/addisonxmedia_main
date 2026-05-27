@@ -36,7 +36,7 @@ export type AiFeature =
 // How much each feature counts against the monthly cap. Tuned so the cheap
 // features cost 1 (matches user mental model: "one AI action") and the
 // expensive ones cost more because they actually burn ~5× the tokens AND
-// use the pricier gpt-4o model.
+// use the pricier gpt-4o/gpt-5.5 model.
 export const FEATURE_WEIGHT: Record<AiFeature, number> = {
   reply_suggestion: 1,
   auto_reply:       1,

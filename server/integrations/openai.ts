@@ -38,6 +38,7 @@ const USD_INR = 85;
 const PRICING: Record<string, { input: number; output: number }> = {
   "gpt-4o-mini": { input: 0.15, output: 0.60 },
   "gpt-4o":      { input: 2.50, output: 10.00 },
+  "gpt-5.5":     { input: 5.00, output: 30.00 },
 };
 
 const costInr = (model: string, promptTokens: number, completionTokens: number): number => {
@@ -47,7 +48,7 @@ const costInr = (model: string, promptTokens: number, completionTokens: number):
   return Math.round(usd * USD_INR * 10_000) / 10_000; // 4-decimal precision
 };
 
-export type AiModel = "gpt-4o-mini" | "gpt-4o";
+export type AiModel = "gpt-4o-mini" | "gpt-4o" | "gpt-5.5";
 
 export type ChatMessage = {
   role: "system" | "user" | "assistant";

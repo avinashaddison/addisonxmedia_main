@@ -491,7 +491,7 @@ export const aiUsage = pgTable("ai_usage", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   feature: text("feature").notNull(),                                       // 'reply_suggestion' | 'auto_reply' | 'ad_copy' | 'followup_gen' | 'insights' | 'test'
-  model: text("model").notNull(),                                           // 'gpt-4o-mini' | 'gpt-4o'
+  model: text("model").notNull(),                                           // 'gpt-4o-mini' | 'gpt-4o' | 'gpt-5.5'
   promptTokens: integer("prompt_tokens").notNull().default(0),
   completionTokens: integer("completion_tokens").notNull().default(0),
   costInr: numeric("cost_inr", { precision: 10, scale: 4 }).notNull().default("0"),
