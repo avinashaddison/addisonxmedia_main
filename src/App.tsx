@@ -72,7 +72,7 @@ const RouteFallback = () => (
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light" enableSystem={false} storageKey="addisonx-theme">
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} themes={["light", "dark", "cool-dark"]} storageKey="addisonx-theme">
     <TooltipProvider>
       <Sonner />
       <BrowserRouter>

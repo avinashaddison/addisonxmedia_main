@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { CommandPalette } from "./CommandPalette";
 import { NotificationCenter } from "./NotificationCenter";
+import { ThemeToggle } from "../ThemeToggle";
 
 type Props = { onNavigate: (page: string) => void; onMenuClick?: () => void };
 
@@ -98,8 +99,7 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
         </button>
       </div>
 
-      {/* Theme toggle removed — see src/components/ThemeToggle.tsx for the
-          rationale. Re-enable once a proper dark palette is designed. */}
+      <ThemeToggle />
 
       <NotificationCenter onNavigate={onNavigate} />
 

@@ -30,10 +30,13 @@ import {
   Send,
   LogOut,
   Loader2,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
 
 type Props = {
   open: boolean;
@@ -66,6 +69,7 @@ const NAV_ITEMS = [
 
 export const CommandPalette = ({ open, onOpenChange, onNavigate }: Props) => {
   const { user, signOut } = useAuth();
+  const { setTheme } = useTheme();
 
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
@@ -241,8 +245,36 @@ export const CommandPalette = ({ open, onOpenChange, onNavigate }: Props) => {
 
         {/* Preferences */}
         <CommandGroup heading="Preferences">
-          {/* Dark-mode toggle removed — app brand is light-only for now.
-              See src/components/ThemeToggle.tsx for the full rationale. */}
+          <CommandItem
+            value="theme light mode switch colors bright sun"
+            onSelect={() => runAction(() => {
+              setTheme("light");
+              toast.success("Switched to Light Mode ☀️");
+            })}
+          >
+            <Sun className="w-4 h-4 mr-2 text-amber-500" />
+            <span className="flex-1">Switch to Light Mode</span>
+          </CommandItem>
+          <CommandItem
+            value="theme dark mode switch colors forest emerald"
+            onSelect={() => runAction(() => {
+              setTheme("dark");
+              toast.success("Switched to Dark Mode 🌙");
+            })}
+          >
+            <Moon className="w-4 h-4 mr-2 text-emerald-400" />
+            <span className="flex-1">Switch to Dark Mode</span>
+          </CommandItem>
+          <CommandItem
+            value="theme cool dark mode switch colors neon space purple violet cyan"
+            onSelect={() => runAction(() => {
+              setTheme("cool-dark");
+              toast.success("Switched to Cool Dark Mode ✨");
+            })}
+          >
+            <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
+            <span className="flex-1">Switch to Cool Dark Mode</span>
+          </CommandItem>
           <CommandItem
             value="logout sign out exit"
             onSelect={() => runAction(() => {
