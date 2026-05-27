@@ -19,7 +19,6 @@ const TONE_OPTIONS = [
   { value: "professional", label: "Professional",  description: "Polished and formal. No emojis.", emoji: "💼" },
   { value: "casual",       label: "Casual",        description: "Chill, conversational, no jargon.", emoji: "👋" },
   { value: "urgent_sales", label: "Urgent sales",  description: "Pushes toward a close.", emoji: "🔥" },
-  { value: "reseller",     label: "WhatsApp Reseller", description: "Indian WhatsApp reseller style.", emoji: "📱" },
 ];
 
 const LANG_OPTIONS = [
@@ -527,24 +526,8 @@ export const AdminAgentPlayground = () => {
                 </Section>
 
                 {/* Guardrails */}
-                <Section icon={<ShieldAlert className="w-4 h-4 text-rose-600" />} title="Guardrails" desc="Mandatory guidelines to lock agent bounds">
-                  <Field label="Always say" hint="Must mention in product discussions">
-                    <Textarea
-                      rows={2}
-                      value={form.always_say}
-                      onChange={(e) => setVal("always_say", e.target.value)}
-                      placeholder="Free setup, 10-min activation..."
-                    />
-                  </Field>
-                  <Field label="Never say" hint="Prohibited keywords or concepts">
-                    <Textarea
-                      rows={2}
-                      value={form.never_say}
-                      onChange={(e) => setVal("never_say", e.target.value)}
-                      placeholder="Do not say setup is free if it's paid, etc."
-                    />
-                  </Field>
-                  <Field label="Escalate keywords" hint="Comma-separated trigger words">
+                <Section icon={<ShieldAlert className="w-4 h-4 text-rose-600" />} title="Escalation Guardrails" desc="Configure keywords that immediately route the customer to a human agent">
+                  <Field label="Escalate keywords" hint="Comma-separated trigger words to bypass AI draft">
                     <Input
                       value={form.escalate_keywords}
                       onChange={(e) => setVal("escalate_keywords", e.target.value)}

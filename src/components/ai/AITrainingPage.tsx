@@ -19,7 +19,6 @@ const TONE_OPTIONS: { value: string; label: string; description: string; emoji: 
   { value: "professional", label: "Professional",  description: "Polished and formal. No emojis. Use proper salutations.", emoji: "💼" },
   { value: "casual",       label: "Casual",        description: "Chill, conversational, no jargon. D2C, lifestyle, food.", emoji: "👋" },
   { value: "urgent_sales", label: "Urgent sales",  description: "Pushes toward a close. Use only for offers/discounts.", emoji: "🔥" },
-  { value: "reseller",     label: "WhatsApp Reseller", description: "Indian WhatsApp reseller style (dry, fast, casual Hinglish).", emoji: "📱" },
 ];
 
 const LANG_OPTIONS: { value: string; label: string; sub: string }[] = [
@@ -598,25 +597,7 @@ export const AITrainingPage = () => {
             </Section>
 
             {/* Guardrails */}
-            <Section icon={<ShieldAlert className="w-4 h-4" />} title="Guardrails" desc="Strict boundaries for the AI (important for sales & offers)">
-              <Field label="Always say" hint="Mentioned in almost all pitches">
-                <Textarea
-                  rows={2}
-                  value={form.always_say}
-                  onChange={(e) => set("always_say", e.target.value)}
-                  disabled={isPrebuilt}
-                  placeholder="e.g. Free trial is available."
-                />
-              </Field>
-              <Field label="Never say" hint="Things AI should never mention">
-                <Textarea
-                  rows={2}
-                  value={form.never_say}
-                  onChange={(e) => set("never_say", e.target.value)}
-                  disabled={isPrebuilt}
-                  placeholder="e.g. Do not promise possession dates."
-                />
-              </Field>
+            <Section icon={<ShieldAlert className="w-4 h-4 text-rose-600" />} title="Escalation Guardrails" desc="Configure keywords that immediately route the customer to a human agent">
               <Field label="Escalate keywords" hint="Comma-separated keywords to bypass AI draft">
                 <Input
                   value={form.escalate_keywords}
