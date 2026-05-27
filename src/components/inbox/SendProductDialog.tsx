@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Package, Mail, KeyRound, Link as LinkIcon, FileDown, GraduationCap, Code2,
   Sparkles, Eye, EyeOff, Copy, Rocket, Shield, Trophy, Zap, Check,
@@ -32,6 +32,7 @@ type Props = {
   onOpenChange: (v: boolean) => void;
   contactName: string;
   onDeliver: (payload: ProductDeliveryPayload, autoCloseDeal: boolean) => void;
+  prefillProduct?: { name: string; price?: number } | null;
 };
 
 const DELIVERY_TYPES: { id: DeliveryType; label: string; icon: typeof Mail; desc: string }[] = [
@@ -52,8 +53,20 @@ const PRODUCT_PRESETS = [
 const defaultMessage = (productName: string) =>
   `🎉 Welcome to ${productName || "your new product"}!\n\nHere are your access details below. Please change your password after first login.\n\nNeed help? Just reply here 👍`;
 
-export const SendProductDialog = ({ open, onOpenChange, contactName, onDeliver }: Props) => {
+export const SendProductDialog = ({ open, onOpenChange, contactName, onDeliver, prefillProduct }: Props) => {
   const [productName, setProductName] = useState("AddisonX Pro");
+
+  useEffect(() => {
+    if (open) {
+      if (prefillProduct) {
+        setProductName(prefillProduct.name);
+        setMessage(defaultMessage(prefillProduct.name));
+      } else {
+        setProductName("AddisonX Pro");
+        setMessage(defaultMessage("AddisonX Pro"));
+      }
+    }
+  }, [open, prefillProduct]);
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

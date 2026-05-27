@@ -30,6 +30,28 @@ type Props = {
 const formatINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
+const productDetailsTemplate = (productName: string, price: number, validity: string, mail: string, time: string, contactName: string) => {
+  return `📦 *Product Details: ${productName}*\n\n` +
+         `Hi ${contactName}! Yahan is product ki details hain:\n\n` +
+         `💵 *Price:* ₹${price.toLocaleString("en-IN")}\n` +
+         `⏳ *Validity:* ${validity}\n` +
+         `📩 *Delivery Method:* ${mail}\n` +
+         `⏱️ *Delivery Time:* ${time}\n\n` +
+         `Agar aap purchase karna chahte hain to abhi reply karein! 👍`;
+};
+
+const allProductsListTemplate = (products: any[], contactName: string) => {
+  let listText = "";
+  products.forEach((p, idx) => {
+    listText += `${idx + 1}. *${p.name}* - ₹${p.price.toLocaleString("en-IN")} (${p.validity})\n`;
+  });
+  
+  return `🛍️ *Our Products & AI Tools List*\n\n` +
+         `Hi ${contactName}! Hamare saare products ki list aur unki pricing yahan hai:\n\n` +
+         `${listText}\n` +
+         `Aapko jo bhi tool purchase karna hai, hume uska number ya naam likh kar reply karein! 😊`;
+};
+
 export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -42,6 +64,16 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
   const [saving, setSaving] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
+  const [sendingProductIdx, setSendingProductIdx] = useState<number | null>(null);
+  const [sendingAll, setSendingAll] = useState(false);
+  const [prefillProduct, setPrefillProduct] = useState<{ name: string; price?: number } | null>(null);
+
+  // Fetch agents to display products
+  const { data: agents = [] } = useQuery({
+    queryKey: ["ai-agents"],
+    queryFn: () => api.listAgents(),
+  });
+  const activeAgent = agents.find((a) => a.is_active) || agents[0];
 
   // ── Top-level tab state — "Leads" view (default) or "Digital Product"
   //    delivery view. Both tabs sit above the contact details. The Digital
@@ -49,6 +81,47 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
   //    SendProductDialog, just sourced from here so the chat composer stays
   //    focused on messaging actions only.
   const [activeTab, setActiveTab] = useState<"leads" | "product">("leads");
+
+  const handleSendProductDetails = async (p: any, idx: number) => {
+    if (!conversationId) return;
+    setSendingProductIdx(idx);
+    try {
+      const first = contact.name.split(/\s+/)[0] || contact.name;
+      const body = productDetailsTemplate(
+        p.name,
+        p.price,
+        p.validity,
+        p.activationMail || "Activation On your Mail",
+        p.activationTime || "10 min",
+        first
+      );
+      await api.sendMessage(conversationId, { body, direction: "outbound", status: "sent" });
+      qc.invalidateQueries({ queryKey: ["messages", conversationId] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success(`${p.name} details sent ✨`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send");
+    } finally {
+      setSendingProductIdx(null);
+    }
+  };
+
+  const handleSendAllProducts = async () => {
+    if (!conversationId || !activeAgent?.products?.length) return;
+    setSendingAll(true);
+    try {
+      const first = contact.name.split(/\s+/)[0] || contact.name;
+      const body = allProductsListTemplate(activeAgent.products, first);
+      await api.sendMessage(conversationId, { body, direction: "outbound", status: "sent" });
+      qc.invalidateQueries({ queryKey: ["messages", conversationId] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success("Products list sent ✨");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send list");
+    } finally {
+      setSendingAll(false);
+    }
+  };
 
   const handleDeliverProduct = async (payload: ProductDeliveryPayload, autoCloseDeal: boolean) => {
     if (!conversationId) {
@@ -602,7 +675,10 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
 
           {/* Primary action */}
           <button
-            onClick={() => setProductOpen(true)}
+            onClick={() => {
+              setPrefillProduct(null);
+              setProductOpen(true);
+            }}
             disabled={!conversationId}
             className="w-full h-12 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] text-white font-extrabold text-[13px] flex items-center justify-center gap-2 shadow-[0_4px_0_0_#B8420A] hover:shadow-[0_2px_0_0_#B8420A] hover:translate-y-[2px] active:translate-y-[3px] disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
@@ -613,6 +689,65 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
             <p className="text-[10px] text-foreground/55 font-medium text-center italic">
               Open a conversation first to enable delivery
             </p>
+          )}
+
+          {/* Products List from Active Agent */}
+          {activeAgent && activeAgent.products && activeAgent.products.length > 0 && (
+            <div className="rounded-xl border-2 border-[#E8B968] bg-[#FFF6E8]/20 p-3 space-y-3 shadow-[0_2px_0_0_#E8B968]">
+              <div className="flex items-center justify-between border-b border-[#E8B968]/35 pb-2">
+                <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#B8651A] flex items-center gap-1">
+                  <Package className="w-3.5 h-3.5 text-[#FF6A1F]" /> AI Tools & Products Catalog
+                </p>
+                <button
+                  onClick={handleSendAllProducts}
+                  disabled={sendingAll || !conversationId}
+                  className="text-[10px] font-extrabold text-[#FF6A1F] hover:underline flex items-center gap-1 disabled:opacity-50"
+                >
+                  {sendingAll ? "Sending..." : "Send All List 📋"}
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                {activeAgent.products.map((p: any, idx: number) => {
+                  const isSendingThis = sendingProductIdx === idx;
+                  return (
+                    <div key={idx} className="bg-white border border-[#E8B968]/45 rounded-xl p-2.5 flex flex-col gap-1.5 hover:border-[#FF6A1F]/30 transition-colors">
+                      <div className="flex justify-between items-start gap-1">
+                        <div className="min-w-0">
+                          <p className="text-[11.5px] font-black truncate text-foreground">{p.name}</p>
+                          <p className="text-[10px] text-foreground/60 font-bold">
+                            ₹{p.price.toLocaleString("en-IN")} · {p.validity}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSendProductDetails(p, idx)}
+                          disabled={isSendingThis || !conversationId}
+                          className="flex-1 h-7 text-[10px] font-extrabold border-[#E8B968] hover:bg-[#FFE8C7] transition"
+                        >
+                          {isSendingThis ? "Sending..." : "Send Details"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setPrefillProduct({ name: p.name, price: p.price });
+                            setProductOpen(true);
+                          }}
+                          disabled={!conversationId}
+                          className="flex-1 h-7 text-[10px] font-extrabold bg-[#FF6A1F] hover:bg-[#E85C12] text-white transition border-0 shadow-sm"
+                        >
+                          Deliver Product
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
           {/* Supported types */}
@@ -662,6 +797,7 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
         onOpenChange={setProductOpen}
         contactName={contact.name}
         onDeliver={handleDeliverProduct}
+        prefillProduct={prefillProduct}
       />
     </div>
   );
