@@ -298,6 +298,7 @@ export const api = {
     creative?: {
       page_id: string;
       image_url?: string;
+      video_url?: string;
       headline: string;
       body: string;
       link_url: string;
@@ -343,6 +344,8 @@ export const api = {
     }>("/ads/estimate", data),
   listAdPages: () =>
     get<{ pages: Array<{ id: string; name: string; category: string | null }>; demo?: boolean }>("/ads/pages"),
+  listInstagramVideos: (pageId: string) =>
+    get<{ videos: any[]; demo?: boolean }>(`/ads/pages/${pageId}/instagram-videos`),
 
   // UPI payment requests — sent to a customer's WhatsApp inbox as a deep link + QR.
   getUpiConfig: () =>

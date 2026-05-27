@@ -38,6 +38,10 @@ export type Conversation = {
   agent_mode: boolean;
   last_message_at: string | null;
   last_message_preview: string | null;
+  source_ad_id?: string | null;
+  source_headline?: string | null;
+  ctwa_click_id?: string | null;
+  source_type?: string | null;
   created_at: string;
   updated_at: string;
 };

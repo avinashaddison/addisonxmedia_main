@@ -177,6 +177,7 @@ export const CreateCampaignPage = () => {
   const [targetingExpansion, setTargetingExpansion] = useState(true);
   // Ad creative
   const [adImageUrl, setAdImageUrl]     = useState("");
+  const [creativeType, setCreativeType] = useState<"image" | "video">("image");
   const [adHeadline, setAdHeadline]     = useState("");
   const [adBody, setAdBody]             = useState("");
   const [adLinkUrl, setAdLinkUrl]       = useState("");
@@ -350,7 +351,8 @@ export const CreateCampaignPage = () => {
         },
         creative: pageId ? {
           page_id: pageId,
-          image_url: adImageUrl || undefined,
+          image_url: creativeType === "image" ? (adImageUrl || undefined) : undefined,
+          video_url: creativeType === "video" ? (adImageUrl || undefined) : undefined,
           headline: adHeadline,
           body: adBody,
           link_url: resolvedLinkUrl,
@@ -661,6 +663,7 @@ export const CreateCampaignPage = () => {
                 excludedInterestLoading={excludedInterestSearchQ.isFetching}
                 excludedAudienceId={excludedAudienceId} setExcludedAudienceId={setExcludedAudienceId}
                 targetingExpansion={targetingExpansion} setTargetingExpansion={setTargetingExpansion}
+                creativeType={creativeType} setCreativeType={setCreativeType}
                 adImageUrl={adImageUrl} setAdImageUrl={setAdImageUrl}
                 adHeadline={adHeadline} setAdHeadline={setAdHeadline}
                 adBody={adBody} setAdBody={setAdBody}
@@ -690,6 +693,7 @@ export const CreateCampaignPage = () => {
                 adHeadline={adHeadline}
                 adBody={adBody}
                 adImageUrl={adImageUrl}
+                creativeType={creativeType}
               />
             )}
           </div>
@@ -702,6 +706,7 @@ export const CreateCampaignPage = () => {
                 headline={adHeadline}
                 body={adBody}
                 imageUrl={adImageUrl}
+                creativeType={creativeType}
                 ctaLabel={isCTW ? "WhatsApp" : ctaLabel(objectiveObj.cta)}
                 isCTW={isCTW}
               />
@@ -853,6 +858,7 @@ type StepAudienceCreativeProps = {
   excludedInterestLoading: boolean;
   excludedAudienceId: string; setExcludedAudienceId: (v: string) => void;
   targetingExpansion: boolean; setTargetingExpansion: (v: boolean) => void;
+  creativeType: "image" | "video"; setCreativeType: (v: "image" | "video") => void;
   adImageUrl: string; setAdImageUrl: (v: string) => void;
   adHeadline: string; setAdHeadline: (v: string) => void;
   adBody: string; setAdBody: (v: string) => void;
@@ -1333,18 +1339,42 @@ const StepAudienceCreative = (p: StepAudienceCreativeProps) => (
       icon={ImageIcon}
       iconBg="bg-[#D4308E]"
       title="Ad creative · yeh actually dikhega"
-      subtitle="Image + heading + body + CTA button — yahi ad customer ko dikhega"
+      subtitle="Image/Video + heading + body + CTA button — yahi ad customer ko dikhega"
       tag="The visible part"
     />
 
     <Card accent="#D4308E">
-      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5">
-        <ImageIcon className="w-3.5 h-3.5" /> Ad image
+      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold mb-2 block">
+        Creative type
+      </Label>
+      <div className="flex gap-2 mb-4">
+        <button
+          type="button"
+          onClick={() => { p.setCreativeType("image"); p.setAdImageUrl(""); }}
+          className={cn(
+            "flex-1 px-3 py-2 rounded-xl border-2 text-[12px] font-extrabold transition-all",
+            p.creativeType === "image" ? "border-[#D4308E] bg-[#FCE5F0] text-[#A11A6A]" : "border-[#E8B968] bg-white hover:bg-[#FFF6E8]"
+          )}
+        >Image Ad</button>
+        <button
+          type="button"
+          onClick={() => { p.setCreativeType("video"); p.setAdImageUrl(""); }}
+          className={cn(
+            "flex-1 px-3 py-2 rounded-xl border-2 text-[12px] font-extrabold transition-all",
+            p.creativeType === "video" ? "border-[#D4308E] bg-[#FCE5F0] text-[#A11A6A]" : "border-[#E8B968] bg-white hover:bg-[#FFF6E8]"
+          )}
+        >Video Ad</button>
+      </div>
+
+      <Label className="text-[11px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold flex items-center gap-1.5 mt-2">
+        <ImageIcon className="w-3.5 h-3.5" /> {p.creativeType === "image" ? "Ad image" : "Ad video"}
       </Label>
       <p className="text-[11px] text-foreground/60 font-medium mt-1 mb-2">
-        1200×628px recommended · drag & drop upload via Cloudinary, ya public URL paste karein.
+        {p.creativeType === "image"
+          ? "1200×628px recommended · drag & drop upload via Cloudinary, ya public URL paste karein."
+          : "MP4 recommended · upload, paste URL, ya Instagram video select karein."}
       </p>
-      <AdMediaInput value={p.adImageUrl} onChange={p.setAdImageUrl} resource="image" />
+      <AdMediaInput value={p.adImageUrl} onChange={p.setAdImageUrl} resource={p.creativeType} pageId={p.pageId} />
     </Card>
 
     <Card accent="#D4308E">
@@ -1496,7 +1526,7 @@ const PlacementBlock = ({
 const StepBudget = ({
   budget, setBudget, optimizeAI, setOptimizeAI, launchPaused, setLaunchPaused,
   name, objectiveObj, audienceName, locationLabel, languageLabel,
-  pageName, adHeadline, adBody, adImageUrl,
+  pageName, adHeadline, adBody, adImageUrl, creativeType,
 }: {
   budget: string; setBudget: (v: string) => void;
   optimizeAI: boolean; setOptimizeAI: (v: boolean) => void;
@@ -1504,6 +1534,7 @@ const StepBudget = ({
   name: string; objectiveObj: typeof OBJECTIVES[number];
   audienceName: string; locationLabel: string; languageLabel: string;
   pageName: string; adHeadline: string; adBody: string; adImageUrl: string;
+  creativeType: "image" | "video";
 }) => (
   <>
     <SectionHeader
@@ -1578,7 +1609,7 @@ const StepBudget = ({
         <ReviewRow label="Language"      value={languageLabel} />
         <ReviewRow label="Headline"      value={adHeadline || "—"} />
         <ReviewRow label="Body"          value={adBody ? (adBody.length > 50 ? adBody.slice(0, 50) + "…" : adBody) : "—"} />
-        <ReviewRow label="Image"         value={adImageUrl ? "✓ attached" : "(none — text only ad)"} />
+        <ReviewRow label={creativeType === "image" ? "Image" : "Video"} value={adImageUrl ? "✓ attached" : "(none — text only ad)"} />
         <ReviewRow label="Daily budget"  value={`₹${Number(budget).toLocaleString("en-IN")}`} />
       </div>
     </Card>
@@ -1734,12 +1765,13 @@ const ctaLabel = (cta: string): string => {
 type PreviewMode = "ig_feed" | "fb_feed" | "ig_story";
 
 const AdMockupPreview = ({
-  pageName, headline, body, imageUrl, ctaLabel: cta, isCTW,
+  pageName, headline, body, imageUrl, creativeType = "image", ctaLabel: cta, isCTW,
 }: {
   pageName: string;
   headline: string;
   body: string;
   imageUrl: string;
+  creativeType?: "image" | "video";
   ctaLabel: string;
   isCTW: boolean;
 }) => {
@@ -1761,9 +1793,9 @@ const AdMockupPreview = ({
         </div>
         {/* Screen */}
         <div className="bg-white rounded-[20px] overflow-hidden">
-          {mode === "ig_feed" && <InstagramFeedCard pageName={pageName} headline={headline} body={body} imageUrl={imageUrl} cta={cta} isCTW={isCTW} />}
-          {mode === "fb_feed" && <FacebookFeedCard pageName={pageName} headline={headline} body={body} imageUrl={imageUrl} cta={cta} isCTW={isCTW} />}
-          {mode === "ig_story" && <InstagramStoryCard pageName={pageName} body={body} imageUrl={imageUrl} cta={cta} isCTW={isCTW} />}
+          {mode === "ig_feed" && <InstagramFeedCard pageName={pageName} headline={headline} body={body} imageUrl={imageUrl} creativeType={creativeType} cta={cta} isCTW={isCTW} />}
+          {mode === "fb_feed" && <FacebookFeedCard pageName={pageName} headline={headline} body={body} imageUrl={imageUrl} creativeType={creativeType} cta={cta} isCTW={isCTW} />}
+          {mode === "ig_story" && <InstagramStoryCard pageName={pageName} body={body} imageUrl={imageUrl} creativeType={creativeType} cta={cta} isCTW={isCTW} />}
         </div>
         {/* Home bar */}
         <div className="flex justify-center pt-2 pb-1">
@@ -1788,7 +1820,7 @@ const PreviewTab = ({ active, onClick, color, label }: { active: boolean; onClic
 );
 
 /* ─── Instagram Feed (square image, IG header) ─── */
-const InstagramFeedCard = ({ pageName, headline, body, imageUrl, cta, isCTW }: { pageName: string; headline: string; body: string; imageUrl: string; cta: string; isCTW: boolean }) => {
+const InstagramFeedCard = ({ pageName, headline, body, imageUrl, creativeType = "image", cta, isCTW }: { pageName: string; headline: string; body: string; imageUrl: string; creativeType?: "image" | "video"; cta: string; isCTW: boolean }) => {
   const initial = (pageName || "A").charAt(0).toUpperCase();
   return (
     <div className="font-sans text-[#262626]">
@@ -1807,14 +1839,18 @@ const InstagramFeedCard = ({ pageName, headline, body, imageUrl, cta, isCTW }: {
         </div>
         <MoreHorizontal className="w-4 h-4 text-[#262626]" />
       </div>
-      {/* Image (square, 1:1 for IG feed) */}
+      {/* Media (square, 1:1 for IG feed) */}
       <div className="bg-[#FAFAFA] aspect-square flex items-center justify-center overflow-hidden">
         {imageUrl ? (
-          <img src={imageUrl} alt="ad" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          creativeType === "video" ? (
+            <video src={imageUrl} className="w-full h-full object-cover animate-pulse" controls muted autoPlay loop />
+          ) : (
+            <img src={imageUrl} alt="ad" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          )
         ) : (
-          <div className="text-center text-[#A8A8A8]">
+          <div className="text-center text-[#A8A8A8] p-4">
             <ImageIcon className="w-10 h-10 mx-auto mb-1 opacity-50" />
-            <p className="text-[10px] font-medium">1:1 · Instagram Feed</p>
+            <p className="text-[10px] font-medium">{creativeType === "video" ? "Video · Instagram Feed" : "1:1 · Instagram Feed"}</p>
           </div>
         )}
       </div>
@@ -1848,7 +1884,7 @@ const InstagramFeedCard = ({ pageName, headline, body, imageUrl, cta, isCTW }: {
 };
 
 /* ─── Facebook Feed (1.91:1 image, FB header) ─── */
-const FacebookFeedCard = ({ pageName, headline, body, imageUrl, cta, isCTW }: { pageName: string; headline: string; body: string; imageUrl: string; cta: string; isCTW: boolean }) => {
+const FacebookFeedCard = ({ pageName, headline, body, imageUrl, creativeType = "image", cta, isCTW }: { pageName: string; headline: string; body: string; imageUrl: string; creativeType?: "image" | "video"; cta: string; isCTW: boolean }) => {
   const initial = (pageName || "A").charAt(0).toUpperCase();
   return (
     <div className="font-sans">
@@ -1873,11 +1909,15 @@ const FacebookFeedCard = ({ pageName, headline, body, imageUrl, cta, isCTW }: { 
       )}
       <div className="bg-[#F0F2F5] aspect-[1.91/1] flex items-center justify-center overflow-hidden">
         {imageUrl ? (
-          <img src={imageUrl} alt="ad" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          creativeType === "video" ? (
+            <video src={imageUrl} className="w-full h-full object-cover animate-pulse" controls muted autoPlay loop />
+          ) : (
+            <img src={imageUrl} alt="ad" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          )
         ) : (
-          <div className="text-center text-[#65676B]">
+          <div className="text-center text-[#65676B] p-4">
             <ImageIcon className="w-7 h-7 mx-auto mb-1 opacity-50" />
-            <p className="text-[10px] font-medium">1200×628 · Facebook Feed</p>
+            <p className="text-[10px] font-medium">{creativeType === "video" ? "Video · Facebook Feed" : "1200×628 · Facebook Feed"}</p>
           </div>
         )}
       </div>
@@ -1906,18 +1946,22 @@ const FacebookFeedCard = ({ pageName, headline, body, imageUrl, cta, isCTW }: { 
 };
 
 /* ─── Instagram Story (9:16 vertical, full image, overlay) ─── */
-const InstagramStoryCard = ({ pageName, body, imageUrl, cta, isCTW }: { pageName: string; body: string; imageUrl: string; cta: string; isCTW: boolean }) => {
+const InstagramStoryCard = ({ pageName, body, imageUrl, creativeType = "image", cta, isCTW }: { pageName: string; body: string; imageUrl: string; creativeType?: "image" | "video"; cta: string; isCTW: boolean }) => {
   const initial = (pageName || "A").charAt(0).toUpperCase();
   return (
     <div className="relative bg-black overflow-hidden" style={{ aspectRatio: "9/16" }}>
       {imageUrl ? (
-        <img src={imageUrl} alt="ad" className="absolute inset-0 w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+        creativeType === "video" ? (
+          <video src={imageUrl} className="absolute inset-0 w-full h-full object-cover" controls muted autoPlay loop />
+        ) : (
+          <img src={imageUrl} alt="ad" className="absolute inset-0 w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+        )
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-[#D4308E] via-[#7A1500] to-[#0A3D24] flex items-center justify-center text-center text-white/80">
           <div>
             <ImageIcon className="w-12 h-12 mx-auto mb-2 opacity-60" />
-            <p className="text-[11px] font-bold">9:16 · Story / Reel</p>
-            <p className="text-[10px] mt-1 opacity-70">Upload vertical or full-bleed image</p>
+            <p className="text-[11px] font-bold">{creativeType === "video" ? "Video · Story / Reel" : "9:16 · Story / Reel"}</p>
+            <p className="text-[10px] mt-1 opacity-70">Upload vertical or full-bleed {creativeType === "video" ? "video" : "image"}</p>
           </div>
         </div>
       )}

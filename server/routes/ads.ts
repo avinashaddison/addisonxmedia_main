@@ -48,6 +48,7 @@ import {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
   listMyAdAccounts,
+  adsFetch,
   type AdsCredentials,
   type MetaCampaign,
   type TargetingSpec,
@@ -486,6 +487,7 @@ app.post("/ads/campaigns", async (c) => {
     creative?: {
       page_id: string;
       image_url?: string;
+      video_url?: string;
       headline: string;
       body: string;
       link_url: string;
@@ -666,13 +668,31 @@ app.post("/ads/campaigns", async (c) => {
     }
     adSetId = adSet.id;
 
-    // Step 3: Ad Creative
+    // Step 3: Ad Creative (handling either image or video)
     lastStep = "creative";
+    let videoId: string | undefined = undefined;
+
+    if (body.creative.video_url) {
+      lastStep = "ad_video";
+      // Upload video URL to Meta's advideos endpoint first
+      const videoRes = await adsFetch<{ id: string }>(`/act_${creds.adAccountId}/advideos`, {
+        method: "POST",
+        token: creds.accessToken,
+        body: JSON.stringify({
+          file_url: body.creative.video_url,
+          name: `${body.name} · Video`,
+        }),
+      });
+      videoId = videoRes.id;
+      lastStep = "creative";
+    }
+
     const ctaType = body.creative.cta_type ?? (isCTW ? "WHATSAPP_MESSAGE" : "LEARN_MORE");
     const creative = await createAdCreative(creds, {
       name: `${body.name} · Creative`,
       pageId: body.creative.page_id,
       imageUrl: body.creative.image_url,
+      videoId,
       headline: body.creative.headline,
       body: body.creative.body,
       linkUrl: body.creative.link_url,
@@ -962,6 +982,88 @@ app.get("/ads/pages", async (c) => {
   } catch (e) {
     const err = onApiError(e);
     return c.json({ error: err.error, pages: [] }, 200);
+  }
+});
+
+/** List Instagram videos/reels linked to a Facebook Page. Used in ad creation wizard. */
+app.get("/ads/pages/:id/instagram-videos", async (c) => {
+  const pageId = c.req.param("id");
+  const creds = await getCreds(c.var.userId);
+
+  if (!creds) {
+    // Return mock demo Instagram videos for demo mode
+    return c.json({
+      videos: [
+        {
+          id: "ig_demo_1",
+          media_type: "VIDEO",
+          media_url: "https://assets.mixkit.co/videos/preview/mixkit-girl-running-in-slow-motion-in-front-of-a-wall-42294-large.mp4",
+          thumbnail_url: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&h=300&fit=crop",
+          permalink: "https://instagram.com/p/demo1",
+          caption: "Grow your online sales today with AddisonX! 🚀 #marketing #sales #smallbusiness",
+          timestamp: new Date().toISOString(),
+        },
+        {
+          id: "ig_demo_2",
+          media_type: "VIDEO",
+          media_url: "https://assets.mixkit.co/videos/preview/mixkit-hands-typing-on-a-laptop-keyboard-4065-large.mp4",
+          thumbnail_url: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=300&h=300&fit=crop",
+          permalink: "https://instagram.com/p/demo2",
+          caption: "Setup your AI agent in under 10 minutes. 🤖 Watch this step-by-step setup guide.",
+          timestamp: new Date(Date.now() - 86400000).toISOString(),
+        },
+        {
+          id: "ig_demo_3",
+          media_type: "VIDEO",
+          media_url: "https://assets.mixkit.co/videos/preview/mixkit-young-woman-holding-a-smartphone-in-her-hand-42295-large.mp4",
+          thumbnail_url: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&h=300&fit=crop",
+          permalink: "https://instagram.com/p/demo3",
+          caption: "Unboxing the new features on AddisonX Media dashboard! 📦 #unboxing #tech",
+          timestamp: new Date(Date.now() - 172800000).toISOString(),
+        }
+      ],
+      demo: true
+    });
+  }
+
+  try {
+    // 1. Get linked Instagram Business Account
+    const pageRes = await adsFetch<{ instagram_business_account?: { id: string } }>(`/${pageId}?fields=instagram_business_account`, {
+      method: "GET",
+      token: creds.accessToken,
+    });
+
+    const igId = pageRes.instagram_business_account?.id;
+    if (!igId) {
+      return c.json({
+        videos: [],
+        message: "No Instagram Business Account linked to this page.",
+        demo: false,
+      });
+    }
+
+    // 2. Query media from the Instagram Business Account
+    const mediaRes = await adsFetch<{ data: any[] }>(`/${igId}/media?fields=id,media_type,media_url,thumbnail_url,permalink,caption,timestamp&limit=50`, {
+      method: "GET",
+      token: creds.accessToken,
+    });
+
+    const videos = (mediaRes.data ?? [])
+      .filter((m: any) => m.media_type === "VIDEO")
+      .map((m: any) => ({
+        id: m.id,
+        media_type: m.media_type,
+        media_url: m.media_url,
+        thumbnail_url: m.thumbnail_url ?? m.media_url, // fallback
+        permalink: m.permalink,
+        caption: m.caption ?? "",
+        timestamp: m.timestamp,
+      }));
+
+    return c.json({ videos, demo: false });
+  } catch (e) {
+    const err = onApiError(e);
+    return c.json({ error: err.error, videos: [] }, 500);
   }
 });
 

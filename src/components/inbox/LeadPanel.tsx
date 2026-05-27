@@ -423,6 +423,33 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
           </div>
         </div>
 
+        {/* Meta Ad Referral */}
+        {conversation?.source_headline && (
+          <div className="px-4 py-3 border-t border-border space-y-2 bg-[#FFF1D6]/30">
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#B8651A] flex items-center gap-1 mb-1.5">
+              🎯 Meta Ad Referral
+            </h4>
+            <div className="rounded-lg border border-[#E8B968]/50 bg-white p-2.5 space-y-1.5">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-foreground/55 font-medium">Ad Headline</p>
+                <p className="text-[12px] font-extrabold text-[#B8420A] leading-snug">"{conversation.source_headline}"</p>
+              </div>
+              {conversation.source_type && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-foreground/55 font-medium">Ad Type</p>
+                  <p className="text-[11px] font-bold capitalize">{conversation.source_type.replace(/_/g, " ").toLowerCase()}</p>
+                </div>
+              )}
+              {conversation.source_ad_id && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-foreground/55 font-medium">Meta Ad ID</p>
+                  <p className="text-[10.5px] font-mono text-foreground/60 select-all">{conversation.source_ad_id}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Real deals for this contact */}
         <div className="px-4 py-3 border-t border-border">
           <div className="flex items-center justify-between mb-2">

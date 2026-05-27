@@ -596,12 +596,23 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
           </div>
           <div className="min-w-0">
             <h3 className="text-[15px] font-extrabold truncate">{contact.name}</h3>
-            <p className="text-[11px] text-white/85 flex items-center gap-1.5 font-medium">
+            <p className="text-[11px] text-white/85 flex items-center gap-1.5 font-medium flex-wrap">
               <span className="font-mono">{contact.phone}</span>
               <span>·</span>
               <span className="capitalize font-extrabold">{contact.tag} lead</span>
               <span>·</span>
               <span>Score <span className="font-extrabold text-[#FFD23F]">{contact.score}</span></span>
+              {conversation.source_headline && (
+                <>
+                  <span>·</span>
+                  <span 
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#FFD23F] text-[#7A4A00] font-black text-[10px] truncate max-w-[200px]"
+                    title={`Source Ad: ${conversation.source_headline} (${conversation.source_type || 'ad'})`}
+                  >
+                    🎯 Ad: "{conversation.source_headline}"
+                  </span>
+                </>
+              )}
             </p>
           </div>
         </div>

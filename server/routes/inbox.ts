@@ -122,6 +122,10 @@ app.get("/conversations", async (c) => {
         lastMessagePreview: conversation.lastMessagePreview,
         createdAt: conversation.createdAt,
         updatedAt: conversation.updatedAt,
+        sourceAdId: conversation.sourceAdId,
+        sourceHeadline: conversation.sourceHeadline,
+        ctwaClickId: conversation.ctwaClickId,
+        sourceType: conversation.sourceType,
         // joined contact (nested manually below)
         contact_id: contact.id,
         contact_ownerId: contact.ownerId,
@@ -155,6 +159,10 @@ app.get("/conversations", async (c) => {
       lastMessagePreview: r.lastMessagePreview,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
+      sourceAdId: r.sourceAdId ?? null,
+      sourceHeadline: r.sourceHeadline ?? null,
+      ctwaClickId: r.ctwaClickId ?? null,
+      sourceType: r.sourceType ?? null,
       contact: r.contact_id
         ? {
             id: r.contact_id,

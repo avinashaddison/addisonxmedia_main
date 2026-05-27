@@ -26,7 +26,7 @@ class AdsApiError extends Error {
   }
 }
 
-async function adsFetch<T>(path: string, init: RequestInit & { token: string }): Promise<T> {
+export async function adsFetch<T>(path: string, init: RequestInit & { token: string }): Promise<T> {
   const url = path.startsWith("http") ? path : `${GRAPH_BASE}${path}`;
   const res = await fetch(url, {
     ...init,
@@ -621,6 +621,7 @@ export type AdCreativeCreate = {
   pageId: string;
   imageUrl?: string;
   imageHash?: string;
+  videoId?: string;
   headline: string;
   body: string;
   linkUrl: string;
@@ -628,6 +629,27 @@ export type AdCreativeCreate = {
 };
 
 export async function createAdCreative(creds: AdsCredentials, body: AdCreativeCreate): Promise<{ id: string }> {
+  if (body.videoId) {
+    // Video creative payload
+    return adsFetch(`/${actId(creds.adAccountId)}/adcreatives`, {
+      method: "POST",
+      token: creds.accessToken,
+      body: JSON.stringify({
+        name: body.name,
+        object_story_spec: {
+          page_id: body.pageId,
+          video_data: {
+            video_id: body.videoId,
+            image_url: body.imageUrl || undefined,
+            title: body.headline,
+            message: body.body,
+            call_to_action: body.ctaType ? { type: body.ctaType, value: { link: body.linkUrl } } : undefined,
+          },
+        },
+      }),
+    });
+  }
+
   const linkData: Record<string, unknown> = {
     message: body.body,
     link: body.linkUrl,
