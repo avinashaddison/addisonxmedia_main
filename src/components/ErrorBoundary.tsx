@@ -17,8 +17,37 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  componentDidMount() {
+    try {
+      sessionStorage.removeItem("chunk_load_reload_count");
+    } catch (e) {
+      // Ignore if sessionStorage is disabled or inaccessible
+    }
+  }
+
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("[ErrorBoundary]", error, errorInfo);
+
+    const isChunkError =
+      error &&
+      error.message &&
+      (error.message.includes("Failed to fetch dynamically imported module") ||
+       error.message.includes("ChunkLoadError") ||
+       error.message.includes("Loading chunk"));
+
+    if (isChunkError) {
+      try {
+        const storageKey = "chunk_load_reload_count";
+        const count = parseInt(sessionStorage.getItem(storageKey) || "0", 10);
+        if (count < 2) {
+          sessionStorage.setItem(storageKey, (count + 1).toString());
+          window.location.reload();
+        }
+      } catch (e) {
+        // Fallback reload if sessionStorage throws
+        window.location.reload();
+      }
+    }
   }
 
   render() {
