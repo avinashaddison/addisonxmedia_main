@@ -184,6 +184,7 @@ export const contact = pgTable("contact", {
   tag: leadTagEnum("tag").notNull().default("cold"),
   score: integer("score").notNull().default(0),
   notes: text("notes"),
+  memory: jsonb("memory").default(sql`'{}'::jsonb`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

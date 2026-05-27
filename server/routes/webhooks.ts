@@ -9,6 +9,7 @@ import { decrypt } from "../crypto";
 import { getPersonaWithDefaults } from "../lib/ai-persona";
 import { chatJson, isAiConfigured } from "../integrations/openai";
 import { checkAiCap, logAiUsage } from "../lib/ai-usage";
+import { getHumanizedAutoReply } from "../lib/human-seller";
 import logger from "../lib/logger";
 
 // Meta WhatsApp webhook receiver.
@@ -300,8 +301,6 @@ async function triggerAgentReply(
   if (!ctc) return;
 
   const persona = await getPersonaWithDefaults(userId);
-  const [pf] = await db.select().from(profile).where(eq(profile.userId, userId)).limit(1);
-  const communityUrl = pf?.whatsappCommunityUrl ?? null;
 
   // Escalation keyword check — skip auto-reply if escalate keyword detected
   const escalateList = persona.escalate_keywords
@@ -312,163 +311,14 @@ async function triggerAgentReply(
     return;
   }
 
-  // Cap check
-  const gate = await checkAiCap(userId, "auto_reply");
-  if (!gate.allowed) {
-    logger.warn({ convId, reason: gate.reason }, "Agent mode: AI cap reached");
+  // Get auto reply
+  const result = await getHumanizedAutoReply(userId, convId, inboundBody);
+  if (!result.allowed) {
+    logger.warn({ convId, reason: result.error }, "Agent mode: auto-reply not allowed/cap exceeded");
     return;
   }
 
-  // Load last 6 messages for context
-  const recent = await db
-    .select({ direction: message.direction, body: message.body })
-    .from(message)
-    .where(eq(message.conversationId, convId))
-    .orderBy(desc(message.createdAt))
-    .limit(6);
-  const history = recent.slice().reverse();
-
-  const productLines = (persona.products || []).map((p: any) => {
-    let line = `- ${p.name}: ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`;
-    if (p.activationMail) line += `, Activation: ${p.activationMail}`;
-    if (p.activationTime) line += `, Setup time: ${p.activationTime}`;
-    return line;
-  }).join("\n");
-
-  const productContext = productLines.trim()
-    ? `Available Products:\n${productLines}`
-    : `WARNING: No products are currently available/configured in the system. Everything is OUT OF STOCK. If the customer asks for any product, tool, subscription, or account, you MUST tell them it is not available.`;
-
-  const communityLine = communityUrl
-    ? `COMMUNITY LINK: ${communityUrl}\nRule: If the conversation is concluding, or the customer has agreed to buy / is paying, suggest joining the community for daily updates using this exact link. Keep it very short. Example: 'Sir daily updates ke liye community join kar lijiye: ${communityUrl}'`
-    : "";
-
-  const hasProducts = persona.products && Array.isArray(persona.products) && persona.products.length > 0;
-
-  const resellerExamples = hasProducts
-    ? [
-        `SHORT REPLY MODE & STYLE EXAMPLES (Note: These examples are for tone and formatting reference only. Do NOT copy these product names, prices, or availability unless they are present in the Available Products list above):`,
-        `Customer: "hello" → Reply: "hello bhai"`,
-        `Customer: "kaise ho" → Reply: "badhiya 🙂\ntum batao"`,
-        `Customer: "available?" → Reply: "haa"`,
-        `Customer: "price?" → Reply: "1499"`,
-        `Customer: "time?" → Reply: "5-10 min"`,
-        `Customer: "mail me?" → Reply: "haan"`,
-        `Customer: "Claude chahiye" → Reply: "Yes sir 🙂\nPro?"`,
-        `Customer: "Pro" → Reply: "Available hai sir 🙂"`,
-        `Customer: "Price?" (Claude) → Reply: "1499"`,
-        `Customer: "Netflix milega?" → Reply: "nahi bhai available nahi hai"`,
-        `Customer: "prime video?" → Reply: "nahi hai bhai"`,
-        `Customer: "Warranty?" → Reply: "Working warranty rahega"`,
-        `Customer: "Payment?" → Reply: "UPI de deta hu"`,
-        `Customer: "Payment done" → Reply: "Received sir 🙂\nSetup karta hu."`,
-        `Customer: "Aur tools?" → Reply: "${(persona.products || []).map((p: any) => p.name).slice(0, 4).join(', ')}"`,
-        `Customer: "Tumhara naam?" → Reply: "Addison bol sakte ho"`,
-      ]
-    : [
-        `SHORT REPLY MODE & STYLE EXAMPLES (Everything is OUT OF STOCK / unavailable, deny all product/tool requests):`,
-        `Customer: "hello" → Reply: "hello bhai"`,
-        `Customer: "kaise ho" → Reply: "badhiya 🙂\ntum batao"`,
-        `Customer: "available?" → Reply: "abhi stock nahi hai sir"`,
-        `Customer: "chatgpt chahiye" → Reply: "nahi bhai abhi available nahi hai"`,
-        `Customer: "price?" → Reply: "out of stock hai sab"`,
-        `Customer: "Claude milega?" → Reply: "nahi bhai abhi stock nahi hai"`,
-        `Customer: "prime video?" → Reply: "nahi hai bhai"`,
-        `Customer: "Tumhara naam?" → Reply: "Addison bol sakte ho"`,
-      ];
-
-  // Build system prompt (same logic as /ai/reply-suggestions but condensed)
-  let systemPrompt: string;
-  if (persona.system_prompt && persona.system_prompt.trim()) {
-    systemPrompt = [
-      persona.system_prompt.trim(),
-      ``,
-      `Products, Pricing, and Activation Context:`,
-      productContext,
-      communityLine,
-    ].filter(Boolean).join("\n");
-  } else {
-    const TONE: Record<string, string> = {
-      friendly: "Warm, helpful, light emojis OK.",
-      professional: "Polished, formal, no emojis.",
-      casual: "Chill, conversational, no jargon.",
-      urgent_sales: "Push toward a close — polite but urgent. Always include a CTA.",
-    };
-    const LANG: Record<string, string> = {
-      hinglish: "Reply in Hinglish (roman-script Hindi/English mix).",
-      hindi: "Reply in Hindi (Devanagari script).",
-      english: "Reply in clean English.",
-      auto: "Automatically detect and match the customer's language/script. If they message in Hinglish, reply in Hinglish. If they message in Devanagari Hindi, reply in Devanagari Hindi. If they message in English, reply in English.",
-    };
-    const TAG: Record<string, string> = {
-      hot: "HOT lead — confident, push toward next step.",
-      warm: "WARM lead — build value, gentle nudge.",
-      cold: "COLD lead — light touch, just get them to reply.",
-    };
-
-    systemPrompt = [
-      `You are ${persona.business_name || "an AI sales assistant"} replying to a WhatsApp customer.`,
-      persona.what_we_sell ? `What we sell: ${persona.what_we_sell}` : "",
-      `Tone: ${TONE[persona.tone] ?? TONE.friendly}`,
-      `Language: ${LANG[persona.response_language] ?? LANG.hinglish}`,
-      `Lead: ${TAG[ctc.tag] ?? TAG.cold}`,
-      persona.always_say ? `ALWAYS: ${persona.always_say}` : "",
-      persona.never_say ? `NEVER: ${persona.never_say}` : "",
-      persona.knowledge_base ? `CONTEXT:\n${persona.knowledge_base}` : "",
-      "",
-      productContext,
-      communityLine,
-      "",
-      "Keep replies concise (1-3 sentences). Match the customer's language and energy.",
-      `- PRODUCT SELECTION: If the customer asks for a product generally without specifying which one, do NOT assume a specific product. Ask which product/tool they want and list the available options.`,
-      `- PAYMENT INFO / QR: Only suggest payment links or details when they explicitly ask for payment options, say they want to pay, or say they want to buy. Do NOT suggest payment info just because they asked about prices or product details.`,
-      `- ACTIONS & QR CODE GENERATION: If the customer asks for a QR code, explicitly asks to pay, or requests to proceed with payment, you can trigger a "send_qr" action by setting "action": "send_qr", "amount": <price>, "note": "<product name>".`,
-      "",
-      `Output ONLY the reply text and action metadata in the requested JSON format.`,
-    ].filter(Boolean).join("\n");
-  }
-
-  const historyText = history
-    .map((m) => `${m.direction === "inbound" ? "CUSTOMER" : "YOU"}: ${m.body}`)
-    .join("\n");
-  const userPrompt = `Conversation so far:\n${historyText}\n\nCustomer's latest message: "${inboundBody}"\n\nWrite your reply now:`;
-
-  let replyText: string;
-  let action: string | null = null;
-  let amount: number | null = null;
-  let note: string | null = null;
-
-  try {
-    const result = await chatJson<{
-      reply: string;
-      action?: "send_qr" | null;
-      amount?: number | null;
-      note?: string | null;
-    }>(
-      [
-        { role: "system", content: systemPrompt + '\n\nReturn JSON format: {"reply": "<message>", "action": "send_qr"|null, "amount": 999|null, "note": "ChatGPT Plus"|null}' },
-        { role: "user", content: userPrompt },
-      ],
-      { model: "gpt-4o-mini", temperature: 0.7, maxTokens: 300 },
-    );
-    replyText = (result.json?.reply ?? "").trim();
-    action = result.json?.action ?? null;
-    amount = result.json?.amount ?? null;
-    note = result.json?.note ?? null;
-
-    await logAiUsage({
-      userId,
-      feature: "auto_reply",
-      model: result.model,
-      promptTokens: result.promptTokens,
-      completionTokens: result.completionTokens,
-      costInr: result.costInr,
-      ok: true,
-    });
-  } catch (e) {
-    await logAiUsage({ userId, feature: "auto_reply", model: "gpt-4o-mini", promptTokens: 0, completionTokens: 0, costInr: 0, ok: false, errorMessage: String(e) });
-    throw e;
-  }
+  const { reply: replyText, action, amount, note } = result;
 
   if (!replyText) return;
 

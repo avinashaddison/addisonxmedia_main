@@ -22,6 +22,7 @@ import { escapeSqlLike } from "../utils";
 import { chat, chatJson, isAiConfigured } from "../integrations/openai";
 import { checkAiCap, logAiUsage, getUsageSummary } from "../lib/ai-usage";
 import { getPersonaWithDefaults, updatePersona, type Persona, seedAgentsIfEmpty } from "../lib/ai-persona";
+import { getHumanizedSuggestions } from "../lib/human-seller";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -247,239 +248,20 @@ app.post("/ai/reply-suggestions", requirePlan('growth', 'scale', 'enterprise'), 
 
   if (!isAiConfigured()) return c.json({ error: "AI not configured on server" }, 503);
 
-  // 1. Verify conversation belongs to the workspace + load contact
-  const [conv] = await db
-    .select({ id: conversation.id, contactId: conversation.contactId })
-    .from(conversation)
-    .where(and(eq(conversation.id, body.conversation_id), eq(conversation.ownerId, userId)))
-    .limit(1);
-  if (!conv) return c.json({ error: "Conversation not found" }, 404);
-
-  const [ctc] = await db
-    .select({ name: contact.name, tag: contact.tag })
-    .from(contact).where(eq(contact.id, conv.contactId)).limit(1);
-  if (!ctc) return c.json({ error: "Contact not found" }, 404);
-
-  // 2. Pull last 10 messages, oldest→newest
-  const recent = await db
-    .select({ direction: message.direction, body: message.body, createdAt: message.createdAt })
-    .from(message)
-    .where(eq(message.conversationId, conv.id))
-    .orderBy(desc(message.createdAt))
-    .limit(10);
-  const history = recent.slice().reverse();
-
-  const lastInbound = [...history].reverse().find((m) => m.direction === "inbound");
-  if (!lastInbound) {
-    return c.json({
-      escalate: false,
-      suggestions: [],
-      note: "No inbound message yet — nothing to suggest a reply to.",
-    });
-  }
-
-  // 3. Load persona + profile for community url
-  const persona = await getPersonaWithDefaults(userId);
-  const [pf] = await db.select().from(profile).where(eq(profile.userId, userId)).limit(1);
-  const communityUrl = pf?.whatsappCommunityUrl ?? null;
-
-  // 4. Escalate-keyword detection — short-circuit BEFORE burning tokens
-  const escalateList = persona.escalate_keywords
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  const inboundLower = lastInbound.body.toLowerCase();
-  const matchedKeyword = escalateList.find((kw) => kw.length > 0 && inboundLower.includes(kw));
-  if (matchedKeyword) {
-    return c.json<SuggestionsResult>({
-      escalate: true,
-      reason: `Customer mentioned "${matchedKeyword}" — handle this personally, do not auto-reply.`,
-      suggestions: [],
-    });
-  }
-
-  // 5. Cap check (weight=1 per call)
-  const gate = await checkAiCap(userId, "reply_suggestion");
-  if (!gate.allowed) return c.json({ error: gate.reason, code: gate.code }, 429);
-
-  // 5b. Shopping intent — if customer's message looks like a product enquiry,
-  // pull matching products + suggest a reply that mentions them with prices.
-  // This is what turns the AI inbox into a real WhatsApp Commerce assistant.
-  const SHOPPING_KEYWORDS = ["price", "cost", "how much", "kitna", "rate", "available", "stock", "show me", "do you have", "want", "buy", "order", "send me", "details", "image", "photo", "size", "colour", "color"];
-  const looksLikeShopping = SHOPPING_KEYWORDS.some((kw) => inboundLower.includes(kw));
-
-  let productContext = "";
-  let suggestedProducts: Array<{ id: string; name: string; price: number; photoUrl: string | null }> = [];
-  
-  const hasProducts = persona.products && Array.isArray(persona.products) && persona.products.length > 0;
-  if (hasProducts) {
-    suggestedProducts = persona.products.map((p: any, idx: number) => ({
-      id: `agent-prod-${idx}`,
-      name: p.name,
-      price: Number(p.price) || 0,
-      photoUrl: null
-    }));
-    const productLines = persona.products.map((p: any) => {
-      let line = `- ${p.name}: ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`;
-      if (p.activationMail) line += `, Activation: ${p.activationMail}`;
-      if (p.activationTime) line += `, Setup time: ${p.activationTime}`;
-      return line;
-    }).join("\n");
-    productContext = `Available Products:\n${productLines}`;
-  } else {
-    productContext = `WARNING: No products are currently available/configured in the system. Everything is OUT OF STOCK. If the customer asks for any product, tool, subscription, or account, you MUST tell them it is not available. Do not ask qualifying questions like "Plus ya Pro?". Simply reply that it is not available/out of stock.`;
-  }
-
-  // 6. Build prompt + call OpenAI in JSON mode
-  const businessLine = persona.business_name
-    ? `Business: ${persona.business_name}.`
-    : "";
-  const sellsLine = persona.what_we_sell
-    ? `What we sell: ${persona.what_we_sell}`
-    : "";
-  const alwaysLine = persona.always_say ? `ALWAYS: ${persona.always_say}` : "";
-  const neverLine = persona.never_say ? `NEVER: ${persona.never_say}` : "";
-  const kbLine = persona.knowledge_base
-    ? `KNOWLEDGE BASE / EXTRA BUSINESS CONTEXT (ground your answers on this info):\n${persona.knowledge_base}`
-    : "";
-
-  const communityLine = communityUrl
-    ? `COMMUNITY LINK: ${communityUrl}\nRule: If the conversation is concluding, or the customer has agreed to buy / is paying, suggest joining the community for daily updates using this exact link. Keep it very short.`
-    : "";
-
-  const resellerExamples = hasProducts
-    ? [
-        `SHORT REPLY MODE & STYLE EXAMPLES (Note: These examples are for tone and formatting reference only. Do NOT copy these product names, prices, or availability unless they are present in the Available Products list above):`,
-        `Customer: "hello" → Reply: "hello bhai"`,
-        `Customer: "kaise ho" → Reply: "badhiya 🙂\ntum batao"`,
-        `Customer: "available?" → Reply: "haa"`,
-        `Customer: "price?" → Reply: "1499"`,
-        `Customer: "time?" → Reply: "5-10 min"`,
-        `Customer: "mail me?" → Reply: "haan"`,
-        `Customer: "Claude chahiye" → Reply: "Yes sir 🙂\nPro?"`,
-        `Customer: "Pro" → Reply: "Available hai sir 🙂"`,
-        `Customer: "Price?" (Claude) → Reply: "1499"`,
-        `Customer: "Netflix milega?" → Reply: "nahi bhai available nahi hai"`,
-        `Customer: "prime video?" → Reply: "nahi hai bhai"`,
-        `Customer: "Warranty?" → Reply: "Working warranty rahega"`,
-        `Customer: "Payment?" → Reply: "UPI de deta hu"`,
-        `Customer: "Payment done" → Reply: "Received sir 🙂\nSetup karta hu."`,
-        `Customer: "Aur tools?" → Reply: "${(persona.products || []).map((p: any) => p.name).slice(0, 4).join(', ')}"`,
-        `Customer: "Tumhara naam?" → Reply: "Addison bol sakte ho"`,
-      ]
-    : [
-        `SHORT REPLY MODE & STYLE EXAMPLES (Everything is OUT OF STOCK / unavailable, deny all product/tool requests):`,
-        `Customer: "hello" → Reply: "hello bhai"`,
-        `Customer: "kaise ho" → Reply: "badhiya 🙂\ntum batao"`,
-        `Customer: "available?" → Reply: "abhi stock nahi hai sir"`,
-        `Customer: "chatgpt chahiye" → Reply: "nahi bhai abhi available nahi hai"`,
-        `Customer: "price?" → Reply: "out of stock hai sab"`,
-        `Customer: "Claude milega?" → Reply: "nahi bhai abhi stock nahi hai"`,
-        `Customer: "prime video?" → Reply: "nahi hai bhai"`,
-        `Customer: "Tumhara naam?" → Reply: "Addison bol sakte ho"`,
-      ];
-
-  let systemPrompt: string;
-  if (persona.system_prompt && persona.system_prompt.trim()) {
-    systemPrompt = [
-      persona.system_prompt.trim(),
-      ``,
-      `Products, Pricing, and Activation Context:`,
-      productContext,
-      communityLine,
-    ].filter(Boolean).join("\n");
-  } else {
-    systemPrompt = [
-      `You are Addison AI, a sales assistant helping ${persona.business_name || "an Indian SMB"} reply to a WhatsApp customer.`,
-      businessLine,
-      sellsLine,
-      `Tone: ${TONE_INSTRUCTIONS[persona.tone as keyof typeof TONE_INSTRUCTIONS] || TONE_INSTRUCTIONS.friendly}`,
-      `Language: ${LANGUAGE_INSTRUCTIONS[persona.response_language as keyof typeof LANGUAGE_INSTRUCTIONS] || LANGUAGE_INSTRUCTIONS.hinglish}`,
-      `Lead temperature: ${TAG_INSTRUCTIONS[ctc.tag as keyof typeof TAG_INSTRUCTIONS] ?? TAG_INSTRUCTIONS.cold}`,
-      alwaysLine,
-      neverLine,
-      kbLine,
-      "",
-      productContext,
-      communityLine,
-      "",
-      "Style & Tone Guidelines:",
-      "- DYNAMIC STYLE MATCHING: Analyze the customer's previous messages. Match their sentence length, language script (English/Hindi/Hinglish), emoji usage density, and formality. If they write very short messages, keep your replies extremely short. If they are casual and use Hinglish, write natural Hinglish.",
-      "- CONVERSION FOCUS: You are a highly talented salesman. Convince the buyer by showing product benefits, addressing their needs, and moving them toward buying. Keep the conversation flow concise (short chat target) with a clear call-to-action (CTA).",
-      "- PRODUCT SELECTION: If the customer asks for a product generally without specifying which one (e.g. 'ai tool chahiye'), do NOT assume a specific product. Ask which product/tool they want and list the available options.",
-      "- PAYMENT INFO / QR: Only suggest payment links or details when they explicitly ask for payment options, say they want to pay, or say they want to buy. Do NOT suggest payment info just because they asked about prices or product details.",
-      "",
-      "Generate exactly 3 reply DRAFTS for the operator to choose from. Each must be:",
-      "- 1-3 sentences max",
-      "- Sales-oriented (this is a sales conversation, not customer support)",
-      "- Distinct from each other in approach",
-      "- Specific to what the customer just said — do not produce generic chatbot replies",
-      "",
-      "Output JSON: {\"suggestions\":[{\"type\":\"polite\"|\"sell\"|\"qualify\",\"text\":\"...\"}]}",
-      "  - 'polite'  = acknowledge + soft answer + open the door",
-      "  - 'sell'    = move them toward the next step (visit/demo/payment)",
-      "  - 'qualify' = ask one specific qualifying question to learn more",
-    ]
-      .filter(Boolean)
-      .join("\n");
-  }
-
-  const historyText = history
-    .map((m) => `${m.direction === "inbound" ? "CUSTOMER" : "YOU"}: ${m.body}`)
-    .join("\n");
-  const userPrompt = [
-    `Contact name: ${ctc.name}`,
-    `Conversation so far (oldest → newest):`,
-    historyText,
-    "",
-    `Customer's latest message: "${lastInbound.body}"`,
-    productContext,
-    "",
-    "Generate 3 reply drafts now.",
-  ].filter(Boolean).join("\n");
-
   try {
-    const result = await chatJson<{ suggestions: Suggestion[] }>(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      { model: "gpt-4o-mini", temperature: 0.7, maxTokens: 500 },
-    );
+    const result = await getHumanizedSuggestions(userId, body.conversation_id);
+    if (!result.allowed) {
+      return c.json({ error: result.error, code: result.code }, 429);
+    }
 
-    await logAiUsage({
-      userId,
-      feature: "reply_suggestion",
-      model: result.model,
-      promptTokens: result.promptTokens,
-      completionTokens: result.completionTokens,
-      costInr: result.costInr,
-      ok: true,
-    });
-
-    const suggestions = Array.isArray(result.json?.suggestions)
-      ? result.json.suggestions.filter((s) => s && typeof s.text === "string" && s.text.trim().length > 0).slice(0, 3)
-      : [];
-
-    return c.json<SuggestionsResult>({
-      escalate: false,
-      suggestions,
-      suggested_products: suggestedProducts.length > 0
-        ? suggestedProducts.map((p) => ({ id: p.id, name: p.name, price: p.price, photo_url: p.photoUrl }))
-        : undefined,
+    return c.json({
+      escalate: result.escalate,
+      reason: result.reason,
+      suggestions: result.suggestions,
+      suggested_products: result.suggested_products,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await logAiUsage({
-      userId,
-      feature: "reply_suggestion",
-      model: "gpt-4o-mini",
-      promptTokens: 0,
-      completionTokens: 0,
-      costInr: 0,
-      ok: false,
-      errorMessage: msg,
-    });
     return c.json({ error: msg }, 500);
   }
 });
