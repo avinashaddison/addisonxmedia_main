@@ -2,9 +2,9 @@ import { Hono } from "hono";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { createHmac } from "node:crypto";
 import { db } from "../db/client";
-import { contact, conversation, message, metaConfig, webhookOrphan, upgradeRequest, user } from "../db/schema";
+import { contact, conversation, message, metaConfig, webhookOrphan, upgradeRequest, user, profile } from "../db/schema";
 import { verifyWebhookSignature as verifyCashfreeSignature } from "../integrations/cashfree";
-import { sendTextMessage } from "../integrations/meta";
+import { sendTextMessage, sendImageMessage } from "../integrations/meta";
 import { decrypt } from "../crypto";
 import { getPersonaWithDefaults } from "../lib/ai-persona";
 import { chatJson, isAiConfigured } from "../integrations/openai";
@@ -331,29 +331,23 @@ async function triggerAgentReply(
   if (isSalesmanAgent) {
     systemPrompt = [
       `You are a human-like WhatsApp AI salesman/reseller representing "${persona.business_name || "AI Tool Shop"}".`,
-      `We sell: Premium AI tools — ChatGPT Plus, Claude Pro, Midjourney, Sora, and other top AI subscriptions. We are trusted resellers providing fast delivery and working warranty.`,
+      `We sell: Premium AI tools — ChatGPT Plus (₹999/month), ChatGPT Pro (₹8999/month), Claude Pro (₹1499/month), Midjourney Standard (₹1999/month), Sora Plan (₹2999/month). We are trusted resellers providing fast delivery and working warranty.`,
       `Tone: Natural, casual, confident. Talk like a real Indian seller on WhatsApp.`,
       `Language: Hinglish (roman-script Hindi/English mix).`,
-      `Products & Pricing context:`,
-      `- ChatGPT Plus: ₹999/month`,
-      `- ChatGPT Pro: ₹8999/month`,
-      `- Claude Pro: ₹1499/month`,
-      `- Midjourney Standard: ₹1999/month`,
-      `- Sora Plan: ₹2999/month`,
       `Delivery: 5-10 mins after payment.`,
       `Warranty: Working warranty is included.`,
       `Payment: UPI (Paytm, GPay, PhonePe).`,
       ``,
       `CRITICAL RULES:`,
       `- Talk like a real Indian seller on WhatsApp.`,
-      `- Keep replies VERY short (1-3 lines MAX).`,
+      `- Keep replies VERY short (1-3 lines MAX, preferably a single short line).`,
       `- Sound natural, casual, confident.`,
       `- Never give long explanations unless customer asks.`,
       `- No corporate language.`,
       `- No AI-like wording.`,
       `- No over excitement.`,
       `- Use simple words.`,
-      `- Sometimes use 🙂 naturally.`,
+      `- Sometimes use 🙂 naturally and sparingly.`,
       `- Focus on fast replies.`,
       `- Talk like a trusted reseller.`,
       `- Never write big paragraphs.`,
@@ -363,6 +357,17 @@ async function triggerAgentReply(
       `- Never use "Dear customer", "We are delighted", "Please be informed", "As an AI", or professional email tone.`,
       `- Keep chat smooth and human.`,
       `- Reply like a real reseller handling many customers daily.`,
+      `- Never ask polite closing questions like "Aapko koi aur sawaal hai?" or "Any other help?". Just stop after answering.`,
+      `- If customer asks "Are you AI?" or "AI ho?", reply simply: "Nahi sir 🙂" or "Nahi sir, real insaan hu".`,
+      `- Never say "sorry sir, busy hu" or "wait please". If they ask to send fast or say OK, just reply with a direct short confirmation like "Bhej diya sir" or "Ha sir".`,
+      ``,
+      `ACTIONS & QR CODE GENERATION:`,
+      `If the customer asks for a QR code, asks to pay, or specifies which product they want (e.g. they confirm they want ChatGPT Plus, or Claude Pro, etc.), you can trigger a "send_qr" action.`,
+      `When triggering a "send_qr" action:`,
+      `1. Set the "action" field to "send_qr".`,
+      `2. Set the "amount" field to the price of the requested tool (ChatGPT Plus = 999, Claude Pro = 1499, etc.). If you don't know the tool/price, default to 999.`,
+      `3. Set the "note" field to the name of the tool (e.g., "ChatGPT Plus").`,
+      `4. Make the "reply" text state that you are sending the QR code (keep it extremely short, e.g. "Payment QR bhej raha hu sir 🙂").`,
       ``,
       `Tone Examples to follow:`,
       `Customer: "ChatGPT chahiye" → Reply: "Yes sir 🙂\nPlus ya Pro?"`,
@@ -370,11 +375,7 @@ async function triggerAgentReply(
       `Customer: "Warranty?" → Reply: "Yes sir 🙂\nWorking warranty rahega."`,
       `Customer: "Kitna time?" → Reply: "5-10 min sir 🙂"`,
       `Customer: "Payment?" → Reply: "UPI de deta hu sir 🙂"`,
-      ``,
-      `Goal:`,
-      `- Make customer feel: Easy process, Fast response, Trustworthy seller, Simple buying experience.`,
-      ``,
-      `Output ONLY the reply text. No JSON, no labels, no quotes — just the message to send.`,
+      `Customer: "Qr doo" → Reply: "Payment QR bhej raha hu sir 🙂" (with action: "send_qr", amount: 999)`,
     ].join("\n");
   } else {
     const TONE: Record<string, string> = {
@@ -416,15 +417,28 @@ async function triggerAgentReply(
   const userPrompt = `Conversation so far:\n${historyText}\n\nCustomer's latest message: "${inboundBody}"\n\nWrite your reply now:`;
 
   let replyText: string;
+  let action: string | null = null;
+  let amount: number | null = null;
+  let note: string | null = null;
+
   try {
-    const result = await chatJson<{ reply: string }>(
+    const result = await chatJson<{
+      reply: string;
+      action?: "send_qr" | null;
+      amount?: number | null;
+      note?: string | null;
+    }>(
       [
-        { role: "system", content: systemPrompt + '\n\nReturn JSON: {"reply": "<your message>"}' },
+        { role: "system", content: systemPrompt + '\n\nReturn JSON format: {"reply": "<message>", "action": "send_qr"|null, "amount": 999|null, "note": "ChatGPT Plus"|null}' },
         { role: "user", content: userPrompt },
       ],
-      { model: "gpt-4o-mini", temperature: 0.75, maxTokens: 300 },
+      { model: "gpt-4o-mini", temperature: 0.7, maxTokens: 300 },
     );
     replyText = (result.json?.reply ?? "").trim();
+    action = result.json?.action ?? null;
+    amount = result.json?.amount ?? null;
+    note = result.json?.note ?? null;
+
     await logAiUsage({
       userId,
       feature: "auto_reply",
@@ -475,6 +489,72 @@ async function triggerAgentReply(
   }).where(eq(conversation.id, convId));
 
   logger.info({ convId, chars: replyText.length }, "Agent mode: auto-reply sent");
+
+  // ── Execute Send QR Action ────────────────────────────────────────────────
+  if (action === "send_qr" && amount && amount >= 1) {
+    const [pf] = await db.select().from(profile).where(eq(profile.userId, userId)).limit(1);
+    if (pf?.upiVpa) {
+      const vpa = pf.upiVpa;
+      const displayName = pf.upiDisplayName || pf.displayName || "Business";
+      const formattedAmount = amount.toFixed(2);
+      const qrNote = (note ?? `Payment to ${displayName}`).slice(0, 40);
+      const params = new URLSearchParams({
+        pa: vpa,
+        pn: displayName,
+        am: formattedAmount,
+        tn: qrNote,
+        cu: "INR",
+      });
+      const upiLink = `upi://pay?${params.toString()}`;
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=${encodeURIComponent(upiLink)}`;
+
+      const qrMessageBody =
+        `💳 *₹${amount.toLocaleString("en-IN")} to ${displayName}*\n` +
+        `UPI ID: \`${vpa}\`\n\n` +
+        `📷 Scan the QR to pay\n\n` +
+        `_Please complete the payment_ 🙏`;
+
+      let qrMetaMessageId: string | null = null;
+      let sentQrLive = false;
+
+      try {
+        const sentQr = await sendImageMessage(creds, to, qrUrl, qrMessageBody);
+        qrMetaMessageId = sentQr.messages?.[0]?.id ?? null;
+        sentQrLive = true;
+      } catch (e) {
+        logger.error({ err: e, convId }, "Agent mode: QR image send failed, retrying as text");
+        try {
+          const sentQr = await sendTextMessage(creds, to, qrMessageBody);
+          qrMetaMessageId = sentQr.messages?.[0]?.id ?? null;
+          sentQrLive = true;
+        } catch (e2) {
+          logger.error({ err: e2, convId }, "Agent mode: QR text retry failed");
+        }
+      }
+
+      const [qrOutMsg] = await db.insert(message).values({
+        conversationId: convId,
+        ownerId: userId,
+        senderId: userId,
+        direction: "outbound",
+        body: qrMessageBody,
+        mediaUrl: qrUrl,
+        status: sentQrLive ? "sent" : "queued",
+        externalMessageId: qrMetaMessageId,
+        isAiGenerated: true,
+      }).returning();
+
+      await db.update(conversation).set({
+        lastMessageAt: qrOutMsg.createdAt,
+        lastMessagePreview: `💳 Payment request — ₹${amount.toLocaleString("en-IN")}`,
+        updatedAt: new Date(),
+      }).where(eq(conversation.id, convId));
+
+      logger.info({ convId, amount }, "Agent mode: QR auto-sent");
+    } else {
+      logger.warn({ convId }, "Agent mode: send_qr action triggered but upiVpa is not configured");
+    }
+  }
 }
 
 function extractMessageBody(m: any): string {
