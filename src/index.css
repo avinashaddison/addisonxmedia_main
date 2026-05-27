@@ -439,7 +439,106 @@
   .shadow-\[0_2px_0_0_\#0A6E3C\] {
     box-shadow: 0 2px 0 0 hsl(var(--primary-glow) / 0.3) !important;
   }
-  .shadow-\[0_8px_0_0_\#0A6E3C\] {
+  .shadow-[0_8px_0_0_#0A6E3C] {
     box-shadow: 0 8px 0 0 hsl(var(--primary-glow) / 0.3) !important;
+  }
+
+  /* Lead tag backgrounds (hot, warm, cold inactive states) */
+  .bg-\[\#FCE5F0\] {
+    background-color: hsla(330, 75%, 50%, 0.12) !important;
+  }
+  .bg-\[\#FFEFE0\] {
+    background-color: hsla(22, 90%, 56%, 0.12) !important;
+  }
+  .bg-\[\#E4E8FF\] {
+    background-color: hsla(230, 90%, 60%, 0.12) !important;
+  }
+
+  /* Additional saffron backgrounds and hovers */
+  .bg-\[\#FFE8C7\], .hover\:bg-\[\#FFE8C7\]:hover, .hover\:bg-\[\#FFE8C7\]:focus {
+    background-color: hsl(var(--secondary)) !important;
+  }
+  .hover\:bg-\[\#FFF6E8\]:hover {
+    background-color: hsl(var(--muted)) !important;
+  }
+  .bg-\[\#FFF6E8\]\/40 {
+    background-color: hsla(var(--muted) / 0.25) !important;
+  }
+  .bg-\[\#FFF1D6\]\/30 {
+    background-color: hsla(var(--muted) / 0.15) !important;
+  }
+
+  /* Custom text colors */
+  .text-\[\#0A3D24\], .text-\[\#073D22\] {
+    color: hsl(var(--primary-glow)) !important;
+  }
+  .text-\[\#B8420A\] {
+    color: hsl(var(--accent)) !important;
+  }
+  .text-\[\#7A4A00\] {
+    color: hsl(var(--accent)) !important;
+  }
+  .text-\[\#B8230C\] {
+    color: hsl(var(--destructive)) !important;
+  }
+  .bg-\[\#FFD23F\] {
+    background-color: hsl(var(--warning) / 0.9) !important;
+  }
+
+  /* Standard Tailwind Gray overrides to prevent unreadable dark text on dark backgrounds */
+  .text-slate-950, .text-zinc-950, .text-gray-950, .text-neutral-950, .text-stone-950, .text-black {
+    color: hsl(var(--foreground)) !important;
+  }
+  .text-slate-900, .text-zinc-900, .text-gray-900, .text-neutral-900, .text-stone-900 {
+    color: hsl(var(--foreground)) !important;
+  }
+  .text-slate-800, .text-zinc-800, .text-gray-800, .text-neutral-800, .text-stone-800 {
+    color: hsl(var(--foreground) / 0.9) !important;
+  }
+  .text-slate-700, .text-zinc-700, .text-gray-700, .text-neutral-700, .text-stone-700 {
+    color: hsl(var(--foreground) / 0.8) !important;
+  }
+  .text-slate-600, .text-zinc-600, .text-gray-600, .text-neutral-600, .text-stone-600 {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  .text-slate-500, .text-zinc-500, .text-gray-500, .text-neutral-500, .text-stone-500 {
+    color: hsl(var(--muted-foreground) / 0.8) !important;
+  }
+  .text-slate-400, .text-zinc-400, .text-gray-400, .text-neutral-400, .text-stone-400 {
+    color: hsl(var(--muted-foreground) / 0.6) !important;
+  }
+
+  /* Standard Tailwind Gray background overrides to prevent bright panels */
+  .bg-slate-50, .bg-zinc-50, .bg-gray-50, .bg-neutral-50, .bg-stone-50 {
+    background-color: hsl(var(--background)) !important;
+  }
+  .bg-slate-100, .bg-zinc-100, .bg-gray-100, .bg-neutral-100, .bg-stone-100 {
+    background-color: hsl(var(--muted)) !important;
+  }
+  .bg-slate-200, .bg-zinc-200, .bg-gray-200, .bg-neutral-200, .bg-stone-200 {
+    background-color: hsl(var(--secondary)) !important;
+  }
+
+  /* Standard Tailwind Gray border overrides */
+  .border-slate-100, .border-zinc-100, .border-gray-100, .border-neutral-100, .border-stone-100 {
+    border-color: hsl(var(--border) / 0.5) !important;
+  }
+  .border-slate-200, .border-zinc-200, .border-gray-200, .border-neutral-200, .border-stone-200 {
+    border-color: hsl(var(--border)) !important;
+  }
+  .border-slate-300, .border-zinc-300, .border-gray-300, .border-neutral-300, .border-stone-300 {
+    border-color: hsl(var(--border) / 1.5) !important;
+  }
+
+  /* Divider overrides */
+  .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+  .divide-zinc-100 > :not([hidden]) ~ :not([hidden]),
+  .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+    border-color: hsl(var(--border) / 0.5) !important;
+  }
+  .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
+  .divide-zinc-200 > :not([hidden]) ~ :not([hidden]),
+  .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+    border-color: hsl(var(--border)) !important;
   }
 }
