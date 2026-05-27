@@ -327,39 +327,88 @@ async function triggerAgentReply(
 
   // Build system prompt (same logic as /ai/reply-suggestions but condensed)
   const isSalesmanAgent = (persona as any).type === "prebuilt_sales";
-  const TONE: Record<string, string> = {
-    friendly: "Warm, helpful, light emojis OK.",
-    professional: "Polished, formal, no emojis.",
-    casual: "Chill, conversational, no jargon.",
-    urgent_sales: "Push toward a close — polite but urgent. Always include a CTA.",
-  };
-  const LANG: Record<string, string> = {
-    hinglish: "Reply in Hinglish (roman-script Hindi/English mix).",
-    hindi: "Reply in Hindi (Devanagari script).",
-    english: "Reply in clean English.",
-  };
-  const TAG: Record<string, string> = {
-    hot: "HOT lead — confident, push toward next step.",
-    warm: "WARM lead — build value, gentle nudge.",
-    cold: "COLD lead — light touch, just get them to reply.",
-  };
+  let systemPrompt: string;
+  if (isSalesmanAgent) {
+    systemPrompt = [
+      `You are a human-like WhatsApp AI salesman/reseller representing "${persona.business_name || "AI Tool Shop"}".`,
+      `We sell: Premium AI tools — ChatGPT Plus, Claude Pro, Midjourney, Sora, and other top AI subscriptions. We are trusted resellers providing fast delivery and working warranty.`,
+      `Tone: Natural, casual, confident. Talk like a real Indian seller on WhatsApp.`,
+      `Language: Hinglish (roman-script Hindi/English mix).`,
+      `Products & Pricing context:`,
+      `- ChatGPT Plus: ₹999/month`,
+      `- ChatGPT Pro: ₹8999/month`,
+      `- Claude Pro: ₹1499/month`,
+      `- Midjourney Standard: ₹1999/month`,
+      `- Sora Plan: ₹2999/month`,
+      `Delivery: 5-10 mins after payment.`,
+      `Warranty: Working warranty is included.`,
+      `Payment: UPI (Paytm, GPay, PhonePe).`,
+      ``,
+      `CRITICAL RULES:`,
+      `- Talk like a real Indian seller on WhatsApp.`,
+      `- Keep replies VERY short (1-3 lines MAX).`,
+      `- Sound natural, casual, confident.`,
+      `- Never give long explanations unless customer asks.`,
+      `- No corporate language.`,
+      `- No AI-like wording.`,
+      `- No over excitement.`,
+      `- Use simple words.`,
+      `- Sometimes use 🙂 naturally.`,
+      `- Focus on fast replies.`,
+      `- Talk like a trusted reseller.`,
+      `- Never write big paragraphs.`,
+      `- Never explain unnecessary details.`,
+      `- Never sound desperate.`,
+      `- Never force sales.`,
+      `- Never use "Dear customer", "We are delighted", "Please be informed", "As an AI", or professional email tone.`,
+      `- Keep chat smooth and human.`,
+      `- Reply like a real reseller handling many customers daily.`,
+      ``,
+      `Tone Examples to follow:`,
+      `Customer: "ChatGPT chahiye" → Reply: "Yes sir 🙂\nPlus ya Pro?"`,
+      `Customer: "Price?" → Reply: "₹999 sir 🙂"`,
+      `Customer: "Warranty?" → Reply: "Yes sir 🙂\nWorking warranty rahega."`,
+      `Customer: "Kitna time?" → Reply: "5-10 min sir 🙂"`,
+      `Customer: "Payment?" → Reply: "UPI de deta hu sir 🙂"`,
+      ``,
+      `Goal:`,
+      `- Make customer feel: Easy process, Fast response, Trustworthy seller, Simple buying experience.`,
+      ``,
+      `Output ONLY the reply text. No JSON, no labels, no quotes — just the message to send.`,
+    ].join("\n");
+  } else {
+    const TONE: Record<string, string> = {
+      friendly: "Warm, helpful, light emojis OK.",
+      professional: "Polished, formal, no emojis.",
+      casual: "Chill, conversational, no jargon.",
+      urgent_sales: "Push toward a close — polite but urgent. Always include a CTA.",
+    };
+    const LANG: Record<string, string> = {
+      hinglish: "Reply in Hinglish (roman-script Hindi/English mix).",
+      hindi: "Reply in Hindi (Devanagari script).",
+      english: "Reply in clean English.",
+    };
+    const TAG: Record<string, string> = {
+      hot: "HOT lead — confident, push toward next step.",
+      warm: "WARM lead — build value, gentle nudge.",
+      cold: "COLD lead — light touch, just get them to reply.",
+    };
 
-  const systemPrompt = [
-    `You are ${persona.business_name || "an AI sales assistant"} replying to a WhatsApp customer.`,
-    persona.what_we_sell ? `What we sell: ${persona.what_we_sell}` : "",
-    `Tone: ${TONE[persona.tone] ?? TONE.friendly}`,
-    `Language: ${LANG[persona.response_language] ?? LANG.hinglish}`,
-    `Lead: ${TAG[ctc.tag] ?? TAG.cold}`,
-    persona.always_say ? `ALWAYS: ${persona.always_say}` : "",
-    persona.never_say ? `NEVER: ${persona.never_say}` : "",
-    persona.knowledge_base ? `CONTEXT:\n${persona.knowledge_base}` : "",
-    "",
-    isSalesmanAgent
-      ? ["STYLE: You are a real Indian WhatsApp reseller. Keep replies 1-3 lines MAX. Never write paragraphs. Sound natural and confident. Lead with the answer."].join("")
-      : "Keep replies concise (1-3 sentences). Match the customer's language and energy.",
-    "",
-    `Output ONLY the reply text. No JSON, no labels, no quotes — just the message to send.`,
-  ].filter(Boolean).join("\n");
+    systemPrompt = [
+      `You are ${persona.business_name || "an AI sales assistant"} replying to a WhatsApp customer.`,
+      persona.what_we_sell ? `What we sell: ${persona.what_we_sell}` : "",
+      `Tone: ${TONE[persona.tone] ?? TONE.friendly}`,
+      `Language: ${LANG[persona.response_language] ?? LANG.hinglish}`,
+      `Lead: ${TAG[ctc.tag] ?? TAG.cold}`,
+      persona.always_say ? `ALWAYS: ${persona.always_say}` : "",
+      persona.never_say ? `NEVER: ${persona.never_say}` : "",
+      persona.knowledge_base ? `CONTEXT:\n${persona.knowledge_base}` : "",
+      "",
+      "Keep replies concise (1-3 sentences). Match the customer's language and energy.",
+      "",
+      `Output ONLY the reply text. No JSON, no labels, no quotes — just the message to send.`,
+    ].filter(Boolean).join("\n");
+  }
 
   const historyText = history
     .map((m) => `${m.direction === "inbound" ? "CUSTOMER" : "YOU"}: ${m.body}`)

@@ -122,6 +122,18 @@ export const seedAgentsIfEmpty = async (userId: string): Promise<void> => {
 /** Read the active agent for the workspace. */
 export const getActiveAgent = async (userId: string): Promise<typeof aiAgent.$inferSelect> => {
   await seedAgentsIfEmpty(userId);
+
+  // Sync existing prebuilt salesman to the latest prompt rules
+  await db.update(aiAgent)
+    .set({
+      whatWeSell: PREBUILT_SALESMAN.whatWeSell,
+      alwaysSay: PREBUILT_SALESMAN.alwaysSay,
+      neverSay: PREBUILT_SALESMAN.neverSay,
+      knowledgeBase: PREBUILT_SALESMAN.knowledgeBase,
+      products: PREBUILT_SALESMAN.products,
+    })
+    .where(and(eq(aiAgent.ownerId, userId), eq(aiAgent.type, "prebuilt_sales")));
+
   const [active] = await db.select().from(aiAgent)
     .where(and(eq(aiAgent.ownerId, userId), eq(aiAgent.isActive, true)))
     .limit(1);
