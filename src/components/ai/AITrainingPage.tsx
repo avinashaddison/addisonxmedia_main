@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Brain, Sparkles, ShieldAlert, MessageSquareText, Languages, Loader2,
-  CheckCircle2, ArrowUpRight, Zap, Save, Plus, Trash2, ShieldCheck, Play, UserCircle
+  CheckCircle2, ArrowUpRight, Zap, Save, Plus, Trash2, ShieldCheck, Play, UserCircle,
+  Pencil, Check, X
 } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
@@ -88,6 +89,7 @@ export const AITrainingPage = () => {
   const [customActivationTime, setCustomActivationTime] = useState("");
   const [newProdDesc, setNewProdDesc] = useState("");
   const [newProdImage, setNewProdImage] = useState("");
+  const [editingProductIdx, setEditingProductIdx] = useState<number | null>(null);
 
   // New agent creation inline state
   const [isCreatingAgent, setIsCreatingAgent] = useState(false);
@@ -192,6 +194,74 @@ export const AITrainingPage = () => {
     const currentProds = form.products || [];
     const updatedProds = currentProds.filter((_, i) => i !== idx);
     set("products", updatedProds);
+    setEditingProductIdx(null);
+  };
+
+  const handleEditProductClick = (idx: number) => {
+    const p = form.products[idx];
+    setEditingProductIdx(idx);
+    setNewProdName(p.name);
+    setNewProdPrice(String(p.price));
+    setNewProdValidity(p.validity);
+    setNewProdActivationMail(p.activationMail || "Activation On your Mail");
+    
+    const presets = ["10 min", "30 min", "1 hour"];
+    if (p.activationTime && !presets.includes(p.activationTime)) {
+      setNewProdActivationTime("custom");
+      setCustomActivationTime(p.activationTime);
+    } else {
+      setNewProdActivationTime(p.activationTime || "10 min");
+      setCustomActivationTime("");
+    }
+    
+    setNewProdDesc(p.description || "");
+    setNewProdImage(p.imageUrl || "");
+  };
+
+  const handleSaveEditedProduct = () => {
+    if (editingProductIdx === null) return;
+    if (!newProdName.trim()) {
+      toast.error("Product name is required");
+      return;
+    }
+    const priceNum = Number(newProdPrice) || 0;
+    const currentProds = [...(form.products || [])];
+    const finalActivationTime = newProdActivationTime === "custom" ? customActivationTime.trim() : newProdActivationTime;
+    
+    currentProds[editingProductIdx] = {
+      name: newProdName,
+      price: priceNum,
+      validity: newProdValidity,
+      activationMail: newProdActivationMail,
+      activationTime: finalActivationTime || "10 min",
+      description: newProdDesc.trim() || undefined,
+      imageUrl: newProdImage.trim() || undefined,
+    };
+    
+    set("products", currentProds);
+    setEditingProductIdx(null);
+    
+    // reset form
+    setNewProdName("");
+    setNewProdPrice("");
+    setNewProdValidity("Monthly");
+    setNewProdActivationMail("Activation On your Mail");
+    setNewProdActivationTime("10 min");
+    setCustomActivationTime("");
+    setNewProdDesc("");
+    setNewProdImage("");
+  };
+  
+  const handleCancelEditProduct = () => {
+    setEditingProductIdx(null);
+    setNewProdName("");
+    setNewProdPrice("");
+    setNewProdValidity("Monthly");
+    setNewProdActivationMail("Activation On your Mail");
+    setNewProdActivationTime("10 min");
+    setCustomActivationTime("");
+    setNewProdDesc("");
+    setNewProdImage("");
   };
 
   return (
@@ -391,13 +461,22 @@ export const AITrainingPage = () => {
             </Section>
 
             {/* Products/AI Tools Section */}
-            <Section icon={<Zap className="w-4 h-4 text-[#FF6A1F]" />} title="AI Tools & Products" desc="Add products with price & validity that this agent specializes in selling">
+            <Section icon={<Zap className="w-4 h-4 text-[#FF6A1F]" />} title="Product Management" desc="Add products with price & validity that this agent specializes in selling">
               {/* Product catalog display */}
               <div className="space-y-2">
                 {form.products && form.products.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-1">
                     {form.products.map((p, idx) => (
-                      <div key={idx} className="bg-muted/30 border border-[#E8B968]/45 rounded-xl p-2.5 flex items-center gap-3">
+                      <div
+                        key={idx}
+                        onClick={() => !isPrebuilt && handleEditProductClick(idx)}
+                        className={cn(
+                          "border rounded-xl p-2.5 flex items-center gap-3 transition-all",
+                          isPrebuilt ? "bg-muted/30 border-[#E8B968]/45" : "bg-muted/30 border-[#E8B968]/45 hover:border-[#FF6A1F]/50 hover:bg-muted/50 cursor-pointer",
+                          editingProductIdx === idx && "border-[#FF6A1F] bg-[#FFF6E8]/20 shadow-sm"
+                        )}
+                        title={isPrebuilt ? undefined : "Click to edit product"}
+                      >
                         {p.imageUrl && (
                           <img src={p.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-[#E8B968]/30" />
                         )}
@@ -411,14 +490,32 @@ export const AITrainingPage = () => {
                           </p>
                         </div>
                         {!isPrebuilt && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive hover:bg-destructive/10 flex-shrink-0"
-                            onClick={() => handleRemoveProduct(idx)}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
+                          <div className="flex gap-0.5 flex-shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:bg-muted"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditProductClick(idx);
+                              }}
+                              title="Edit product"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveProduct(idx);
+                              }}
+                              title="Delete product"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -429,7 +526,19 @@ export const AITrainingPage = () => {
 
                 {/* Add product fields */}
                 {!isPrebuilt && (
-                  <div className="bg-muted/15 border-2 border-dashed border-[#E8B968]/70 rounded-xl p-3 space-y-3">
+                  <div className={cn(
+                    "bg-muted/15 border-2 rounded-xl p-3 space-y-3 transition-all duration-200",
+                    editingProductIdx !== null ? "border-[#FF6A1F] bg-[#FFF6E8]/10" : "border-dashed border-[#E8B968]/70"
+                  )}>
+                    {editingProductIdx !== null && (
+                      <div className="flex items-center justify-between bg-[#FFF6E8] border border-[#E8B968]/40 rounded-lg px-2.5 py-1 text-[10px] font-black uppercase text-[#B8651A]">
+                        <span>✏️ Editing: {form.products[editingProductIdx]?.name}</span>
+                        <button type="button" onClick={handleCancelEditProduct} className="text-[9px] hover:underline font-bold text-destructive">
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
                       <div className="sm:col-span-5 space-y-1">
                         <Label className="text-[9.5px] font-black uppercase text-foreground/65">Tool / Product Name</Label>
@@ -465,14 +574,15 @@ export const AITrainingPage = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-start">
                       <div className="sm:col-span-7 space-y-1">
                         <Label className="text-[9.5px] font-black uppercase text-foreground/65">Description</Label>
-                        <Input
-                          className="h-8 text-[11px]"
+                        <Textarea
+                          className="text-[11px] min-h-[60px] max-h-[120px] resize-none py-1.5 px-3 bg-background border border-input rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                           value={newProdDesc}
                           onChange={(e) => setNewProdDesc(e.target.value)}
-                          placeholder="e.g. Premium AI image generation tool with weekly updates"
+                          placeholder="e.g. ✅ 1 Month Warranty&#10;✅ Instant Activation"
+                          rows={2}
                         />
                       </div>
                       <div className="sm:col-span-5 space-y-1">
@@ -524,14 +634,39 @@ export const AITrainingPage = () => {
                         />
                       </div>
                     )}
-                    <div className="sm:col-span-1 flex justify-end">
-                      <Button
-                        size="sm"
-                        className="h-8 w-full bg-[#0E8A4B] hover:bg-[#0A6E3B] text-white"
-                        onClick={handleAddProduct}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </Button>
+                    <div className="sm:col-span-1 flex gap-1 justify-end">
+                      {editingProductIdx !== null ? (
+                        <>
+                          <Button
+                            size="sm"
+                            type="button"
+                            className="h-8 w-full bg-[#0E8A4B] hover:bg-[#0A6E3B] text-white"
+                            onClick={handleSaveEditedProduct}
+                            title="Save changes"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                            className="h-8 w-full border-[#E8B968] hover:bg-[#FFE8C7]"
+                            onClick={handleCancelEditProduct}
+                            title="Cancel editing"
+                          >
+                            <X className="w-3.5 h-3.5 text-muted-foreground" />
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          type="button"
+                          className="h-8 w-full bg-[#0E8A4B] hover:bg-[#0A6E3B] text-white"
+                          onClick={handleAddProduct}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>

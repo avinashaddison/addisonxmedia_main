@@ -39,15 +39,15 @@ const productDetailsTemplate = (
   contactName: string,
   description?: string
 ) => {
-  let text = `📦 *Product Details: ${productName}*\n\n` +
-         `Hi ${contactName}! Yahan is product ki details hain:\n\n`;
+  let text = `*${productName}*\n\n`;
   if (description) {
-    text += `📝 *Description:* ${description}\n\n`;
+    text += `${description}\n\n`;
   }
-  text += `💵 *Price:* ₹${price.toLocaleString("en-IN")}\n` +
-         `⏳ *Validity:* ${validity}\n` +
-         `📩 *Delivery Method:* ${mail}\n` +
-         `⏱️ *Delivery Time:* ${time}`;
+  text += `Activation time : ${time}\n` +
+          `Validity : ${validity}\n` +
+          `Activation mail : ${mail}\n` +
+          `Price : ₹${price.toLocaleString("en-IN")}\n\n` +
+          `Please Check and Confirm to buy`;
   return text;
 };
 
@@ -439,19 +439,7 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
             </div>
           </div>
 
-          {/* Editable: notes */}
-          <div className="mb-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1">
-              <StickyNote className="w-3 h-3" /> Notes
-            </p>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add private notes about this lead — what they care about, last conversation summary, etc."
-              rows={3}
-              className="w-full resize-none rounded-lg bg-muted border border-transparent px-3 py-2 text-[12px] placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 focus:bg-card transition-all"
-            />
-          </div>
+
 
           {/* Save button — only enabled when something changed */}
           <button
@@ -719,7 +707,7 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
             <div className="rounded-xl border-2 border-[#E8B968] bg-[#FFF6E8]/20 p-3 space-y-3 shadow-[0_2px_0_0_#E8B968]">
               <div className="flex items-center justify-between border-b border-[#E8B968]/35 pb-2">
                 <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#B8651A] flex items-center gap-1">
-                  <Package className="w-3.5 h-3.5 text-[#FF6A1F]" /> AI Tools & Products Catalog
+                  <Package className="w-3.5 h-3.5 text-[#FF6A1F]" /> Product Management
                 </p>
                 <button
                   onClick={handleSendAllProducts}
@@ -924,6 +912,57 @@ const QuickShareSection = ({ contactName, conversationId }: { contactName: strin
     }
   };
 
+  const renderButton = (key: LinkKey) => {
+    const linkObj = links.find((l) => l.key === key);
+    if (!linkObj) return null;
+    const { url } = linkObj;
+    const meta = LINK_META[key];
+    const Icon = meta.icon;
+    const isSending = sending === key;
+
+    if (!url) {
+      return (
+        <div
+          key={key}
+          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-dashed border-border bg-muted/20 opacity-60 h-10"
+          title={`${meta.label} not configured`}
+        >
+          <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+          <span className="flex-1 text-[11px] font-semibold truncate">{meta.label}</span>
+          <RouterLink
+            to="/app/settings"
+            className="text-[10px] font-bold text-primary hover:underline flex-shrink-0"
+          >
+            Setup
+          </RouterLink>
+        </div>
+      );
+    }
+
+    return (
+      <button
+        key={key}
+        onClick={() => handleSend(key, url)}
+        disabled={isSending || !!sending}
+        className={cn(
+          "w-full h-10 rounded-lg flex items-center gap-2 px-2.5 text-white text-[12px] font-extrabold bg-gradient-to-br transition-all hover:translate-y-[1px] disabled:opacity-70 disabled:cursor-not-allowed",
+          meta.bg, meta.hoverBg, meta.shadow
+        )}
+        title={`Send ${meta.label} link to ${contactName}`}
+      >
+        {isSending ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+        ) : (
+          <Icon className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2.5} />
+        )}
+        <span className="flex-1 text-left truncate">
+          {isSending ? "Sending…" : `Send ${meta.label}`}
+        </span>
+        <Send className="w-3 h-3 flex-shrink-0 opacity-80" />
+      </button>
+    );
+  };
+
   return (
     <div className="px-4 py-3 border-t border-border">
       <div className="flex items-center justify-between mb-2">
@@ -954,51 +993,12 @@ const QuickShareSection = ({ contactName, conversationId }: { contactName: strin
         </div>
       ) : (
         <div className="space-y-1.5">
-          {links.map(({ key, url }) => {
-            const meta = LINK_META[key];
-            const Icon = meta.icon;
-            const isSending = sending === key;
-            if (!url) {
-              return (
-                <div
-                  key={key}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-dashed border-border bg-muted/20 opacity-60"
-                  title={`${meta.label} not configured`}
-                >
-                  <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                  <span className="flex-1 text-[11.5px] font-semibold truncate">{meta.label}</span>
-                  <RouterLink
-                    to="/app/settings"
-                    className="text-[10px] font-bold text-primary hover:underline flex-shrink-0"
-                  >
-                    Setup
-                  </RouterLink>
-                </div>
-              );
-            }
-            return (
-              <button
-                key={key}
-                onClick={() => handleSend(key, url)}
-                disabled={isSending || !!sending}
-                className={cn(
-                  "w-full h-10 rounded-lg flex items-center gap-2 px-2.5 text-white text-[12px] font-extrabold bg-gradient-to-br transition-all hover:translate-y-[1px] disabled:opacity-70 disabled:cursor-not-allowed",
-                  meta.bg, meta.hoverBg, meta.shadow
-                )}
-                title={`Send ${meta.label} link to ${contactName}`}
-              >
-                {isSending ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-                ) : (
-                  <Icon className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2.5} />
-                )}
-                <span className="flex-1 text-left truncate">
-                  {isSending ? "Sending…" : `Send ${meta.label}`}
-                </span>
-                <Send className="w-3 h-3 flex-shrink-0 opacity-80" />
-              </button>
-            );
-          })}
+          {renderButton("community")}
+          <div className="grid grid-cols-2 gap-1.5">
+            {renderButton("instagram")}
+            {renderButton("website")}
+          </div>
+          {renderButton("facebook")}
         </div>
       )}
     </div>
