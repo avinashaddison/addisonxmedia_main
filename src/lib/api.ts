@@ -414,6 +414,17 @@ export const api = {
   }>("/ads/audiences"),
   createAdAudience: (data: { name: string; description?: string; source: "crm" | "empty"; filter?: { tags?: string[] } }) =>
     post<{ ok: true; id: string; name: string; uploaded: number; note?: string; warning?: string }>("/ads/audiences", data),
+  getCampaignAiInsights: (id: string, range?: "last_7d" | "last_14d" | "last_30d" | "last_90d") =>
+    get<{
+      demo: boolean;
+      insights: {
+        executive_summary: string;
+        marketing_grade: string;
+        overall_score: number;
+        mistakes: Array<{ title: string; description: string; severity: "high" | "medium" | "low" }>;
+        action_items: Array<{ title: string; description: string }>;
+      };
+    }>(`/ads/campaigns/${id}/ai-insights${range ? `?range=${range}` : ""}`),
 
   // ─── Addison AI ──────────────────────────────────────────────────────────
   getAiUsage: () => get<{

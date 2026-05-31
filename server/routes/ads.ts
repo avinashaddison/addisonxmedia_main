@@ -54,6 +54,8 @@ import {
   type TargetingSpec,
 } from "../integrations/meta-ads";
 import { randomBytes } from "node:crypto";
+import { chatJson } from "../integrations/openai";
+import { checkAiCap, logAiUsage } from "../lib/ai-usage";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -1283,6 +1285,201 @@ app.get("/ads/campaigns/:id/attribution", async (c) => {
     headline: insights?.campaign_name ?? null,
     ads_resolved: adIds.length,
   });
+});
+
+app.get("/ads/campaigns/:id/ai-insights", async (c) => {
+  const userId = c.var.userId;
+  const campaignId = c.req.param("id");
+  const range = (c.req.query("range") as "last_7d" | "last_14d" | "last_30d" | "last_90d") ?? "last_30d";
+
+  const creds = await getCreds(userId);
+  if (!creds) {
+    // Return mock demo insights
+    return c.json({
+      demo: true,
+      insights: {
+        executiveSummary: "This Diwali CTW campaign is showing decent engagement with a 3.37% CTR, but the sales conversion rate is low (0% close rate). Focus on training the AI or setting up automatic product offers to close the high-intent warm leads currently sitting in the inbox.",
+        marketingGrade: "B-",
+        overallScore: 72,
+        mistakes: [
+          {
+            title: "Zero Deals Won on Hot Leads",
+            description: "You have captured 23 qualified warm/hot leads but closed 0 deals. The sales team or automated workflow is failing to deliver checkout links promptly.",
+            severity: "high"
+          },
+          {
+            title: "Unoptimized WhatsApp Welcome Experience",
+            description: "Only 51% of clicks are converting into started WhatsApp chats. The welcome script or call-to-action on the ad creative is not matching user expectations.",
+            severity: "medium"
+          }
+        ],
+        actionItems: [
+          {
+            title: "Activate AI Agent auto-replies",
+            description: "Turn on Agent Mode in the Inbox so the AI instantly greets and qualifies incoming WhatsApp leads within the 24h free-blast window."
+          },
+          {
+            title: "Create a discount product bundle",
+            description: "Add a Product under 'Product Management' and pitch it to the open deals using a bulk message or automated template."
+          },
+          {
+            title: "Optimize Meta Ad Creative",
+            description: "Include a direct WhatsApp click-to-chat button with a clear pre-filled text like 'Hi! I want to buy the AI Sales toolkit' to drop entry friction."
+          }
+        ]
+      }
+    });
+  }
+
+  // 1. Check AI Cap
+  const gate = await checkAiCap(userId, "insights");
+  if (!gate.allowed) {
+    return c.json({ error: gate.reason, code: gate.code }, 429);
+  }
+
+  try {
+    // 2. Fetch metrics
+    const [insights, ads] = await Promise.all([
+      singleCampaignInsights(creds, campaignId, range).catch(() => null),
+      listAdsInCampaign(creds, campaignId).catch(() => []),
+    ]);
+    const adIds: string[] = (ads ?? []).map((a: any) => String(a.id)).filter(Boolean);
+    const spendInr = Number(insights?.spend ?? 0);
+    const clicks = Number(insights?.clicks ?? 0);
+    const impressions = Number(insights?.impressions ?? 0);
+    const ctr = Number(insights?.ctr ?? 0);
+    const cpc = Number(insights?.cpc ?? 0);
+    const campaignName = insights?.campaign_name ?? "Meta Ads Campaign";
+
+    let ctwChatsCount = 0;
+    let contactsWarmCount = 0;
+    let dealsOpen = 0;
+    let dealsWon = 0;
+    let revenueInr = 0;
+
+    if (adIds.length > 0) {
+      const ctwConvs = await db
+        .select({ id: conversation.id, contactId: conversation.contactId })
+        .from(conversation)
+        .where(and(eq(conversation.ownerId, userId), inArray(conversation.sourceAdId, adIds)));
+
+      ctwChatsCount = ctwConvs.length;
+      const convIds = ctwConvs.map((r) => r.id);
+      const contactIds = [...new Set(ctwConvs.map((r) => r.contactId))];
+
+      if (convIds.length > 0) {
+        const dealsForConvs = await db
+          .select({ stage: deal.stage, value: deal.value })
+          .from(deal)
+          .where(and(eq(deal.ownerId, userId), inArray(deal.conversationId, convIds)));
+
+        dealsOpen = dealsForConvs.filter((d) => d.stage !== "won" && d.stage !== "lost").length;
+        dealsWon = dealsForConvs.filter((d) => d.stage === "won").length;
+        revenueInr = dealsForConvs
+          .filter((d) => d.stage === "won")
+          .reduce((a, d) => a + Number(d.value ?? 0), 0);
+      }
+
+      if (contactIds.length > 0) {
+        const warmAgg = await db
+          .select({ n: sql<number>`COUNT(*)::int` })
+          .from(contact)
+          .where(and(
+            eq(contact.ownerId, userId),
+            inArray(contact.id, contactIds),
+            sql`${contact.tag} IN ('warm', 'hot')`
+          ));
+        contactsWarmCount = warmAgg[0]?.n ?? 0;
+      }
+    }
+
+    const clickToChatRate = clicks > 0 ? Math.round((ctwChatsCount / clicks) * 100) : 0;
+    const qualificationRate = ctwChatsCount > 0 ? Math.round((contactsWarmCount / ctwChatsCount) * 100) : 0;
+    const closeRate = contactsWarmCount > 0 ? Math.round((dealsWon / contactsWarmCount) * 100) : 0;
+    const roas = spendInr > 0 ? Math.round((revenueInr / spendInr) * 100) / 100 : 0;
+
+    // 3. Prompt OpenAI
+    const systemPrompt = `You are a Meta Ads and marketing funnel conversion expert. Your goal is to analyze the performance metrics of a Meta Ad Campaign and generate a structured JSON object containing a detailed critique and actionable tips to achieve a 20x sales improvement.`;
+
+    const userPrompt = `Here are the campaign metrics for "${campaignName}":
+- Spent on Meta: ₹${spendInr}
+- Impressions: ${impressions}
+- Clicks: ${clicks}
+- CTR (Click-Through Rate): ${ctr.toFixed(2)}%
+- CPC (Cost Per Click): ₹${cpc.toFixed(2)}
+- WhatsApp Chats Started: ${ctwChatsCount} (${clickToChatRate}% click-to-chat conversion rate)
+- Qualified Leads (Warm/Hot): ${contactsWarmCount} (${qualificationRate}% qualification rate)
+- Deals Won: ${dealsWon}
+- Revenue Generated: ₹${revenueInr}
+- ROAS (Return on Ad Spend): ${roas}x
+
+Analyze this funnel. Highlight the bottlenecks and where the biggest drops occur (e.g. low click-to-chat, low qualification, low closing rate).
+Provide 3 concrete mistakes the seller is making, and 3 high-impact, actionable recommendations to improve conversion and 20x their sales.
+Make the advice extremely direct, realistic, and tailored exactly to these numbers.
+
+Return a JSON object in this format:
+{
+  "executiveSummary": "A 2-3 sentence summary critique of the campaign's biggest bottleneck and strengths.",
+  "marketingGrade": "Grade from A+ to F (e.g., B-, C+, D)",
+  "overallScore": 1-100 score,
+  "mistakes": [
+    {
+      "title": "Short title",
+      "description": "Explanation of what is wrong and why based on the numbers.",
+      "severity": "high" | "medium" | "low"
+    }
+  ],
+  "actionItems": [
+    {
+      "title": "Short actionable title",
+      "description": "Step-by-step recommendation on how to fix/improve it."
+    }
+  ]
+}`;
+
+    const messages = [
+      { role: "system" as const, content: systemPrompt },
+      { role: "user" as const, content: userPrompt }
+    ];
+
+    const result = await chatJson<{
+      executiveSummary: string;
+      marketingGrade: string;
+      overallScore: number;
+      mistakes: Array<{ title: string; description: string; severity: "high" | "medium" | "low" }>;
+      actionItems: Array<{ title: string; description: string }>;
+    }>(messages, { model: "gpt-4o-mini" });
+
+    // 4. Log AI Usage
+    await logAiUsage({
+      userId,
+      feature: "insights",
+      model: result.model,
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      costInr: result.costInr,
+      ok: true
+    });
+
+    return c.json({
+      demo: false,
+      insights: result.json
+    });
+
+  } catch (err) {
+    // Log AI Usage on failure
+    await logAiUsage({
+      userId,
+      feature: "insights",
+      model: "gpt-4o-mini",
+      promptTokens: 0,
+      completionTokens: 0,
+      costInr: 0,
+      ok: false,
+      errorMessage: err instanceof Error ? err.message : String(err)
+    });
+    throw err;
+  }
 });
 
 async function adsFetchSafe(creds: AdsCredentials, path: string) {

@@ -20,6 +20,7 @@ import {
   ArrowLeft, ArrowUpRight, IndianRupee, Eye, MousePointerClick, Target,
   Loader2, Pause, Play, Users, MapPin, Sparkles, BarChart3, TrendingUp,
   Info, Calendar, ChevronDown, MessageCircle, Trophy, ChevronRight, Crown,
+  Brain, AlertTriangle, ShieldAlert, CheckCircle2, RefreshCw,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -229,6 +230,9 @@ export const CampaignAnalyticsPage = () => {
               loading={attributionQ.isFetching}
             />
           )}
+
+          {/* AI Funnel Expert Recommendations */}
+          <CampaignAiInsightsPanel id={id} range={range} />
 
           {/* Time series */}
           <Card title="Daily performance" subtitle={`${data.daily.length} day${data.daily.length === 1 ? "" : "s"} of delivery`}>
@@ -720,5 +724,172 @@ const ChainArrow = () => (
     <ChevronRight className="w-5 h-5" strokeWidth={2.5} />
   </div>
 );
+
+const CampaignAiInsightsPanel = ({ id, range }: { id: string; range: "last_7d" | "last_14d" | "last_30d" | "last_90d" }) => {
+  const qc = useQueryClient();
+  const { data, error, isPending, isFetching, refetch } = useQuery({
+    queryKey: ["ads", "ai-insights", id, range],
+    queryFn: () => api.getCampaignAiInsights(id, range),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  if (isPending) {
+    return (
+      <div className="bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_4px_0_0_#E8B968] p-6 flex flex-col items-center justify-center min-h-[220px]">
+        <Brain className="w-10 h-10 animate-bounce text-[#FF6A1F] mb-3" />
+        <p className="text-[13px] font-black text-foreground">Funnel Analytics Expert is auditing your campaign...</p>
+        <p className="text-[11px] text-muted-foreground mt-1">Analyzing CTR, click-to-chat rates, qualified leads, and ROAS drop-offs.</p>
+      </div>
+    );
+  }
+
+  const apiError = error as any;
+  if (apiError) {
+    const isNotConfigured = apiError.status === 503 || apiError.message?.includes("not configured") || apiError.body?.code === "ai_not_configured";
+    const isCapExceeded = apiError.status === 429 || apiError.body?.code === "cap_exceeded";
+
+    return (
+      <div className="bg-white border-2 border-destructive/50 rounded-2xl shadow-[0_4px_0_0_rgba(239,68,68,0.2)] p-6">
+        <div className="flex items-start gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center flex-shrink-0">
+            <ShieldAlert className="w-5.5 h-5.5" strokeWidth={2.5} />
+          </div>
+          <div>
+            <h3 className="text-[13px] font-black text-foreground uppercase tracking-tight">AI Insights Unavailable</h3>
+            <p className="text-[11.5px] text-muted-foreground mt-1 leading-relaxed">
+              {isNotConfigured ? (
+                <>
+                  OpenAI is not configured on this server. Contact your admin to set the <code className="px-1 py-0.5 bg-muted rounded text-[10.5px]">OPENAI_API_KEY</code> environment variable.
+                </>
+              ) : isCapExceeded ? (
+                <>
+                  Monthly AI Cap reached. Please upgrade your workspace plan to Growth or Enterprise to unlock unlimited insights.
+                </>
+              ) : (
+                apiError.message || "An unexpected error occurred while analyzing the campaign."
+              )}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              className="mt-3 border-2 border-destructive/20 hover:bg-destructive/5 text-[11px] font-bold h-8 transition"
+            >
+              <RefreshCw className="w-3 h-3 mr-1" /> Retry Audit
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const insights = data?.insights;
+  if (!insights) return null;
+
+  return (
+    <div className="bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_4px_0_0_#E8B968] overflow-hidden">
+      <div className="px-5 py-4 border-b-2 border-[#E8B968] bg-gradient-to-r from-[#FFF6E8] to-[#FFE8C7] flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#7C3AED] text-white flex items-center justify-center shadow-md">
+            <Brain className="w-5 h-5 animate-pulse" strokeWidth={2.5} />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-[14px] font-black tracking-tight">🤖 AI Funnel Expert Recommendations</h3>
+              {data.demo && (
+                <span className="text-[8px] uppercase tracking-[0.18em] bg-[#FFD23F] text-[#7A4A00] font-extrabold px-1.5 py-0.5 rounded">DEMO</span>
+              )}
+            </div>
+            <p className="text-[11px] text-foreground/60 font-medium">Meta Ads expert analysis & marketing audit report</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="border-2 border-[#E8B968] hover:bg-[#FFE8C7] transition font-bold text-[11px] h-8"
+          >
+            {isFetching ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+            Regenerate Audit
+          </Button>
+        </div>
+      </div>
+
+      <div className="p-5 space-y-5">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+          <div className="md:col-span-3 flex flex-col items-center justify-center p-4 bg-muted/20 border-2 border-[#E8B968]/30 rounded-2xl text-center">
+            <span className="text-[10px] font-black uppercase text-foreground/50 tracking-wider">Campaign Grade</span>
+            <span className="text-4xl font-black text-primary mt-1">{insights.marketing_grade}</span>
+            <span className="text-[9px] font-bold text-muted-foreground mt-1">Funnel efficiency rating</span>
+          </div>
+
+          <div className="md:col-span-3 flex flex-col items-center justify-center p-4 bg-muted/20 border-2 border-[#E8B968]/30 rounded-2xl text-center">
+            <span className="text-[10px] font-black uppercase text-foreground/50 tracking-wider">Overall Score</span>
+            <span className="text-4xl font-black text-foreground mt-1">{insights.overall_score}<span className="text-[14px] text-foreground/40 font-medium">/100</span></span>
+            <span className="text-[9px] font-bold text-muted-foreground mt-1">Optimization strength</span>
+          </div>
+
+          <div className="md:col-span-6 p-4 bg-[#FFF1D6]/40 border-2 border-[#E8B968]/30 rounded-2xl">
+            <h4 className="text-[11px] font-black uppercase text-[#B8651A] tracking-wider mb-1">Executive Summary</h4>
+            <p className="text-[12px] text-foreground/80 font-medium leading-relaxed italic">
+              "{insights.executive_summary}"
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pt-1">
+          <div className="space-y-3">
+            <h4 className="text-[11px] font-black uppercase text-destructive tracking-wider flex items-center gap-1">
+              <AlertTriangle className="w-3.5 h-3.5" /> Funnel Bottlenecks (Mistakes)
+            </h4>
+            <div className="space-y-2">
+              {insights.mistakes.map((m, idx) => (
+                <div key={idx} className="p-3 bg-destructive/[0.02] border-2 border-destructive/15 rounded-xl hover:border-destructive/30 transition-colors">
+                  <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                    <h5 className="text-[12px] font-bold text-foreground">{m.title}</h5>
+                    <span className={cn(
+                      "text-[8px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full",
+                      m.severity === "high" ? "bg-destructive/10 text-destructive border border-destructive/20" :
+                      m.severity === "medium" ? "bg-warning/10 text-warning border border-warning/20" :
+                      "bg-muted text-muted-foreground"
+                    )}>
+                      {m.severity} severity
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed font-medium">
+                    {m.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h4 className="text-[11px] font-black uppercase text-success tracking-wider flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-success" /> 20x Growth Actions
+            </h4>
+            <div className="space-y-2">
+              {insights.action_items.map((item, idx) => (
+                <div key={idx} className="p-3 bg-success/[0.02] border-2 border-success/15 rounded-xl hover:border-success/30 transition-colors">
+                  <h5 className="text-[12px] font-bold text-foreground mb-1 flex items-start gap-1.5">
+                    <span className="text-success font-black mt-0.5">✓</span>
+                    {item.title}
+                  </h5>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed font-medium pl-3.5">
+                    {item.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default CampaignAnalyticsPage;
