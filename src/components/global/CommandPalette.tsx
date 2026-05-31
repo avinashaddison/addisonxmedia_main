@@ -58,7 +58,7 @@ const NAV_ITEMS = [
   { id: "broadcasts", label: "Broadcasts", icon: Radio, group: "Marketing", keywords: "mass message blast" },
   { id: "templates", label: "Templates", icon: FileText, group: "Marketing", keywords: "messages reusable" },
   { id: "ai-assistant", label: "AI Assistant", icon: Bot, group: "AI", keywords: "addison copilot chat ai" },
-  { id: "ai-training", label: "Agent Playground", icon: Brain, group: "AI", keywords: "train teach learn knowledge agent playground" },
+  { id: "ai-training", label: "Products + Agent", icon: Brain, group: "AI", keywords: "train teach learn knowledge agent playground products" },
   { id: "workflows", label: "Workflows", icon: Workflow, group: "AI", keywords: "automation flows triggers" },
   { id: "analytics", label: "Analytics", icon: BarChart3, group: "System", keywords: "reports stats metrics" },
   { id: "activity", label: "Activity", icon: Activity, group: "System", keywords: "logs timeline history" },

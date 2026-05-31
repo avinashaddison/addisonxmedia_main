@@ -142,7 +142,7 @@ export const AITrainingPage = () => {
 
   if (agentsLoading || !form) {
     return (
-      <PageShell title="Agent Playground" subtitle="Addison AI ko apne business ke baare mein sikhayein" icon={<Brain className="w-5 h-5" />}>
+      <PageShell title="Products + Agent" subtitle="Addison AI ko apne business ke baare mein sikhayein" icon={<Brain className="w-5 h-5" />}>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
         </div>
@@ -196,7 +196,7 @@ export const AITrainingPage = () => {
 
   return (
     <PageShell
-      title="Agent Playground"
+      title="Products + Agent"
       subtitle="Jitna better training aur rules, utne accurate customer replies"
       icon={<Brain className="w-5 h-5" />}
       actions={
