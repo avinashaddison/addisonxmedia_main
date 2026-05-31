@@ -39,15 +39,15 @@ const productDetailsTemplate = (
   contactName: string,
   description?: string
 ) => {
-  let text = `*${productName}*\n\n`;
+  let text = `🔥 *${productName.toUpperCase()}*\n\n`;
   if (description) {
     text += `${description}\n\n`;
   }
-  text += `Activation time : ${time}\n` +
-          `Validity : ${validity}\n` +
-          `Activation mail : ${mail}\n` +
-          `Price : ₹${price.toLocaleString("en-IN")}\n\n` +
-          `Please Check and Confirm to buy`;
+  text += `⚡ *Activation time:* ${time}\n` +
+          `⏳ *Validity:* ${validity}\n` +
+          `📧 *Activation mail:* ${mail}\n` +
+          `💰 *Price:* *₹${price.toLocaleString("en-IN")}*\n\n` +
+          `👉 *Please Check and Confirm to buy*`;
   return text;
 };
 
