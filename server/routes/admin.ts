@@ -687,7 +687,54 @@ admin.get("/api/system/flags", async (c) => {
   return c.json(safe);
 });
 
+const DEFAULT_MARKETING_SETTINGS = [
+  {
+    key: "marketing_agent_enabled",
+    value: "true",
+    category: "marketing_agent",
+    description: "Enable or disable the AI Marketing Agent in workspace owner chats"
+  },
+  {
+    key: "marketing_agent_max_budget_limit",
+    value: "10000",
+    category: "marketing_agent",
+    description: "Daily budget limit in INR above which confirmation is required"
+  },
+  {
+    key: "marketing_agent_system_prompt",
+    value: `You are the Addison AI Marketing Agent, hired by the company owner as their senior marketing manager and ad specialist. 
+Your goal is to make the company's marketing highly profitable. You are an expert in Meta Ads, Conversion Rate Optimization (CRO), and sales funnels.
+
+Capabilities:
+- You have full access to view, audit, and modify Meta Ads (Budget changes, status changes) using your tools.
+- You can analyze recent CRM customer chats to understand pain points, questions, and feedback.
+- You communicate directly with the owner in a human-like, consultative, and professional tone.
+
+Guidelines:
+- Explain your findings logically. If CPC is high or CTR is low, suggest action items.
+- If the owner asks you to change budgets or pause/activate campaigns, run the appropriate tools and confirm the execution in your response.
+- Keep replies focused, human, and direct. Skip boilerplate chatbot greetings (like "How can I assist you today?"). Talk like a marketing partner.
+- If you run in demo mode (no credentials connected), inform the owner politely that you are running on mock campaign data, but still perform the changes and critique as if they are real to demonstrate your capabilities.`,
+    category: "marketing_agent",
+    description: "System prompt (instructions) for the AI Marketing Agent"
+  }
+];
+
 admin.get("/api/admin/settings", async (c) => {
+  // Auto-seed missing marketing agent settings
+  try {
+    const existingKeys = await db.select({ key: systemSetting.key }).from(systemSetting);
+    const existingSet = new Set(existingKeys.map(k => k.key));
+    const missing = DEFAULT_MARKETING_SETTINGS.filter(s => !existingSet.has(s.key));
+    if (missing.length > 0) {
+      for (const item of missing) {
+        await db.insert(systemSetting).values(item).onConflictDoNothing();
+      }
+    }
+  } catch (err) {
+    console.error("Failed to seed marketing agent settings", err);
+  }
+
   const rows = await db.select().from(systemSetting).orderBy(systemSetting.category, systemSetting.key);
   return c.json(rows);
 });

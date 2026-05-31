@@ -1,6 +1,6 @@
 import { eq, and, desc, sql, not } from "drizzle-orm";
 import { db } from "../db/client";
-import { contact, conversation, message, metaConfig } from "../db/schema";
+import { contact, conversation, message, metaConfig, systemSetting } from "../db/schema";
 import { decrypt } from "../crypto";
 import {
   listCampaigns,
@@ -175,7 +175,7 @@ async function analyzeCrmCustomerChatsTool(userId: string) {
  * 2. OpenAI system definition & chat loop
  */
 
-const SYSTEM_PROMPT = `You are the Addison AI Marketing Agent, hired by the company owner as their senior marketing manager and ad specialist. 
+const DEFAULT_SYSTEM_PROMPT = `You are the Addison AI Marketing Agent, hired by the company owner as their senior marketing manager and ad specialist. 
 Your goal is to make the company's marketing highly profitable. You are an expert in Meta Ads, Conversion Rate Optimization (CRO), and sales funnels.
 
 Capabilities:
@@ -187,10 +187,7 @@ Guidelines:
 - Explain your findings logically. If CPC is high or CTR is low, suggest action items.
 - If the owner asks you to change budgets or pause/activate campaigns, run the appropriate tools and confirm the execution in your response.
 - Keep replies focused, human, and direct. Skip boilerplate chatbot greetings (like "How can I assist you today?"). Talk like a marketing partner.
-- If you run in demo mode (no credentials connected), inform the owner politely that you are running on mock campaign data, but still perform the changes and critique as if they are real to demonstrate your capabilities.
-
-Budget Safety limits:
-- If updates.dailyBudgetInr is more than ₹10,000, ask the owner to confirm again. Otherwise, execute immediately.`;
+- If you run in demo mode (no credentials connected), inform the owner politely that you are running on mock campaign data, but still perform the changes and critique as if they are real to demonstrate your capabilities.`;
 
 const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
@@ -248,6 +245,25 @@ export async function processMarketingAgentMessage(
 ): Promise<string> {
   const openai = getOpenAIClient();
 
+  // Load settings from db
+  const settingsRows = await db
+    .select()
+    .from(systemSetting)
+    .where(eq(systemSetting.category, "marketing_agent"));
+
+  const isEnabledSetting = settingsRows.find(r => r.key === "marketing_agent_enabled")?.value;
+  const isEnabled = isEnabledSetting !== "false"; // default to true if not found
+  
+  if (!isEnabled) {
+    return "The AI Marketing Agent is currently offline for maintenance. Please check back later.";
+  }
+
+  const customPrompt = settingsRows.find(r => r.key === "marketing_agent_system_prompt")?.value || DEFAULT_SYSTEM_PROMPT;
+  const budgetLimitVal = settingsRows.find(r => r.key === "marketing_agent_max_budget_limit")?.value || "10000";
+  const maxBudgetLimit = Number(budgetLimitVal) || 10000;
+
+  const finalSystemPrompt = `${customPrompt}\n\nBudget Safety limits:\n- If updates.dailyBudgetInr is more than ₹${maxBudgetLimit.toLocaleString("en-IN")}, ask the owner to confirm again. Otherwise, execute immediately.`;
+
   // Fetch conversation history
   const recentMsgs = await db
     .select({
@@ -261,7 +277,7 @@ export async function processMarketingAgentMessage(
     .limit(15);
 
   const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT }
+    { role: "system", content: finalSystemPrompt }
   ];
 
   // Append history in order

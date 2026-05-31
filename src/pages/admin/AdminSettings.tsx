@@ -8,6 +8,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
 const CATEGORY_META: Record<string, { label: string; icon: typeof Settings; color: string }> = {
@@ -16,6 +17,7 @@ const CATEGORY_META: Record<string, { label: string; icon: typeof Settings; colo
   features: { label: "Feature flags", icon: Sparkles, color: "#FF6A1F" },
   billing:  { label: "Billing & payments", icon: CreditCard, color: "#0E8A4B" },
   system:   { label: "System", icon: Server, color: "#3C50E0" },
+  marketing_agent: { label: "AI Marketing Agent Config", icon: Sparkles, color: "#8B5CF6" },
   general:  { label: "General", icon: Settings, color: "#B8651A" },
 };
 
@@ -118,6 +120,64 @@ const SettingRow = ({
   const isToggle = isBool(setting.value);
   const isOn = setting.value === "true";
   const danger = isDanger(setting.key);
+  const isMultiline = setting.key === "marketing_agent_system_prompt" || setting.key.includes("prompt") || setting.key.includes("custom_head_html");
+
+  if (isMultiline) {
+    return (
+      <div className={`px-4 py-4 ${isLast ? "" : "border-b border-[#E8B968]/40"}`}>
+        <div className="flex items-center justify-between gap-4 mb-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-[13px] font-extrabold font-mono text-[#8B5CF6]">{setting.key}</p>
+            </div>
+            {setting.description && (
+              <p className="text-[11px] text-foreground/70 font-medium mt-1 leading-relaxed">{setting.description}</p>
+            )}
+          </div>
+          {!editing && (
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+              <KeyRound className="w-3.5 h-3.5" /> Edit
+            </Button>
+          )}
+        </div>
+
+        {editing ? (
+          <div className="mt-3 space-y-3">
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Enter instructions..."
+              className="min-h-[200px] text-[12px] font-mono leading-relaxed focus-visible:ring-[#8B5CF6] border-2 border-[#E8B968]"
+              autoFocus
+            />
+            <div className="flex items-center gap-2">
+              <Button size="sm" className="bg-[#8B5CF6] hover:bg-[#7c4ee4] text-white" onClick={() => { onUpdate(setting.key, draft); setEditing(false); }}>
+                <CheckCircle2 className="w-3.5 h-3.5" /> Save changes
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => { setDraft(setting.value ?? ""); setEditing(false); }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-2">
+            {setting.value ? (
+              <pre className="text-[11px] font-mono text-foreground/70 bg-slate-50/50 p-3 rounded-xl border border-slate-200/80 max-h-36 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+                {setting.value}
+              </pre>
+            ) : (
+              <span className="text-[11px] italic opacity-50">empty</span>
+            )}
+            {setting.updatedAt && (
+              <p className="text-[10px] text-foreground/50 mt-1.5 font-medium">
+                Last updated {new Date(setting.updatedAt).toLocaleString("en-IN")}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`flex items-center justify-between gap-4 px-4 py-4 ${isLast ? "" : "border-b border-[#E8B968]/40"} ${danger && isOn ? "bg-[#FCE5F0]/30" : ""}`}>
