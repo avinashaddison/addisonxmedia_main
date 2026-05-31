@@ -63,7 +63,7 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
       )}
 
       <div className="flex-1 flex items-center justify-center min-w-0">
-        <ProjectSwitcher />
+        <ProjectSwitcher showLabel={false} />
       </div>
 
       {/* Status bar — chips for WhatsApp API live-state + current plan with

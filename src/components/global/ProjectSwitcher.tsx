@@ -26,9 +26,10 @@ import { ChevronDown, Plus, Trash2, Check, Folder, Loader2, BadgeCheck } from "l
 
 type ProjectSwitcherProps = {
   collapsed?: boolean;
+  showLabel?: boolean;
 };
 
-export const ProjectSwitcher = ({ collapsed = false }: ProjectSwitcherProps) => {
+export const ProjectSwitcher = ({ collapsed = false, showLabel = true }: ProjectSwitcherProps) => {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [openCreate, setOpenCreate] = useState(false);
@@ -204,12 +205,14 @@ export const ProjectSwitcher = ({ collapsed = false }: ProjectSwitcherProps) => 
         </DropdownMenu>
       ) : (
         <div className="flex flex-col gap-1 w-full max-w-[200px]">
-          <div className="flex items-center gap-1.5 pl-1 mb-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#B8651A] animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#B8651A] font-sans">
-              Project Management
-            </span>
-          </div>
+          {showLabel && (
+            <div className="flex items-center gap-1.5 pl-1 mb-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#B8651A] animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-[#B8651A] font-sans">
+                Project Management
+              </span>
+            </div>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
