@@ -145,6 +145,8 @@ export type AiAgentProduct = {
   validity: string;
   activationMail?: string;
   activationTime?: string;
+  description?: string;
+  imageUrl?: string;
 };
 
 export type PrebuiltAgent = {

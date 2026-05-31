@@ -86,6 +86,8 @@ export const AITrainingPage = () => {
   const [newProdActivationMail, setNewProdActivationMail] = useState("Activation On your Mail");
   const [newProdActivationTime, setNewProdActivationTime] = useState("10 min");
   const [customActivationTime, setCustomActivationTime] = useState("");
+  const [newProdDesc, setNewProdDesc] = useState("");
+  const [newProdImage, setNewProdImage] = useState("");
 
   // New agent creation inline state
   const [isCreatingAgent, setIsCreatingAgent] = useState(false);
@@ -171,6 +173,8 @@ export const AITrainingPage = () => {
         validity: newProdValidity,
         activationMail: newProdActivationMail,
         activationTime: finalActivationTime || "10 min",
+        description: newProdDesc.trim() || undefined,
+        imageUrl: newProdImage.trim() || undefined,
       }
     ];
     set("products", updatedProds);
@@ -180,6 +184,8 @@ export const AITrainingPage = () => {
     setNewProdActivationMail("Activation On your Mail");
     setNewProdActivationTime("10 min");
     setCustomActivationTime("");
+    setNewProdDesc("");
+    setNewProdImage("");
   };
 
   const handleRemoveProduct = (idx: number) => {
@@ -391,20 +397,24 @@ export const AITrainingPage = () => {
                 {form.products && form.products.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-1">
                     {form.products.map((p, idx) => (
-                      <div key={idx} className="bg-muted/30 border border-[#E8B968]/45 rounded-xl p-2 flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-extrabold truncate">{p.name}</p>
-                          <p className="text-[10px] text-foreground/60 font-semibold truncate">
+                      <div key={idx} className="bg-muted/30 border border-[#E8B968]/45 rounded-xl p-2.5 flex items-center gap-3">
+                        {p.imageUrl && (
+                          <img src={p.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-[#E8B968]/30" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11.5px] font-black truncate">{p.name}</p>
+                          {p.description && (
+                            <p className="text-[10px] text-foreground/50 truncate leading-tight mb-0.5">{p.description}</p>
+                          )}
+                          <p className="text-[9.5px] text-foreground/60 font-bold truncate">
                             ₹{p.price.toLocaleString("en-IN")} · {p.validity}
-                            {p.activationMail && ` · ${p.activationMail}`}
-                            {p.activationTime && ` · ⏱️ ${p.activationTime}`}
                           </p>
                         </div>
                         {!isPrebuilt && (
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                            className="h-7 w-7 text-destructive hover:bg-destructive/10 flex-shrink-0"
                             onClick={() => handleRemoveProduct(idx)}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -420,40 +430,61 @@ export const AITrainingPage = () => {
                 {/* Add product fields */}
                 {!isPrebuilt && (
                   <div className="bg-muted/15 border-2 border-dashed border-[#E8B968]/70 rounded-xl p-3 space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
-                    <div className="sm:col-span-5 space-y-1">
-                      <Label className="text-[9.5px] font-black uppercase text-foreground/65">Tool / Product Name</Label>
-                      <Input
-                        className="h-8 text-[11px]"
-                        value={newProdName}
-                        onChange={(e) => setNewProdName(e.target.value)}
-                        placeholder="e.g. Image Studio Pro"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                      <div className="sm:col-span-5 space-y-1">
+                        <Label className="text-[9.5px] font-black uppercase text-foreground/65">Tool / Product Name</Label>
+                        <Input
+                          className="h-8 text-[11px]"
+                          value={newProdName}
+                          onChange={(e) => setNewProdName(e.target.value)}
+                          placeholder="e.g. Image Studio Pro"
+                        />
+                      </div>
+                      <div className="sm:col-span-3 space-y-1">
+                        <Label className="text-[9.5px] font-black uppercase text-foreground/65">Price (INR)</Label>
+                        <Input
+                          className="h-8 text-[11px]"
+                          type="number"
+                          value={newProdPrice}
+                          onChange={(e) => setNewProdPrice(e.target.value)}
+                          placeholder="e.g. 999"
+                        />
+                      </div>
+                      <div className="sm:col-span-4 space-y-1">
+                        <Label className="text-[9.5px] font-black uppercase text-foreground/65">Validity</Label>
+                        <Select value={newProdValidity} onValueChange={setNewProdValidity}>
+                          <SelectTrigger className="h-8 text-[11px]">
+                            <SelectValue placeholder="Validity" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Monthly" className="text-[11px]">Monthly</SelectItem>
+                            <SelectItem value="Yearly" className="text-[11px]">Yearly</SelectItem>
+                            <SelectItem value="Lifetime" className="text-[11px]">Lifetime</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="sm:col-span-3 space-y-1">
-                      <Label className="text-[9.5px] font-black uppercase text-foreground/65">Price (INR)</Label>
-                      <Input
-                        className="h-8 text-[11px]"
-                        type="number"
-                        value={newProdPrice}
-                        onChange={(e) => setNewProdPrice(e.target.value)}
-                        placeholder="e.g. 999"
-                      />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                      <div className="sm:col-span-7 space-y-1">
+                        <Label className="text-[9.5px] font-black uppercase text-foreground/65">Description</Label>
+                        <Input
+                          className="h-8 text-[11px]"
+                          value={newProdDesc}
+                          onChange={(e) => setNewProdDesc(e.target.value)}
+                          placeholder="e.g. Premium AI image generation tool with weekly updates"
+                        />
+                      </div>
+                      <div className="sm:col-span-5 space-y-1">
+                        <Label className="text-[9.5px] font-black uppercase text-foreground/65">Image URL (Optional)</Label>
+                        <Input
+                          className="h-8 text-[11px]"
+                          value={newProdImage}
+                          onChange={(e) => setNewProdImage(e.target.value)}
+                          placeholder="e.g. https://example.com/image.png"
+                        />
+                      </div>
                     </div>
-                    <div className="sm:col-span-4 space-y-1">
-                      <Label className="text-[9.5px] font-black uppercase text-foreground/65">Validity</Label>
-                      <Select value={newProdValidity} onValueChange={setNewProdValidity}>
-                        <SelectTrigger className="h-8 text-[11px]">
-                          <SelectValue placeholder="Validity" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Monthly" className="text-[11px]">Monthly</SelectItem>
-                          <SelectItem value="Yearly" className="text-[11px]">Yearly</SelectItem>
-                          <SelectItem value="Lifetime" className="text-[11px]">Lifetime</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
                     <div className="sm:col-span-5 space-y-1">

@@ -30,13 +30,25 @@ type Props = {
 const formatINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
-const productDetailsTemplate = (productName: string, price: number, validity: string, mail: string, time: string, contactName: string) => {
-  return `📦 *Product Details: ${productName}*\n\n` +
-         `Hi ${contactName}! Yahan is product ki details hain:\n\n` +
-         `💵 *Price:* ₹${price.toLocaleString("en-IN")}\n` +
+const productDetailsTemplate = (
+  productName: string,
+  price: number,
+  validity: string,
+  mail: string,
+  time: string,
+  contactName: string,
+  description?: string
+) => {
+  let text = `📦 *Product Details: ${productName}*\n\n` +
+         `Hi ${contactName}! Yahan is product ki details hain:\n\n`;
+  if (description) {
+    text += `📝 *Description:* ${description}\n\n`;
+  }
+  text += `💵 *Price:* ₹${price.toLocaleString("en-IN")}\n` +
          `⏳ *Validity:* ${validity}\n` +
          `📩 *Delivery Method:* ${mail}\n` +
          `⏱️ *Delivery Time:* ${time}`;
+  return text;
 };
 
 const allProductsListTemplate = (products: any[]) => {
@@ -92,9 +104,22 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
         p.validity,
         p.activationMail || "Activation On your Mail",
         p.activationTime || "10 min",
-        first
+        first,
+        p.description
       );
-      await api.sendMessage(conversationId, { body, direction: "outbound", status: "sent" });
+      
+      const payload: Record<string, any> = {
+        body,
+        direction: "outbound",
+        status: "sent",
+      };
+
+      if (p.imageUrl) {
+        payload.media_url = p.imageUrl;
+        payload.media_type = "image";
+      }
+
+      await api.sendMessage(conversationId, payload);
       qc.invalidateQueries({ queryKey: ["messages", conversationId] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
       toast.success(`${p.name} details sent ✨`);
@@ -710,10 +735,16 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
                   const isSendingThis = sendingProductIdx === idx;
                   return (
                     <div key={idx} className="bg-white border border-[#E8B968]/45 rounded-xl p-2.5 flex flex-col gap-1.5 hover:border-[#FF6A1F]/30 transition-colors">
-                      <div className="flex justify-between items-start gap-1">
-                        <div className="min-w-0">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {p.imageUrl && (
+                          <img src={p.imageUrl} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-[#E8B968]/20" />
+                        )}
+                        <div className="min-w-0 flex-1">
                           <p className="text-[11.5px] font-black truncate text-foreground">{p.name}</p>
-                          <p className="text-[10px] text-foreground/60 font-bold">
+                          {p.description && (
+                            <p className="text-[10px] text-muted-foreground truncate leading-none mb-0.5">{p.description}</p>
+                          )}
+                          <p className="text-[9.5px] text-foreground/60 font-bold">
                             ₹{p.price.toLocaleString("en-IN")} · {p.validity}
                           </p>
                         </div>
