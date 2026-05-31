@@ -7,7 +7,6 @@ import { api } from "@/lib/api";
 import { CommandPalette } from "./CommandPalette";
 import { NotificationCenter } from "./NotificationCenter";
 import { ThemeToggle } from "../ThemeToggle";
-import { ProjectSwitcher } from "./ProjectSwitcher";
 
 type Props = { onNavigate: (page: string) => void; onMenuClick?: () => void };
 
@@ -62,9 +61,7 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
         </button>
       )}
 
-      <div className="flex-1 flex items-center justify-center min-w-0">
-        <ProjectSwitcher showLabel={false} />
-      </div>
+      <div className="flex-1" />
 
       {/* Status bar — chips for WhatsApp API live-state + current plan with
           quick "Explore Plans" upsell. Brand-styled to match the AddisonX
