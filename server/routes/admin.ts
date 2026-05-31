@@ -1565,4 +1565,14 @@ admin.delete("/api/admin/prebuilt-agents/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+admin.post("/api/admin/ai/chat", async (c) => {
+  const { message } = await c.req.json<{ message: string }>();
+  if (!message) return c.json({ error: "Message is required" }, 400);
+
+  const actorUserId = c.get("adminUserId");
+  const { processAdminAgentMessage } = await import("../lib/admin-agent");
+  const response = await processAdminAgentMessage(actorUserId, message);
+  return c.json({ response });
+});
+
 export default admin;

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { AdminAiPanel } from "@/components/admin/AdminAiPanel";
 
 const fmtINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
@@ -408,6 +409,7 @@ const AdminDashboard = () => {
           />
         </div>
       </div>
+      <AdminAiPanel />
     </div>
   );
 };
