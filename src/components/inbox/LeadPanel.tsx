@@ -525,7 +525,8 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto" hidden={activeTab !== "leads"}>
+        <>
+          <div className="flex-1 overflow-y-auto" hidden={activeTab !== "leads"}>
         {/* Profile + contact info */}
         <div className="p-4">
           <div className="flex items-center gap-3 mb-4">
@@ -970,6 +971,8 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
           </div>
         </div>
       </div>
+      </>
+    )}
 
       {/* Send Product dialog (same as the chat composer used to host) */}
       <SendProductDialog
