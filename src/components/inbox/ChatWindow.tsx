@@ -181,6 +181,7 @@ const QUICK_TEMPLATES = [
 const CUSTOMER_SERVICE_WINDOW_HOURS = 24;
 
 export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) => {
+  const isMarketingAgent = conversation.contact.phone === "system_marketing";
   const [input, setInput] = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
   const [showProductPicker, setShowProductPicker] = useState(false);
@@ -265,6 +266,24 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
   useEffect(() => {
     setAgentMode(conversation.agent_mode ?? false);
   }, [conversation.id, conversation.agent_mode]);
+
+  useEffect(() => {
+    const handleInsert = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.text) {
+        setInput(customEvent.detail.text);
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+            textareaRef.current.style.height = "auto";
+            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+          }
+        });
+      }
+    };
+    window.addEventListener("insert-chat-input", handleInsert);
+    return () => window.removeEventListener("insert-chat-input", handleInsert);
+  }, []);
 
   const handleToggleAgentMode = async () => {
     if (agentToggling) return;
@@ -583,26 +602,34 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
           <div className="relative flex-shrink-0">
             <div className={cn(
               "w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-extrabold text-white shadow-md ring-2 ring-white/20",
+              isMarketingAgent ? "bg-[#8B5CF6]" :
               contact.tag === "hot" ? "bg-[#D4308E]" :
               contact.tag === "warm" ? "bg-[#FF6A1F]" :
               "bg-[#3C50E0]"
             )}>
-              {initials}
+              {isMarketingAgent ? <Brain className="w-5 h-5" /> : initials}
             </div>
             <span className={cn(
               "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-[#0E8A4B]",
+              isMarketingAgent ? "bg-[#8B5CF6] animate-pulse" :
               contact.tag === "hot" ? "bg-[#FFD23F] animate-pulse" : "bg-[#16C172]"
             )} />
           </div>
           <div className="min-w-0">
             <h3 className="text-[15px] font-extrabold truncate">{contact.name}</h3>
             <p className="text-[11px] text-white/85 flex items-center gap-1.5 font-medium flex-wrap">
-              <span className="font-mono">{contact.phone}</span>
-              <span>·</span>
-              <span className="capitalize font-extrabold">{contact.tag} lead</span>
-              <span>·</span>
-              <span>Score <span className="font-extrabold text-[#FFD23F]">{contact.score}</span></span>
-              {conversation.source_headline && (
+              {isMarketingAgent ? (
+                <span className="font-extrabold text-[#FFD23F] uppercase tracking-wider">Autonomous Marketing Admin</span>
+              ) : (
+                <>
+                  <span className="font-mono">{contact.phone}</span>
+                  <span>·</span>
+                  <span className="capitalize font-extrabold">{contact.tag} lead</span>
+                  <span>·</span>
+                  <span>Score <span className="font-extrabold text-[#FFD23F]">{contact.score}</span></span>
+                </>
+              )}
+              {conversation.source_headline && !isMarketingAgent && (
                 <>
                   <span>·</span>
                   <span 
@@ -618,7 +645,15 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
         </div>
 
         <div className="flex items-center gap-1.5">
-          {sendMode === "meta" ? (
+          {isMarketingAgent ? (
+            <span
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#8B5CF6] text-white text-[10px] font-extrabold border border-violet-400"
+              title="Autonomous employee agent"
+            >
+              <Sparkles className="w-3 h-3 animate-pulse" />
+              Active Admin AI
+            </span>
+          ) : sendMode === "meta" ? (
             <span
               className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFD23F] text-[#7A4A00] text-[10px] font-extrabold"
               title={`Connected via Meta · ${metaCfg?.display_phone_number ?? ""}`}
@@ -638,27 +673,29 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
           )}
 
           {/* Agent Mode toggle */}
-          <button
-            id="agent-mode-toggle"
-            onClick={handleToggleAgentMode}
-            disabled={agentToggling}
-            title={agentMode ? "Agent ON — AI is auto-replying. Click to turn off." : "Agent OFF — click to enable AI auto-reply"}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all border",
-              agentMode
-                ? "bg-[#0E8A4B] text-white border-[#0A6E3C] shadow-[0_2px_0_0_#0A6E3C]"
-                : "bg-white/10 text-white/80 border-white/25 hover:bg-white/20",
-              agentToggling && "opacity-60"
-            )}
-            aria-pressed={agentMode}
-          >
-            {agentToggling
-              ? <Loader2 className="w-3 h-3 animate-spin" />
-              : <Bot className="w-3 h-3" strokeWidth={2.5} />
-            }
-            <span className="hidden sm:inline">{agentMode ? "Agent ON" : "Agent"}</span>
-            {agentMode && <span className="w-1.5 h-1.5 rounded-full bg-[#FFD23F] animate-pulse" />}
-          </button>
+          {!isMarketingAgent && (
+            <button
+              id="agent-mode-toggle"
+              onClick={handleToggleAgentMode}
+              disabled={agentToggling}
+              title={agentMode ? "Agent ON — AI is auto-replying. Click to turn off." : "Agent OFF — click to enable AI auto-reply"}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all border",
+                agentMode
+                  ? "bg-[#0E8A4B] text-white border-[#0A6E3C] shadow-[0_2px_0_0_#0A6E3C]"
+                  : "bg-white/10 text-white/80 border-white/25 hover:bg-white/20",
+                agentToggling && "opacity-60"
+              )}
+              aria-pressed={agentMode}
+            >
+              {agentToggling
+                ? <Loader2 className="w-3 h-3 animate-spin" />
+                : <Bot className="w-3 h-3" strokeWidth={2.5} />
+              }
+              <span className="hidden sm:inline">{agentMode ? "Agent ON" : "Agent"}</span>
+              {agentMode && <span className="w-1.5 h-1.5 rounded-full bg-[#FFD23F] animate-pulse" />}
+            </button>
+          )}
 
           {/* Lead info — opens LeadPanel on mobile/tablet where it isn't
               permanently visible. Hidden on lg+ where LeadPanel sits inline. */}
@@ -1006,7 +1043,7 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
       )}
 
       {/* AI reply suggestions — manual approval flow (click to fill composer, never auto-sends) */}
-      {shouldShowSuggestions && (
+      {shouldShowSuggestions && !isMarketingAgent && (
         <AiSuggestionStrip
           query={suggestionsQuery}
           onUse={useSuggestion}
@@ -1014,7 +1051,7 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
           conversationId={conversation.id}
         />
       )}
-      {!shouldShowSuggestions && latestIsInbound && aiHidden && (
+      {!shouldShowSuggestions && latestIsInbound && aiHidden && !isMarketingAgent && (
         <button
           onClick={() => setAiHidden(false)}
           className="mx-5 mt-2 self-start text-[10.5px] font-bold text-primary/80 hover:text-primary bg-primary-soft hover:bg-primary-soft/80 px-2.5 py-1 rounded-full flex items-center gap-1 transition"
@@ -1100,76 +1137,78 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
           )}
 
           {/* Top row: action chips */}
-          <div className="flex items-center gap-1.5 px-2.5 pt-2 pb-1 flex-wrap">
-            {/* Attach (paperclip) — opens hidden file input */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className={cn(
-                "h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider transition-all border",
-                attachment
-                  ? "bg-[#E4E8FF] text-[#3C50E0] border-[#3C50E0]/50 shadow-[0_2px_0_0_#2533A8]"
-                  : "bg-[#FFF1D6] text-[#B8651A] border-[#E8B968] hover:bg-[#FFE9BD] hover:-translate-y-0.5 disabled:opacity-50"
+          {!isMarketingAgent && (
+            <div className="flex items-center gap-1.5 px-2.5 pt-2 pb-1 flex-wrap">
+              {/* Attach (paperclip) — opens hidden file input */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className={cn(
+                  "h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider transition-all border",
+                  attachment
+                    ? "bg-[#E4E8FF] text-[#3C50E0] border-[#3C50E0]/50 shadow-[0_2px_0_0_#2533A8]"
+                    : "bg-[#FFF1D6] text-[#B8651A] border-[#E8B968] hover:bg-[#FFE9BD] hover:-translate-y-0.5 disabled:opacity-50"
+                )}
+                aria-label="Attach photo, video, or document"
+                title="Attach photo / video / document / audio"
+              >
+                <Paperclip className="w-3 h-3" strokeWidth={2.5} />
+                {attachment ? "Attached" : "Attach"}
+              </button>
+
+              <button
+                onClick={() => setShowTemplates(!showTemplates)}
+                className={cn(
+                  "h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider transition-all border",
+                  showTemplates
+                    ? "bg-[#FFD23F] text-[#3D1A00] border-[#E8B400] shadow-[0_2px_0_0_#B8860B]"
+                    : "bg-[#FFF1D6] text-[#B8651A] border-[#E8B968] hover:bg-[#FFE9BD] hover:-translate-y-0.5"
+                )}
+                aria-label="Quick reply templates"
+              >
+                <Wand2 className="w-3 h-3" strokeWidth={2.5} />
+                Templates
+                <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", showTemplates && "rotate-180")} />
+              </button>
+
+              {/* WhatsApp Commerce — Send products / Create order from chat */}
+              <button
+                onClick={() => setShowProductPicker(true)}
+                className="h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider transition-all border bg-[#E6F7EE] text-[#0E8A4B] border-[#0E8A4B]/40 hover:bg-[#C6F0D6] hover:-translate-y-0.5"
+                aria-label="Send products / create order"
+                title="Send products from your catalog or create an order with UPI QR"
+              >
+                <Package className="w-3 h-3" strokeWidth={2.5} />
+                Send products
+              </button>
+
+              {/* Send QR — UPI payment QR to customer */}
+              <button
+                id="send-qr-btn"
+                onClick={() => setShowQrPanel(!showQrPanel)}
+                className={cn(
+                  "h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider transition-all border",
+                  showQrPanel
+                    ? "bg-[#3C50E0] text-white border-[#2533A8] shadow-[0_2px_0_0_#1E2880]"
+                    : "bg-[#E4E8FF] text-[#3C50E0] border-[#3C50E0]/40 hover:bg-[#C8CFFF] hover:-translate-y-0.5"
+                )}
+                aria-label="Send UPI payment QR to customer"
+                title="Send a UPI payment QR code to the customer"
+              >
+                <QrCode className="w-3 h-3" strokeWidth={2.5} />
+                Send QR
+              </button>
+
+              <div className="flex-1" />
+
+              {/* Tiny char counter — appears only when typing */}
+              {input.length > 0 && (
+                <span className="text-[10px] font-mono font-extrabold text-foreground/40 tabular-nums pr-1">
+                  {input.length}
+                </span>
               )}
-              aria-label="Attach photo, video, or document"
-              title="Attach photo / video / document / audio"
-            >
-              <Paperclip className="w-3 h-3" strokeWidth={2.5} />
-              {attachment ? "Attached" : "Attach"}
-            </button>
-
-            <button
-              onClick={() => setShowTemplates(!showTemplates)}
-              className={cn(
-                "h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider transition-all border",
-                showTemplates
-                  ? "bg-[#FFD23F] text-[#3D1A00] border-[#E8B400] shadow-[0_2px_0_0_#B8860B]"
-                  : "bg-[#FFF1D6] text-[#B8651A] border-[#E8B968] hover:bg-[#FFE9BD] hover:-translate-y-0.5"
-              )}
-              aria-label="Quick reply templates"
-            >
-              <Wand2 className="w-3 h-3" strokeWidth={2.5} />
-              Templates
-              <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", showTemplates && "rotate-180")} />
-            </button>
-
-            {/* WhatsApp Commerce — Send products / Create order from chat */}
-            <button
-              onClick={() => setShowProductPicker(true)}
-              className="h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider transition-all border bg-[#E6F7EE] text-[#0E8A4B] border-[#0E8A4B]/40 hover:bg-[#C6F0D6] hover:-translate-y-0.5"
-              aria-label="Send products / create order"
-              title="Send products from your catalog or create an order with UPI QR"
-            >
-              <Package className="w-3 h-3" strokeWidth={2.5} />
-              Send products
-            </button>
-
-            {/* Send QR — UPI payment QR to customer */}
-            <button
-              id="send-qr-btn"
-              onClick={() => setShowQrPanel(!showQrPanel)}
-              className={cn(
-                "h-8 px-2.5 rounded-lg flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider transition-all border",
-                showQrPanel
-                  ? "bg-[#3C50E0] text-white border-[#2533A8] shadow-[0_2px_0_0_#1E2880]"
-                  : "bg-[#E4E8FF] text-[#3C50E0] border-[#3C50E0]/40 hover:bg-[#C8CFFF] hover:-translate-y-0.5"
-              )}
-              aria-label="Send UPI payment QR to customer"
-              title="Send a UPI payment QR code to the customer"
-            >
-              <QrCode className="w-3 h-3" strokeWidth={2.5} />
-              Send QR
-            </button>
-
-            <div className="flex-1" />
-
-            {/* Tiny char counter — appears only when typing */}
-            {input.length > 0 && (
-              <span className="text-[10px] font-mono font-extrabold text-foreground/40 tabular-nums pr-1">
-                {input.length}
-              </span>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* QR send panel — inline below chips */}
           {showQrPanel && (
@@ -1235,11 +1274,13 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                 placeholder={
-                  sendMode === "meta" && windowExpired
-                    ? "Outside 24-hour window — send a template instead"
-                    : sendMode === "dryrun"
-                      ? "Type a message…  (dry-run — not actually sent)"
-                      : "Type a message…  Enter to send · Shift + Enter for new line"
+                  isMarketingAgent
+                    ? "Ask your Marketing Agent anything... (e.g. 'list campaigns' or 'run crm audit')"
+                    : sendMode === "meta" && windowExpired
+                      ? "Outside 24-hour window — send a template instead"
+                      : sendMode === "dryrun"
+                        ? "Type a message…  (dry-run — not actually sent)"
+                        : "Type a message…  Enter to send · Shift + Enter for new line"
                 }
                 rows={1}
                 className="w-full resize-none bg-transparent border-0 px-2 py-1.5 text-[14px] placeholder:text-foreground/35 focus:outline-none transition-all leading-relaxed"

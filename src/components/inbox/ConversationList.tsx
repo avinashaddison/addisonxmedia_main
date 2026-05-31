@@ -1,4 +1,4 @@
-import { Search, Bell, BellOff, Trash2, CheckCheck, Flame, Snowflake, Copy, ExternalLink, MessageCircleOff, Building2, Loader2 } from "lucide-react";
+import { Search, Bell, BellOff, Trash2, CheckCheck, Flame, Snowflake, Copy, ExternalLink, MessageCircleOff, Building2, Loader2, Sparkles, Brain } from "lucide-react";
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { ConversationWithContact, tagLabel, initialsFor, formatRelative, splitTextWithLinks } from "@/lib/inbox-types";
@@ -94,6 +94,14 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
     if (filter === "Hot" && c.contact?.tag !== "hot") return false;
     if (filter === "Closed" && c.status !== "closed") return false;
     return true;
+  });
+
+  const sortedAndFiltered = [...filtered].sort((a, b) => {
+    const aIsAgent = a.contact?.phone === "system_marketing";
+    const bIsAgent = b.contact?.phone === "system_marketing";
+    if (aIsAgent && !bIsAgent) return -1;
+    if (!aIsAgent && bIsAgent) return 1;
+    return 0;
   });
 
   // Keyboard navigation: ↑ ↓ to switch chats
@@ -262,11 +270,12 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
           </div>
         )}
 
-        {filtered.map((conv) => {
+        {sortedAndFiltered.map((conv) => {
           const isActive = conv.id === activeId;
           const isHovered = hoveredId === conv.id;
           const tag = tagLabel[conv.contact.tag];
           const initials = initialsFor(conv.contact.name);
+          const isMarketingAgent = conv.contact.phone === "system_marketing";
           const dot = statusDot(conv.contact.tag, conv.unread_count > 0);
           const isHot = conv.contact.tag === "hot";
           const preview = conv.last_message_preview || "";
@@ -283,9 +292,11 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
                     "relative w-full flex items-start gap-3 px-4 py-3 text-left transition-all border-b border-[#E8B968]/40 group",
                     isActive
                       ? "bg-[#E6F7EE]"
-                      : isHot
-                        ? "hover:bg-[#FCE5F0] bg-[#FCE5F0]/40"
-                        : "hover:bg-[#FFF6E8]"
+                      : isMarketingAgent
+                        ? "hover:bg-violet-50 bg-violet-50/30"
+                        : isHot
+                          ? "hover:bg-[#FCE5F0] bg-[#FCE5F0]/40"
+                          : "hover:bg-[#FFF6E8]"
                   )}
                 >
               {isActive && (
@@ -301,16 +312,22 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
               <div className="relative flex-shrink-0">
                 <div className={cn(
                   "w-11 h-11 rounded-full flex items-center justify-center text-[13px] font-black text-white shadow-md transition-transform group-hover:scale-105 ring-2 ring-white",
+                  isMarketingAgent ? "bg-gradient-to-br from-[#8B5CF6] to-[#5B21B6]" :
                   isHot ? "bg-gradient-to-br from-[#FF4FA8] to-[#A11A6A]" :
                   conv.contact.tag === "warm" ? "bg-gradient-to-br from-[#FF8C42] to-[#B8420A]" :
                   "bg-gradient-to-br from-[#5468FF] to-[#1E40AF]"
                 )}>
-                  <span className="drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]">{initials}</span>
+                  {isMarketingAgent ? (
+                    <Brain className="w-5 h-5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]" />
+                  ) : (
+                    <span className="drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]">{initials}</span>
+                  )}
                 </div>
                 <span
                   title={dot.label}
                   className={cn(
                     "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-white",
+                    isMarketingAgent ? "bg-[#8B5CF6] animate-pulse" :
                     isHot ? "bg-[#D4308E] animate-pulse" : conv.unread_count > 0 ? "bg-[#FF6A1F]" : "bg-[#0E8A4B]"
                   )}
                 />
@@ -323,14 +340,20 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
                     <span className={cn("text-[13px] font-semibold truncate", conv.unread_count > 0 ? "text-foreground" : "text-foreground/80")}>
                       {conv.contact.name}
                     </span>
-                    <span className={cn(
-                      "text-[8px] font-bold px-1 py-0.5 rounded uppercase tracking-wider flex-shrink-0",
-                      isHot ? "bg-hot/15 text-hot" :
-                      conv.contact.tag === "warm" ? "bg-warning/15 text-warning" :
-                      "bg-muted text-muted-foreground"
-                    )}>
-                      {tag.label}
-                    </span>
+                    {isMarketingAgent ? (
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider flex-shrink-0 bg-violet-600/15 text-violet-600">
+                        Marketing AI
+                      </span>
+                    ) : (
+                      <span className={cn(
+                        "text-[8px] font-bold px-1 py-0.5 rounded uppercase tracking-wider flex-shrink-0",
+                        isHot ? "bg-hot/15 text-hot" :
+                        conv.contact.tag === "warm" ? "bg-warning/15 text-warning" :
+                        "bg-muted text-muted-foreground"
+                      )}>
+                        {tag.label}
+                      </span>
+                    )}
                   </div>
                   <span className={cn("text-[10px] flex-shrink-0 ml-2", conv.unread_count > 0 ? "text-primary font-semibold" : "text-muted-foreground")}>
                     {formatRelative(conv.last_message_at)}
@@ -388,57 +411,71 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
                   {conv.contact.name}
                 </ContextMenuLabel>
                 <ContextMenuSeparator />
-                {conv.unread_count > 0 ? (
-                  <ContextMenuItem onClick={() => markReadMut.mutate(conv.id)}>
-                    <CheckCheck className="w-3.5 h-3.5" /> Mark as read
-                  </ContextMenuItem>
+                {isMarketingAgent ? (
+                  <>
+                    <ContextMenuLabel className="text-[9px] uppercase tracking-wider font-extrabold text-foreground/40">
+                      System AI Agent
+                    </ContextMenuLabel>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem disabled className="opacity-90">
+                      <Sparkles className="w-3.5 h-3.5 text-violet-500 mr-2" /> Admin Expert Mode
+                    </ContextMenuItem>
+                  </>
                 ) : (
-                  <ContextMenuItem onClick={() => markUnread(conv.id)}>
-                    <Bell className="w-3.5 h-3.5" /> Mark as unread
-                  </ContextMenuItem>
+                  <>
+                    {conv.unread_count > 0 ? (
+                      <ContextMenuItem onClick={() => markReadMut.mutate(conv.id)}>
+                        <CheckCheck className="w-3.5 h-3.5" /> Mark as read
+                      </ContextMenuItem>
+                    ) : (
+                      <ContextMenuItem onClick={() => markUnread(conv.id)}>
+                        <Bell className="w-3.5 h-3.5" /> Mark as unread
+                      </ContextMenuItem>
+                    )}
+                    <ContextMenuSeparator />
+                    <ContextMenuLabel className="text-[9px] uppercase tracking-wider font-extrabold text-foreground/40">
+                      Lead tag
+                    </ContextMenuLabel>
+                    <ContextMenuItem onClick={() => updateTag(conv.contact.id, "hot")}>
+                      <Flame className="w-3.5 h-3.5 text-[#D4308E]" /> Mark Hot
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => updateTag(conv.contact.id, "warm")}>
+                      <Flame className="w-3.5 h-3.5 text-[#FF6A1F]" /> Mark Warm
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => updateTag(conv.contact.id, "cold")}>
+                      <Snowflake className="w-3.5 h-3.5 text-[#3C50E0]" /> Mark Cold
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                      onClick={() => {
+                        navigator.clipboard.writeText(conv.contact.phone);
+                        toast.success("Phone copied");
+                      }}
+                    >
+                      <Copy className="w-3.5 h-3.5" /> Copy phone number
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onClick={() => {
+                        const url = `https://wa.me/${conv.contact.phone.replace(/[^\d]/g, "")}`;
+                        window.open(url, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Open in WhatsApp.com
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    {conv.status !== "closed" && (
+                      <ContextMenuItem onClick={() => closeConversation(conv.id)}>
+                        <MessageCircleOff className="w-3.5 h-3.5" /> Close conversation
+                      </ContextMenuItem>
+                    )}
+                    <ContextMenuItem
+                      className="text-[#D4308E] focus:text-[#D4308E] focus:bg-[#FCE5F0]"
+                      onClick={() => setDeleteTarget(conv)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Delete chat
+                    </ContextMenuItem>
+                  </>
                 )}
-                <ContextMenuSeparator />
-                <ContextMenuLabel className="text-[9px] uppercase tracking-wider font-extrabold text-foreground/40">
-                  Lead tag
-                </ContextMenuLabel>
-                <ContextMenuItem onClick={() => updateTag(conv.contact.id, "hot")}>
-                  <Flame className="w-3.5 h-3.5 text-[#D4308E]" /> Mark Hot
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => updateTag(conv.contact.id, "warm")}>
-                  <Flame className="w-3.5 h-3.5 text-[#FF6A1F]" /> Mark Warm
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => updateTag(conv.contact.id, "cold")}>
-                  <Snowflake className="w-3.5 h-3.5 text-[#3C50E0]" /> Mark Cold
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                  onClick={() => {
-                    navigator.clipboard.writeText(conv.contact.phone);
-                    toast.success("Phone copied");
-                  }}
-                >
-                  <Copy className="w-3.5 h-3.5" /> Copy phone number
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onClick={() => {
-                    const url = `https://wa.me/${conv.contact.phone.replace(/[^\d]/g, "")}`;
-                    window.open(url, "_blank", "noopener,noreferrer");
-                  }}
-                >
-                  <ExternalLink className="w-3.5 h-3.5" /> Open in WhatsApp.com
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                {conv.status !== "closed" && (
-                  <ContextMenuItem onClick={() => closeConversation(conv.id)}>
-                    <MessageCircleOff className="w-3.5 h-3.5" /> Close conversation
-                  </ContextMenuItem>
-                )}
-                <ContextMenuItem
-                  className="text-[#D4308E] focus:text-[#D4308E] focus:bg-[#FCE5F0]"
-                  onClick={() => setDeleteTarget(conv)}
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> Delete chat
-                </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
           );

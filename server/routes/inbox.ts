@@ -11,6 +11,7 @@ import { toCamel } from "../utils";
 import { decrypt } from "../crypto";
 import { patchConversationSchema } from "../lib/validators";
 import { parsePaginationParams, encodeCursor, wantsPagination } from "../lib/pagination";
+import { processMarketingAgentMessage } from "../lib/marketing-agent";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -102,6 +103,54 @@ app.get("/conversations", async (c) => {
   // the inbox list doesn't render them. Adding them back is safe once the
   // migration has been applied everywhere.
   try {
+    // Ensure Marketing Agent conversation exists
+    const [agentContact] = await db.select()
+      .from(contact)
+      .where(and(eq(contact.ownerId, c.var.userId), eq(contact.phone, "system_marketing")))
+      .limit(1);
+
+    if (!agentContact) {
+      // 1. Create system contact
+      const [newContact] = await db.insert(contact)
+        .values({
+          ownerId: c.var.userId,
+          name: "Marketing AI Agent",
+          phone: "system_marketing",
+          tag: "warm",
+          source: "system",
+        })
+        .returning();
+
+      // 2. Create conversation
+      const [newConv] = await db.insert(conversation)
+        .values({
+          contactId: newContact.id,
+          ownerId: c.var.userId,
+          status: "open",
+        })
+        .returning();
+
+      // 3. Insert welcome message
+      const [welcomeMsg] = await db.insert(message)
+        .values({
+          conversationId: newConv.id,
+          ownerId: c.var.userId,
+          direction: "inbound", // Treat AI message as inbound to owner
+          body: "Hello! I am your AI Marketing Agent. I have full access to your Meta Ads campaigns and customer chat logs. Feel free to ask me to audit performance, change budgets, pause ads, or summarize customer sentiment. What should we check first?",
+          isAiGenerated: true,
+        })
+        .returning();
+
+      // 4. Update conversation preview
+      await db.update(conversation)
+        .set({
+          lastMessageAt: welcomeMsg.createdAt,
+          lastMessagePreview: welcomeMsg.body.slice(0, 200),
+          updatedAt: new Date(),
+        })
+        .where(eq(conversation.id, newConv.id));
+    }
+
     const paginated = wantsPagination(c);
     const { limit, cursor } = paginated ? parsePaginationParams(c) : { limit: 0, cursor: null };
 
@@ -420,6 +469,69 @@ app.post("/conversations/:id/messages", async (c) => {
     .where(and(eq(conversation.id, conversationId), eq(conversation.ownerId, userId)))
     .limit(1);
   if (!convRow) return c.json({ error: "Not found" }, 404);
+
+  const [recipient] = await db.select({ phone: contact.phone }).from(contact)
+    .where(and(eq(contact.id, convRow.contactId), eq(contact.ownerId, userId)))
+    .limit(1);
+  if (!recipient) return c.json({ error: "Contact not found" }, 404);
+
+  // If the conversation is with the system Marketing Agent, run the local AI pipeline
+  if (recipient.phone === "system_marketing") {
+    const bodyText = body.body ?? "";
+    const [userMsg] = await db.insert(message).values({
+      conversationId,
+      ownerId: userId,
+      senderId: userId,
+      direction: "outbound",
+      body: bodyText,
+      status: "read",
+      isAiGenerated: false,
+    }).returning();
+
+    await db.update(conversation).set({
+      lastMessageAt: userMsg.createdAt,
+      lastMessagePreview: bodyText.slice(0, 200),
+      unreadCount: 0,
+      updatedAt: new Date(),
+    }).where(eq(conversation.id, conversationId));
+
+    try {
+      const agentReplyText = await processMarketingAgentMessage(userId, conversationId, bodyText);
+
+      const [agentMsg] = await db.insert(message).values({
+        conversationId,
+        ownerId: userId,
+        senderId: null,
+        direction: "inbound",
+        body: agentReplyText,
+        status: "read",
+        isAiGenerated: true,
+      }).returning();
+
+      await db.update(conversation).set({
+        lastMessageAt: agentMsg.createdAt,
+        lastMessagePreview: agentReplyText.slice(0, 200),
+        unreadCount: 0,
+        updatedAt: new Date(),
+      }).where(eq(conversation.id, conversationId));
+
+      return c.json(agentMsg, 201);
+    } catch (err: any) {
+      console.error("[marketing-agent] Failed to generate reply", err);
+      const errorMsgText = "I encountered an issue connecting to my brain. Please try sending your message again.";
+      const [errorMsg] = await db.insert(message).values({
+        conversationId,
+        ownerId: userId,
+        senderId: null,
+        direction: "inbound",
+        body: errorMsgText,
+        status: "failed",
+        isAiGenerated: true,
+      }).returning();
+
+      return c.json(errorMsg, 201);
+    }
+  }
 
   const direction = body.direction ?? "outbound";
   let metaMessageId: string | null = null;
