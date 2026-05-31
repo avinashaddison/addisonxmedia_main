@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   broadcast,
@@ -446,7 +446,7 @@ app.get("/broadcasts/eligible-24h", async (c) => {
       and(
         eq(conversation.ownerId, userId),
         eq(message.direction, "inbound"),
-        sql`${message.createdAt} >= ${twentyFourHoursAgo}`
+        gte(message.createdAt, twentyFourHoursAgo)
       )
     )
     .groupBy(conversation.id, contact.id, contact.name, contact.phone)
@@ -506,7 +506,7 @@ app.post("/broadcasts/bulk-send-24h", requirePlan('growth', 'scale', 'enterprise
       and(
         eq(conversation.ownerId, userId),
         eq(message.direction, "inbound"),
-        sql`${message.createdAt} >= ${twentyFourHoursAgo}`
+        gte(message.createdAt, twentyFourHoursAgo)
       )
     )
     .groupBy(conversation.id, contact.id, contact.name, contact.phone);
