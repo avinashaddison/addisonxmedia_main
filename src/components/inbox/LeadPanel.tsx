@@ -354,7 +354,7 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
           <button
             onClick={onClose}
             className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center transition lg:hidden",
+              "w-8 h-8 rounded-lg flex items-center justify-center transition",
               isMarketingAgent
                 ? "hover:bg-slate-800 text-slate-400 hover:text-slate-200"
                 : "hover:bg-[#FFE8C7] text-foreground/60 hover:text-foreground"

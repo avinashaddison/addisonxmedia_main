@@ -28,6 +28,7 @@ type Props = {
   //   onShowLead   — switch to / open the LeadPanel (mobile fullscreen, tablet drawer)
   onMobileBack?: () => void;
   onShowLead?: () => void;
+  leadOpen?: boolean;
 };
 
 type MessageStatus = MsgStatus;
@@ -180,7 +181,7 @@ const QUICK_TEMPLATES = [
 
 const CUSTOMER_SERVICE_WINDOW_HOURS = 24;
 
-export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) => {
+export const ChatWindow = ({ conversation, onMobileBack, onShowLead, leadOpen = false }: Props) => {
   const isMarketingAgent = conversation.contact.phone === "system_marketing";
   const [input, setInput] = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
@@ -697,14 +698,16 @@ export const ChatWindow = ({ conversation, onMobileBack, onShowLead }: Props) =>
             </button>
           )}
 
-          {/* Lead info — opens LeadPanel on mobile/tablet where it isn't
-              permanently visible. Hidden on lg+ where LeadPanel sits inline. */}
+          {/* Lead info — toggles LeadPanel visibility */}
           {onShowLead && (
             <button
               onClick={onShowLead}
-              aria-label="Show lead details"
-              title="Lead details"
-              className="lg:hidden w-9 h-9 rounded-lg hover:bg-white/15 flex items-center justify-center text-white transition"
+              aria-label="Toggle details panel"
+              title="Toggle details panel"
+              className={cn(
+                "w-9 h-9 rounded-lg flex items-center justify-center text-white transition",
+                leadOpen ? "bg-white/20" : "hover:bg-white/15"
+              )}
             >
               <Info className="w-4 h-4" strokeWidth={2.5} />
             </button>

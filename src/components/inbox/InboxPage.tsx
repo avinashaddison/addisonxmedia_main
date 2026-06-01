@@ -29,6 +29,7 @@ export const InboxPage = () => {
   // desktop it sits inline. State is separate from mobileView so behavior
   // is predictable at each breakpoint.
   const [leadOpenTablet, setLeadOpenTablet] = useState(false);
+  const [leadOpenDesktop, setLeadOpenDesktop] = useState(true);
 
   // Auto-select the first conversation when the list loads / changes
   useEffect(() => {
@@ -87,7 +88,8 @@ export const InboxPage = () => {
   const gridTemplate =
     viewport === "mobile"  ? "minmax(0, 1fr)"
   : viewport === "tablet"  ? "340px minmax(0, 1fr)"
-                           : "340px minmax(0, 1fr) 340px";
+  : leadOpenDesktop        ? "340px minmax(0, 1fr) 340px"
+                           : "340px minmax(0, 1fr)";
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative">
@@ -126,8 +128,10 @@ export const InboxPage = () => {
                   onMobileBack={() => setMobileView("list")}
                   onShowLead={() => {
                     if (viewport === "mobile") setMobileView("lead");
-                    else if (viewport === "tablet") setLeadOpenTablet(true);
+                    else if (viewport === "tablet") setLeadOpenTablet(!leadOpenTablet);
+                    else setLeadOpenDesktop(!leadOpenDesktop);
                   }}
+                  leadOpen={viewport === "desktop" ? leadOpenDesktop : leadOpenTablet}
                 />
               ) : (
                 <InboxEmptyState loading={isLoading} />
@@ -137,13 +141,13 @@ export const InboxPage = () => {
         )}
 
         {/* ── LeadPanel: inline on desktop ── */}
-        {active && showLeadInline && (
+        {active && showLeadInline && leadOpenDesktop && (
           <div className="relative min-w-0 overflow-hidden">
             <div className="absolute inset-0 flex">
               <LeadPanel
                 contact={active.contact}
                 conversationId={active.id}
-                onClose={() => setLeadOpenTablet(false)}
+                onClose={() => setLeadOpenDesktop(false)}
               />
             </div>
           </div>
