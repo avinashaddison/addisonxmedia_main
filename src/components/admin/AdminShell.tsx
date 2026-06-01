@@ -3,7 +3,8 @@ import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Building2, Users, CreditCard, ScrollText, ShieldCheck,
   Activity, Settings, LogOut, ChevronsLeft, ChevronsRight, Loader2,
-  Crown, Lock, Shuffle, Brain, Sparkles,
+  Crown, Lock, Shuffle, Brain, Sparkles, Inbox, Megaphone, Radio,
+  BarChart3, Plug, ChevronRight, Workflow, UsersRound, Rocket, ChevronDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,48 +17,49 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
-/* Color-coded sections (mirrors the customer sidebar's group palette) */
+/* Color-coded sections (matching the sidebar groups) */
+type NavItem = {
+  icon: typeof LayoutDashboard;
+  label: string;
+  path: string;
+  badge?: number;
+};
+
 type NavGroup = {
   label: string;
   color: string;
-  items: { icon: typeof LayoutDashboard; label: string; path: string }[];
+  items: NavItem[];
 };
 
 const GROUPS: NavGroup[] = [
   {
-    label: "Operations",
-    color: "text-[#0E8A4B]",
+    label: "Main",
+    color: "text-slate-400",
     items: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
       { icon: Building2, label: "Workspaces", path: "/admin/workspaces" },
       { icon: Users, label: "Users", path: "/admin/users" },
-      { icon: Brain, label: "Agent Playground", path: "/admin/agent-playground" },
-      { icon: Sparkles, label: "Marketing Agent", path: "/admin/marketing-agent" },
+      { icon: Brain, label: "Agents", path: "/admin/agent-playground" },
+      { icon: Inbox, label: "Chat Inbox", path: "/admin/diagnostics", badge: 23 },
+      { icon: Megaphone, label: "Broadcasts", path: "/admin/marketing-agent" },
+      { icon: Workflow, label: "Automation", path: "/admin/health" },
+      { icon: UsersRound, label: "Contacts", path: "/admin/users" },
     ],
   },
   {
-    label: "Billing",
-    color: "text-[#FF6A1F]",
+    label: "Analytics",
+    color: "text-slate-400",
     items: [
-      { icon: CreditCard, label: "Subscriptions", path: "/admin/subscriptions" },
+      { icon: BarChart3, label: "Reports & Analytics", path: "/admin/dashboard" },
+      { icon: Activity, label: "Activity Logs", path: "/admin/audit" },
     ],
   },
   {
-    label: "Compliance",
-    color: "text-[#D4308E]",
+    label: "Settings",
+    color: "text-slate-400",
     items: [
-      { icon: ScrollText, label: "Audit log", path: "/admin/audit" },
-      { icon: ShieldCheck, label: "Staff", path: "/admin/staff" },
-      { icon: Lock, label: "Security (2FA)", path: "/admin/security" },
-    ],
-  },
-  {
-    label: "System",
-    color: "text-[#B8651A]",
-    items: [
-      { icon: Activity, label: "Health", path: "/admin/health" },
-      { icon: Shuffle, label: "Chat ownership", path: "/admin/diagnostics" },
-      { icon: ShieldCheck, label: "Meta API", path: "/admin/meta-api" },
+      { icon: Plug, label: "Integrations", path: "/admin/meta-api" },
+      { icon: CreditCard, label: "Billing & Plans", path: "/admin/subscriptions" },
       { icon: Settings, label: "Settings", path: "/admin/settings" },
     ],
   },
@@ -128,31 +130,35 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden text-slate-800 bg-slate-50/30">
+    <div className="flex h-screen w-full overflow-hidden text-slate-800 bg-slate-55">
       <aside
         className={cn(
-          "bg-white/95 backdrop-blur-md border-r border-[#E8B968]/30 flex flex-col flex-shrink-0 transition-all duration-200 text-slate-650 shadow-[0_0_20px_-5px_rgba(0,0,0,0.04)]",
+          "bg-white border-r border-slate-200/80 flex flex-col flex-shrink-0 transition-all duration-200 text-slate-600 shadow-[0_0_20px_-5px_rgba(0,0,0,0.03)]",
           collapsed ? "w-[72px]" : "w-[250px]"
         )}
       >
         {/* Logo header */}
-        <div className="relative h-[72px] px-4 border-b border-[#E8B968]/20 bg-white flex items-center gap-2 flex-shrink-0 overflow-hidden">
+        <div className="relative h-[72px] px-4 border-b border-slate-200/60 bg-white flex items-center gap-2 flex-shrink-0 overflow-hidden">
           {/* Subtle brand saffron & emerald accent glows */}
           <div className="absolute -top-8 -left-8 w-24 h-24 bg-[#FFD23F]/10 rounded-full blur-2xl pointer-events-none" />
           <div className="absolute -bottom-8 -right-8 w-24 h-24 bg-[#0E8A4B]/5 rounded-full blur-2xl pointer-events-none" />
 
           {collapsed ? (
             <Link to="/admin/dashboard" className="mx-auto hover:scale-105 transition-transform" aria-label="Admin home">
-              <AddisonMark size={36} />
+              <img src="/logo-mark.png" alt="AX" className="w-9 h-9 object-contain" />
             </Link>
           ) : (
             <>
-              <Link to="/admin/dashboard" className="flex-1 min-w-0 hover:opacity-90 transition relative" aria-label="Admin home">
-                <AddisonLogo size={24} />
+              <Link to="/admin/dashboard" className="flex items-center gap-2.5 flex-1 min-w-0 hover:opacity-90 transition" aria-label="Admin home">
+                <img src="/logo-mark.png" alt="AddisonX" className="w-8.5 h-8.5 object-contain flex-shrink-0" />
+                <div className="flex flex-col leading-none">
+                  <span className="text-[14px] font-black text-slate-850 tracking-tight">AddisonX Media</span>
+                  <span className="text-[9px] font-bold text-slate-400 mt-1 tracking-wider uppercase">WhatsApp CRM</span>
+                </div>
               </Link>
               <button
                 onClick={() => setCollapsed(true)}
-                className="relative ml-auto w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition flex-shrink-0"
+                className="relative ml-auto w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-105 border border-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition flex-shrink-0"
                 aria-label="Collapse sidebar"
                 title="Collapse sidebar"
               >
@@ -165,7 +171,7 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
         {collapsed && (
           <button
             onClick={() => setCollapsed(false)}
-            className="mt-3 mx-auto w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-850 flex items-center justify-center transition flex-shrink-0"
+            className="mt-3 mx-auto w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-105 border border-slate-200 text-slate-500 hover:text-slate-850 flex items-center justify-center transition flex-shrink-0"
             aria-label="Expand sidebar"
             title="Expand sidebar"
           >
@@ -175,16 +181,19 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
 
         {/* Admin role badge (redesigned with saffron/gold aesthetic) */}
         {!collapsed && (
-          <div className="mx-3 mt-4 mb-2 p-3 rounded-xl bg-gradient-to-br from-[#FFF1D6] to-[#FFE9BD] border border-[#E8B968]/40 shadow-sm relative overflow-hidden">
+          <div className="mx-3 mt-4 mb-2 p-3 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/50 border border-amber-250/60 shadow-sm relative overflow-hidden">
             <div className="absolute -top-6 -right-6 w-16 h-16 bg-[#0E8A4B]/5 rounded-full blur-xl pointer-events-none" />
-            <div className="relative flex items-center gap-2.5">
-              <div className="w-7.5 h-7.5 rounded-lg bg-[#0E8A4B]/10 flex items-center justify-center flex-shrink-0">
-                <Crown className="w-3.5 h-3.5 text-[#0E8A4B]" strokeWidth={2.5} />
+            <div className="relative flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8.5 h-8.5 rounded-xl bg-gradient-to-br from-[#FFF1D6] to-[#FFE9BD] border border-[#E8B968]/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <Crown className="w-4 h-4 text-[#B8651A]" strokeWidth={2.2} />
+                </div>
+                <div className="flex flex-col leading-none min-w-0">
+                  <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#B8651A]">SUPER ADMIN</span>
+                  <span className="text-[9px] text-slate-400 font-semibold mt-0.5">Admin Panel</span>
+                </div>
               </div>
-              <div className="flex flex-col leading-none min-w-0 flex-1">
-                <span className="text-[9px] uppercase tracking-[0.16em] font-extrabold text-[#B8651A]">Admin Panel</span>
-                <span className="text-[11px] font-black uppercase tracking-[0.1em] text-slate-800 mt-0.5 truncate">{formatRole(role)}</span>
-              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-[#B8651A]" strokeWidth={2.5} />
             </div>
           </div>
         )}
@@ -192,16 +201,10 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
         {/* Nav */}
         <nav className="relative flex-1 overflow-y-auto py-4 px-3 space-y-6">
           {GROUPS.map((group) => {
-            const groupColors: Record<string, string> = {
-              Operations: "text-[#0E8A4B]",
-              Billing: "text-[#FF6A1F]",
-              Compliance: "text-[#D4308E]",
-              System: "text-[#B8651A]",
-            };
             return (
-              <div key={group.label} className="space-y-1.5">
+              <div key={group.label} className="space-y-1">
                 {!collapsed && (
-                  <p className={cn("text-[9px] font-bold uppercase tracking-[0.2em] px-3 mb-2", groupColors[group.label] || "text-slate-400")}>
+                  <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] px-3 mb-2 text-slate-400">
                     {group.label}
                   </p>
                 )}
@@ -210,14 +213,14 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
                     || (item.path !== "/admin/dashboard" && location.pathname.startsWith(item.path));
                   return (
                     <Link
-                      key={item.path}
+                      key={item.path + item.label}
                       to={item.path}
                       title={collapsed ? item.label : undefined}
                       className={cn(
                         "relative w-full h-10 rounded-xl flex items-center gap-3 px-3 transition-all group overflow-hidden",
                         isActive
                           ? "bg-[#0E8A4B] text-white font-extrabold shadow-sm"
-                          : "text-slate-650 hover:bg-[#FFE8C7]/30 hover:text-[#B8651A] font-semibold",
+                          : "text-slate-600 hover:bg-[#FFE8C7]/30 hover:text-[#B8651A] font-semibold",
                         collapsed && "justify-center px-0"
                       )}
                     >
@@ -225,11 +228,16 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
                         className={cn(
                           "flex-shrink-0 transition-transform group-hover:scale-105", 
                           collapsed ? "w-[19px] h-[19px]" : "w-[18px] h-[18px]",
-                          isActive ? "text-white" : "text-slate-500 group-hover:text-[#B8651A]"
+                          isActive ? "text-white" : "text-slate-400 group-hover:text-[#B8651A]"
                         )}
                         strokeWidth={isActive ? 2.5 : 2.2}
                       />
                       {!collapsed && <span className="flex-1 text-left text-[13px] truncate">{item.label}</span>}
+                      {item.badge && !collapsed && (
+                        <span className="min-w-[20px] h-[18px] px-1.5 rounded-full text-[9px] font-extrabold flex items-center justify-center bg-[#E6F7EE] text-[#0A6E3C] border border-[#0E8A4B]/20">
+                          {item.badge}
+                        </span>
+                      )}
                       {collapsed && (
                         <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
                           {item.label}
@@ -243,33 +251,16 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
           })}
         </nav>
 
-        {/* Open-customer-app card (Light design with brand accents) */}
-        {!collapsed ? (
-          <div className="mx-3 mb-3">
-            <Link
-              to="/app/dashboard"
-              className="block p-3 rounded-xl bg-[#E6F7EE]/30 hover:bg-[#E6F7EE]/50 border border-[#0E8A4B]/20 transition-all group"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#0E8A4B]/15 text-[#0E8A4B] flex items-center justify-center shadow-sm flex-shrink-0 group-hover:bg-[#0E8A4B] group-hover:text-white transition">
-                  <LayoutDashboard className="w-4 h-4" strokeWidth={2.2} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-bold leading-tight text-slate-700">Customer app</p>
-                  <p className="text-[9px] text-[#0E8A4B] font-extrabold uppercase tracking-wider mt-0.5">Switch over →</p>
-                </div>
-              </div>
-            </Link>
-          </div>
-        ) : (
-          <div className="mb-3 mx-auto">
-            <Link
-              to="/app/dashboard"
-              className="block w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shadow-sm hover:bg-slate-100 transition"
-              title="Open customer app"
-            >
-              <LayoutDashboard className="w-4 h-4 text-[#0E8A4B]" strokeWidth={2.2} />
-            </Link>
+        {/* Boost your engagement banner */}
+        {!collapsed && (
+          <div className="mx-3 mb-4 p-4.5 rounded-2xl bg-gradient-to-br from-[#FFF6E8] to-[#FFF1D6]/40 border border-[#E8B968]/30 shadow-sm relative overflow-hidden">
+            <div className="relative z-10 pr-12">
+              <p className="text-[12px] font-black text-slate-800 leading-tight">Boost your engagement</p>
+              <p className="text-[10px] text-slate-450 font-semibold mt-1 leading-snug">Create powerful campaigns that convert</p>
+            </div>
+            <div className="absolute right-2 bottom-2 w-12 h-12 flex items-center justify-center opacity-90">
+              <Rocket className="w-8 h-8 text-[#FF6A1F] drop-shadow-md" strokeWidth={2} />
+            </div>
           </div>
         )}
 
@@ -279,21 +270,26 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
             <DropdownMenuTrigger asChild>
               <button
                 className={cn(
-                  "w-full rounded-xl hover:bg-[#FFE8C7]/30 transition-all flex items-center gap-2.5 p-1.5",
+                  "w-full rounded-xl hover:bg-[#FFE8C7]/30 transition-all flex items-center justify-between p-1.5",
                   collapsed && "justify-center"
                 )}
               >
-                <div className="relative flex-shrink-0">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FF6A1F] to-[#D4308E] text-white text-[11px] font-bold flex items-center justify-center shadow-md">
-                    {initials}
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="relative flex-shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FF6A1F] to-[#D4308E] text-white text-[11px] font-bold flex items-center justify-center shadow-md">
+                      {initials}
+                    </div>
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white" />
                   </div>
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white" />
+                  {!collapsed && (
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="text-[12px] font-bold truncate text-slate-800 leading-tight">{displayName}</p>
+                      <p className="text-[9px] text-[#B8651A] truncate font-extrabold uppercase tracking-wider mt-0.5">{formatRole(role)}</p>
+                    </div>
+                  )}
                 </div>
                 {!collapsed && (
-                  <div className="flex-1 min-w-0 text-left">
-                    <p className="text-[12px] font-bold truncate text-slate-800 leading-tight">{displayName}</p>
-                    <p className="text-[9px] text-[#B8651A] truncate font-extrabold uppercase tracking-wider mt-0.5">{formatRole(role)}</p>
-                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                 )}
               </button>
             </DropdownMenuTrigger>
@@ -343,7 +339,7 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
             </Link>
           </div>
         )}
-        <main className="flex-1 overflow-y-auto bg-slate-50/50">
+        <main className="flex-1 overflow-y-auto bg-slate-50/30">
           {children ?? <Outlet />}
         </main>
       </div>

@@ -33,6 +33,13 @@ export const AdminAiPanel = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isOpen]);
 
+  // Support opening programmatically
+  useEffect(() => {
+    const handleOpen = () => setIsOpen(true);
+    window.addEventListener("open-admin-ai-panel", handleOpen);
+    return () => window.removeEventListener("open-admin-ai-panel", handleOpen);
+  }, []);
+
   const handleSend = async (textToSend?: string) => {
     const text = (textToSend ?? input).trim();
     if (!text) return;
