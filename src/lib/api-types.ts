@@ -24,6 +24,7 @@ export type Contact = {
   tag: LeadTag;
   score: number;
   notes: string | null;
+  is_reseller?: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -147,6 +148,10 @@ export type AiAgentProduct = {
   activationTime?: string;
   description?: string;
   imageUrl?: string;
+  priceUsd?: number;
+  isReseller?: boolean;
+  resellerPrice?: number;
+  resellerPriceUsd?: number;
 };
 
 export type PrebuiltAgent = {
@@ -163,6 +168,9 @@ export type PrebuiltAgent = {
   knowledge_base: string;
   system_prompt: string;
   is_enabled: boolean;
+  upi_vpa?: string | null;
+  binance_id?: string | null;
+  qr_image_url?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -184,6 +192,9 @@ export type AiAgent = {
   system_prompt: string;
   prebuilt_id?: string | null;
   is_active: boolean;
+  upi_vpa?: string | null;
+  binance_id?: string | null;
+  qr_image_url?: string | null;
   created_at: string;
   updated_at: string;
 };

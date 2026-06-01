@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Brain, Sparkles, ShieldAlert, MessageSquareText, Languages, Loader2,
   CheckCircle2, ArrowUpRight, Zap, Save, Plus, Trash2, ShieldCheck, Play, UserCircle,
-  Pencil, Check, X
+  Pencil, Check, X, Upload, ImageIcon
 } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { api, type AiAgent, type AiAgentProduct } from "@/lib/api";
 import { toast } from "sonner";
+import { useCloudinaryConfig, useCloudinaryUpload } from "@/hooks/useCloudinaryUpload";
 
 const TONE_OPTIONS: { value: string; label: string; description: string; emoji: string }[] = [
   { value: "friendly",     label: "Friendly",      description: "Warm, helpful, light emojis. Default for most SMBs.", emoji: "🙂" },
@@ -83,8 +84,12 @@ export const AITrainingPage = () => {
   // Product addition state
   const [newProdName, setNewProdName] = useState("");
   const [newProdPrice, setNewProdPrice] = useState("");
-  const [newProdValidity, setNewProdValidity] = useState("Monthly");
-  const [newProdActivationMail, setNewProdActivationMail] = useState("Activation On your Mail");
+  const [newProdPriceUsd, setNewProdPriceUsd] = useState("");
+  const [newProdIsReseller, setNewProdIsReseller] = useState(false);
+  const [newProdResellerPrice, setNewProdResellerPrice] = useState("");
+  const [newProdResellerPriceUsd, setNewProdResellerPriceUsd] = useState("");
+  const [newProdValidity, setNewProdValidity] = useState("1 Month");
+  const [newProdActivationMail, setNewProdActivationMail] = useState("On your Mail");
   const [newProdActivationTime, setNewProdActivationTime] = useState("10 min");
   const [customActivationTime, setCustomActivationTime] = useState("");
   const [newProdDesc, setNewProdDesc] = useState("");
@@ -165,6 +170,9 @@ export const AITrainingPage = () => {
       return;
     }
     const priceNum = Number(newProdPrice) || 0;
+    const priceUsdNum = Number(newProdPriceUsd) || 0;
+    const resellerPriceNum = Number(newProdResellerPrice) || 0;
+    const resellerPriceUsdNum = Number(newProdResellerPriceUsd) || 0;
     const currentProds = form.products || [];
     const finalActivationTime = newProdActivationTime === "custom" ? customActivationTime.trim() : newProdActivationTime;
     const updatedProds = [
@@ -177,13 +185,21 @@ export const AITrainingPage = () => {
         activationTime: finalActivationTime || "10 min",
         description: newProdDesc.trim() || undefined,
         imageUrl: newProdImage.trim() || undefined,
+        priceUsd: priceUsdNum || undefined,
+        isReseller: newProdIsReseller,
+        resellerPrice: resellerPriceNum || undefined,
+        resellerPriceUsd: resellerPriceUsdNum || undefined,
       }
     ];
     set("products", updatedProds);
     setNewProdName("");
     setNewProdPrice("");
-    setNewProdValidity("Monthly");
-    setNewProdActivationMail("Activation On your Mail");
+    setNewProdPriceUsd("");
+    setNewProdIsReseller(false);
+    setNewProdResellerPrice("");
+    setNewProdResellerPriceUsd("");
+    setNewProdValidity("1 Month");
+    setNewProdActivationMail("On your Mail");
     setNewProdActivationTime("10 min");
     setCustomActivationTime("");
     setNewProdDesc("");
@@ -202,8 +218,12 @@ export const AITrainingPage = () => {
     setEditingProductIdx(idx);
     setNewProdName(p.name);
     setNewProdPrice(String(p.price));
-    setNewProdValidity(p.validity);
-    setNewProdActivationMail(p.activationMail || "Activation On your Mail");
+    setNewProdPriceUsd(p.priceUsd ? String(p.priceUsd) : "");
+    setNewProdIsReseller(!!p.isReseller);
+    setNewProdResellerPrice(p.resellerPrice ? String(p.resellerPrice) : "");
+    setNewProdResellerPriceUsd(p.resellerPriceUsd ? String(p.resellerPriceUsd) : "");
+    setNewProdValidity(p.validity || "1 Month");
+    setNewProdActivationMail(p.activationMail || "On your Mail");
     
     const presets = ["10 min", "30 min", "1 hour"];
     if (p.activationTime && !presets.includes(p.activationTime)) {
@@ -225,6 +245,9 @@ export const AITrainingPage = () => {
       return;
     }
     const priceNum = Number(newProdPrice) || 0;
+    const priceUsdNum = Number(newProdPriceUsd) || 0;
+    const resellerPriceNum = Number(newProdResellerPrice) || 0;
+    const resellerPriceUsdNum = Number(newProdResellerPriceUsd) || 0;
     const currentProds = [...(form.products || [])];
     const finalActivationTime = newProdActivationTime === "custom" ? customActivationTime.trim() : newProdActivationTime;
     
@@ -236,6 +259,10 @@ export const AITrainingPage = () => {
       activationTime: finalActivationTime || "10 min",
       description: newProdDesc.trim() || undefined,
       imageUrl: newProdImage.trim() || undefined,
+      priceUsd: priceUsdNum || undefined,
+      isReseller: newProdIsReseller,
+      resellerPrice: resellerPriceNum || undefined,
+      resellerPriceUsd: resellerPriceUsdNum || undefined,
     };
     
     set("products", currentProds);
@@ -244,8 +271,12 @@ export const AITrainingPage = () => {
     // reset form
     setNewProdName("");
     setNewProdPrice("");
-    setNewProdValidity("Monthly");
-    setNewProdActivationMail("Activation On your Mail");
+    setNewProdPriceUsd("");
+    setNewProdIsReseller(false);
+    setNewProdResellerPrice("");
+    setNewProdResellerPriceUsd("");
+    setNewProdValidity("1 Month");
+    setNewProdActivationMail("On your Mail");
     setNewProdActivationTime("10 min");
     setCustomActivationTime("");
     setNewProdDesc("");
@@ -256,8 +287,12 @@ export const AITrainingPage = () => {
     setEditingProductIdx(null);
     setNewProdName("");
     setNewProdPrice("");
-    setNewProdValidity("Monthly");
-    setNewProdActivationMail("Activation On your Mail");
+    setNewProdPriceUsd("");
+    setNewProdIsReseller(false);
+    setNewProdResellerPrice("");
+    setNewProdResellerPriceUsd("");
+    setNewProdValidity("1 Month");
+    setNewProdActivationMail("On your Mail");
     setNewProdActivationTime("10 min");
     setCustomActivationTime("");
     setNewProdDesc("");
@@ -486,7 +521,8 @@ export const AITrainingPage = () => {
                             <p className="text-[10px] text-foreground/50 truncate leading-tight mb-0.5">{p.description}</p>
                           )}
                           <p className="text-[9.5px] text-foreground/60 font-bold truncate">
-                            ₹{p.price.toLocaleString("en-IN")} · {p.validity}
+                            ₹{p.price.toLocaleString("en-IN")}{p.priceUsd ? ` / $${p.priceUsd}` : ""} · {p.validity}
+                            {p.isReseller ? " · 👥 Reseller pricing active" : ""}
                           </p>
                         </div>
                         {!isPrebuilt && (
@@ -540,7 +576,7 @@ export const AITrainingPage = () => {
                     )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
-                      <div className="sm:col-span-5 space-y-1">
+                      <div className="sm:col-span-6 space-y-1">
                         <Label className="text-[9.5px] font-black uppercase text-foreground/65">Tool / Product Name</Label>
                         <Input
                           className="h-8 text-[11px]"
@@ -559,6 +595,57 @@ export const AITrainingPage = () => {
                           placeholder="e.g. 999"
                         />
                       </div>
+                      <div className="sm:col-span-3 space-y-1">
+                        <Label className="text-[9.5px] font-black uppercase text-foreground/65">Price (USD)</Label>
+                        <Input
+                          className="h-8 text-[11px]"
+                          type="number"
+                          value={newProdPriceUsd}
+                          onChange={(e) => setNewProdPriceUsd(e.target.value)}
+                          placeholder="e.g. 12"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="newProdIsReseller"
+                        checked={newProdIsReseller}
+                        onChange={(e) => setNewProdIsReseller(e.target.checked)}
+                        className="rounded border-gray-300 text-[#0E8A4B] focus:ring-[#0E8A4B] w-4 h-4"
+                      />
+                      <label htmlFor="newProdIsReseller" className="text-[11px] font-extrabold uppercase text-foreground/75 cursor-pointer">
+                        Enable Reseller pricing for this product
+                      </label>
+                    </div>
+
+                    {newProdIsReseller && (
+                      <div className="grid grid-cols-2 gap-2.5 bg-[#FFF6E8]/30 p-2.5 rounded-lg border border-dashed border-[#E8B968]/70">
+                        <div className="space-y-1">
+                          <Label className="text-[9.5px] font-black uppercase text-foreground/65">Reseller Price (INR)</Label>
+                          <Input
+                            className="h-8 text-[11px]"
+                            type="number"
+                            value={newProdResellerPrice}
+                            onChange={(e) => setNewProdResellerPrice(e.target.value)}
+                            placeholder="e.g. 800"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9.5px] font-black uppercase text-foreground/65">Reseller Price (USD)</Label>
+                          <Input
+                            className="h-8 text-[11px]"
+                            type="number"
+                            value={newProdResellerPriceUsd}
+                            onChange={(e) => setNewProdResellerPriceUsd(e.target.value)}
+                            placeholder="e.g. 10"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
                       <div className="sm:col-span-4 space-y-1">
                         <Label className="text-[9.5px] font-black uppercase text-foreground/65">Validity</Label>
                         <Select value={newProdValidity} onValueChange={setNewProdValidity}>
@@ -566,26 +653,75 @@ export const AITrainingPage = () => {
                             <SelectValue placeholder="Validity" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Monthly" className="text-[11px]">Monthly</SelectItem>
-                            <SelectItem value="Yearly" className="text-[11px]">Yearly</SelectItem>
+                            <SelectItem value="1 Month" className="text-[11px]">1 Month</SelectItem>
+                            <SelectItem value="6 Month" className="text-[11px]">6 Month</SelectItem>
+                            <SelectItem value="12 Month" className="text-[11px]">12 Month</SelectItem>
+                            <SelectItem value="Custom" className="text-[11px]">Custom</SelectItem>
                             <SelectItem value="Lifetime" className="text-[11px]">Lifetime</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
+                      <div className="sm:col-span-4 space-y-1">
+                        <Label className="text-[9.5px] font-black uppercase text-foreground/65">Activation Mail</Label>
+                        <Select value={newProdActivationMail} onValueChange={setNewProdActivationMail}>
+                          <SelectTrigger className="h-8 text-[11px]">
+                            <SelectValue placeholder="Activation Option" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="On your Mail" className="text-[11px]">On your Mail</SelectItem>
+                            <SelectItem value="Mail by us" className="text-[11px]">Mail by us</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className={cn(newProdActivationTime === "custom" ? "sm:col-span-2" : "sm:col-span-4", "space-y-1")}>
+                        <Label className="text-[9.5px] font-black uppercase text-foreground/65">Activation Time</Label>
+                        <Select value={newProdActivationTime} onValueChange={setNewProdActivationTime}>
+                          <SelectTrigger className="h-8 text-[11px]">
+                            <SelectValue placeholder="Activation Time" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10 min" className="text-[11px]">10 min</SelectItem>
+                            <SelectItem value="30 min" className="text-[11px]">30 min</SelectItem>
+                            <SelectItem value="1 hour" className="text-[11px]">1 hour</SelectItem>
+                            <SelectItem value="custom" className="text-[11px]">Custom...</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {newProdActivationTime === "custom" && (
+                        <div className="sm:col-span-2 space-y-1">
+                          <Label className="text-[9.5px] font-black uppercase text-foreground/65">Custom Time</Label>
+                          <Input
+                            className="h-8 text-[11px]"
+                            value={customActivationTime}
+                            onChange={(e) => setCustomActivationTime(e.target.value)}
+                            placeholder="e.g. 2 hours"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-start">
                       <div className="sm:col-span-7 space-y-1">
                         <Label className="text-[9.5px] font-black uppercase text-foreground/65">Description</Label>
-                        <Textarea
-                          className="text-[11px] min-h-[60px] max-h-[120px] resize-none py-1.5 px-3 bg-background border border-input rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        <textarea
+                          ref={(el) => {
+                            if (el) {
+                              el.style.height = "auto";
+                              el.style.height = `${el.scrollHeight}px`;
+                            }
+                          }}
+                          className="w-full text-[11px] min-h-[60px] max-h-[150px] py-1.5 px-3 bg-background border border-input rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                           value={newProdDesc}
-                          onChange={(e) => setNewProdDesc(e.target.value)}
+                          onChange={(e) => {
+                            setNewProdDesc(e.target.value);
+                            e.target.style.height = "auto";
+                            e.target.style.height = `${e.target.scrollHeight}px`;
+                          }}
                           placeholder="e.g. ✅ 1 Month Warranty&#10;✅ Instant Activation"
                           rows={2}
                         />
                       </div>
-                      <div className="sm:col-span-5 space-y-1">
+                      <div className="sm:col-span-4 space-y-1">
                         <Label className="text-[9.5px] font-black uppercase text-foreground/65">Image URL (Optional)</Label>
                         <Input
                           className="h-8 text-[11px]"
@@ -594,85 +730,75 @@ export const AITrainingPage = () => {
                           placeholder="e.g. https://example.com/image.png"
                         />
                       </div>
-                    </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
-                    <div className="sm:col-span-5 space-y-1">
-                      <Label className="text-[9.5px] font-black uppercase text-foreground/65">Activation Mail</Label>
-                      <Select value={newProdActivationMail} onValueChange={setNewProdActivationMail}>
-                        <SelectTrigger className="h-8 text-[11px]">
-                          <SelectValue placeholder="Activation Option" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Activation On your Mail" className="text-[11px]">Activation On your Mail</SelectItem>
-                          <SelectItem value="Mail and Pass Provide by us" className="text-[11px]">Mail and Pass Provide by us</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className={cn(newProdActivationTime === "custom" ? "sm:col-span-3" : "sm:col-span-6", "space-y-1")}>
-                      <Label className="text-[9.5px] font-black uppercase text-foreground/65">Activation Time</Label>
-                      <Select value={newProdActivationTime} onValueChange={setNewProdActivationTime}>
-                        <SelectTrigger className="h-8 text-[11px]">
-                          <SelectValue placeholder="Activation Time" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="10 min" className="text-[11px]">10 min</SelectItem>
-                          <SelectItem value="30 min" className="text-[11px]">30 min</SelectItem>
-                          <SelectItem value="1 hour" className="text-[11px]">1 hour</SelectItem>
-                          <SelectItem value="custom" className="text-[11px]">Custom...</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {newProdActivationTime === "custom" && (
-                      <div className="sm:col-span-3 space-y-1">
-                        <Label className="text-[9.5px] font-black uppercase text-foreground/65">Custom Time</Label>
-                        <Input
-                          className="h-8 text-[11px]"
-                          value={customActivationTime}
-                          onChange={(e) => setCustomActivationTime(e.target.value)}
-                          placeholder="e.g. 2 hours"
-                        />
-                      </div>
-                    )}
-                    <div className="sm:col-span-1 flex gap-1 justify-end">
-                      {editingProductIdx !== null ? (
-                        <>
+                      <div className="sm:col-span-1 flex gap-1 justify-end self-end">
+                        {editingProductIdx !== null ? (
+                          <>
+                            <Button
+                              size="sm"
+                              type="button"
+                              className="h-8 w-full bg-[#0E8A4B] hover:bg-[#0A6E3B] text-white"
+                              onClick={handleSaveEditedProduct}
+                              title="Save changes"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                              className="h-8 w-full border-[#E8B968] hover:bg-[#FFE8C7]"
+                              onClick={handleCancelEditProduct}
+                              title="Cancel editing"
+                            >
+                              <X className="w-3.5 h-3.5 text-muted-foreground" />
+                            </Button>
+                          </>
+                        ) : (
                           <Button
                             size="sm"
                             type="button"
                             className="h-8 w-full bg-[#0E8A4B] hover:bg-[#0A6E3B] text-white"
-                            onClick={handleSaveEditedProduct}
-                            title="Save changes"
+                            onClick={handleAddProduct}
                           >
-                            <Check className="w-3.5 h-3.5" />
+                            <Plus className="w-3.5 h-3.5" />
                           </Button>
-                          <Button
-                            size="sm"
-                            type="button"
-                            variant="outline"
-                            className="h-8 w-full border-[#E8B968] hover:bg-[#FFE8C7]"
-                            onClick={handleCancelEditProduct}
-                            title="Cancel editing"
-                          >
-                            <X className="w-3.5 h-3.5 text-muted-foreground" />
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          size="sm"
-                          type="button"
-                          className="h-8 w-full bg-[#0E8A4B] hover:bg-[#0A6E3B] text-white"
-                          onClick={handleAddProduct}
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
               </div>
             </Section>
+
+            {/* Agent Payment Details */}
+            {!isPrebuilt && (
+              <Section icon={<ShieldCheck className="w-4 h-4 text-emerald-600" />} title="Agent Payment Details" desc="UPI VPA, Binance ID, and QR code to receive direct payments via chat requests">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Field label="UPI VPA" hint="Your primary VPA for receiving Indian Rupees (INR) (e.g. sharma@okaxis)">
+                    <Input
+                      value={form.upi_vpa || ""}
+                      onChange={(e) => set("upi_vpa", e.target.value)}
+                      placeholder="e.g. upiid@bank"
+                    />
+                  </Field>
+                  <Field label="Binance ID" hint="Your Binance Pay ID for receiving crypto payments (USD)">
+                    <Input
+                      value={form.binance_id || ""}
+                      onChange={(e) => set("binance_id", e.target.value)}
+                      placeholder="e.g. 123456789"
+                    />
+                  </Field>
+                </div>
+                <div className="mt-3">
+                  <Field label="Payment QR Code Image" hint="Upload QR code image to include in UPI payment messages">
+                    <QrImageUpload
+                      value={form.qr_image_url || ""}
+                      onChange={(url) => set("qr_image_url", url)}
+                    />
+                  </Field>
+                </div>
+              </Section>
+            )}
 
             {/* Knowledge Base */}
             <Section icon={<Brain className="w-4 h-4 text-purple-600" />} title="Knowledge Base" desc="Add details, FAQs, or policies that the agent can retrieve during conversations">
@@ -955,3 +1081,73 @@ const Row = ({ label, value }: { label: string; value: string }) => (
     <span className="font-extrabold text-foreground/85 truncate">{value}</span>
   </div>
 );
+
+const QrImageUpload = ({ value, onChange }: { value: string; onChange: (url: string) => void }) => {
+  const { data: cloudConfig } = useCloudinaryConfig();
+  const { upload, progress, uploading, error: uploadError } = useCloudinaryUpload();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const onPickFile = async (file: File) => {
+    if (!cloudConfig?.enabled || !cloudConfig.cloudName || !cloudConfig.uploadPreset) {
+      toast.error("Image upload not configured on the server");
+      return;
+    }
+    try {
+      const res = await upload(file, { cloudName: cloudConfig.cloudName, uploadPreset: cloudConfig.uploadPreset }, "image");
+      onChange(res.secure_url);
+      toast.success("QR Code uploaded!");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-16 h-16 rounded-xl bg-gray-100 border-2 border-[#E8B968] overflow-hidden flex-shrink-0 relative flex items-center justify-center">
+        {value ? (
+          <img src={value} alt="QR Code" className="w-full h-full object-cover" />
+        ) : (
+          <ImageIcon className="w-6 h-6 text-foreground/30" />
+        )}
+        {uploading && (
+          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white">
+            <Loader2 className="w-4 h-4 animate-spin mb-0.5" />
+            <span className="text-[9px] font-extrabold">{progress}%</span>
+          </div>
+        )}
+      </div>
+      <div className="flex-1 space-y-1">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void onPickFile(f); if (fileRef.current) fileRef.current.value = ""; }}
+        />
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="h-8 border-[#E8B968] hover:bg-[#FFE8C7] text-[#B8651A]"
+          >
+            <Upload className="w-3.5 h-3.5 mr-1" /> {value ? "Replace QR" : "Upload QR"}
+          </Button>
+          {value && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onChange("")}
+              className="h-8 text-destructive hover:bg-destructive/10"
+            >
+              Remove
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

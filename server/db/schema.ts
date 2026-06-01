@@ -185,6 +185,7 @@ export const contact = pgTable("contact", {
   score: integer("score").notNull().default(0),
   notes: text("notes"),
   memory: jsonb("memory").default(sql`'{}'::jsonb`),
+  isReseller: boolean("is_reseller").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -560,6 +561,9 @@ export const prebuiltAgent = pgTable("prebuilt_agent", {
   knowledgeBase: text("knowledge_base").default(""),
   systemPrompt: text("system_prompt").default(""),
   isEnabled: boolean("is_enabled").notNull().default(true),
+  upiVpa: text("upi_vpa"),
+  binanceId: text("binance_id"),
+  qrImageUrl: text("qr_image_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -586,6 +590,9 @@ export const aiAgent = pgTable("ai_agent", {
   systemPrompt: text("system_prompt").default(""),
   prebuiltId: uuid("prebuilt_id").references(() => prebuiltAgent.id, { onDelete: "set null" }),
   isActive: boolean("is_active").notNull().default(false),
+  upiVpa: text("upi_vpa"),
+  binanceId: text("binance_id"),
+  qrImageUrl: text("qr_image_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

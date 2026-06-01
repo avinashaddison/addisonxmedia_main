@@ -67,6 +67,9 @@ app.get("/ai/agents", async (c) => {
     system_prompt: a.systemPrompt,
     prebuilt_id: a.prebuiltId,
     is_active: a.isActive,
+    upi_vpa: a.upiVpa || "",
+    binance_id: a.binanceId || "",
+    qr_image_url: a.qrImageUrl || "",
     created_at: a.createdAt,
     updated_at: a.updatedAt,
   })));
@@ -89,6 +92,9 @@ app.post("/ai/agents", async (c) => {
     products: body.products || [],
     knowledgeBase: body.knowledge_base || "",
     systemPrompt: body.system_prompt || "",
+    upiVpa: body.upi_vpa || null,
+    binanceId: body.binance_id || null,
+    qrImageUrl: body.qr_image_url || null,
     isActive: false,
   }).returning();
 
@@ -109,6 +115,9 @@ app.post("/ai/agents", async (c) => {
     system_prompt: agent.systemPrompt,
     prebuilt_id: agent.prebuiltId,
     is_active: agent.isActive,
+    upi_vpa: agent.upiVpa || "",
+    binance_id: agent.binanceId || "",
+    qr_image_url: agent.qrImageUrl || "",
     created_at: agent.createdAt,
     updated_at: agent.updatedAt,
   }, 201);
@@ -131,6 +140,9 @@ app.patch("/ai/agents/:id", async (c) => {
   if (body.products !== undefined) updateSet.products = body.products;
   if (body.knowledge_base !== undefined) updateSet.knowledgeBase = body.knowledge_base;
   if (body.system_prompt !== undefined) updateSet.systemPrompt = body.system_prompt;
+  if (body.upi_vpa !== undefined) updateSet.upiVpa = body.upi_vpa || null;
+  if (body.binance_id !== undefined) updateSet.binanceId = body.binance_id || null;
+  if (body.qr_image_url !== undefined) updateSet.qrImageUrl = body.qr_image_url || null;
 
   const [agent] = await db.update(aiAgent)
     .set(updateSet)
@@ -156,6 +168,9 @@ app.patch("/ai/agents/:id", async (c) => {
     system_prompt: agent.systemPrompt,
     prebuilt_id: agent.prebuiltId,
     is_active: agent.isActive,
+    upi_vpa: agent.upiVpa || "",
+    binance_id: agent.binanceId || "",
+    qr_image_url: agent.qrImageUrl || "",
     created_at: agent.createdAt,
     updated_at: agent.updatedAt,
   });

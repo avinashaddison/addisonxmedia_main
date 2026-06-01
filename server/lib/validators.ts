@@ -8,6 +8,7 @@ export const patchContactSchema = z.object({
   tag: z.enum(["hot", "warm", "cold"]),
   score: z.number().int().min(0).max(100),
   notes: z.string().max(10000).nullish(),
+  isReseller: z.boolean().nullish(),
 }).partial();
 
 export const patchDealSchema = z.object({

@@ -96,8 +96,12 @@ function normalizeAgent(agent: AiAgent): AiAgent {
     products: (agent.products || []).map((p: any) => ({
       ...p,
       imageUrl: p.imageUrl || p.image_url || "",
-      activationMail: p.activationMail || p.activation_mail || "Activation On your Mail",
+      activationMail: p.activationMail || p.activation_mail || "On your Mail",
       activationTime: p.activationTime || p.activation_time || "10 min",
+      priceUsd: typeof p.priceUsd !== "undefined" ? p.priceUsd : (typeof p.price_usd !== "undefined" ? p.price_usd : undefined),
+      isReseller: typeof p.isReseller !== "undefined" ? p.isReseller : (typeof p.is_reseller !== "undefined" ? p.is_reseller : false),
+      resellerPrice: typeof p.resellerPrice !== "undefined" ? p.resellerPrice : (typeof p.reseller_price !== "undefined" ? p.reseller_price : undefined),
+      resellerPriceUsd: typeof p.resellerPriceUsd !== "undefined" ? p.resellerPriceUsd : (typeof p.reseller_price_usd !== "undefined" ? p.reseller_price_usd : undefined),
     })),
   };
 }

@@ -422,14 +422,30 @@ export async function getHumanizedSuggestions(
   const productsList = agent.products && Array.isArray(agent.products) ? agent.products : [];
   
   if (productsList.length > 0) {
-    suggestedProducts = productsList.map((p: any, idx: number) => ({
-      id: `agent-prod-${idx}`,
-      name: p.name,
-      price: Number(p.price) || 0,
-      photo_url: p.imageUrl || p.image_url || null,
-    }));
+    suggestedProducts = productsList.map((p: any, idx: number) => {
+      let price = Number(p.price) || 0;
+      if (ctc.isReseller) {
+        price = Number(p.resellerPrice || p.reseller_price || p.price) || 0;
+      }
+      return {
+        id: `agent-prod-${idx}`,
+        name: p.name,
+        price: price,
+        photo_url: p.imageUrl || p.image_url || null,
+      };
+    });
     const productLines = productsList.map((p: any) => {
-      let line = `- ${p.name}: ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`;
+      let priceInr = p.price;
+      let priceUsd = p.priceUsd || p.price_usd;
+      if (ctc.isReseller) {
+        priceInr = p.resellerPrice || p.reseller_price || p.price;
+        priceUsd = p.resellerPriceUsd || p.reseller_price_usd || p.priceUsd || p.price_usd;
+      }
+      let priceStr = `₹${Number(priceInr).toLocaleString("en-IN")}`;
+      if (priceUsd && Number(priceUsd) > 0) {
+        priceStr += ` ($${priceUsd})`;
+      }
+      let line = `- ${p.name}: ${priceStr} (${p.validity})`;
       const actMail = p.activationMail || p.activation_mail;
       const actTime = p.activationTime || p.activation_time;
       if (actMail) line += `, Activation: ${actMail}`;
@@ -610,7 +626,17 @@ export async function getHumanizedAutoReply(
   
   if (productsList.length > 0) {
     const productLines = productsList.map((p: any) => {
-      let line = `- ${p.name}: ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`;
+      let priceInr = p.price;
+      let priceUsd = p.priceUsd || p.price_usd;
+      if (ctc.isReseller) {
+        priceInr = p.resellerPrice || p.reseller_price || p.price;
+        priceUsd = p.resellerPriceUsd || p.reseller_price_usd || p.priceUsd || p.price_usd;
+      }
+      let priceStr = `₹${Number(priceInr).toLocaleString("en-IN")}`;
+      if (priceUsd && Number(priceUsd) > 0) {
+        priceStr += ` ($${priceUsd})`;
+      }
+      let line = `- ${p.name}: ${priceStr} (${p.validity})`;
       const actMail = p.activationMail || p.activation_mail;
       const actTime = p.activationTime || p.activation_time;
       if (actMail) line += `, Activation: ${actMail}`;
@@ -668,7 +694,11 @@ export async function getHumanizedAutoReply(
       const selectedProd = productsList.find((p: any) => p.name.toLowerCase().includes(memory.context.current_tool!.toLowerCase()) || memory.context.current_tool!.toLowerCase().includes(p.name.toLowerCase()));
       if (selectedProd) {
         finalAction = "send_qr";
-        finalAmount = Number(selectedProd.price);
+        let price = Number(selectedProd.price);
+        if (ctc.isReseller) {
+          price = Number(selectedProd.resellerPrice || selectedProd.reseller_price || selectedProd.price);
+        }
+        finalAmount = price;
         finalNote = selectedProd.name;
         if (!replyText.toLowerCase().includes("qr")) {
           replyText = "payment qr de deta hu bhai, ek min";

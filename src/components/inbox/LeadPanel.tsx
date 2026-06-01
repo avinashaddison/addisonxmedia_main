@@ -31,31 +31,53 @@ const formatINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
 const productDetailsTemplate = (
-  productName: string,
-  price: number,
-  validity: string,
-  mail: string,
-  time: string,
-  contactName: string,
-  description?: string
+  p: any,
+  isReseller: boolean,
+  contactName: string
 ) => {
-  let text = `🔥 *${productName.toUpperCase()}*\n\n`;
-  if (description) {
-    text += `${description}\n\n`;
+  let priceInr = p.price;
+  let priceUsd = p.priceUsd || p.price_usd;
+
+  if (isReseller) {
+    priceInr = p.resellerPrice || p.reseller_price || p.price;
+    priceUsd = p.resellerPriceUsd || p.reseller_price_usd || p.priceUsd || p.price_usd;
   }
-  text += `⚡ *Activation time:* ${time}\n` +
-          `⏳ *Validity:* ${validity}\n` +
-          `📧 *Activation mail:* ${mail}\n` +
-          `💰 *Price:* *₹${price.toLocaleString("en-IN")}*\n\n` +
+
+  let priceStr = `₹${priceInr.toLocaleString("en-IN")}`;
+  if (priceUsd && Number(priceUsd) > 0) {
+    priceStr += ` ($${priceUsd})`;
+  }
+
+  let text = `🔥 *${p.name.toUpperCase()}*\n\n`;
+  if (p.description) {
+    text += `${p.description}\n\n`;
+  }
+  text += `⚡ *Activation time:* ${p.activationTime || p.activation_time || "10 min"}\n` +
+          `⏳ *Validity:* ${p.validity || "1 Month"}\n` +
+          `📧 *Activation mail:* ${p.activationMail || p.activation_mail || "On your Mail"}\n` +
+          `💰 *Price:* *${priceStr}*\n\n` +
           `👉 *Please Check and Confirm to buy*`;
   return text;
 };
 
-const allProductsListTemplate = (products: any[]) => {
+const allProductsListTemplate = (products: any[], isReseller: boolean) => {
   let listText = "";
   products.forEach((p) => {
+    let priceInr = p.price;
+    let priceUsd = p.priceUsd || p.price_usd;
+
+    if (isReseller) {
+      priceInr = p.resellerPrice || p.reseller_price || p.price;
+      priceUsd = p.resellerPriceUsd || p.reseller_price_usd || p.priceUsd || p.price_usd;
+    }
+
+    let priceStr = `₹${priceInr.toLocaleString("en-IN")}`;
+    if (priceUsd && Number(priceUsd) > 0) {
+      priceStr += ` ($${priceUsd})`;
+    }
+
     const valText = p.validity.toLowerCase() === "monthly" ? "month" : p.validity.toLowerCase() === "yearly" ? "year" : p.validity.toLowerCase();
-    listText += `• ${p.name} — ₹${p.price}/${valText}\n`;
+    listText += `• ${p.name} — ${priceStr}/${valText}\n`;
   });
   
   return `available tools 👇\n\n` +
@@ -79,6 +101,7 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
   const [tag, setTag] = useState<Contact["tag"]>(contact.tag);
   const [score, setScore] = useState(contact.score);
   const [notes, setNotes] = useState(contact.notes ?? "");
+  const [isReseller, setIsReseller] = useState(contact.is_reseller ?? false);
   const [saving, setSaving] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
@@ -98,22 +121,14 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
   //    Product tab replaces the old composer-bar 'Send Product' button — same
   //    SendProductDialog, just sourced from here so the chat composer stays
   //    focused on messaging actions only.
-  const [activeTab, setActiveTab] = useState<"leads" | "product">("leads");
+  const [activeTab, setActiveTab] = useState<"leads" | "product" | "payment">("leads");
 
   const handleSendProductDetails = async (p: any, idx: number) => {
     if (!conversationId) return;
     setSendingProductIdx(idx);
     try {
       const first = contact.name.split(/\s+/)[0] || contact.name;
-      const body = productDetailsTemplate(
-        p.name,
-        p.price,
-        p.validity,
-        p.activationMail || "Activation On your Mail",
-        p.activationTime || "10 min",
-        first,
-        p.description
-      );
+      const body = productDetailsTemplate(p, !!contact.is_reseller, first);
       
       const payload: Record<string, any> = {
         body,
@@ -141,7 +156,7 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
     if (!conversationId || !activeAgent?.products?.length) return;
     setSendingAll(true);
     try {
-      const body = allProductsListTemplate(activeAgent.products);
+      const body = allProductsListTemplate(activeAgent.products, !!contact.is_reseller);
       await api.sendMessage(conversationId, { body, direction: "outbound", status: "sent" });
       qc.invalidateQueries({ queryKey: ["messages", conversationId] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
@@ -251,6 +266,7 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
         tag,
         score,
         notes: notes.trim() || null,
+        is_reseller: isReseller,
       });
       toast.success("Lead updated");
       // Invalidate both contacts (for the inbox list) and conversations (for the joined contact)
@@ -369,10 +385,11 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
       {/* Tab segmented control */}
       {!isMarketingAgent && (
         <div className="flex-shrink-0 px-3 pt-3 pb-2 border-b border-[#E8B968]/40 bg-[#FFF6E8]/40">
-          <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white border-2 border-[#E8B968] shadow-[0_2px_0_0_#E8B968]">
+          <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-white border-2 border-[#E8B968] shadow-[0_2px_0_0_#E8B968]">
             {([
-              { id: "leads" as const,   label: "Leads",          Icon: Tag },
-              { id: "product" as const, label: "Digital product", Icon: Package },
+              { id: "leads" as const,   label: "Leads",    Icon: Tag },
+              { id: "product" as const, label: "Products", Icon: Package },
+              { id: "payment" as const, label: "Payment",  Icon: IndianRupee },
             ]).map((t) => {
               const active = activeTab === t.id;
               return (
@@ -380,14 +397,14 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
                   key={t.id}
                   onClick={() => setActiveTab(t.id)}
                   className={cn(
-                    "h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider transition-all",
+                    "h-8 px-1 rounded-lg flex items-center justify-center gap-1 text-[11px] font-extrabold uppercase tracking-wider transition-all truncate",
                     active
                       ? "bg-[#FF6A1F] text-white shadow-[0_2px_0_0_#B8420A]"
                       : "text-foreground/55 hover:bg-[#FFF1D6] hover:text-foreground"
                   )}
                 >
-                  <t.Icon className="w-3 h-3" strokeWidth={2.5} />
-                  {t.label}
+                  <t.Icon className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2.5} />
+                  <span>{t.label}</span>
                 </button>
               );
             })}
@@ -574,6 +591,29 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
                 );
               })}
             </div>
+          </div>
+
+          {/* Editable: reseller tag */}
+          <div className="mb-3 flex items-center justify-between bg-[#FFF6E8]/30 p-2.5 rounded-xl border-2 border-dashed border-[#E8B968]/70">
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">Reseller Account</p>
+              <p className="text-[9.5px] text-foreground/60 mt-0.5 leading-snug">Set this contact as a reseller to apply reseller pricing</p>
+            </div>
+            <button
+              onClick={() => setIsReseller(!isReseller)}
+              className={cn(
+                "relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                isReseller ? "bg-[#0E8A4B]" : "bg-gray-200"
+              )}
+              title={isReseller ? "Reseller pricing enabled" : "Standard pricing active"}
+            >
+              <span
+                className={cn(
+                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out",
+                  isReseller ? "translate-x-4" : "translate-x-0"
+                )}
+              />
+            </button>
           </div>
 
           {/* Editable: score */}
@@ -824,6 +864,15 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
           contactName={contact.name}
         />
       )}
+
+      {/* ── Tab 3: Payments & Requests ─────────────────────────── */}
+      <div className="flex-1 overflow-y-auto" hidden={activeTab !== "payment"}>
+        <PaymentTabPanel
+          contact={contact}
+          conversationId={conversationId}
+          activeAgent={activeAgent}
+        />
+      </div>
 
       {/* ── Tab 2: Digital Product Delivery ─────────────────────────── */}
       <div className="flex-1 overflow-y-auto" hidden={activeTab !== "product"}>
@@ -1166,6 +1215,220 @@ const QuickShareSection = ({ contactName, conversationId }: { contactName: strin
           </div>
           {renderButton("facebook")}
         </div>
+      )}
+    </div>
+  );
+};
+
+const PaymentTabPanel = ({
+  contact,
+  conversationId,
+  activeAgent,
+}: {
+  contact: Contact;
+  conversationId?: string;
+  activeAgent?: any;
+}) => {
+  const qc = useQueryClient();
+  const [payMethod, setPayMethod] = useState<"upi" | "binance">("upi");
+  const [amount, setAmount] = useState("");
+  const [selectedProductIdx, setSelectedProductIdx] = useState<string>("custom");
+  const [sending, setSending] = useState(false);
+
+  const upiVpa = activeAgent?.upi_vpa || "";
+  const binanceId = activeAgent?.binance_id || "";
+  const qrImageUrl = activeAgent?.qr_image_url || "";
+
+  const productsList = activeAgent?.products || [];
+
+  // Recalculate amount if selected product or reseller status changes
+  useEffect(() => {
+    if (selectedProductIdx === "custom") return;
+    const pIdx = Number(selectedProductIdx);
+    const p = productsList[pIdx];
+    if (!p) return;
+
+    if (payMethod === "upi") {
+      let price = p.price;
+      if (contact.is_reseller) {
+        price = p.resellerPrice || p.reseller_price || p.price;
+      }
+      setAmount(String(price));
+    } else {
+      let priceUsd = p.priceUsd || p.price_usd;
+      if (contact.is_reseller) {
+        priceUsd = p.resellerPriceUsd || p.reseller_price_usd || p.priceUsd || p.price_usd;
+      }
+      setAmount(priceUsd ? String(priceUsd) : "");
+    }
+  }, [selectedProductIdx, payMethod, contact.is_reseller, productsList]);
+
+  // Construct message text
+  const contactFirstName = contact.name.split(/\s+/)[0] || contact.name;
+  let messageBody = "";
+  if (payMethod === "upi") {
+    messageBody = `💳 *PAYMENT REQUEST (UPI)*\n\nHi ${contactFirstName}! Please make the payment of *₹${amount || "0"}* via UPI to the details below:\n\n👉 *UPI ID:* \`${upiVpa || "Not Configured"}\`\n\nAfter making the payment, please share the screenshot here for instant activation. Thank you! 🙏`;
+  } else {
+    messageBody = `💳 *PAYMENT REQUEST (BINANCE)*\n\nHi ${contactFirstName}! Please make the payment of *$${amount || "0"}* (USDT) to our Binance Pay ID:\n\n👉 *Binance ID:* \`${binanceId || "Not Configured"}\`\n\nAfter making the payment, please share the screenshot here for instant activation. Thank you! 🙏`;
+  }
+
+  const handleSendPaymentText = async () => {
+    if (!conversationId) return;
+    setSending(true);
+    try {
+      const payload: Record<string, any> = {
+        body: messageBody,
+        direction: "outbound",
+        status: "sent",
+      };
+
+      // If UPI and QR code image is available, send as image message
+      if (payMethod === "upi" && qrImageUrl) {
+        payload.media_url = qrImageUrl;
+        payload.media_type = "image";
+      }
+
+      await api.sendMessage(conversationId, payload);
+      qc.invalidateQueries({ queryKey: ["messages", conversationId] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success("Payment details shared directly in chat! ✨");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send payment info");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const isConfigured = payMethod === "upi" ? !!upiVpa : !!binanceId;
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* Segmented Control */}
+      <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-white border-2 border-[#E8B968] shadow-[0_2px_0_0_#E8B968]">
+        <button
+          onClick={() => {
+            setPayMethod("upi");
+            setSelectedProductIdx("custom");
+            setAmount("");
+          }}
+          className={cn(
+            "h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider transition-all",
+            payMethod === "upi"
+              ? "bg-[#0E8A4B] text-white shadow-[0_2px_0_0_#075A30]"
+              : "text-foreground/55 hover:bg-[#FFF1D6]"
+          )}
+        >
+          🇮🇳 UPI (INR)
+        </button>
+        <button
+          onClick={() => {
+            setPayMethod("binance");
+            setSelectedProductIdx("custom");
+            setAmount("");
+          }}
+          className={cn(
+            "h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider transition-all",
+            payMethod === "binance"
+              ? "bg-[#3C50E0] text-white shadow-[0_2px_0_0_#2533A8]"
+              : "text-foreground/55 hover:bg-[#FFF1D6]"
+          )}
+        >
+          🔶 Binance (USD)
+        </button>
+      </div>
+
+      {/* Info Warning if not configured */}
+      {!isConfigured && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+          <span className="text-amber-500">⚠</span>
+          <p className="text-[10px] font-semibold text-amber-800 leading-snug">
+            {payMethod === "upi"
+              ? "UPI VPA is not set for this agent. Please configure it in Products & Agent settings."
+              : "Binance ID is not set for this agent. Please configure it in Products & Agent settings."}
+          </p>
+        </div>
+      )}
+
+      {/* Product Selector Dropdown */}
+      <div className="space-y-1">
+        <Label className="text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">Prefill from Product</Label>
+        <select
+          value={selectedProductIdx}
+          onChange={(e) => setSelectedProductIdx(e.target.value)}
+          className="w-full h-9 rounded-lg bg-white border-2 border-[#E8B968] px-2 text-[12px] font-bold focus:outline-none"
+        >
+          <option value="custom">-- Custom Amount --</option>
+          {productsList.map((p: any, idx: number) => {
+            let price = p.price;
+            let priceUsd = p.priceUsd || p.price_usd;
+            if (contact.is_reseller) {
+              price = p.resellerPrice || p.reseller_price || p.price;
+              priceUsd = p.resellerPriceUsd || p.reseller_price_usd || p.priceUsd || p.price_usd;
+            }
+            return (
+              <option key={idx} value={String(idx)}>
+                {p.name} ({payMethod === "upi" ? `₹${price}` : `$${priceUsd || 0}`})
+              </option>
+            );
+          })}
+        </select>
+      </div>
+
+      {/* Amount Input */}
+      <div className="space-y-1">
+        <Label className="text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">
+          Amount ({payMethod === "upi" ? "INR ₹" : "USD $"})
+        </Label>
+        <Input
+          type="number"
+          value={amount}
+          onChange={(e) => {
+            setAmount(e.target.value);
+            setSelectedProductIdx("custom");
+          }}
+          placeholder={payMethod === "upi" ? "e.g. 999" : "e.g. 12"}
+          className="h-9 text-[12px]"
+        />
+      </div>
+
+      {/* Template Preview */}
+      <div className="space-y-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5">
+        <p className="text-[9px] uppercase tracking-wider font-extrabold text-foreground/45 border-b pb-1 mb-1.5">
+          Message Preview
+        </p>
+        <p className="text-[11.5px] whitespace-pre-wrap font-medium font-sans leading-relaxed text-foreground/80">
+          {messageBody}
+        </p>
+        {payMethod === "upi" && qrImageUrl && (
+          <div className="mt-2 p-1.5 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center gap-2">
+            <img src={qrImageUrl} alt="" className="w-8 h-8 object-cover rounded border" />
+            <span className="text-[9.5px] font-bold text-emerald-800">📷 Payment QR code image will be attached</span>
+          </div>
+        )}
+      </div>
+
+      {/* Action Button */}
+      <Button
+        onClick={handleSendPaymentText}
+        disabled={sending || !conversationId || !isConfigured}
+        className={cn(
+          "w-full h-11 rounded-xl text-[12.5px] font-extrabold gap-2 text-white border-0 transition-all",
+          payMethod === "upi"
+            ? "bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] shadow-[0_3px_0_0_#075A30] hover:shadow-[0_1px_0_0_#075A30]"
+            : "bg-gradient-to-br from-[#3C50E0] to-[#2533A8] shadow-[0_3px_0_0_#1A2380] hover:shadow-[0_1px_0_0_#1A2380]"
+        )}
+      >
+        {sending ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Send className="w-4 h-4" />
+        )}
+        Send Payment Info
+      </Button>
+      {!conversationId && (
+        <p className="text-[10px] text-foreground/55 font-medium text-center italic">
+          Open a conversation first to enable sending
+        </p>
       )}
     </div>
   );
