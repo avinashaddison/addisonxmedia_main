@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "@/lib/admin-api";
-import { Building2, ArrowLeft, ShieldOff, ShieldCheck, Eye, Edit3, Mail, Phone, Users as UsersIcon, MessageSquare, Inbox, Trophy, IndianRupee, Loader2, CheckCircle2, AlertTriangle, Flame, CheckCheck, Clock, Send, Download, Zap, Crown, Sparkles, Rocket, Gift } from "lucide-react";
+import { Building2, ArrowLeft, ShieldOff, ShieldCheck, Eye, Mail, Phone, Users as UsersIcon, MessageSquare, Inbox, Trophy, IndianRupee, Loader2, CheckCircle2, AlertTriangle, Flame, CheckCheck, Clock, Send, Download, Zap, Crown, Sparkles, Rocket, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const fmtINR = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
@@ -35,11 +35,11 @@ const PLAN_CATALOG: Array<{
   badge: string;
   iconBg: string;
 }> = [
-  { key: "free",       label: "Free",       price: "₹0",      caption: "Trial / waiver", icon: Gift,     border: "border-[#9CA3AF]", ring: "ring-[#6B7280]", badge: "bg-[#F3F4F6] text-[#374151]", iconBg: "bg-[#6B7280]" },
-  { key: "starter",    label: "Starter",    price: "₹999",    caption: "/ month",        icon: Sparkles, border: "border-[#3C50E0]", ring: "ring-[#3C50E0]", badge: "bg-[#E4E8FF] text-[#1E40AF]", iconBg: "bg-[#3C50E0]" },
-  { key: "growth",     label: "Growth",     price: "₹2,999",  caption: "/ month",        icon: Rocket,   border: "border-[#0E8A4B]", ring: "ring-[#0E8A4B]", badge: "bg-[#E6F7EE] text-[#0A6E3C]", iconBg: "bg-[#0E8A4B]" },
-  { key: "scale",      label: "Scale",      price: "₹7,999",  caption: "/ month",        icon: Zap,      border: "border-[#FF6A1F]", ring: "ring-[#FF6A1F]", badge: "bg-[#FFEFE0] text-[#B8420A]", iconBg: "bg-[#FF6A1F]" },
-  { key: "enterprise", label: "Enterprise", price: "Custom",  caption: "Negotiated",     icon: Crown,    border: "border-[#FFD23F]", ring: "ring-[#FFD23F]", badge: "bg-[#FFF1D6] text-[#7A4A00]", iconBg: "bg-[#FFD23F] text-[#3D1A00]" },
+  { key: "free",       label: "Free",       price: "₹0",      caption: "Trial / waiver", icon: Gift,     border: "border-slate-350", ring: "ring-slate-100", badge: "bg-slate-100 text-slate-650", iconBg: "bg-slate-500" },
+  { key: "starter",    label: "Starter",    price: "₹999",    caption: "/ month",        icon: Sparkles, border: "border-indigo-500", ring: "ring-indigo-100", badge: "bg-indigo-50 text-indigo-700", iconBg: "bg-indigo-600" },
+  { key: "growth",     label: "Growth",     price: "₹2,999",  caption: "/ month",        icon: Rocket,   border: "border-emerald-500", ring: "ring-emerald-100", badge: "bg-emerald-50 text-emerald-700", iconBg: "bg-emerald-600" },
+  { key: "scale",      label: "Scale",      price: "₹7,999",  caption: "/ month",        icon: Zap,      border: "border-orange-500", ring: "ring-orange-100", badge: "bg-orange-50 text-orange-705", iconBg: "bg-orange-600" },
+  { key: "enterprise", label: "Enterprise", price: "Custom",  caption: "Negotiated",     icon: Crown,    border: "border-purple-500", ring: "ring-purple-100", badge: "bg-purple-50 text-purple-700", iconBg: "bg-purple-600" },
 ];
 
 const AdminWorkspaceDetail = () => {
@@ -65,7 +65,7 @@ const AdminWorkspaceDetail = () => {
   if (isLoading || !w) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-[#B8230C]" />
+        <Loader2 className="w-6 h-6 animate-spin text-indigo-650" />
       </div>
     );
   }
@@ -144,38 +144,38 @@ const AdminWorkspaceDetail = () => {
   const isSuspended = w.status === "suspended";
 
   return (
-    <div className="px-6 lg:px-10 py-6">
-      <Link to="/admin/workspaces" className="inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#B8230C] hover:underline mb-4">
+    <div className="max-w-7xl mx-auto px-6 lg:px-10 py-6 space-y-6">
+      <Link to="/admin/workspaces" className="inline-flex items-center gap-1.5 text-[12px] font-bold text-indigo-600 hover:underline mb-2">
         <ArrowLeft className="w-3.5 h-3.5" /> Back to workspaces
       </Link>
 
       {/* Header */}
-      <div className="bg-white border-2 border-[#E8B968] rounded-2xl p-5 shadow-[0_4px_0_0_#E8B968] mb-4">
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm mb-4">
         <div className="flex items-start gap-4 flex-wrap">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FFD23F] to-[#E8B400] text-[#3D1A00] flex items-center justify-center shadow-md flex-shrink-0">
-            <Building2 className="w-7 h-7" strokeWidth={2.5} />
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white flex items-center justify-center shadow-sm flex-shrink-0">
+            <Building2 className="w-7 h-7 text-indigo-400" strokeWidth={2.2} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-black tracking-tight">{w.name}</h1>
-              <span className="inline-flex px-2 py-0.5 rounded-full bg-[#FFF1D6] border border-[#E8B968] text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">
+              <h1 className="text-2xl font-black tracking-tight text-slate-900">{w.name}</h1>
+              <span className="inline-flex px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-650">
                 {w.plan}
               </span>
               {isSuspended ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FCE5F0] border border-[#D4308E]/30 text-[#D4308E] text-[10px] font-extrabold uppercase tracking-wider">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-bold uppercase tracking-wider">
                   <ShieldOff className="w-3 h-3" /> Suspended
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E6F7EE] border border-[#0E8A4B]/30 text-[#0E8A4B] text-[10px] font-extrabold uppercase tracking-wider">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
                   <CheckCircle2 className="w-3 h-3" /> Active
                 </span>
               )}
             </div>
-            <p className="text-[12px] text-foreground/60 font-mono mt-1">{w.email}</p>
-            <p className="text-[11px] text-foreground/50 font-medium mt-0.5">Joined {new Date(w.createdAt).toLocaleString("en-IN")}</p>
+            <p className="text-[12px] text-slate-500 font-mono mt-1">{w.email}</p>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">Joined {new Date(w.createdAt).toLocaleString("en-IN")}</p>
             {isSuspended && w.suspendedReason && (
-              <div className="mt-3 p-3 rounded-xl bg-[#FCE5F0] border-2 border-[#D4308E]">
-                <p className="text-[10px] uppercase tracking-wider text-[#D4308E] font-extrabold mb-1 flex items-center gap-1">
+              <div className="mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-850">
+                <p className="text-[10px] uppercase tracking-wider text-rose-700 font-bold mb-1 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" /> Suspended reason
                 </p>
                 <p className="text-[12px] font-semibold">{w.suspendedReason}</p>
@@ -183,26 +183,27 @@ const AdminWorkspaceDetail = () => {
             )}
           </div>
           <div className="flex flex-col gap-2">
-            <Button variant="outline" onClick={openEdit}>
+            <Button variant="outline" onClick={openEdit} className="border-slate-250 hover:bg-slate-50 transition active:scale-[0.98]">
               <Zap className="w-3.5 h-3.5" /> Set plan
             </Button>
-            <Button onClick={() => { setReason(""); setImpersOpen(true); }}>
+            <Button onClick={() => { setReason(""); setImpersOpen(true); }} className="bg-slate-900 text-white hover:bg-slate-800 transition active:scale-[0.98]">
               <Eye className="w-3.5 h-3.5" /> Impersonate
             </Button>
             <Button
               variant="outline"
               onClick={() => { window.location.href = adminApi.workspaceExportContactsUrl(id!); }}
+              className="border-slate-250 hover:bg-slate-50 transition active:scale-[0.98]"
             >
               <Download className="w-3.5 h-3.5" /> Export contacts
             </Button>
             {isSuspended ? (
-              <Button variant="outline" onClick={doUnsuspend}>
+              <Button variant="outline" onClick={doUnsuspend} className="border-slate-250 hover:bg-slate-50 text-emerald-700 hover:text-emerald-800 transition active:scale-[0.98]">
                 <ShieldCheck className="w-3.5 h-3.5" /> Unsuspend
               </Button>
             ) : (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive">
+                  <Button variant="destructive" className="bg-rose-600 hover:bg-rose-700 transition active:scale-[0.98]">
                     <ShieldOff className="w-3.5 h-3.5" /> Suspend
                   </Button>
                 </AlertDialogTrigger>
@@ -215,11 +216,11 @@ const AdminWorkspaceDetail = () => {
                   </AlertDialogHeader>
                   <div className="space-y-1.5">
                     <Label>Reason (logged forever)</Label>
-                    <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. spam complaint from Meta" autoFocus />
+                    <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. spam complaint from Meta" autoFocus className="border-slate-200 focus-visible:ring-indigo-600" />
                   </div>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={doSuspend} disabled={submitting} className="bg-[#D4308E] text-white shadow-[0_4px_0_0_#A11A6A] hover:bg-[#C02680]">
+                    <AlertDialogAction onClick={doSuspend} disabled={submitting} className="bg-rose-600 text-white hover:bg-rose-700 active:scale-[0.98] transition">
                       {submitting ? "Suspending…" : "Suspend account"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -240,19 +241,19 @@ const AdminWorkspaceDetail = () => {
       </div>
 
       {/* Meta WhatsApp */}
-      <div className="mt-4 bg-white border-2 border-[#0E8A4B] rounded-2xl p-5 shadow-[0_4px_0_0_#0A6E3C]">
+      <div className="mt-4 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm">
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-9 h-9 rounded-xl bg-[#0E8A4B] text-white flex items-center justify-center shadow-md">
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-sm">
             <Phone className="w-4 h-4" />
           </div>
-          <h3 className="font-black tracking-tight">Meta WhatsApp Business</h3>
+          <h3 className="font-black tracking-tight text-slate-800">Meta WhatsApp Business</h3>
         </div>
         {w.meta?.enabled ? (
-          <p className="text-[13px] font-semibold">
+          <p className="text-[13px] font-semibold text-slate-700">
             ✅ Connected · <span className="font-mono">{w.meta.displayPhoneNumber}</span>
           </p>
         ) : (
-          <p className="text-[13px] font-semibold text-foreground/60">Not connected · running in dry-run mode</p>
+          <p className="text-[13px] font-semibold text-slate-400">Not connected · running in dry-run mode</p>
         )}
       </div>
 
@@ -264,8 +265,8 @@ const AdminWorkspaceDetail = () => {
         <DialogContent className="sm:max-w-[640px]">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-1">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#B8230C] to-[#7A1500] text-white flex items-center justify-center shadow-md">
-                <Zap className="w-5 h-5" strokeWidth={2.5} />
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white flex items-center justify-center shadow-sm">
+                <Zap className="w-5 h-5 text-indigo-400" strokeWidth={2.2} />
               </div>
               <div>
                 <DialogTitle>Set plan for {w.name}</DialogTitle>
@@ -279,7 +280,7 @@ const AdminWorkspaceDetail = () => {
           <div className="space-y-4 mt-2">
             {/* Plan grid */}
             <div>
-              <Label className="text-[11px] uppercase tracking-wider font-extrabold text-foreground/60">Choose plan</Label>
+              <Label className="text-[11px] uppercase tracking-wider font-bold text-slate-400">Choose plan</Label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                 {PLAN_CATALOG.map((p) => {
                   const Icon = p.icon;
@@ -290,14 +291,14 @@ const AdminWorkspaceDetail = () => {
                       key={p.key}
                       type="button"
                       onClick={() => pickPlan(p.key)}
-                      className={`relative text-left p-3 rounded-xl border-2 transition-all bg-white ${
+                      className={`relative text-left p-3 rounded-xl border transition-all bg-white ${
                         selected
-                          ? `${p.border} ring-4 ${p.ring}/20 shadow-[0_3px_0_0_currentColor] -translate-y-0.5`
-                          : "border-[#E8B968]/50 hover:border-[#E8B968] hover:-translate-y-0.5"
+                          ? `${p.border} ring-4 ${p.ring} shadow-md -translate-y-0.5`
+                          : "border-slate-200 hover:border-slate-350 hover:-translate-y-0.5"
                       }`}
                     >
                       {current && (
-                        <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968]">
+                        <span className="absolute top-1.5 right-1.5 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-650 border border-indigo-100">
                           Now
                         </span>
                       )}
@@ -305,10 +306,10 @@ const AdminWorkspaceDetail = () => {
                         <div className={`w-8 h-8 rounded-lg ${p.iconBg} text-white flex items-center justify-center shadow-sm`}>
                           <Icon className="w-3.5 h-3.5" strokeWidth={2.5} />
                         </div>
-                        <p className="text-[13px] font-black">{p.label}</p>
+                        <p className="text-[13px] font-black text-slate-805">{p.label}</p>
                       </div>
-                      <p className="text-[15px] font-black tabular-nums">{p.price}</p>
-                      <p className="text-[10px] text-foreground/60 font-medium">{p.caption}</p>
+                      <p className="text-[15px] font-black tabular-nums text-slate-900">{p.price}</p>
+                      <p className="text-[10px] text-slate-400 font-medium">{p.caption}</p>
                     </button>
                   );
                 })}
@@ -320,15 +321,15 @@ const AdminWorkspaceDetail = () => {
               <div className="space-y-1.5">
                 <Label>MRR (₹/month)</Label>
                 <div className="relative">
-                  <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/50" />
+                  <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-405" />
                   <Input
                     type="number"
                     value={mrr}
                     onChange={(e) => { setMrr(e.target.value); setMrrTouched(true); }}
-                    className="pl-9 font-mono font-bold"
+                    className="pl-9 font-mono font-bold border-slate-200 focus-visible:ring-indigo-600"
                   />
                 </div>
-                <p className="text-[10px] text-foreground/55 font-medium">
+                <p className="text-[10px] text-slate-400 font-medium">
                   {mrrTouched ? "Manual override" : `Default for ${plan}`}
                 </p>
               </div>
@@ -338,18 +339,19 @@ const AdminWorkspaceDetail = () => {
                   type="date"
                   value={trialEndsAt}
                   onChange={(e) => setTrialEndsAt(e.target.value)}
+                  className="border-slate-200 focus-visible:ring-indigo-600"
                 />
-                <div className="flex gap-1">
-                  <button type="button" onClick={() => extendTrialDays(7)} className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-1 rounded-md bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968] hover:scale-105 transition">
+                <div className="flex gap-1.5 mt-1.5">
+                  <button type="button" onClick={() => extendTrialDays(7)} className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-colors">
                     +7d
                   </button>
-                  <button type="button" onClick={() => extendTrialDays(14)} className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-1 rounded-md bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968] hover:scale-105 transition">
+                  <button type="button" onClick={() => extendTrialDays(14)} className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-colors">
                     +14d
                   </button>
-                  <button type="button" onClick={() => extendTrialDays(30)} className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-1 rounded-md bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968] hover:scale-105 transition">
+                  <button type="button" onClick={() => extendTrialDays(30)} className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-colors">
                     +30d
                   </button>
-                  <button type="button" onClick={() => setTrialEndsAt("")} className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-1 rounded-md bg-white text-foreground/60 border border-[#E8B968]/50 hover:scale-105 transition">
+                  <button type="button" onClick={() => setTrialEndsAt("")} className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-white text-slate-400 border border-slate-200 hover:bg-slate-50 transition-colors">
                     Clear
                   </button>
                 </div>
@@ -357,15 +359,15 @@ const AdminWorkspaceDetail = () => {
             </div>
 
             {/* Preview strip */}
-            <div className="rounded-xl bg-[#FFF1D6] border-2 border-[#E8B968] p-3 flex items-center gap-3">
-              <CheckCircle2 className="w-4 h-4 text-[#0E8A4B] flex-shrink-0" />
-              <div className="text-[12px] font-semibold flex-1">
+            <div className="rounded-xl bg-slate-55 border border-slate-200 p-3 flex items-center gap-3">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <div className="text-[12px] font-semibold text-slate-700 flex-1">
                 {plan === w.plan && Number(mrr || 0) === Number(w.mrrInr ?? 0) ? (
-                  <span className="text-foreground/70">No changes — adjust plan or MRR to activate.</span>
+                  <span className="text-slate-400">No changes — adjust plan or MRR to activate.</span>
                 ) : (
                   <>
-                    Will set <span className="font-black uppercase">{plan}</span> at <span className="font-black tabular-nums">{fmtINR(Number(mrr || 0))}</span>/mo
-                    {trialEndsAt ? <> · trial ends <span className="font-black">{new Date(trialEndsAt).toLocaleDateString("en-IN")}</span></> : null}
+                    Will set <span className="font-black uppercase text-indigo-600">{plan}</span> at <span className="font-black tabular-nums">{fmtINR(Number(mrr || 0))}</span>/mo
+                    {trialEndsAt ? <> · trial ends <span className="font-black text-indigo-650">{new Date(trialEndsAt).toLocaleDateString("en-IN")}</span></> : null}
                   </>
                 )}
               </div>
@@ -373,11 +375,11 @@ const AdminWorkspaceDetail = () => {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)} className="border-slate-250">Cancel</Button>
             <Button
               onClick={saveEdit}
               disabled={submitting || !plan}
-              className="bg-[#0E8A4B] text-white shadow-[0_4px_0_0_#0A6E3C] hover:bg-[#0A6E3C]"
+              className="bg-emerald-600 text-white hover:bg-emerald-700 transition active:scale-[0.98]"
             >
               {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Activating…</> : <><Zap className="w-3.5 h-3.5" /> Activate plan</>}
             </Button>
@@ -390,8 +392,8 @@ const AdminWorkspaceDetail = () => {
         <DialogContent>
           <DialogHeader>
             <div className="flex items-center gap-3 mb-1">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#B8230C] to-[#7A1500] text-white flex items-center justify-center shadow-md">
-                <Eye className="w-5 h-5" strokeWidth={2.5} />
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white flex items-center justify-center shadow-sm">
+                <Eye className="w-5 h-5 text-indigo-400" strokeWidth={2.2} />
               </div>
               <div>
                 <DialogTitle>Impersonate {w.name}?</DialogTitle>
@@ -408,11 +410,12 @@ const AdminWorkspaceDetail = () => {
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g. Customer reported broadcast not sending"
               autoFocus
+              className="border-slate-200 focus-visible:ring-indigo-600"
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setImpersOpen(false)}>Cancel</Button>
-            <Button onClick={doImpersonate} disabled={submitting || reason.length < 10}>
+            <Button variant="outline" onClick={() => setImpersOpen(false)} className="border-slate-250">Cancel</Button>
+            <Button onClick={doImpersonate} disabled={submitting || reason.length < 10} className="bg-slate-900 text-white hover:bg-slate-800 transition active:scale-[0.98]">
               <Eye className="w-3.5 h-3.5" /> Start impersonation
             </Button>
           </DialogFooter>
@@ -423,22 +426,22 @@ const AdminWorkspaceDetail = () => {
 };
 
 const StatCard = ({ label, value, icon: Icon, color }: { label: string; value: string | number; icon: typeof Building2; color: string }) => {
-  const styles: Record<string, { border: string; shadow: string; iconBg: string }> = {
-    indigo:  { border: "border-[#3C50E0]", shadow: "shadow-[0_3px_0_0_#2533A8]", iconBg: "bg-[#3C50E0]" },
-    emerald: { border: "border-[#0E8A4B]", shadow: "shadow-[0_3px_0_0_#0A6E3C]", iconBg: "bg-[#0E8A4B]" },
-    magenta: { border: "border-[#D4308E]", shadow: "shadow-[0_3px_0_0_#A11A6A]", iconBg: "bg-[#D4308E]" },
-    orange:  { border: "border-[#FF6A1F]", shadow: "shadow-[0_3px_0_0_#B8420A]", iconBg: "bg-[#FF6A1F]" },
-    yellow:  { border: "border-[#FFD23F]", shadow: "shadow-[0_3px_0_0_#B8860B]", iconBg: "bg-[#FFD23F] text-[#3D1A00]" },
+  const styles: Record<string, { iconClass: string }> = {
+    indigo:  { iconClass: "bg-indigo-55 border-indigo-100 text-indigo-600" },
+    emerald: { iconClass: "bg-emerald-55 border-emerald-100 text-emerald-600" },
+    magenta: { iconClass: "bg-pink-55 border-pink-100 text-pink-605" },
+    orange:  { iconClass: "bg-orange-55 border-orange-100 text-orange-600" },
+    yellow:  { iconClass: "bg-amber-55 border-amber-100 text-amber-705" },
   };
   const s = styles[color] || styles.indigo;
   return (
-    <div className={`bg-white border-2 ${s.border} ${s.shadow} rounded-2xl p-4 flex items-center gap-3`}>
-      <div className={`w-10 h-10 rounded-xl ${s.iconBg} text-white flex items-center justify-center shadow-md flex-shrink-0`}>
-        <Icon className="w-4 h-4" strokeWidth={2.5} />
+    <div className="bg-white border border-slate-200/80 rounded-2xl p-4 flex items-center gap-3 shadow-sm hover:border-slate-300 hover:shadow-md transition-all duration-200">
+      <div className={cn("w-10 h-10 rounded-xl border flex items-center justify-center shadow-sm flex-shrink-0", s.iconClass)}>
+        <Icon className="w-4.5 h-4.5" strokeWidth={2.2} />
       </div>
       <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-wider text-foreground/60 font-extrabold truncate">{label}</p>
-        <p className="text-xl font-black tabular-nums leading-tight">{value}</p>
+        <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold truncate">{label}</p>
+        <p className="text-xl font-black text-slate-850 tabular-nums leading-tight">{value}</p>
       </div>
     </div>
   );
@@ -447,25 +450,25 @@ const StatCard = ({ label, value, icon: Icon, color }: { label: string; value: s
 /* ─────────── Workspace preview cards ─────────── */
 
 const TAG_PILL: Record<string, string> = {
-  hot: "bg-[#FCE5F0] text-[#D4308E] border-[#D4308E]/30",
-  warm: "bg-[#FFEFE0] text-[#FF6A1F] border-[#FF6A1F]/30",
-  cold: "bg-[#E4E8FF] text-[#3C50E0] border-[#3C50E0]/30",
+  hot: "bg-rose-50 text-rose-700 border-rose-200",
+  warm: "bg-amber-50 text-amber-705 border-amber-200",
+  cold: "bg-indigo-50 text-indigo-700 border-indigo-200",
 };
 
 const STAGE_PILL: Record<string, string> = {
-  new: "bg-[#E4E8FF] text-[#3C50E0]",
-  qualification: "bg-[#FFF1D6] text-[#B8651A]",
-  proposal: "bg-[#FFEFE0] text-[#FF6A1F]",
-  closing: "bg-[#FFD23F]/30 text-[#7A4A00]",
-  won: "bg-[#E6F7EE] text-[#0E8A4B]",
-  lost: "bg-[#FCE5F0] text-[#D4308E]",
+  new: "bg-indigo-55 text-indigo-700 border border-indigo-150",
+  qualification: "bg-amber-55 text-amber-700 border border-amber-150",
+  proposal: "bg-orange-55 text-orange-700 border border-orange-150",
+  closing: "bg-purple-55 text-purple-700 border border-purple-150",
+  won: "bg-emerald-55 text-emerald-705 border border-emerald-150",
+  lost: "bg-rose-55 text-rose-705 border border-rose-150",
 };
 
 const PRIORITY_DOT: Record<string, string> = {
-  low: "bg-foreground/40",
-  medium: "bg-[#FFD23F]",
-  high: "bg-[#FF6A1F]",
-  urgent: "bg-[#D4308E] animate-pulse",
+  low: "bg-slate-300",
+  medium: "bg-amber-400",
+  high: "bg-orange-500",
+  urgent: "bg-rose-600 animate-pulse",
 };
 
 const fmtRelative = (s: string) => {
@@ -485,10 +488,10 @@ const WorkspacePreview = ({ userId }: { userId: string }) => {
 
   if (isLoading || !p) {
     return (
-      <div className="mt-4 grid lg:grid-cols-2 gap-3">
+      <div className="mt-4 grid lg:grid-cols-2 gap-4">
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="bg-white border-2 border-[#E8B968] rounded-2xl p-5 shadow-[0_3px_0_0_#E8B968] min-h-[200px] flex items-center justify-center">
-            <Loader2 className="w-4 h-4 animate-spin text-[#FF6A1F]" />
+          <div key={i} className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm min-h-[200px] flex items-center justify-center">
+            <Loader2 className="w-4 h-4 animate-spin text-indigo-650" />
           </div>
         ))}
       </div>
@@ -496,25 +499,25 @@ const WorkspacePreview = ({ userId }: { userId: string }) => {
   }
 
   return (
-    <div className="mt-4 grid lg:grid-cols-2 gap-3">
+    <div className="mt-4 grid lg:grid-cols-2 gap-4">
       {/* Recent contacts */}
       <PreviewCard title="Recent contacts" icon={UsersIcon} color="indigo" count={p.recentContacts.length}>
         {p.recentContacts.length === 0 ? (
           <Empty label="No contacts yet" />
         ) : (
           p.recentContacts.map((c) => (
-            <div key={c.id} className="flex items-center gap-3 py-2 border-b border-[#E8B968]/30 last:border-b-0">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#3C50E0] to-[#1E40AF] text-white flex items-center justify-center text-[11px] font-extrabold flex-shrink-0">
+            <div key={c.id} className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-b-0">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-[11px] font-bold flex-shrink-0">
                 {c.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-extrabold truncate flex items-center gap-1.5">
+                <p className="text-[13px] font-bold text-slate-805 truncate flex items-center gap-1.5">
                   {c.name}
-                  {c.tag === "hot" && <Flame className="w-3 h-3 text-[#D4308E]" />}
+                  {c.tag === "hot" && <Flame className="w-3.5 h-3.5 text-rose-500 animate-pulse" />}
                 </p>
-                <p className="text-[10px] text-foreground/60 font-mono truncate">{c.phone}</p>
+                <p className="text-[10px] text-slate-400 font-mono truncate">{c.phone}</p>
               </div>
-              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase border ${TAG_PILL[c.tag] ?? TAG_PILL.cold}`}>
+              <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase border", TAG_PILL[c.tag] ?? TAG_PILL.cold)}>
                 {c.tag}
               </span>
             </div>
@@ -528,18 +531,18 @@ const WorkspacePreview = ({ userId }: { userId: string }) => {
           <Empty label="No messages yet" />
         ) : (
           p.recentMessages.map((m) => (
-            <div key={m.id} className="flex items-start gap-2 py-2 border-b border-[#E8B968]/30 last:border-b-0">
+            <div key={m.id} className="flex items-start gap-2 py-2 border-b border-slate-105 last:border-b-0">
               <span
                 className={`flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center mt-0.5 ${
-                  m.direction === "outbound" ? "bg-[#E6F7EE] text-[#0E8A4B]" : "bg-[#FFF1D6] text-[#B8651A]"
+                  m.direction === "outbound" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
                 }`}
               >
                 {m.direction === "outbound" ? <Send className="w-3 h-3" /> : <Inbox className="w-3 h-3" />}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-semibold truncate" title={m.body}>{m.body}</p>
-                <p className="text-[10px] text-foreground/60 font-medium flex items-center gap-1.5">
-                  <span>{m.direction}</span>
+                <p className="text-[12px] font-semibold text-slate-700 truncate" title={m.body}>{m.body}</p>
+                <p className="text-[10px] text-slate-400 font-medium flex items-center gap-1.5">
+                  <span className="uppercase text-[9px] tracking-wide font-bold">{m.direction}</span>
                   <span>·</span>
                   <span className="capitalize">{m.status}</span>
                   <span>·</span>
@@ -557,16 +560,16 @@ const WorkspacePreview = ({ userId }: { userId: string }) => {
           <Empty label="No deals yet" />
         ) : (
           p.recentDeals.map((d) => (
-            <div key={d.id} className="flex items-center gap-3 py-2 border-b border-[#E8B968]/30 last:border-b-0">
-              <Trophy className="w-3.5 h-3.5 text-[#FF6A1F] flex-shrink-0" />
+            <div key={d.id} className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-b-0">
+              <Trophy className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-extrabold truncate">{d.title}</p>
-                <p className="text-[10px] text-foreground/60 font-medium">
-                  <IndianRupee className="w-2.5 h-2.5 inline" />
+                <p className="text-[12px] font-bold text-slate-800 truncate">{d.title}</p>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  <IndianRupee className="w-2.5 h-2.5 inline text-slate-405" />
                   {Number(d.value).toLocaleString("en-IN")} · {d.probability}% prob
                 </p>
               </div>
-              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase ${STAGE_PILL[d.stage] ?? STAGE_PILL.new}`}>
+              <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase border", STAGE_PILL[d.stage] ?? STAGE_PILL.new)}>
                 {d.stage}
               </span>
             </div>
@@ -582,14 +585,14 @@ const WorkspacePreview = ({ userId }: { userId: string }) => {
           p.recentTasks.map((t) => {
             const overdue = t.dueAt && new Date(t.dueAt).getTime() < Date.now() && t.status !== "completed";
             return (
-              <div key={t.id} className="flex items-center gap-3 py-2 border-b border-[#E8B968]/30 last:border-b-0">
+              <div key={t.id} className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-b-0">
                 <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${PRIORITY_DOT[t.priority] ?? PRIORITY_DOT.medium}`} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[12px] font-extrabold truncate flex items-center gap-1.5">
+                  <p className="text-[12px] font-bold text-slate-800 truncate flex items-center gap-1.5">
                     {t.title}
-                    {t.status === "completed" && <CheckCheck className="w-3 h-3 text-[#0E8A4B]" />}
+                    {t.status === "completed" && <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />}
                   </p>
-                  <p className={`text-[10px] font-medium ${overdue ? "text-[#D4308E]" : "text-foreground/60"}`}>
+                  <p className={`text-[10px] font-medium ${overdue ? "text-rose-600" : "text-slate-400"}`}>
                     {overdue ? "Overdue · " : ""}
                     {t.dueAt ? new Date(t.dueAt).toLocaleDateString("en-IN") : "no due date"}
                   </p>
@@ -612,31 +615,31 @@ const PreviewCard = ({
   count: number;
   children: React.ReactNode;
 }) => {
-  const styles: Record<string, { border: string; shadow: string; iconBg: string }> = {
-    indigo:  { border: "border-[#3C50E0]", shadow: "shadow-[0_3px_0_0_#2533A8]", iconBg: "bg-[#3C50E0]" },
-    magenta: { border: "border-[#D4308E]", shadow: "shadow-[0_3px_0_0_#A11A6A]", iconBg: "bg-[#D4308E]" },
-    orange:  { border: "border-[#FF6A1F]", shadow: "shadow-[0_3px_0_0_#B8420A]", iconBg: "bg-[#FF6A1F]" },
-    yellow:  { border: "border-[#FFD23F]", shadow: "shadow-[0_3px_0_0_#E8B400]", iconBg: "bg-[#FFD23F] text-[#3D1A00]" },
+  const styles: Record<string, { iconClass: string }> = {
+    indigo:  { iconClass: "bg-indigo-50 border-indigo-100 text-indigo-600" },
+    magenta: { iconClass: "bg-pink-50 border-pink-100 text-pink-600" },
+    orange:  { iconClass: "bg-orange-50 border-orange-100 text-orange-600" },
+    yellow:  { iconClass: "bg-amber-50 border-amber-100 text-amber-700" },
   };
   const s = styles[color] ?? styles.indigo;
   return (
-    <div className={`bg-white border-2 ${s.border} ${s.shadow} rounded-2xl p-4`}>
-      <div className="flex items-center gap-2.5 mb-3">
-        <div className={`w-9 h-9 rounded-xl ${s.iconBg} text-white flex items-center justify-center shadow-md`}>
-          <Icon className="w-4 h-4" strokeWidth={2.5} />
+    <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm hover:border-slate-350 hover:shadow-md transition-all duration-200">
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className={cn("w-9 h-9 rounded-xl border flex items-center justify-center shadow-sm", s.iconClass)}>
+          <Icon className="w-4.5 h-4.5" strokeWidth={2.2} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-black truncate">{title}</p>
-          <p className="text-[10px] uppercase tracking-wider text-foreground/60 font-extrabold">{count} shown</p>
+          <p className="text-[14px] font-black text-slate-800 truncate">{title}</p>
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">{count} shown</p>
         </div>
       </div>
-      <div>{children}</div>
+      <div className="space-y-1">{children}</div>
     </div>
   );
 };
 
 const Empty = ({ label }: { label: string }) => (
-  <p className="text-[11px] text-foreground/50 italic font-medium py-6 text-center">{label}</p>
+  <p className="text-[11px] text-slate-400 italic font-medium py-6 text-center">{label}</p>
 );
 
 export default AdminWorkspaceDetail;

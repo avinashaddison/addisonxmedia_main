@@ -128,35 +128,35 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
+    <div className="flex h-screen w-full overflow-hidden text-slate-800 bg-slate-50">
       <aside
         className={cn(
-          "bg-[#FFF6E8] border-r-2 border-[#E8B968] flex flex-col flex-shrink-0 transition-all duration-200",
-          collapsed ? "w-[72px]" : "w-[244px]"
+          "bg-slate-900 border-r border-slate-800 flex flex-col flex-shrink-0 transition-all duration-200 text-slate-300",
+          collapsed ? "w-[72px]" : "w-[250px]"
         )}
       >
         {/* Logo header */}
-        <div className="relative h-[72px] px-3 border-b-2 border-[#E8B968] bg-white flex items-center gap-2 flex-shrink-0 overflow-hidden">
+        <div className="relative h-[72px] px-4 border-b border-slate-800 bg-slate-950 flex items-center gap-2 flex-shrink-0 overflow-hidden">
           {/* Subtle accent glows */}
-          <div className="absolute -top-8 -left-8 w-32 h-32 bg-[#FFD23F]/20 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-[#FF6A1F]/15 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -top-8 -left-8 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -bottom-8 -right-8 w-24 h-24 bg-violet-500/10 rounded-full blur-2xl pointer-events-none" />
 
           {collapsed ? (
             <Link to="/admin/dashboard" className="mx-auto hover:scale-105 transition-transform" aria-label="Admin home">
-              <AddisonMark size={42} />
+              <AddisonMark size={36} />
             </Link>
           ) : (
             <>
               <Link to="/admin/dashboard" className="flex-1 min-w-0 hover:opacity-90 transition relative" aria-label="Admin home">
-                <AddisonLogo size={28} />
+                <AddisonLogo size={24} />
               </Link>
               <button
                 onClick={() => setCollapsed(true)}
-                className="relative ml-1 w-8 h-8 rounded-lg bg-[#FFF1D6] hover:bg-[#FFE8C7] border border-[#E8B968] text-foreground/70 hover:text-foreground flex items-center justify-center transition flex-shrink-0"
+                className="relative ml-auto w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition flex-shrink-0"
                 aria-label="Collapse sidebar"
                 title="Collapse sidebar"
               >
-                <ChevronsLeft className="w-4 h-4" strokeWidth={2.5} />
+                <ChevronsLeft className="w-4 h-4" strokeWidth={2} />
               </button>
             </>
           )}
@@ -165,36 +165,36 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
         {collapsed && (
           <button
             onClick={() => setCollapsed(false)}
-            className="mt-2 mx-auto w-8 h-8 rounded-lg bg-[#FFF1D6] hover:bg-[#FFE8C7] border border-[#E8B968] text-foreground/70 hover:text-foreground flex items-center justify-center transition flex-shrink-0"
+            className="mt-3 mx-auto w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition flex-shrink-0"
             aria-label="Expand sidebar"
             title="Expand sidebar"
           >
-            <ChevronsRight className="w-4 h-4" strokeWidth={2.5} />
+            <ChevronsRight className="w-4 h-4" strokeWidth={2} />
           </button>
         )}
 
-        {/* Admin role badge — saffron sticker so admin mode is unmistakable */}
+        {/* Admin role badge */}
         {!collapsed && (
-          <div className="mx-2.5 mt-3 mb-1 p-2.5 rounded-xl bg-gradient-to-br from-[#FF6A1F] to-[#E85C12] shadow-[0_3px_0_0_#B8420A] relative overflow-hidden">
-            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "10px 10px" }} />
-            <div className="relative flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
+          <div className="mx-3 mt-4 mb-2 p-3 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 shadow-md shadow-indigo-500/10 relative overflow-hidden">
+            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "8px 8px" }} />
+            <div className="relative flex items-center gap-2.5">
+              <div className="w-7.5 h-7.5 rounded-lg bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
                 <Crown className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
               </div>
               <div className="flex flex-col leading-none min-w-0 flex-1">
-                <span className="text-[9px] uppercase tracking-[0.16em] font-extrabold text-white/85">Admin panel</span>
+                <span className="text-[9px] uppercase tracking-[0.16em] font-extrabold text-indigo-100">Admin Panel</span>
                 <span className="text-[11px] font-black uppercase tracking-[0.1em] text-white mt-0.5 truncate">{formatRole(role)}</span>
               </div>
             </div>
           </div>
         )}
 
-        {/* Nav — grouped, color-coded labels, emerald-fill active state, yellow diamond, 3D shadow */}
-        <nav className="relative flex-1 overflow-y-auto py-3 px-2.5 space-y-5">
+        {/* Nav */}
+        <nav className="relative flex-1 overflow-y-auto py-4 px-3 space-y-6">
           {GROUPS.map((group) => (
-            <div key={group.label} className="space-y-1">
+            <div key={group.label} className="space-y-1.5">
               {!collapsed && (
-                <p className={cn("text-[10px] font-extrabold uppercase tracking-[0.2em] px-2.5 mb-2", group.color)}>
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em] px-3 mb-2 text-slate-500">
                   {group.label}
                 </p>
               )}
@@ -207,23 +207,20 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
                     to={item.path}
                     title={collapsed ? item.label : undefined}
                     className={cn(
-                      "relative w-full h-11 rounded-xl flex items-center gap-3 px-2.5 transition-all group overflow-hidden",
+                      "relative w-full h-10 rounded-xl flex items-center gap-3 px-3 transition-all group overflow-hidden",
                       isActive
-                        ? "bg-[#0E8A4B] text-white font-extrabold shadow-[0_3px_0_0_#073D22]"
-                        : "text-foreground/70 hover:bg-[#FFE8C7] hover:text-foreground font-semibold",
+                        ? "bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-500/10"
+                        : "text-slate-400 hover:bg-slate-800 hover:text-white font-medium",
                       collapsed && "justify-center px-0"
                     )}
                   >
-                    {isActive && (
-                      <span className="absolute -right-1 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rotate-45 bg-[#FFD23F] shadow" />
-                    )}
                     <item.icon
-                      className={cn("flex-shrink-0 transition-transform group-hover:scale-110", collapsed ? "w-[19px] h-[19px]" : "w-[18px] h-[18px]")}
-                      strokeWidth={isActive ? 2.5 : 2.2}
+                      className={cn("flex-shrink-0 transition-transform group-hover:scale-105", collapsed ? "w-[19px] h-[19px]" : "w-[18px] h-[18px]")}
+                      strokeWidth={isActive ? 2.5 : 2}
                     />
                     {!collapsed && <span className="flex-1 text-left text-[13px] truncate">{item.label}</span>}
                     {collapsed && (
-                      <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
+                      <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-slate-950 text-white text-[11px] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
                         {item.label}
                       </span>
                     )}
@@ -234,82 +231,81 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
           ))}
         </nav>
 
-        {/* Open-customer-app card (mirrors Addison-AI card in customer sidebar) */}
+        {/* Open-customer-app card */}
         {!collapsed ? (
-          <div className="mx-2.5 mb-2">
+          <div className="mx-3 mb-3">
             <Link
               to="/app/dashboard"
-              className="block p-3 rounded-xl bg-gradient-to-br from-[#0A3D24] to-[#0D4E2E] border-2 border-[#FFD23F] shadow-[0_3px_0_0_#072917] relative overflow-hidden hover:shadow-[0_1px_0_0_#072917] hover:translate-y-[2px] transition-all"
+              className="block p-3 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-all group"
             >
-              <div className="absolute -top-4 -right-4 w-12 h-12 bg-[#FFD23F]/20 rounded-full blur-xl" />
-              <div className="relative flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-[#FFD23F] flex items-center justify-center text-[#7A4A00] shadow-md flex-shrink-0">
-                  <LayoutDashboard className="w-4 h-4" strokeWidth={2.5} />
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center shadow-sm flex-shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition">
+                  <LayoutDashboard className="w-4 h-4" strokeWidth={2} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-extrabold leading-tight text-white">Customer app</p>
-                  <p className="text-[9px] text-[#FFD23F]/90 font-extrabold uppercase tracking-wider mt-0.5">Switch over →</p>
+                  <p className="text-[11px] font-semibold leading-tight text-slate-200">Customer app</p>
+                  <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-wider mt-0.5">Switch over →</p>
                 </div>
               </div>
             </Link>
           </div>
         ) : (
-          <div className="mb-2 mx-auto">
+          <div className="mb-3 mx-auto">
             <Link
               to="/app/dashboard"
-              className="block w-9 h-9 rounded-xl bg-[#0A3D24] border-2 border-[#FFD23F] flex items-center justify-center shadow-md hover:scale-105 transition"
+              className="block w-9 h-9 rounded-xl bg-slate-800 border border-slate-800 flex items-center justify-center shadow-md hover:bg-slate-700 transition"
               title="Open customer app"
             >
-              <LayoutDashboard className="w-4 h-4 text-[#FFD23F]" />
+              <LayoutDashboard className="w-4 h-4 text-indigo-400" />
             </Link>
           </div>
         )}
 
         {/* User menu */}
-        <div className="p-2.5 border-t-2 border-[#E8B968] bg-white">
+        <div className="p-3 border-t border-slate-850 bg-slate-950">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 className={cn(
-                  "w-full rounded-xl hover:bg-[#FFE8C7] transition-all flex items-center gap-2.5 p-1.5",
+                  "w-full rounded-xl hover:bg-slate-850 transition-all flex items-center gap-2.5 p-1.5",
                   collapsed && "justify-center"
                 )}
               >
                 <div className="relative flex-shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FF6A1F] to-[#D4308E] text-white text-[12px] font-extrabold flex items-center justify-center shadow-md">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-[11px] font-bold flex items-center justify-center shadow-md">
                     {initials}
                   </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#16C172] rounded-full border-2 border-white" />
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-950" />
                 </div>
                 {!collapsed && (
                   <div className="flex-1 min-w-0 text-left">
-                    <p className="text-[12px] font-extrabold truncate leading-tight">{displayName}</p>
-                    <p className="text-[10px] text-[#B8651A] truncate font-extrabold uppercase tracking-wider mt-0.5">{formatRole(role)}</p>
+                    <p className="text-[12px] font-bold truncate text-slate-200 leading-tight">{displayName}</p>
+                    <p className="text-[9px] text-slate-400 truncate font-semibold uppercase tracking-wider mt-0.5">{formatRole(role)}</p>
                   </div>
                 )}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="end" className="w-60">
-              <DropdownMenuLabel>
+            <DropdownMenuContent side="right" align="end" className="w-60 bg-slate-900 border-slate-800 text-slate-200">
+              <DropdownMenuLabel className="text-slate-300">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FF6A1F] to-[#D4308E] text-white text-[12px] font-extrabold flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-[11px] font-bold flex items-center justify-center">
                     {initials}
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="text-[13px] font-semibold truncate">{displayName}</span>
-                    <span className="text-[11px] text-muted-foreground truncate font-normal">{user?.email}</span>
+                    <span className="text-[11px] text-slate-400 truncate font-normal">{user?.email}</span>
                   </div>
                 </div>
               </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
+              <DropdownMenuSeparator className="bg-slate-800" />
+              <DropdownMenuItem asChild className="hover:bg-slate-805 focus:bg-slate-805 focus:text-white">
                 <Link to="/app/dashboard">
                   <LayoutDashboard className="w-4 h-4 mr-2" />
                   Open customer app
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+              <DropdownMenuSeparator className="bg-slate-800" />
+              <DropdownMenuItem onClick={handleSignOut} className="text-rose-400 focus:text-rose-400 hover:bg-slate-805 focus:bg-slate-850">
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign out
               </DropdownMenuItem>
@@ -320,22 +316,22 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* 2FA warning banner — only shown to staff without 2FA enabled */}
+        {/* 2FA warning banner */}
         {me.twoFactorEnabled === false && location.pathname !== "/admin/security" && (
-          <div className="bg-[#FFD23F] border-b-2 border-[#E8B400] px-4 py-2.5 flex items-center justify-center gap-3 flex-wrap">
-            <span className="inline-flex items-center gap-2 text-[12px] font-extrabold text-[#3D1A00]">
+          <div className="bg-amber-400 border-b border-amber-500 px-4 py-2.5 flex items-center justify-center gap-3 flex-wrap shadow-sm">
+            <span className="inline-flex items-center gap-2 text-[12px] font-extrabold text-amber-950">
               <Lock className="w-3.5 h-3.5" strokeWidth={3} />
               Two-factor authentication is required for staff. Please enable it.
             </span>
             <Link
               to="/admin/security"
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#3D1A00] text-[#FFD23F] text-[11px] font-extrabold uppercase tracking-wider hover:bg-[#7A4A00] transition"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-950 text-amber-400 text-[11px] font-extrabold uppercase tracking-wider hover:bg-amber-900 transition"
             >
               Enable now →
             </Link>
           </div>
         )}
-        <main className="flex-1 overflow-y-auto bg-[#FFF6E8]">
+        <main className="flex-1 overflow-y-auto bg-slate-50">
           {children ?? <Outlet />}
         </main>
       </div>

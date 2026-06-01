@@ -426,12 +426,14 @@ export async function getHumanizedSuggestions(
       id: `agent-prod-${idx}`,
       name: p.name,
       price: Number(p.price) || 0,
-      photo_url: null,
+      photo_url: p.imageUrl || p.image_url || null,
     }));
     const productLines = productsList.map((p: any) => {
       let line = `- ${p.name}: ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`;
-      if (p.activationMail) line += `, Activation: ${p.activationMail}`;
-      if (p.activationTime) line += `, Setup time: ${p.activationTime}`;
+      const actMail = p.activationMail || p.activation_mail;
+      const actTime = p.activationTime || p.activation_time;
+      if (actMail) line += `, Activation: ${actMail}`;
+      if (actTime) line += `, Setup time: ${actTime}`;
       return line;
     }).join("\n");
     productContext = `Available Products:\n${productLines}`;
@@ -609,8 +611,10 @@ export async function getHumanizedAutoReply(
   if (productsList.length > 0) {
     const productLines = productsList.map((p: any) => {
       let line = `- ${p.name}: ₹${Number(p.price).toLocaleString("en-IN")} (${p.validity})`;
-      if (p.activationMail) line += `, Activation: ${p.activationMail}`;
-      if (p.activationTime) line += `, Setup time: ${p.activationTime}`;
+      const actMail = p.activationMail || p.activation_mail;
+      const actTime = p.activationTime || p.activation_time;
+      if (actMail) line += `, Activation: ${actMail}`;
+      if (actTime) line += `, Setup time: ${actTime}`;
       return line;
     }).join("\n");
     productContext = `Available Products:\n${productLines}`;

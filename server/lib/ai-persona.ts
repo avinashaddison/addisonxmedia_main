@@ -27,7 +27,12 @@ export type Persona = {
     price: number;
     validity: string;
     activationMail?: string;
+    activation_mail?: string;
     activationTime?: string;
+    activation_time?: string;
+    description?: string;
+    imageUrl?: string;
+    image_url?: string;
   }>;
   knowledge_base?: string;
   system_prompt?: string;

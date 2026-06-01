@@ -11,16 +11,16 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-const ACTION_META: Record<string, { icon: typeof ScrollText; color: string; label: string }> = {
-  impersonate:       { icon: Eye,         color: "#B8230C", label: "Impersonate" },
-  impersonate_end:   { icon: Eye,         color: "#7A1500", label: "Impersonate ended" },
-  suspend:           { icon: ShieldOff,   color: "#D4308E", label: "Suspend" },
-  unsuspend:         { icon: ShieldCheck, color: "#0E8A4B", label: "Unsuspend" },
-  change_plan:       { icon: Edit3,       color: "#FF6A1F", label: "Plan change" },
-  refund:            { icon: CreditCard,  color: "#3C50E0", label: "Refund" },
-  change_staff_role: { icon: Shield,      color: "#FFD23F", label: "Staff role change" },
-  remove_staff:      { icon: UserMinus,   color: "#D4308E", label: "Staff removed" },
-  invite_staff:     { icon: UserPlus,    color: "#0E8A4B", label: "Staff invited" },
+const ACTION_META: Record<string, { icon: typeof ScrollText; color: string; bg: string; label: string }> = {
+  impersonate:       { icon: Eye,         color: "text-rose-600", bg: "bg-rose-50 border-rose-100", label: "Impersonate" },
+  impersonate_end:   { icon: Eye,         color: "text-rose-700", bg: "bg-rose-100/50 border-rose-200/50", label: "Impersonate ended" },
+  suspend:           { icon: ShieldOff,   color: "text-pink-600", bg: "bg-pink-50 border-pink-100", label: "Suspend" },
+  unsuspend:         { icon: ShieldCheck, color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-100", label: "Unsuspend" },
+  change_plan:       { icon: Edit3,       color: "text-amber-600", bg: "bg-amber-50 border-amber-100", label: "Plan change" },
+  refund:            { icon: CreditCard,  color: "text-indigo-600", bg: "bg-indigo-50 border-indigo-100", label: "Refund" },
+  change_staff_role: { icon: Shield,      color: "text-violet-600", bg: "bg-violet-50 border-violet-100", label: "Staff role change" },
+  remove_staff:      { icon: UserMinus,   color: "text-rose-600", bg: "bg-rose-50 border-rose-100", label: "Staff removed" },
+  invite_staff:      { icon: UserPlus,    color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-100", label: "Staff invited" },
 };
 
 const prettyJson = (s: string | null) => {
@@ -54,15 +54,15 @@ const AdminAudit = () => {
   const clearFilters = () => { setAction(""); setSince(""); setUntil(""); };
 
   return (
-    <div className="px-6 lg:px-10 py-6">
-      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+    <div className="max-w-7xl mx-auto px-6 lg:px-10 py-6 space-y-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#3C50E0] to-[#2533A8] text-white flex items-center justify-center shadow-md">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 text-white flex items-center justify-center shadow-md">
             <ScrollText className="w-6 h-6" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-[26px] font-black tracking-tight">Audit log</h1>
-            <p className="text-[12px] text-foreground/70 font-medium">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Audit log</h1>
+            <p className="text-xs text-slate-500 font-medium">
               {rows.length} entries · sorted newest first {isFetching && <Loader2 className="w-3 h-3 inline animate-spin ml-1" />}
             </p>
           </div>
@@ -71,24 +71,30 @@ const AdminAudit = () => {
           <Button
             variant={showFilters ? "default" : "outline"}
             onClick={() => setShowFilters((v) => !v)}
+            className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
           >
-            <Filter className="w-3.5 h-3.5" /> Filters
+            <Filter className="w-3.5 h-3.5 mr-2" /> Filters
           </Button>
-          <Button variant="outline" onClick={handleDownload} disabled={rows.length === 0}>
-            <Download className="w-3.5 h-3.5" /> Export CSV
+          <Button 
+            variant="outline" 
+            onClick={handleDownload} 
+            disabled={rows.length === 0}
+            className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
+          >
+            <Download className="w-3.5 h-3.5 mr-2" /> Export CSV
           </Button>
         </div>
       </div>
 
       {showFilters && (
-        <div className="bg-white border-2 border-[#E8B968] rounded-2xl p-4 mb-3 shadow-[0_3px_0_0_#E8B968] grid sm:grid-cols-4 gap-3 items-end">
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm grid sm:grid-cols-4 gap-4 items-end animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="space-y-1.5">
-            <Label htmlFor="filter-action">Action</Label>
+            <Label htmlFor="filter-action" className="text-xs font-semibold text-slate-600">Action</Label>
             <select
               id="filter-action"
               value={action}
               onChange={(e) => setAction(e.target.value)}
-              className="h-10 px-3 rounded-xl border-2 border-[#E8B968] bg-white text-sm font-semibold w-full"
+              className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm font-medium w-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800"
             >
               <option value="">All actions</option>
               {Object.entries(ACTION_META).map(([k, m]) => (
@@ -97,21 +103,37 @@ const AdminAudit = () => {
             </select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="filter-since">From</Label>
-            <Input id="filter-since" type="date" value={since} onChange={(e) => setSince(e.target.value)} />
+            <Label htmlFor="filter-since" className="text-xs font-semibold text-slate-600">From</Label>
+            <Input 
+              id="filter-since" 
+              type="date" 
+              value={since} 
+              onChange={(e) => setSince(e.target.value)}
+              className="rounded-xl border-slate-200 focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" 
+            />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="filter-until">Until</Label>
-            <Input id="filter-until" type="date" value={until} onChange={(e) => setUntil(e.target.value)} />
+            <Label htmlFor="filter-until" className="text-xs font-semibold text-slate-600">Until</Label>
+            <Input 
+              id="filter-until" 
+              type="date" 
+              value={until} 
+              onChange={(e) => setUntil(e.target.value)}
+              className="rounded-xl border-slate-200 focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" 
+            />
           </div>
-          <Button variant="outline" onClick={clearFilters}>
-            <X className="w-3.5 h-3.5" /> Clear
+          <Button 
+            variant="ghost" 
+            onClick={clearFilters}
+            className="rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+          >
+            <X className="w-3.5 h-3.5 mr-2" /> Clear Filters
           </Button>
         </div>
       )}
 
-      <div className="bg-white border-2 border-[#E8B968] rounded-2xl overflow-hidden shadow-[0_4px_0_0_#E8B968]">
-        <div className="grid grid-cols-[180px_1fr_1fr_1fr_120px_60px] gap-3 px-4 py-3 border-b-2 border-[#E8B968] bg-[#FFF1D6] text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">
+      <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+        <div className="grid grid-cols-[180px_1fr_1fr_1fr_120px_60px] gap-3 px-6 py-3 border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
           <div>Action</div>
           <div>Actor</div>
           <div>Target user</div>
@@ -121,39 +143,42 @@ const AdminAudit = () => {
         </div>
 
         {isLoading && (
-          <div className="px-4 py-12 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-[#FF6A1F]" /></div>
-        )}
-
-        {!isLoading && rows.length === 0 && (
-          <div className="px-4 py-16 text-center">
-            <p className="text-[13px] font-extrabold">{action || since || until ? "No matches for those filters" : "No actions yet"}</p>
-            <p className="text-[12px] text-foreground/60 mt-1">{action || since || until ? "Try clearing filters." : "Once admin actions happen, they'll appear here."}</p>
+          <div className="px-6 py-12 text-center">
+            <Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-400" />
+            <p className="text-xs text-slate-400 mt-2 font-medium">Loading audit logs...</p>
           </div>
         )}
 
-        {rows.map((r) => {
-          const meta = ACTION_META[r.action] ?? { icon: ScrollText, color: "#7A1500", label: r.action };
+        {!isLoading && rows.length === 0 && (
+          <div className="px-6 py-16 text-center">
+            <p className="text-sm font-semibold text-slate-700">{action || since || until ? "No matches for those filters" : "No actions yet"}</p>
+            <p className="text-xs text-slate-400 mt-1">{action || since || until ? "Try clearing filters." : "Once admin actions happen, they'll appear here."}</p>
+          </div>
+        )}
+
+        {!isLoading && rows.map((r) => {
+          const meta = ACTION_META[r.action] ?? { icon: ScrollText, color: "text-slate-600", bg: "bg-slate-50 border-slate-100", label: r.action };
           const Icon = meta.icon;
           let payloadPreview = "";
           try { payloadPreview = r.payload ? JSON.stringify(JSON.parse(r.payload)) : ""; } catch { payloadPreview = r.payload ?? ""; }
           return (
-            <div key={r.id} className="grid grid-cols-[180px_1fr_1fr_1fr_120px_60px] gap-3 px-4 py-3 border-b border-[#E8B968]/40 last:border-b-0 items-center hover:bg-[#FFF6E8] transition">
+            <div key={r.id} className="grid grid-cols-[180px_1fr_1fr_1fr_120px_60px] gap-3 px-6 py-3.5 border-b border-slate-100 last:border-b-0 items-center hover:bg-slate-50/50 transition">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-white" style={{ background: meta.color }}>
-                  <Icon className="w-3.5 h-3.5" strokeWidth={2.5} />
+                <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 border ${meta.bg}`}>
+                  <Icon className={`w-4 h-4 ${meta.color}`} strokeWidth={2.5} />
                 </span>
-                <span className="text-[11px] font-extrabold uppercase tracking-wider truncate">{meta.label}</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-700 truncate">{meta.label}</span>
               </div>
               <div className="min-w-0">
-                <p className="text-[12px] font-extrabold truncate">{r.actorName ?? "—"}</p>
-                <p className="text-[10px] text-foreground/60 font-mono truncate">{r.actorEmail ?? r.actorUserId}</p>
+                <p className="text-xs font-semibold text-slate-900 truncate">{r.actorName ?? "—"}</p>
+                <p className="text-[10px] text-slate-500 font-mono truncate">{r.actorEmail ?? r.actorUserId}</p>
               </div>
-              <p className="text-[11px] font-mono text-foreground/70 truncate" title={r.targetUserId ?? ""}>{r.targetUserId ?? "—"}</p>
-              <p className="text-[11px] font-mono text-foreground/60 truncate" title={payloadPreview}>{payloadPreview || "(empty)"}</p>
-              <p className="text-[11px] text-foreground/60">{new Date(r.createdAt).toLocaleString("en-IN")}</p>
+              <p className="text-[11px] font-mono text-slate-600 truncate" title={r.targetUserId ?? ""}>{r.targetUserId ?? "—"}</p>
+              <p className="text-[11px] font-mono text-slate-500 truncate" title={payloadPreview}>{payloadPreview || "(empty)"}</p>
+              <p className="text-[11px] text-slate-500">{new Date(r.createdAt).toLocaleString("en-IN")}</p>
               <button
                 onClick={() => setViewing(r)}
-                className="w-8 h-8 rounded-lg hover:bg-[#FFE8C7] flex items-center justify-center text-foreground/60 hover:text-foreground transition justify-self-end"
+                className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition justify-self-end"
                 aria-label="View full payload"
                 title="View full payload"
               >
@@ -165,54 +190,55 @@ const AdminAudit = () => {
       </div>
 
       <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl rounded-2xl border-slate-100">
           {viewing && (() => {
-            const meta = ACTION_META[viewing.action] ?? { icon: ScrollText, color: "#7A1500", label: viewing.action };
+            const meta = ACTION_META[viewing.action] ?? { icon: ScrollText, color: "text-slate-600", bg: "bg-slate-50 border-slate-100", label: viewing.action };
             const Icon = meta.icon;
             const payload = prettyJson(viewing.payload);
             return (
               <>
                 <DialogHeader>
                   <div className="flex items-center gap-3 mb-1">
-                    <div className="w-11 h-11 rounded-xl text-white flex items-center justify-center shadow-md" style={{ background: meta.color }}>
-                      <Icon className="w-5 h-5" strokeWidth={2.5} />
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center border shadow-sm ${meta.bg}`}>
+                      <Icon className={`w-5 h-5 ${meta.color}`} strokeWidth={2.5} />
                     </div>
                     <div>
-                      <DialogTitle>{meta.label}</DialogTitle>
-                      <DialogDescription className="text-foreground/70 font-medium font-mono text-[11px]">
-                        {viewing.id}
+                      <DialogTitle className="text-lg font-bold text-slate-900">{meta.label}</DialogTitle>
+                      <DialogDescription className="text-slate-400 font-medium font-mono text-[10px]">
+                        ID: {viewing.id}
                       </DialogDescription>
                     </div>
                   </div>
                 </DialogHeader>
 
-                <dl className="grid grid-cols-2 gap-3 mt-2">
+                <dl className="grid grid-cols-2 gap-4 mt-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
                   <Field label="When" value={new Date(viewing.createdAt).toLocaleString("en-IN")} />
                   <Field label="Actor" value={viewing.actorEmail ?? viewing.actorUserId} />
                   <Field label="Target user" value={viewing.targetUserId ?? "—"} mono />
                   <Field label="IP address" value={viewing.ipAddress ?? "—"} mono />
                 </dl>
 
-                <div className="mt-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <Label>Full payload</Label>
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-slate-600">Full payload</Label>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => { navigator.clipboard.writeText(payload); toast.success("Payload copied"); }}
+                      className="rounded-lg h-8 border-slate-200 text-slate-600 text-xs hover:bg-slate-50"
                     >
-                      <Copy className="w-3.5 h-3.5" /> Copy
+                      <Copy className="w-3.5 h-3.5 mr-1" /> Copy
                     </Button>
                   </div>
-                  <pre className="p-3 rounded-xl bg-[#0F172A] text-[#FFD23F] text-[11px] font-mono leading-relaxed overflow-auto max-h-72 border-2 border-[#1E293B]">
+                  <pre className="p-4 rounded-xl bg-slate-950 text-emerald-400 text-xs font-mono leading-relaxed overflow-auto max-h-72 border border-slate-800">
 {payload}
                   </pre>
                 </div>
 
                 {viewing.userAgent && (
-                  <div className="mt-3">
-                    <Label className="text-[10px]">User agent</Label>
-                    <p className="text-[10px] text-foreground/60 font-mono mt-1 break-all">{viewing.userAgent}</p>
+                  <div className="mt-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">User agent</Label>
+                    <p className="text-[10px] text-slate-500 font-mono mt-1 break-all leading-normal">{viewing.userAgent}</p>
                   </div>
                 )}
               </>
@@ -226,8 +252,8 @@ const AdminAudit = () => {
 
 const Field = ({ label, value, mono }: { label: string; value: string; mono?: boolean }) => (
   <div className="space-y-0.5">
-    <p className="text-[10px] uppercase tracking-wider text-[#B8651A] font-extrabold">{label}</p>
-    <p className={mono ? "text-[11px] font-mono font-semibold" : "text-[12px] font-semibold"}>{value}</p>
+    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">{label}</p>
+    <p className={mono ? "text-[11px] font-mono font-semibold text-slate-700" : "text-xs font-semibold text-slate-800"}>{value}</p>
   </div>
 );
 

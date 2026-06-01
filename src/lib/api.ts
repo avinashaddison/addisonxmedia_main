@@ -89,6 +89,19 @@ const patch = <T>(p: string, body?: unknown) =>
   request<T>(p, { method: "PATCH", body: body ? JSON.stringify(body) : undefined });
 const del = (p: string) => request<void>(p, { method: "DELETE" });
 
+function normalizeAgent(agent: AiAgent): AiAgent {
+  if (!agent) return agent;
+  return {
+    ...agent,
+    products: (agent.products || []).map((p: any) => ({
+      ...p,
+      imageUrl: p.imageUrl || p.image_url || "",
+      activationMail: p.activationMail || p.activation_mail || "Activation On your Mail",
+      activationTime: p.activationTime || p.activation_time || "10 min",
+    })),
+  };
+}
+
 export const api = {
   // Profile
   getProfile: () => get<Profile>("/profile"),
@@ -743,9 +756,18 @@ export const api = {
   }>("/billing/meta-estimate"),
 
   // Multiple AI Agents
-  listAgents: () => get<AiAgent[]>("/ai/agents"),
-  createAgent: (data: Partial<AiAgent>) => post<AiAgent>("/ai/agents", data),
-  updateAgent: (id: string, data: Partial<AiAgent>) => patch<AiAgent>(`/ai/agents/${id}`, data),
+  listAgents: async () => {
+    const agents = await get<AiAgent[]>("/ai/agents");
+    return agents.map(normalizeAgent);
+  },
+  createAgent: async (data: Partial<AiAgent>) => {
+    const agent = await post<AiAgent>("/ai/agents", data);
+    return normalizeAgent(agent);
+  },
+  updateAgent: async (id: string, data: Partial<AiAgent>) => {
+    const agent = await patch<AiAgent>(`/ai/agents/${id}`, data);
+    return normalizeAgent(agent);
+  },
   activateAgent: (id: string) => post<{ ok: boolean }>(`/ai/agents/${id}/activate`),
   deleteAgent: (id: string) => del(`/ai/agents/${id}`),
 

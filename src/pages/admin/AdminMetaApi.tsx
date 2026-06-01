@@ -62,15 +62,15 @@ const AdminMetaApi = () => {
   });
 
   return (
-    <div className="px-6 lg:px-10 py-6 space-y-4">
+    <div className="max-w-7xl mx-auto px-6 lg:px-10 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1877F2] to-[#0040A8] text-white flex items-center justify-center shadow-md">
-          <ShieldCheck className="w-6 h-6" strokeWidth={2.5} />
+      <div className="flex items-center gap-3.5 border-b border-slate-200/80 pb-5">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white flex items-center justify-center shadow-sm">
+          <ShieldCheck className="w-5.5 h-5.5 text-indigo-400" strokeWidth={2.2} />
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-[26px] font-black tracking-tight">Meta API</h1>
-          <p className="text-[12px] text-foreground/70 font-medium">
+          <h1 className="text-[24px] font-black tracking-tight text-slate-900">Meta API</h1>
+          <p className="text-[12px] text-slate-500 font-medium">
             Permissions · Messaging tier · Conversions API · Catalog
           </p>
         </div>
@@ -85,8 +85,8 @@ const AdminMetaApi = () => {
         title="Messaging tier"
         accent="emerald"
         right={
-          <Button variant="outline" onClick={() => refreshTier.mutate()} disabled={refreshTier.isPending}>
-            {refreshTier.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+          <Button variant="outline" onClick={() => refreshTier.mutate()} disabled={refreshTier.isPending} className="border-slate-250 active:scale-[0.98] transition">
+            {refreshTier.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
             Refresh from Meta
           </Button>
         }
@@ -99,7 +99,7 @@ const AdminMetaApi = () => {
             <TierStat label="Daily cap" value={dailyCapFor(tier.data.messaging_limit_tier)} />
           </div>
         ) : (
-          <p className="text-[12px] text-foreground/60 italic">
+          <p className="text-[12px] text-slate-400 italic">
             Tier not yet probed. Click "Refresh from Meta" to query the WABA's current tier.
           </p>
         )}
@@ -131,39 +131,39 @@ const PermissionsPanel = ({ data, loading, error }: {
       title="Token permissions"
       accent="indigo"
       right={
-        <p className="text-[10px] uppercase tracking-wider font-extrabold text-foreground/55">
+        <p className="text-[10px] uppercase tracking-wider font-bold text-slate-450">
           {data ? `${data.permissions.filter((p) => p.status === "granted").length} granted` : ""}
         </p>
       }
     >
-      {loading && <Loader2 className="w-4 h-4 animate-spin mx-auto" />}
+      {loading && <Loader2 className="w-4 h-4 animate-spin mx-auto text-indigo-650" />}
       {error && (
-        <p className="text-[12px] text-[#D4308E] font-semibold">
+        <p className="text-[12px] text-rose-600 font-bold">
           Couldn't probe permissions — {(error as Error).message}
         </p>
       )}
       {data && (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {FEATURES.map((f) => {
             const granted = data.summary[f.key];
             return (
               <div
                 key={f.key}
                 className={cn(
-                  "grid grid-cols-[24px_1fr_140px_auto] gap-2 items-center px-3 py-2 rounded-lg border",
-                  granted ? "bg-[#E6F7EE] border-[#0E8A4B]/30" : "bg-[#FFF1D6]/40 border-[#E8B968]/50",
+                  "grid grid-cols-[24px_1fr_140px_auto] gap-2 items-center px-4 py-2 rounded-xl border",
+                  granted ? "bg-emerald-50 border-emerald-150 text-emerald-800" : "bg-amber-50 border-amber-150 text-amber-800",
                 )}
               >
                 {granted
-                  ? <Check className="w-4 h-4 text-[#0E8A4B]" strokeWidth={3} />
-                  : <X className="w-4 h-4 text-[#B8651A]" strokeWidth={3} />}
+                  ? <Check className="w-4 h-4 text-emerald-600" strokeWidth={3} />
+                  : <X className="w-4 h-4 text-amber-600" strokeWidth={3} />}
                 <div className="min-w-0">
-                  <p className="text-[12px] font-extrabold truncate">{f.label}</p>
-                  <p className="text-[10px] font-mono text-foreground/55 truncate">{f.perm}</p>
+                  <p className="text-[12px] font-bold truncate">{f.label}</p>
+                  <p className="text-[10px] font-mono opacity-60 truncate">{f.perm}</p>
                 </div>
-                <span className="text-[10px] text-foreground/60 truncate">
+                <span className="text-[10px] opacity-70 truncate">
                   {f.unlocks && (granted
-                    ? <span className="text-[#0E8A4B] font-semibold">✓ {f.unlocks}</span>
+                    ? <span className="text-emerald-700 font-bold">✓ {f.unlocks}</span>
                     : <span>Needs review for {f.unlocks}</span>)}
                 </span>
                 {!granted && !f.required && (
@@ -171,7 +171,7 @@ const PermissionsPanel = ({ data, loading, error }: {
                     href="https://developers.facebook.com/apps"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] font-extrabold uppercase tracking-wider text-[#3C50E0] hover:underline inline-flex items-center gap-1"
+                    className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 hover:underline inline-flex items-center gap-1"
                   >
                     Submit review <ArrowUpRight className="w-3 h-3" />
                   </a>
@@ -181,14 +181,14 @@ const PermissionsPanel = ({ data, loading, error }: {
           })}
 
           <details className="mt-3">
-            <summary className="text-[10px] uppercase tracking-wider font-extrabold text-foreground/55 cursor-pointer hover:text-foreground">
+            <summary className="text-[10px] uppercase tracking-wider font-bold text-slate-400 cursor-pointer hover:text-slate-655 transition">
               All {data.permissions.length} permissions (raw)
             </summary>
-            <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] font-mono">
+            <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] font-mono">
               {data.permissions.map((p) => (
                 <span
                   key={p.permission}
-                  className={cn("px-2 py-0.5 rounded", p.status === "granted" ? "bg-[#E6F7EE] text-[#0A6E3C]" : "bg-[#FCE5F0] text-[#A11A6A]")}
+                  className={cn("px-2.5 py-1 rounded-lg border", p.status === "granted" ? "bg-emerald-50 text-emerald-700 border-emerald-150" : "bg-rose-50 text-rose-700 border-rose-150")}
                 >
                   {p.permission} · {p.status}
                 </span>
@@ -259,7 +259,7 @@ const CapiPanel = ({ settings, events }: {
       accent="orange"
       right={
         <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider font-extrabold text-foreground/55">
+          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-500 mr-1">
             {settings?.capi_enabled ? "Enabled" : "Disabled"}
           </span>
           <Switch
@@ -269,68 +269,69 @@ const CapiPanel = ({ settings, events }: {
         </div>
       }
     >
-      <p className="text-[11px] text-foreground/65 mb-3">
-        Server-side conversion events sent to Meta when a deal hits <span className="font-bold">won</span> or a new contact arrives from an ad. Lets Meta optimize Click-to-WhatsApp bids on actual revenue, not just message volume.
+      <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
+        Server-side conversion events sent to Meta when a deal hits <span className="font-bold text-slate-700">won</span> or a new contact arrives from an ad. Lets Meta optimize Click-to-WhatsApp bids on actual revenue, not just message volume.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label className="text-[10px] uppercase tracking-wider font-extrabold">Pixel / Dataset ID</Label>
+          <Label className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Pixel / Dataset ID</Label>
           <Input
             value={pixelId}
             placeholder="e.g. 123456789012345"
             onChange={(e) => { setPixelId(e.target.value); setDirty(true); }}
-            className="font-mono text-[12px]"
+            className="font-mono text-[12px] border-slate-200 focus-visible:ring-indigo-600"
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-[10px] uppercase tracking-wider font-extrabold">Test Event Code (optional)</Label>
+          <Label className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Test Event Code (optional)</Label>
           <Input
             value={testCode}
             placeholder="TEST12345"
             onChange={(e) => { setTestCode(e.target.value); setDirty(true); }}
-            className="font-mono text-[12px]"
+            className="font-mono text-[12px] border-slate-200 focus-visible:ring-indigo-600"
           />
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mt-3">
+      <div className="flex items-center gap-2 mt-4">
         <Button
           onClick={() => save.mutate()}
           disabled={save.isPending || !dirty}
-          className="bg-[#FF6A1F] text-white shadow-[0_3px_0_0_#B8420A] hover:bg-[#E85C12]"
+          className="bg-slate-900 text-white hover:bg-slate-800 transition active:scale-[0.98]"
         >
-          {save.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          {save.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
           Save settings
         </Button>
         <Button
           variant="outline"
           onClick={() => testFire.mutate()}
           disabled={testFire.isPending || !settings?.pixel_id}
+          className="border-slate-250 text-slate-650 hover:bg-slate-50 transition active:scale-[0.98]"
         >
-          {testFire.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          {testFire.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
           Fire test event
         </Button>
       </div>
 
       {/* Event log */}
-      <div className="mt-4">
-        <p className="text-[10px] uppercase tracking-wider font-extrabold text-foreground/55 mb-2">
+      <div className="mt-5 space-y-2.5">
+        <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">
           Recent events ({events.length})
         </p>
         {events.length === 0 ? (
-          <p className="text-[11px] text-foreground/50 italic">No events fired yet.</p>
+          <p className="text-[11px] text-slate-400 italic">No events fired yet.</p>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {events.slice(0, 10).map((e) => {
               const ok = (e.response_code ?? 0) >= 200 && (e.response_code ?? 0) < 300;
               return (
-                <div key={e.id} className="grid grid-cols-[80px_1fr_120px_60px_120px] gap-2 text-[11px] items-center px-2 py-1 rounded bg-[#FFF6E8]/40">
-                  <span className={cn("font-extrabold", ok ? "text-[#0E8A4B]" : "text-[#D4308E]")}>{e.event_name}</span>
-                  <span className="text-foreground/60 truncate font-mono">{e.source_type ?? "—"}</span>
-                  <span className="font-mono tabular-nums">{e.value_inr ? `₹${e.value_inr}` : "—"}</span>
-                  <span className={cn("font-mono", ok ? "text-[#0E8A4B]" : "text-[#D4308E]")}>{e.response_code ?? "—"}</span>
-                  <span className="text-foreground/55 text-right">{fmtDate(e.fired_at)}</span>
+                <div key={e.id} className="grid grid-cols-[80px_1fr_120px_60px_120px] gap-2 text-[11px] items-center px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-100 hover:border-slate-200 transition">
+                  <span className={cn("font-bold", ok ? "text-emerald-600" : "text-rose-600")}>{e.event_name}</span>
+                  <span className="text-slate-450 truncate font-mono">{e.source_type ?? "—"}</span>
+                  <span className="font-mono tabular-nums text-slate-600">{e.value_inr ? `₹${e.value_inr}` : "—"}</span>
+                  <span className={cn("font-mono font-semibold", ok ? "text-emerald-600" : "text-rose-600")}>{e.response_code ?? "—"}</span>
+                  <span className="text-slate-400 text-right">{fmtDate(e.fired_at)}</span>
                 </div>
               );
             })}
@@ -350,31 +351,31 @@ const Section = ({ icon, title, accent, right, children }: {
   right?: React.ReactNode;
   children: React.ReactNode;
 }) => {
-  const accents: Record<typeof accent, { border: string; shadow: string; bg: string; iconBg: string }> = {
-    indigo:  { border: "border-[#3C50E0]", shadow: "shadow-[0_4px_0_0_#2533A8]", bg: "bg-[#E4E8FF]", iconBg: "bg-[#3C50E0]" },
-    emerald: { border: "border-[#0E8A4B]", shadow: "shadow-[0_4px_0_0_#0A6E3C]", bg: "bg-[#E6F7EE]", iconBg: "bg-[#0E8A4B]" },
-    orange:  { border: "border-[#FF6A1F]", shadow: "shadow-[0_4px_0_0_#B8420A]", bg: "bg-[#FFEFE0]", iconBg: "bg-[#FF6A1F]" },
-    magenta: { border: "border-[#D4308E]", shadow: "shadow-[0_4px_0_0_#A11A6A]", bg: "bg-[#FCE5F0]", iconBg: "bg-[#D4308E]" },
+  const accents: Record<typeof accent, { iconClass: string }> = {
+    indigo:  { iconClass: "bg-indigo-50 border-indigo-100 text-indigo-650" },
+    emerald: { iconClass: "bg-emerald-50 border-emerald-100 text-emerald-650" },
+    orange:  { iconClass: "bg-orange-50 border-orange-100 text-orange-655" },
+    magenta: { iconClass: "bg-pink-50 border-pink-100 text-pink-650" },
   };
   const a = accents[accent];
   return (
-    <div className={cn("bg-white border-2 rounded-2xl overflow-hidden", a.border, a.shadow)}>
-      <div className={cn("flex items-center gap-2.5 px-4 py-3 border-b-2 flex-wrap", a.border, a.bg)}>
-        <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center text-white shadow-sm", a.iconBg)}>
+    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:border-slate-350 transition-colors">
+      <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex-wrap">
+        <div className={cn("w-7.5 h-7.5 rounded-lg flex items-center justify-center border shadow-sm", a.iconClass)}>
           {icon}
         </div>
-        <p className="text-[13px] font-black flex-1 min-w-0">{title}</p>
+        <p className="text-[13px] font-bold text-slate-800 flex-1 min-w-0">{title}</p>
         {right}
       </div>
-      <div className="p-4">{children}</div>
+      <div className="p-5">{children}</div>
     </div>
   );
 };
 
 const TierStat = ({ label, value }: { label: string; value: string }) => (
-  <div className="bg-[#FFF6E8] border border-[#E8B968]/60 rounded-xl p-3">
-    <p className="text-[10px] uppercase tracking-wider text-foreground/60 font-extrabold">{label}</p>
-    <p className="text-[14px] font-black mt-0.5 break-all">{value}</p>
+  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm hover:border-slate-300 transition-colors">
+    <p className="text-[10px] uppercase tracking-wider text-slate-405 font-bold">{label}</p>
+    <p className="text-[14px] font-black text-slate-800 mt-0.5 break-all">{value}</p>
   </div>
 );
 
