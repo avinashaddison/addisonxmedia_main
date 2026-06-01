@@ -398,16 +398,4 @@ const dailyCapFor = (tier: string | null): string => {
   }
 };
 
-export default AdminMetaApi;T_SET":   return "—";
-    case "TIER_50":         return "50";
-    case "TIER_250":        return "250";
-    case "TIER_1K":         return "1,000";
-    case "TIER_10K":        return "10,000";
-    case "TIER_100K":       return "100,000";
-    case "TIER_UNLIMITED":
-    case "UNLIMITED":       return "Unlimited";
-    default:                return tier;
-  }
-};
-
 export default AdminMetaApi;
