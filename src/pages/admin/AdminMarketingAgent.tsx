@@ -507,7 +507,9 @@ const AdminMarketingAgent = () => {
                   const parsed = JSON.parse(log.payload ?? "{}");
                   payloadKey = parsed.key ?? "";
                   payloadVal = parsed.value ?? "";
-                } catch {}
+                } catch {
+                  // Ignore JSON parse errors for non-JSON payloads
+                }
                 
                 return (
                   <div key={log.id} className="py-2.5 flex items-start gap-4 text-slate-705">

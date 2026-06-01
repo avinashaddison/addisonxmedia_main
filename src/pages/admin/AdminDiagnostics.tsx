@@ -58,20 +58,22 @@ const AdminDiagnostics = () => {
     refetchInterval: 60_000,
   });
 
-  const ownership = data?.ownership ?? [];
+  const ownership = data?.ownership;
   const metaConfigs = data?.metaConfigs ?? [];
   const orphanGroups = orphans?.groups ?? [];
   const orphanRecent = orphans?.recent ?? [];
   const filtered = useMemo(() => {
-    if (!q) return ownership;
+    const list = ownership ?? [];
+    if (!q) return list;
     const needle = q.toLowerCase();
-    return ownership.filter(
+    return list.filter(
       (r) => r.email.toLowerCase().includes(needle) || r.name.toLowerCase().includes(needle) || r.userId.includes(needle)
     );
   }, [q, ownership]);
 
   const totals = useMemo(() => {
-    return ownership.reduce(
+    const list = ownership ?? [];
+    return list.reduce(
       (acc, r) => ({
         conversations: acc.conversations + r.conversations,
         contacts: acc.contacts + r.contacts,

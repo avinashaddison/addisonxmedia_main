@@ -156,7 +156,7 @@ export const adminApi = {
   /** Returns a URL admins can hit directly to download the CSV (cookies carried via same-origin). */
   auditCsvUrl: (params?: { action?: string; actor?: string; since?: string; until?: string; limit?: number }) => {
     const qs = new URLSearchParams(
-      Object.fromEntries(Object.entries({ ...params, format: "csv" } ?? {}).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]))
+      Object.fromEntries(Object.entries({ ...params, format: "csv" }).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]))
     ).toString();
     return `/api/admin/audit?${qs}`;
   },

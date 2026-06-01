@@ -37,6 +37,7 @@ const useAnimatedCount = (target: number, duration = 900) => {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, duration]);
   return n;
 };
@@ -94,7 +95,7 @@ const TopKPICard = ({
   trendType: "up" | "down" | "neutral";
   sparklinePoints: number[];
   sparklineColor: string;
-  icon: any;
+  icon: React.ElementType;
   borderClass: string;
   shadowClass: string;
   iconBgClass: string;
@@ -145,7 +146,7 @@ const SecondaryKPICard = ({
   value: string | number;
   sparklinePoints: number[];
   sparklineColor: string;
-  icon: any;
+  icon: React.ElementType;
   colorClass: string;
 }) => {
   return (
