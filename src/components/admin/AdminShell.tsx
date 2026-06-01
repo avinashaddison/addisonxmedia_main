@@ -119,9 +119,9 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
 
   if (!me) return null;
 
-  const role = me.adminRole;
-  const initials = me.name.slice(0, 2).toUpperCase();
-  const displayName = me.name || me.email.split("@")[0];
+  const role = me.adminRole || "";
+  const displayName = me.name || me.email.split("@")[0] || "Admin";
+  const initials = (me.name || me.email || "AD").slice(0, 2).toUpperCase();
 
   const handleSignOut = async () => {
     await signOut();

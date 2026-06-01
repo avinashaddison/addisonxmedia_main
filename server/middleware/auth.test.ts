@@ -11,15 +11,21 @@ vi.mock('../auth', () => ({
 }));
 
 // Mock db
+const mockDbQuery = {
+  leftJoin: vi.fn().mockReturnThis(),
+  where: vi.fn().mockReturnThis(),
+  limit: vi.fn().mockImplementation(() => Promise.resolve([])),
+  orderBy: vi.fn().mockImplementation(() => Promise.resolve([{ id: 'ws-123', workspaceUserId: 'user-123', workspaceEmail: 'user@test.com' }])),
+};
+
 vi.mock('../db/client', () => ({
   db: {
     select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        leftJoin: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() => Promise.resolve([])),
-          })),
-        })),
+      from: vi.fn(() => mockDbQuery),
+    })),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        returning: vi.fn(() => Promise.resolve([{ id: 'ws-123', workspaceUserId: 'user-123', workspaceEmail: 'user@test.com' }])),
       })),
     })),
   },
@@ -29,6 +35,7 @@ vi.mock('../db/client', () => ({
 vi.mock('../db/schema', () => ({
   impersonationSession: { id: 'id', adminUserId: 'admin_user_id', targetUserId: 'target_user_id', endedAt: 'ended_at', expiresAt: 'expires_at' },
   user: { id: 'id', email: 'email' },
+  workspace: { id: 'id', workspaceUserId: 'workspace_user_id', ownerUserId: 'owner_user_id', createdAt: 'created_at' },
 }));
 
 // Mock drizzle-orm operators

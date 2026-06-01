@@ -1,4 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// Mock db client before importing human-seller to avoid DATABASE_URL check in client.ts
+vi.mock("../db/client", () => ({
+  db: {
+    select: vi.fn(),
+    update: vi.fn(),
+    insert: vi.fn(),
+  },
+}));
+
 import { humanizeReply, buildDynamicSystemPrompt, type ContactMemory, type MessageAnalysis } from "../lib/human-seller";
 
 describe("Human-Like AI WhatsApp Seller Engine", () => {

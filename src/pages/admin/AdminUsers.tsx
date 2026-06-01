@@ -16,6 +16,8 @@ const PLAN_BADGES = {
   enterprise: "bg-[#FDF0F5] border-2 border-[#D4308E]/60 text-[#A11A6A] shadow-[0_2px_0_0_#cbd5e1]",
 } as const;
 
+const colors = ["bg-[#FF6A1F]", "bg-[#0E8A4B]", "bg-[#3C50E0]", "bg-[#D4308E]", "bg-[#E8B968]"];
+
 const AdminUsers = () => {
   const [q, setQ] = useState("");
   const { data: rows = [], isLoading } = useQuery({
@@ -89,9 +91,8 @@ const AdminUsers = () => {
             const planKey = (u.plan || "free").toLowerCase() as keyof typeof PLAN_BADGES;
             const planBadgeClass = PLAN_BADGES[planKey] || PLAN_BADGES.free;
 
-            // Generate a random background color for avatar if desired, or use deterministic
-            const colors = ["bg-[#FF6A1F]", "bg-[#0E8A4B]", "bg-[#3C50E0]", "bg-[#D4308E]", "bg-[#E8B968]"];
-            const colorIndex = (u.name.charCodeAt(0) + (u.name.charCodeAt(1) || 0)) % colors.length;
+            const userName = u.name || u.email || "User";
+            const colorIndex = (userName.charCodeAt(0) + (userName.charCodeAt(1) || 0)) % colors.length;
             const avatarBg = colors[colorIndex];
 
             return (
@@ -101,11 +102,11 @@ const AdminUsers = () => {
               >
                 <Link to={`/admin/workspaces/${u.id}`} className="flex items-center gap-3 min-w-0 group">
                   <div className={cn("w-9 h-9 rounded-xl border-2 border-slate-900 text-white font-black flex items-center justify-center text-[12px] shadow-[0_2px_0_0_#000] flex-shrink-0", avatarBg)}>
-                    {u.name.slice(0, 2).toUpperCase()}
+                    {userName.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[13px] font-bold text-slate-850 truncate group-hover:text-[#0E8A4B] transition">
-                      {u.name}
+                    <p className="text-[13px] font-bold text-slate-855 truncate group-hover:text-[#0E8A4B] transition">
+                      {userName}
                     </p>
                     <p className="text-[11px] text-slate-400 font-semibold truncate">Workspace ID: {u.id.slice(0, 8)}...</p>
                   </div>

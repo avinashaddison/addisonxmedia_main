@@ -20,6 +20,8 @@ const ROLES: Record<string, { label: string; color: string }> = {
   moderator:   { label: "Moderator",   color: "#FF6A1F" },
 };
 
+const colors = ["bg-[#FF6A1F]", "bg-[#0E8A4B]", "bg-[#3C50E0]", "bg-[#D4308E]", "bg-[#E8B968]"];
+
 const AdminStaff = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -99,9 +101,8 @@ const AdminStaff = () => {
 
           {!isLoading && rows.map((s) => {
             const isSelf = s.id === user?.id;
-            // Generate a random background color for avatar if desired
-            const colors = ["bg-[#FF6A1F]", "bg-[#0E8A4B]", "bg-[#3C50E0]", "bg-[#D4308E]", "bg-[#E8B968]"];
-            const colorIndex = (s.name.charCodeAt(0) + (s.name.charCodeAt(1) || 0)) % colors.length;
+            const staffName = s.name || s.email || "Staff";
+            const colorIndex = (staffName.charCodeAt(0) + (staffName.charCodeAt(1) || 0)) % colors.length;
             const avatarBg = colors[colorIndex];
 
             return (
@@ -111,11 +112,11 @@ const AdminStaff = () => {
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={cn("w-9 h-9 rounded-xl border-2 border-slate-900 text-white font-black flex items-center justify-center text-[12px] shadow-[0_2px_0_0_#000] flex-shrink-0", avatarBg)}>
-                    {s.name.slice(0, 2).toUpperCase()}
+                    {staffName.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[13px] font-bold text-slate-850 truncate flex items-center gap-1.5">
-                      {s.name}
+                    <p className="text-[13px] font-bold text-slate-855 truncate flex items-center gap-1.5">
+                      {staffName}
                       {isSelf && (
                         <span className="text-[9px] px-2 py-0.5 rounded-lg bg-[#E6F0FA] border-2 border-[#3C50E0]/60 text-[#2533A8] font-extrabold uppercase shadow-[0_2.5px_0_0_#cbd5e1]">
                           You
