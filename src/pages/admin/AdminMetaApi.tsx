@@ -17,11 +17,11 @@ import {
   RefreshCw, ShieldCheck, Sparkles, Target, X, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { PageShell } from "@/components/PageShell";
 
 const fmtDate = (s: string | null | undefined) =>
   s ? new Date(s).toLocaleString("en-IN") : "—";
@@ -62,52 +62,49 @@ const AdminMetaApi = () => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-6 lg:px-10 py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3.5 border-b border-slate-200/80 pb-5">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white flex items-center justify-center shadow-sm">
-          <ShieldCheck className="w-5.5 h-5.5 text-indigo-400" strokeWidth={2.2} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-[24px] font-black tracking-tight text-slate-900">Meta API</h1>
-          <p className="text-[12px] text-slate-500 font-medium">
-            Permissions · Messaging tier · Conversions API · Catalog
-          </p>
-        </div>
+    <PageShell
+      title="Meta API Status"
+      subtitle="Permissions · Messaging tier · Conversions API · Catalog sync diagnostics"
+      icon={<ShieldCheck className="w-5 h-5 text-white" strokeWidth={2.5} />}
+    >
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Permissions Panel */}
+        <PermissionsPanel data={perms.data} loading={perms.isLoading} error={perms.error} />
+
+        {/* Messaging tier panel */}
+        <Section
+          icon={<Zap className="w-4.5 h-4.5" />}
+          title="Messaging Tier"
+          accent="emerald"
+          right={
+            <button
+              onClick={() => refreshTier.mutate()}
+              disabled={refreshTier.isPending}
+              className="px-3.5 py-1.5 rounded-xl text-[11px] font-extrabold bg-white border-2 border-[#E8B968] shadow-[0_2px_0_0_#E8B968] text-slate-705 hover:bg-[#FFF1D6] active:translate-y-0.5 active:shadow-[0_1px_0_0_#E8B968] transition-all flex items-center gap-1"
+            >
+              {refreshTier.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              Refresh from Meta
+            </button>
+          }
+        >
+          {tier.data?.messaging_limit_tier ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <TierStat label="Tier" value={tier.data.messaging_limit_tier.replace("TIER_", "")} />
+              <TierStat label="Quality Rating" value={tier.data.quality_rating ?? "—"} />
+              <TierStat label="Refreshed At" value={fmtDate(tier.data.tier_refreshed_at)} />
+              <TierStat label="Daily Cap" value={dailyCapFor(tier.data.messaging_limit_tier)} />
+            </div>
+          ) : (
+            <p className="text-[12px] text-slate-400 italic">
+              Tier not yet probed. Click "Refresh from Meta" to query the WABA's current messaging tier.
+            </p>
+          )}
+        </Section>
+
+        {/* Conversions API panel */}
+        <CapiPanel settings={capi.data} events={capiEvents.data ?? []} />
       </div>
-
-      {/* ── Permissions panel ────────────────────────────────────────── */}
-      <PermissionsPanel data={perms.data} loading={perms.isLoading} error={perms.error} />
-
-      {/* ── Messaging tier panel ─────────────────────────────────────── */}
-      <Section
-        icon={<Zap className="w-4 h-4" />}
-        title="Messaging tier"
-        accent="emerald"
-        right={
-          <Button variant="outline" onClick={() => refreshTier.mutate()} disabled={refreshTier.isPending} className="border-slate-250 active:scale-[0.98] transition">
-            {refreshTier.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
-            Refresh from Meta
-          </Button>
-        }
-      >
-        {tier.data?.messaging_limit_tier ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <TierStat label="Tier" value={tier.data.messaging_limit_tier.replace("TIER_", "")} />
-            <TierStat label="Quality rating" value={tier.data.quality_rating ?? "—"} />
-            <TierStat label="Refreshed" value={fmtDate(tier.data.tier_refreshed_at)} />
-            <TierStat label="Daily cap" value={dailyCapFor(tier.data.messaging_limit_tier)} />
-          </div>
-        ) : (
-          <p className="text-[12px] text-slate-400 italic">
-            Tier not yet probed. Click "Refresh from Meta" to query the WABA's current tier.
-          </p>
-        )}
-      </Section>
-
-      {/* ── Conversions API panel ────────────────────────────────────── */}
-      <CapiPanel settings={capi.data} events={capiEvents.data ?? []} />
-    </div>
+    </PageShell>
   );
 };
 
@@ -117,53 +114,55 @@ const PermissionsPanel = ({ data, loading, error }: {
   error: unknown;
 }) => {
   const FEATURES = [
-    { key: "has_waba_management", label: "WhatsApp Business management", perm: "whatsapp_business_management", required: true },
-    { key: "has_waba_messaging",  label: "WhatsApp messaging",            perm: "whatsapp_business_messaging",  required: true },
-    { key: "has_ads_management",  label: "Ads + Conversions API",         perm: "ads_management",                required: false, unlocks: "CAPI + in-app ads" },
-    { key: "has_catalog",         label: "Catalog management",            perm: "catalog_management",            required: false, unlocks: "WhatsApp Catalog" },
-    { key: "has_instagram_msg",   label: "Instagram messaging",           perm: "instagram_manage_messages",     required: false, unlocks: "Instagram DM inbox" },
-    { key: "has_leads_retrieval", label: "Lead Ads retrieval",            perm: "leads_retrieval",               required: false, unlocks: "Lead form → Contact sync" },
+    { key: "has_waba_management", label: "WhatsApp Business Management", perm: "whatsapp_business_management", required: true },
+    { key: "has_waba_messaging",  label: "WhatsApp Messaging Scopes",       perm: "whatsapp_business_messaging",  required: true },
+    { key: "has_ads_management",  label: "Ads & Conversions API Sync",       perm: "ads_management",                required: false, unlocks: "CAPI + in-app ads" },
+    { key: "has_catalog",         label: "WhatsApp Catalog Sync",           perm: "catalog_management",            required: false, unlocks: "WhatsApp Catalog" },
+    { key: "has_instagram_msg",   label: "Instagram DM Messaging",           perm: "instagram_manage_messages",     required: false, unlocks: "Instagram DM inbox" },
+    { key: "has_leads_retrieval", label: "Lead Ads Data Retrieval",         perm: "leads_retrieval",               required: false, unlocks: "Lead form → Contact sync" },
   ];
 
   return (
     <Section
-      icon={<BadgeCheck className="w-4 h-4" />}
-      title="Token permissions"
+      icon={<BadgeCheck className="w-4.5 h-4.5" />}
+      title="Token Permissions Probe"
       accent="indigo"
       right={
-        <p className="text-[10px] uppercase tracking-wider font-bold text-slate-450">
-          {data ? `${data.permissions.filter((p) => p.status === "granted").length} granted` : ""}
-        </p>
+        <span className="text-[10px] uppercase tracking-wider font-extrabold text-[#B8651A] bg-[#FFF6E8] border-2 border-[#E8B968] rounded-xl px-2.5 py-0.5 shadow-[0_1.5px_0_0_#E8B968]">
+          {data ? `${data.permissions.filter((p) => p.status === "granted").length} Granted` : ""}
+        </span>
       }
     >
-      {loading && <Loader2 className="w-4 h-4 animate-spin mx-auto text-indigo-650" />}
+      {loading && <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#0E8A4B]" />}
       {error && (
         <p className="text-[12px] text-rose-600 font-bold">
           Couldn't probe permissions — {(error as Error).message}
         </p>
       )}
       {data && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {FEATURES.map((f) => {
             const granted = data.summary[f.key];
             return (
               <div
                 key={f.key}
                 className={cn(
-                  "grid grid-cols-[24px_1fr_140px_auto] gap-2 items-center px-4 py-2 rounded-xl border",
-                  granted ? "bg-emerald-50 border-emerald-150 text-emerald-800" : "bg-amber-50 border-amber-150 text-amber-800",
+                  "grid grid-cols-[24px_1fr_140px_auto] gap-2 items-center px-4 py-3 rounded-xl border-2 shadow-[0_2px_0_0_#cbd5e1] transition-all",
+                  granted
+                    ? "bg-[#E6F7EE] border-[#0E8A4B]/60 text-[#0A6E3C]"
+                    : "bg-[#FFF1D6] border-[#E8B968]/60 text-[#B8651A]"
                 )}
               >
                 {granted
-                  ? <Check className="w-4 h-4 text-emerald-600" strokeWidth={3} />
-                  : <X className="w-4 h-4 text-amber-600" strokeWidth={3} />}
+                  ? <Check className="w-4 h-4 text-[#0E8A4B]" strokeWidth={3} />
+                  : <X className="w-4 h-4 text-[#B8651A]" strokeWidth={3} />}
                 <div className="min-w-0">
-                  <p className="text-[12px] font-bold truncate">{f.label}</p>
-                  <p className="text-[10px] font-mono opacity-60 truncate">{f.perm}</p>
+                  <p className="text-[12.5px] font-black truncate">{f.label}</p>
+                  <p className="text-[10px] font-mono opacity-70 truncate font-semibold">{f.perm}</p>
                 </div>
-                <span className="text-[10px] opacity-70 truncate">
+                <span className="text-[10px] opacity-90 truncate font-bold">
                   {f.unlocks && (granted
-                    ? <span className="text-emerald-700 font-bold">✓ {f.unlocks}</span>
+                    ? <span className="text-[#0E8A4B]">✓ {f.unlocks}</span>
                     : <span>Needs review for {f.unlocks}</span>)}
                 </span>
                 {!granted && !f.required && (
@@ -171,7 +170,7 @@ const PermissionsPanel = ({ data, loading, error }: {
                     href="https://developers.facebook.com/apps"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 hover:underline inline-flex items-center gap-1"
+                    className="text-[10px] font-extrabold uppercase tracking-wider text-[#3C50E0] hover:underline inline-flex items-center gap-1 ml-auto"
                   >
                     Submit review <ArrowUpRight className="w-3 h-3" />
                   </a>
@@ -180,17 +179,23 @@ const PermissionsPanel = ({ data, loading, error }: {
             );
           })}
 
-          <details className="mt-3">
-            <summary className="text-[10px] uppercase tracking-wider font-bold text-slate-400 cursor-pointer hover:text-slate-655 transition">
-              All {data.permissions.length} permissions (raw)
+          <details className="mt-4 group">
+            <summary className="text-[10px] uppercase tracking-wider font-black text-slate-450 cursor-pointer hover:text-slate-655 transition select-none flex items-center gap-1">
+              <span>All {data.permissions.length} permissions (raw logs)</span>
             </summary>
-            <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] font-mono">
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] font-mono">
               {data.permissions.map((p) => (
                 <span
                   key={p.permission}
-                  className={cn("px-2.5 py-1 rounded-lg border", p.status === "granted" ? "bg-emerald-50 text-emerald-700 border-emerald-150" : "bg-rose-50 text-rose-700 border-rose-150")}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg border-2 shadow-[0_1.5px_0_0_#cbd5e1] font-bold flex items-center justify-between",
+                    p.status === "granted"
+                      ? "bg-[#E6F7EE] text-[#0A6E3C] border-[#0E8A4B]/40"
+                      : "bg-rose-50 text-rose-700 border-rose-350"
+                  )}
                 >
-                  {p.permission} · {p.status}
+                  <span className="truncate">{p.permission}</span>
+                  <span className="uppercase text-[9px] font-extrabold tracking-wider">{p.status}</span>
                 </span>
               ))}
             </div>
@@ -254,12 +259,12 @@ const CapiPanel = ({ settings, events }: {
 
   return (
     <Section
-      icon={<Target className="w-4 h-4" />}
-      title="Conversions API"
+      icon={<Target className="w-4.5 h-4.5" />}
+      title="Conversions API (CAPI)"
       accent="orange"
       right={
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-500 mr-1">
+        <div className="flex items-center gap-3">
+          <span className={cn("text-[10px] uppercase tracking-wider font-extrabold", settings?.capi_enabled ? "text-[#0E8A4B]" : "text-slate-400")}>
             {settings?.capi_enabled ? "Enabled" : "Disabled"}
           </span>
           <Switch
@@ -269,69 +274,68 @@ const CapiPanel = ({ settings, events }: {
         </div>
       }
     >
-      <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
-        Server-side conversion events sent to Meta when a deal hits <span className="font-bold text-slate-700">won</span> or a new contact arrives from an ad. Lets Meta optimize Click-to-WhatsApp bids on actual revenue, not just message volume.
+      <p className="text-[12px] text-slate-500 mb-5 leading-relaxed font-semibold">
+        Server-side conversion events sent to Meta when a deal hits <span className="font-extrabold text-[#B8651A]">won</span> or a new contact arrives from an ad. Lets Meta optimize Click-to-WhatsApp bids on actual revenue, not just message volume.
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <Label className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Pixel / Dataset ID</Label>
+          <Label className="text-[11px] font-extrabold uppercase tracking-wider text-[#B8651A] mb-1 block">Pixel / Dataset ID</Label>
           <Input
             value={pixelId}
             placeholder="e.g. 123456789012345"
             onChange={(e) => { setPixelId(e.target.value); setDirty(true); }}
-            className="font-mono text-[12px] border-slate-200 focus-visible:ring-indigo-600"
+            className="font-mono text-[13px] h-10 border-2 border-[#E8B968] focus:border-[#0E8A4B] rounded-xl bg-white text-slate-800 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-3"
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Test Event Code (optional)</Label>
+          <Label className="text-[11px] font-extrabold uppercase tracking-wider text-[#B8651A] mb-1 block">Test Event Code (optional)</Label>
           <Input
             value={testCode}
             placeholder="TEST12345"
             onChange={(e) => { setTestCode(e.target.value); setDirty(true); }}
-            className="font-mono text-[12px] border-slate-200 focus-visible:ring-indigo-600"
+            className="font-mono text-[13px] h-10 border-2 border-[#E8B968] focus:border-[#0E8A4B] rounded-xl bg-white text-slate-800 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-3"
           />
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mt-4">
-        <Button
+      <div className="flex items-center gap-3 mt-5">
+        <button
           onClick={() => save.mutate()}
           disabled={save.isPending || !dirty}
-          className="bg-slate-900 text-white hover:bg-slate-800 transition active:scale-[0.98]"
+          className="px-4 py-2 rounded-xl text-[12px] font-extrabold bg-[#0E8A4B] border-2 border-[#0A6E3C] shadow-[0_2px_0_0_#073D22] text-white hover:bg-[#0A6E3C] active:translate-y-0.5 active:shadow-[0_1px_0_0_#073D22] disabled:opacity-50 transition-all flex items-center gap-1.5"
         >
-          {save.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
-          Save settings
-        </Button>
-        <Button
-          variant="outline"
+          {save.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          Save Settings
+        </button>
+        <button
           onClick={() => testFire.mutate()}
           disabled={testFire.isPending || !settings?.pixel_id}
-          className="border-slate-250 text-slate-650 hover:bg-slate-50 transition active:scale-[0.98]"
+          className="px-4 py-2 rounded-xl text-[12px] font-extrabold bg-white border-2 border-[#E8B968] shadow-[0_2px_0_0_#E8B968] text-slate-700 hover:bg-[#FFF1D6] active:translate-y-0.5 active:shadow-[0_1px_0_0_#E8B968] disabled:opacity-50 transition-all flex items-center gap-1.5"
         >
-          {testFire.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
-          Fire test event
-        </Button>
+          {testFire.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          Fire Test Event
+        </button>
       </div>
 
       {/* Event log */}
-      <div className="mt-5 space-y-2.5">
-        <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">
-          Recent events ({events.length})
+      <div className="mt-6 space-y-3">
+        <p className="text-[10px] uppercase tracking-wider font-extrabold text-[#B8651A]">
+          Recent Conversions Log ({events.length})
         </p>
         {events.length === 0 ? (
           <p className="text-[11px] text-slate-400 italic">No events fired yet.</p>
         ) : (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {events.slice(0, 10).map((e) => {
               const ok = (e.response_code ?? 0) >= 200 && (e.response_code ?? 0) < 300;
               return (
-                <div key={e.id} className="grid grid-cols-[80px_1fr_120px_60px_120px] gap-2 text-[11px] items-center px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-100 hover:border-slate-200 transition">
-                  <span className={cn("font-bold", ok ? "text-emerald-600" : "text-rose-600")}>{e.event_name}</span>
-                  <span className="text-slate-450 truncate font-mono">{e.source_type ?? "—"}</span>
-                  <span className="font-mono tabular-nums text-slate-600">{e.value_inr ? `₹${e.value_inr}` : "—"}</span>
-                  <span className={cn("font-mono font-semibold", ok ? "text-emerald-600" : "text-rose-600")}>{e.response_code ?? "—"}</span>
-                  <span className="text-slate-400 text-right">{fmtDate(e.fired_at)}</span>
+                <div key={e.id} className="grid grid-cols-[80px_1fr_120px_60px_120px] gap-2 text-[11px] items-center px-4 py-2 rounded-xl bg-white border border-dashed border-[#E8B968] hover:bg-[#FFF6E8]/30 transition">
+                  <span className={cn("font-black uppercase tracking-wider text-[10px]", ok ? "text-[#0E8A4B]" : "text-rose-600")}>{e.event_name}</span>
+                  <span className="text-slate-450 truncate font-mono font-semibold">{e.source_type ?? "—"}</span>
+                  <span className="font-mono tabular-nums text-slate-600 font-bold">{e.value_inr ? `₹${e.value_inr}` : "—"}</span>
+                  <span className={cn("font-mono font-extrabold text-[12px]", ok ? "text-[#0E8A4B]" : "text-rose-600")}>{e.response_code ?? "—"}</span>
+                  <span className="text-slate-400 text-right font-semibold">{fmtDate(e.fired_at)}</span>
                 </div>
               );
             })}
@@ -352,19 +356,19 @@ const Section = ({ icon, title, accent, right, children }: {
   children: React.ReactNode;
 }) => {
   const accents: Record<typeof accent, { iconClass: string }> = {
-    indigo:  { iconClass: "bg-indigo-50 border-indigo-100 text-indigo-650" },
-    emerald: { iconClass: "bg-emerald-50 border-emerald-100 text-emerald-650" },
-    orange:  { iconClass: "bg-orange-50 border-orange-100 text-orange-655" },
-    magenta: { iconClass: "bg-pink-50 border-pink-100 text-pink-650" },
+    indigo:  { iconClass: "bg-[#E6F0FA] border-[#3C50E0] text-[#2533A8]" },
+    emerald: { iconClass: "bg-[#E6F7EE] border-[#0E8A4B] text-[#0A6E3C]" },
+    orange:  { iconClass: "bg-[#FFF1D6] border-[#FF6A1F] text-[#B8420A]" },
+    magenta: { iconClass: "bg-[#FDF0F5] border-[#D4308E] text-[#A11A6A]" },
   };
   const a = accents[accent];
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:border-slate-350 transition-colors">
-      <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex-wrap">
-        <div className={cn("w-7.5 h-7.5 rounded-lg flex items-center justify-center border shadow-sm", a.iconClass)}>
+    <div className="bg-white border-2 border-[#E8B968] rounded-2xl overflow-hidden shadow-[0_4px_0_0_#E8B968]">
+      <div className="flex items-center gap-2.5 px-5 py-3.5 border-b-2 border-[#E8B968] bg-[#FFF6E8] flex-wrap">
+        <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center border-2 border-slate-900 shadow-[0_1.5px_0_0_#000]", a.iconClass)}>
           {icon}
         </div>
-        <p className="text-[13px] font-bold text-slate-800 flex-1 min-w-0">{title}</p>
+        <p className="text-[13px] font-black text-slate-800 flex-1 min-w-0 uppercase tracking-wider">{title}</p>
         {right}
       </div>
       <div className="p-5">{children}</div>
@@ -373,9 +377,9 @@ const Section = ({ icon, title, accent, right, children }: {
 };
 
 const TierStat = ({ label, value }: { label: string; value: string }) => (
-  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm hover:border-slate-300 transition-colors">
-    <p className="text-[10px] uppercase tracking-wider text-slate-405 font-bold">{label}</p>
-    <p className="text-[14px] font-black text-slate-800 mt-0.5 break-all">{value}</p>
+  <div className="bg-white border-2 border-[#E8B968] rounded-xl p-3 shadow-[0_2px_0_0_#E8B968] hover:-translate-y-0.5 transition-all">
+    <p className="text-[10px] uppercase tracking-wider text-[#B8651A] font-extrabold">{label}</p>
+    <p className="text-[14px] font-black text-slate-850 mt-0.5 break-all leading-tight">{value}</p>
   </div>
 );
 
@@ -383,6 +387,18 @@ const dailyCapFor = (tier: string | null): string => {
   if (!tier) return "—";
   switch (tier) {
     case "TIER_NOT_SET":   return "—";
+    case "TIER_50":         return "50";
+    case "TIER_250":        return "250";
+    case "TIER_1K":         return "1,000";
+    case "TIER_10K":        return "10,000";
+    case "TIER_100K":       return "100,000";
+    case "TIER_UNLIMITED":
+    case "UNLIMITED":       return "Unlimited";
+    default:                return tier;
+  }
+};
+
+export default AdminMetaApi;T_SET":   return "—";
     case "TIER_50":         return "50";
     case "TIER_250":        return "250";
     case "TIER_1K":         return "1,000";
