@@ -61,12 +61,12 @@ const COLOR_STYLES: Record<ColorKey, {
   border: string; shadow: string; hoverShadow: string;
   iconBg: string; text: string; glowFrom: string; bgSoft: string;
 }> = {
-  red:     { border: "border-slate-200/80", shadow: "shadow-sm", hoverShadow: "hover:shadow-md", iconBg: "bg-rose-500 text-white", text: "text-rose-600", glowFrom: "from-rose-500/10", bgSoft: "bg-rose-50/50" },
-  yellow:  { border: "border-slate-200/80", shadow: "shadow-sm", hoverShadow: "hover:shadow-md", iconBg: "bg-amber-500 text-white", text: "text-amber-600", glowFrom: "from-amber-500/10", bgSoft: "bg-amber-50/50" },
-  emerald: { border: "border-slate-200/80", shadow: "shadow-sm", hoverShadow: "hover:shadow-md", iconBg: "bg-emerald-500 text-white", text: "text-emerald-600", glowFrom: "from-emerald-500/10", bgSoft: "bg-emerald-50/50" },
-  indigo:  { border: "border-slate-200/80", shadow: "shadow-sm", hoverShadow: "hover:shadow-md", iconBg: "bg-indigo-500 text-white", text: "text-indigo-600", glowFrom: "from-indigo-500/10", bgSoft: "bg-indigo-50/50" },
-  magenta: { border: "border-slate-200/80", shadow: "shadow-sm", hoverShadow: "hover:shadow-md", iconBg: "bg-pink-500 text-white", text: "text-pink-600", glowFrom: "from-pink-500/10", bgSoft: "bg-pink-50/50" },
-  orange:  { border: "border-slate-200/80", shadow: "shadow-sm", hoverShadow: "hover:shadow-md", iconBg: "bg-orange-500 text-white", text: "text-orange-600", glowFrom: "from-orange-500/10", bgSoft: "bg-orange-50/50" },
+  red:     { border: "border-rose-100/70", shadow: "shadow-sm", hoverShadow: "hover:shadow-md hover:border-rose-200/80", iconBg: "bg-rose-50 text-rose-600 border border-rose-100/50", text: "text-rose-700", glowFrom: "from-rose-500/5", bgSoft: "bg-rose-50/40" },
+  yellow:  { border: "border-amber-100/70", shadow: "shadow-sm", hoverShadow: "hover:shadow-md hover:border-amber-200/80", iconBg: "bg-[#FFF1D6] text-[#B8651A] border border-[#E8B968]/30", text: "text-[#B8651A]", glowFrom: "from-[#FFD23F]/5", bgSoft: "bg-[#FFF1D6]/30" },
+  emerald: { border: "border-emerald-100/70", shadow: "shadow-sm", hoverShadow: "hover:shadow-md hover:border-emerald-200/80", iconBg: "bg-[#E6F7EE] text-[#0A6E3C] border border-[#0E8A4B]/20", text: "text-[#0A6E3C]", glowFrom: "from-[#0E8A4B]/5", bgSoft: "bg-[#E6F7EE]/30" },
+  indigo:  { border: "border-slate-250/50", shadow: "shadow-sm", hoverShadow: "hover:shadow-md hover:border-slate-300/80", iconBg: "bg-slate-50 text-slate-650 border border-slate-200/50", text: "text-slate-800", glowFrom: "from-slate-500/5", bgSoft: "bg-slate-50/50" },
+  magenta: { border: "border-violet-100/70", shadow: "shadow-sm", hoverShadow: "hover:shadow-md hover:border-violet-200/80", iconBg: "bg-violet-50 text-violet-650 border border-violet-100/50", text: "text-violet-755", glowFrom: "from-violet-500/5", bgSoft: "bg-violet-50/30" },
+  orange:  { border: "border-[#FF6A1F]/15", shadow: "shadow-sm", hoverShadow: "hover:shadow-md hover:border-[#FF6A1F]/30", iconBg: "bg-[#FF6A1F]/10 text-[#FF6A1F] border border-[#FF6A1F]/20", text: "text-[#FF6A1F]", glowFrom: "from-[#FF6A1F]/5", bgSoft: "bg-[#FF6A1F]/5" },
 };
 
 const KPI = ({
@@ -86,7 +86,7 @@ const KPI = ({
 
   return (
     <div className={cn(
-      "group relative overflow-hidden bg-white border rounded-2xl p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-slate-300/85 will-change-transform",
+      "group relative overflow-hidden bg-white border rounded-2xl p-5 transition-all duration-300 ease-out hover:-translate-y-1 hover:border-slate-300/85 will-change-transform",
       s.border, s.shadow, s.hoverShadow,
     )}>
       {/* Brand-colored glow on hover for depth */}
@@ -100,17 +100,17 @@ const KPI = ({
           "w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-105",
           s.iconBg,
         )}>
-          <Icon className="w-5 h-5" strokeWidth={2} />
+          <Icon className="w-5 h-5" strokeWidth={2.2} />
         </div>
         {accent && (
-          <span className="text-[9px] uppercase tracking-wider font-extrabold text-white bg-emerald-600 rounded-full px-2 py-0.5 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse" /> Live
+          <span className="text-[9px] uppercase tracking-wider font-extrabold text-[#0A6E3C] bg-[#E6F7EE] border border-[#0E8A4B]/20 rounded-full px-2.5 py-0.5 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#0E8A4B] animate-pulse" /> Live
           </span>
         )}
       </div>
-      <p className="relative text-[10px] uppercase tracking-[0.15em] text-slate-400 font-bold">{label}</p>
-      <p className={cn("relative text-2.5xl font-black tracking-tight tabular-nums mt-1", s.text)}>{display}</p>
-      {sub && <p className="relative text-[10px] text-slate-400 font-medium mt-1">{sub}</p>}
+      <p className="relative text-[10px] uppercase tracking-[0.12em] text-slate-400 font-bold">{label}</p>
+      <p className={cn("relative text-[24px] font-black tracking-tight tabular-nums mt-1", s.text)}>{display}</p>
+      {sub && <p className="relative text-[10px] text-slate-400 font-semibold mt-1">{sub}</p>}
     </div>
   );
 };

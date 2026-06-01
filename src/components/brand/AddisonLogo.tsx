@@ -198,12 +198,21 @@ const IndiaFlag = ({ className }: { className?: string }) => {
   );
 };
 
-/* ─────────── FX glyph fallback ─────────── */
+/* ─────────── AddisonX 'AX' Monogram Glyph Fallback ─────────── */
 const FXGlyph = ({ color }: { color: string }) => (
   <g fill={color}>
-    <path d="M 12 16 L 12 84 L 26 84 L 26 56 L 50 56 L 50 44 L 26 44 L 26 28 L 56 28 L 56 16 Z" />
-    <path d="M 44 32 L 56 32 L 70 50 L 84 32 L 96 32 L 76 58 L 96 84 L 84 84 L 70 66 L 56 84 L 44 84 L 64 58 Z" />
-    <circle cx="91" cy="84" r="4.5" />
+    {/* Stylized, geometric 'A' frame with rounded vertex and clean inner cutout */}
+    <path d="M 15 80 L 44 22 C 45.5 19, 48.5 19, 50 22 L 79 80 C 80 82, 78.5 84, 76.5 84 L 64.5 84 C 63.5 84, 62.7 83.3, 62.3 82.3 L 53.5 60 L 40.5 60 L 31.7 82.3 C 31.3 83.3, 30.5 84, 29.5 84 L 17.5 84 C 15.5 84, 14 82, 15 80 Z" />
+    <path d="M 47 48 L 53 48 L 50 40 Z" fill="#FFFFFF" opacity="0.9" />
+    
+    {/* Sleek intersecting diagonal bar to form the 'X' overlap */}
+    <path d="M 56 22 C 57 20, 60 20, 61 22 L 85 78 C 86 80, 84.5 82, 82.5 82 L 70.5 82 C 69.5 82, 68.7 81.3, 68.3 80.3 L 52.3 42 C 51.3 40, 53 38, 55 40 Z" opacity="0.95" />
+    
+    {/* Complementary slash making the cross of 'X' distinct and premium */}
+    <path d="M 82 22 C 84 20, 86.5 22, 85.5 24 L 71.5 56 C 70.5 58, 67.5 58, 66.5 56 L 56.5 34 C 55.5 32, 57 30, 59 30 L 67 30 C 68 30, 68.8 30.7, 69.2 31.7 L 74 42 L 79.8 23.3 C 80.2 22.3, 81 22, 82 22 Z" opacity="0.85" />
+    
+    {/* Floating accent dot representing 'Media' / 'Viral' growth */}
+    <circle cx="82" cy="74" r="5" />
   </g>
 );
 
