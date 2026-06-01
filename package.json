@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "concurrently -n web,api -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
     "dev:web": "vite",
-    "dev:api": "tsx watch server/index.ts",
-    "build": "vite build",
-    "build:dev": "vite build --mode development",
+    "dev:api": "node scripts/compile-site-css.mjs && tsx watch server/index.ts",
+    "build": "node scripts/compile-site-css.mjs && vite build",
+    "build:dev": "node scripts/compile-site-css.mjs && vite build --mode development",
     "start": "NODE_ENV=production tsx server/index.ts",
     "lint": "eslint .",
     "preview": "vite preview",

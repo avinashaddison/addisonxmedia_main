@@ -27,6 +27,7 @@ import { validateCoupon } from "./coupon";
 import { pickShippingQuote } from "./shipping";
 import { cashfreeIsConfigured, cashfreeMode } from "../integrations/cashfree";
 import { auth } from "../auth";
+import { siteStaticCss } from "./site-static-css";
 
 /** Owner-only preview check — if URL has ?preview=draft AND visitor is the
  *  site owner, render draft_sections instead of published. Used by Builder
@@ -535,18 +536,11 @@ ${customHead}
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=${esc(theme.font.replace(/ /g, "+"))}:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  ${siteStaticCss}
+  body { font-family: '${esc(theme.font)}', ui-sans-serif, system-ui, sans-serif; }
+</style>
 ${cashfree.enabled ? `<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>` : ""}
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: { brand: "${esc(theme.primary)}", accent: "${esc(theme.accent)}" },
-        fontFamily: { sans: ["${esc(theme.font)}", "ui-sans-serif", "system-ui", "sans-serif"] },
-      }
-    }
-  };
-</script>
 <script type="application/ld+json">
 ${JSON.stringify({
   "@context": "https://schema.org",
@@ -557,11 +551,6 @@ ${JSON.stringify({
   url: `/biz/${slug}`,
 })}
 </script>
-<style>
-  body { font-family: '${esc(theme.font)}', ui-sans-serif, system-ui, sans-serif; }
-  /* Subtle dot wallpaper */
-  .dot-bg { background-image: radial-gradient(rgba(0,0,0,0.04) 1px, transparent 0); background-size: 18px 18px; }
-</style>
 </head>
 <body class="text-gray-900 bg-white">
 
@@ -982,28 +971,16 @@ ${faviconTag}${robotsTag}${ga4}${pixel}${customHead}
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800;900&family=Noto+Sans+Devanagari:wght@500;700&display=swap" rel="stylesheet" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config={theme:{extend:{colors:{brand:"${esc(theme.primary)}",accent:"${esc(theme.accent)}"}}}};</script>
 <style>
+  ${siteStaticCss}
   body{font-family:'Plus Jakarta Sans',ui-sans-serif,system-ui,sans-serif;background:#FFFCF7;}
   .devanagari{font-family:'Noto Sans Devanagari',sans-serif;}
-  .grid-bg{background-image:
-    linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
-    background-size: 32px 32px;
-  }
   .hero-gradient{
     background: radial-gradient(ellipse at top left, ${esc(theme.accent)}33, transparent 60%),
                 radial-gradient(ellipse at bottom right, ${esc(theme.primary)}22, transparent 55%),
                 linear-gradient(135deg, #FFFCF7, #FFF6E8);
   }
   .ribbon{background: linear-gradient(90deg, ${esc(theme.primary)}, ${esc(theme.accent)});}
-  .pulse-dot{animation: pulse-dot 1.5s ease-in-out infinite;}
-  @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.5;transform:scale(.85);} }
-  .marquee-track{animation: marquee 30s linear infinite; display: flex; gap: 3rem; white-space: nowrap;}
-  @keyframes marquee { from{transform:translateX(0);} to{transform:translateX(-50%);} }
-  .price-ladder-card{transition: all .15s ease;}
-  .price-ladder-card:hover{transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,.08);}
 </style>
 </head>
 <body class="text-gray-900">
@@ -1311,9 +1288,8 @@ ${faviconTag}${robotsTag}${ga4}${pixel}${customHead}
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@500;700&display=swap" rel="stylesheet" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config={theme:{extend:{colors:{brand:"${esc(theme.primary)}",accent:"${esc(theme.accent)}"}}}};</script>
 <style>
+  ${siteStaticCss}
   :root { --brand: ${esc(theme.primary)}; --accent: ${esc(theme.accent)}; }
   body { font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; background: #FFFAF8; color: #1a1320; }
   .serif { font-family: 'Playfair Display', Georgia, serif; }
@@ -1329,8 +1305,6 @@ ${faviconTag}${robotsTag}${ga4}${pixel}${customHead}
   .slot-btn.taken { opacity: 0.35; cursor: not-allowed; text-decoration: line-through; }
   .slot-btn.selected { background: var(--brand); color: white; transform: scale(1.06); box-shadow: 0 4px 14px ${esc(theme.primary)}55; }
   .step-dot { transition: all .2s ease; }
-  .marquee-track { animation: marquee 28s linear infinite; display: flex; gap: 2.5rem; white-space: nowrap; }
-  @keyframes marquee { from {transform: translateX(0);} to {transform: translateX(-50%);} }
   .floating-cta { box-shadow: 0 10px 30px ${esc(theme.primary)}66; animation: pulse-cta 2.5s ease-in-out infinite; }
   @keyframes pulse-cta { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
 </style>
@@ -1887,7 +1861,7 @@ const renderDraftHolding = (slug: string): string => `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Coming soon — ${esc(slug)}</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<style>${siteStaticCss}</style>
 </head>
 <body class="bg-gradient-to-br from-amber-50 to-orange-50 min-h-screen flex items-center justify-center p-6 font-sans">
   <div class="text-center max-w-md">
@@ -1901,7 +1875,7 @@ const renderDraftHolding = (slug: string): string => `<!doctype html>
 
 const renderNotFound = (): string => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>404 — No site at this URL</title><script src="https://cdn.tailwindcss.com"></script></head>
+<title>404 — No site at this URL</title><style>${siteStaticCss}</style></head>
 <body class="bg-gradient-to-br from-amber-50 to-orange-50 min-h-screen flex items-center justify-center p-6 font-sans">
 <div class="text-center max-w-md bg-white p-8 rounded-3xl shadow-xl">
 <div class="text-[56px] mb-2">🤷</div>
@@ -2029,9 +2003,10 @@ ${faviconTag}${robotsTag}${ga4Snippet}${metaPixelSnippet}${customHead}
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=${esc(theme.font.replace(/ /g, "+"))}:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config={theme:{extend:{colors:{brand:"${esc(theme.primary)}",accent:"${esc(theme.accent)}"},fontFamily:{sans:["${esc(theme.font)}","ui-sans-serif","system-ui","sans-serif"]}}}};</script>
-<style>body{font-family:'${esc(theme.font)}',ui-sans-serif,system-ui,sans-serif;}.dot-bg{background-image:radial-gradient(rgba(0,0,0,0.04) 1px,transparent 0);background-size:18px 18px;}</style>
+<style>
+  ${siteStaticCss}
+  body{font-family:'${esc(theme.font)}',ui-sans-serif,system-ui,sans-serif;}
+</style>
 </head>`;
 
   // Page nav — only shown when site has 2+ active pages
@@ -2262,9 +2237,10 @@ ${faviconTag}${robotsTag}
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=${esc(theme.font.replace(/ /g, "+"))}:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config={theme:{extend:{colors:{brand:"${esc(theme.primary)}",accent:"${esc(theme.accent)}"}}}};</script>
-<style>body{font-family:'${esc(theme.font)}',ui-sans-serif,system-ui,sans-serif;background:#FFFCF7;}</style>
+<style>
+  ${siteStaticCss}
+  body{font-family:'${esc(theme.font)}',ui-sans-serif,system-ui,sans-serif;background:#FFFCF7;}
+</style>
 ${productsJson}
 </head>
 <body class="text-gray-900 min-h-screen flex flex-col">
