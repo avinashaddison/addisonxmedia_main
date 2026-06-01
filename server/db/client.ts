@@ -60,6 +60,22 @@ export const warmupDb = async () => {
       await Promise.all(Array.from({ length: 5 }, () => client`SELECT 1 AS ok`));
       warmedUp = true;
       logger.info({ duration_ms: Date.now() - start, attempt }, 'DB pool warmed up');
+
+      // Run startup migrations to ensure columns exist (self-healing)
+      try {
+        const { sql } = await import("drizzle-orm");
+        await db.execute(sql`ALTER TABLE "contact" ADD COLUMN IF NOT EXISTS "is_reseller" boolean NOT NULL DEFAULT false;`);
+        await db.execute(sql`ALTER TABLE "ai_agent" ADD COLUMN IF NOT EXISTS "upi_vpa" text;`);
+        await db.execute(sql`ALTER TABLE "ai_agent" ADD COLUMN IF NOT EXISTS "binance_id" text;`);
+        await db.execute(sql`ALTER TABLE "ai_agent" ADD COLUMN IF NOT EXISTS "qr_image_url" text;`);
+        await db.execute(sql`ALTER TABLE "prebuilt_agent" ADD COLUMN IF NOT EXISTS "upi_vpa" text;`);
+        await db.execute(sql`ALTER TABLE "prebuilt_agent" ADD COLUMN IF NOT EXISTS "binance_id" text;`);
+        await db.execute(sql`ALTER TABLE "prebuilt_agent" ADD COLUMN IF NOT EXISTS "qr_image_url" text;`);
+        logger.info('DB startup migrations completed successfully');
+      } catch (migErr: any) {
+        logger.error({ error: migErr.message || migErr }, 'DB startup migrations failed');
+      }
+
       return;
     } catch (err) {
       logger.warn({ attempt, error: (err as Error).message }, 'DB warmup attempt failed');
