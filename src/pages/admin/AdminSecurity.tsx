@@ -253,5 +253,3 @@ const AdminSecurity = () => {
 };
 
 export default AdminSecurity;
-
-export default AdminSecurity;
