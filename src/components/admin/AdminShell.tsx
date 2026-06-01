@@ -130,18 +130,18 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden text-slate-800 bg-slate-55">
+    <div className="flex h-screen w-full overflow-hidden text-slate-800 bg-[#FFF6E8]/20">
       <aside
         className={cn(
-          "bg-white border-r border-slate-200/80 flex flex-col flex-shrink-0 transition-all duration-200 text-slate-600 shadow-[0_0_20px_-5px_rgba(0,0,0,0.03)]",
+          "bg-[#FFF6E8] border-r-2 border-[#E8B968] flex flex-col flex-shrink-0 transition-all duration-200 text-slate-700 shadow-sm",
           collapsed ? "w-[72px]" : "w-[250px]"
         )}
       >
         {/* Logo header */}
-        <div className="relative h-[72px] px-4 border-b border-slate-200/60 bg-white flex items-center gap-2 flex-shrink-0 overflow-hidden">
+        <div className="relative h-[72px] px-4 border-b-2 border-[#E8B968] bg-white flex items-center gap-2 flex-shrink-0 overflow-hidden">
           {/* Subtle brand saffron & emerald accent glows */}
-          <div className="absolute -top-8 -left-8 w-24 h-24 bg-[#FFD23F]/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -bottom-8 -right-8 w-24 h-24 bg-[#0E8A4B]/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -top-8 -left-8 w-24 h-24 bg-[#FFD23F]/20 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -bottom-8 -right-8 w-24 h-24 bg-[#FF6A1F]/10 rounded-full blur-2xl pointer-events-none" />
 
           {collapsed ? (
             <Link to="/admin/dashboard" className="mx-auto hover:scale-105 transition-transform" aria-label="Admin home">
@@ -158,11 +158,11 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
               </Link>
               <button
                 onClick={() => setCollapsed(true)}
-                className="relative ml-auto w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-105 border border-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition flex-shrink-0"
+                className="relative ml-auto w-8 h-8 rounded-lg bg-[#FFF1D6] hover:bg-[#FFE8C7] border border-[#E8B968] text-slate-650 hover:text-slate-900 flex items-center justify-center transition flex-shrink-0"
                 aria-label="Collapse sidebar"
                 title="Collapse sidebar"
               >
-                <ChevronsLeft className="w-4 h-4" strokeWidth={2.2} />
+                <ChevronsLeft className="w-4 h-4" strokeWidth={2.5} />
               </button>
             </>
           )}
@@ -171,21 +171,21 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
         {collapsed && (
           <button
             onClick={() => setCollapsed(false)}
-            className="mt-3 mx-auto w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-105 border border-slate-200 text-slate-500 hover:text-slate-850 flex items-center justify-center transition flex-shrink-0"
+            className="mt-3 mx-auto w-8 h-8 rounded-lg bg-[#FFF1D6] hover:bg-[#FFE8C7] border border-[#E8B968] text-slate-650 hover:text-slate-900 flex items-center justify-center transition flex-shrink-0"
             aria-label="Expand sidebar"
             title="Expand sidebar"
           >
-            <ChevronsRight className="w-4 h-4" strokeWidth={2.2} />
+            <ChevronsRight className="w-4 h-4" strokeWidth={2.5} />
           </button>
         )}
 
         {/* Admin role badge (redesigned with saffron/gold aesthetic) */}
         {!collapsed && (
-          <div className="mx-3 mt-4 mb-2 p-3 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/50 border border-amber-250/60 shadow-sm relative overflow-hidden">
-            <div className="absolute -top-6 -right-6 w-16 h-16 bg-[#0E8A4B]/5 rounded-full blur-xl pointer-events-none" />
+          <div className="mx-3 mt-4 mb-2 p-3 rounded-2xl bg-white border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] relative overflow-hidden">
+            <div className="absolute -top-6 -right-6 w-16 h-16 bg-[#FF6A1F]/5 rounded-full blur-xl pointer-events-none" />
             <div className="relative flex items-center justify-between gap-2.5">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8.5 h-8.5 rounded-xl bg-gradient-to-br from-[#FFF1D6] to-[#FFE9BD] border border-[#E8B968]/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <div className="w-8.5 h-8.5 rounded-xl bg-[#FFF1D6] border border-[#E8B968] flex items-center justify-center flex-shrink-0 shadow-sm">
                   <Crown className="w-4 h-4 text-[#B8651A]" strokeWidth={2.2} />
                 </div>
                 <div className="flex flex-col leading-none min-w-0">
@@ -201,10 +201,15 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
         {/* Nav */}
         <nav className="relative flex-1 overflow-y-auto py-4 px-3 space-y-6">
           {GROUPS.map((group) => {
+            const groupColors: Record<string, string> = {
+              Main: "text-[#0E8A4B]",
+              Analytics: "text-[#FF6A1F]",
+              Settings: "text-[#3C50E0]",
+            };
             return (
               <div key={group.label} className="space-y-1">
                 {!collapsed && (
-                  <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] px-3 mb-2 text-slate-400">
+                  <p className={cn("text-[10px] font-extrabold uppercase tracking-[0.2em] px-3 mb-2", groupColors[group.label] || "text-slate-400")}>
                     {group.label}
                   </p>
                 )}
@@ -219,22 +224,28 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
                       className={cn(
                         "relative w-full h-10 rounded-xl flex items-center gap-3 px-3 transition-all group overflow-hidden",
                         isActive
-                          ? "bg-[#0E8A4B] text-white font-extrabold shadow-sm"
-                          : "text-slate-600 hover:bg-[#FFE8C7]/30 hover:text-[#B8651A] font-semibold",
+                          ? "bg-[#0E8A4B] text-white font-extrabold shadow-[0_3px_0_0_#073D22]"
+                          : "text-slate-650 hover:bg-[#FFE8C7] hover:text-slate-900 font-semibold",
                         collapsed && "justify-center px-0"
                       )}
                     >
+                      {isActive && (
+                        <span className="absolute -right-1 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rotate-45 bg-[#FFD23F] shadow" />
+                      )}
                       <item.icon
                         className={cn(
                           "flex-shrink-0 transition-transform group-hover:scale-105", 
                           collapsed ? "w-[19px] h-[19px]" : "w-[18px] h-[18px]",
-                          isActive ? "text-white" : "text-slate-400 group-hover:text-[#B8651A]"
+                          isActive ? "text-white" : "text-slate-500 group-hover:text-slate-900"
                         )}
                         strokeWidth={isActive ? 2.5 : 2.2}
                       />
                       {!collapsed && <span className="flex-1 text-left text-[13px] truncate">{item.label}</span>}
                       {item.badge && !collapsed && (
-                        <span className="min-w-[20px] h-[18px] px-1.5 rounded-full text-[9px] font-extrabold flex items-center justify-center bg-[#E6F7EE] text-[#0A6E3C] border border-[#0E8A4B]/20">
+                        <span className={cn(
+                          "min-w-[20px] h-[18px] px-1.5 rounded-full text-[9px] font-extrabold flex items-center justify-center",
+                          isActive ? "bg-[#FFD23F] text-[#7A4A00]" : "bg-[#FF6A1F] text-white"
+                        )}>
                           {item.badge}
                         </span>
                       )}
@@ -253,24 +264,25 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
 
         {/* Boost your engagement banner */}
         {!collapsed && (
-          <div className="mx-3 mb-4 p-4.5 rounded-2xl bg-gradient-to-br from-[#FFF6E8] to-[#FFF1D6]/40 border border-[#E8B968]/30 shadow-sm relative overflow-hidden">
-            <div className="relative z-10 pr-12">
-              <p className="text-[12px] font-black text-slate-800 leading-tight">Boost your engagement</p>
-              <p className="text-[10px] text-slate-450 font-semibold mt-1 leading-snug">Create powerful campaigns that convert</p>
+          <div className="mx-3 mb-4 p-4 rounded-xl border-2 border-[#7A4A00] shadow-[0_3px_0_0_#7A4A00] bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white relative overflow-hidden group">
+            <span className="absolute -top-3 -right-3 w-10 h-10 bg-[#FFD23F]/20 rounded-full blur-md pointer-events-none" />
+            <div className="relative z-10 pr-10">
+              <p className="text-[12.5px] font-extrabold leading-tight">Boost engagement</p>
+              <p className="text-[9.5px] text-[#FFD23F] font-bold mt-0.5 tracking-wider uppercase">WhatsApp campaigns</p>
             </div>
-            <div className="absolute right-2 bottom-2 w-12 h-12 flex items-center justify-center opacity-90">
-              <Rocket className="w-8 h-8 text-[#FF6A1F] drop-shadow-md" strokeWidth={2} />
+            <div className="absolute right-2.5 bottom-2.5 w-7 h-7 rounded-lg bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center flex-shrink-0 shadow-[0_2px_0_0_#B8860B] group-hover:scale-105 transition-transform">
+              <Rocket className="w-4 h-4" strokeWidth={2.5} />
             </div>
           </div>
         )}
 
         {/* User menu */}
-        <div className="p-3 border-t border-slate-200 bg-slate-50/50">
+        <div className="p-2.5 border-t-2 border-[#E8B968] bg-white">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 className={cn(
-                  "w-full rounded-xl hover:bg-[#FFE8C7]/30 transition-all flex items-center justify-between p-1.5",
+                  "w-full rounded-xl hover:bg-[#FFE8C7] border border-transparent hover:border-[#E8B968] transition-all flex items-center justify-between p-1.5",
                   collapsed && "justify-center"
                 )}
               >
