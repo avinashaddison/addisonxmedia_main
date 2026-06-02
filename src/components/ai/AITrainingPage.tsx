@@ -772,7 +772,7 @@ export const AITrainingPage = () => {
 
             {/* Agent Payment Details */}
             {!isPrebuilt && (
-              <Section icon={<ShieldCheck className="w-4 h-4 text-emerald-600" />} title="Agent Payment Details" desc="UPI VPA, Binance ID, and QR code to receive direct payments via chat requests">
+              <Section icon={<ShieldCheck className="w-4 h-4 text-emerald-600" />} title="Agent Payment Details" desc="UPI VPA and Binance ID to receive direct payments via chat requests">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label="UPI VPA" hint="Your primary VPA for receiving Indian Rupees (INR) (e.g. sharma@okaxis)">
                     <Input
@@ -786,14 +786,6 @@ export const AITrainingPage = () => {
                       value={form.binance_id || ""}
                       onChange={(e) => set("binance_id", e.target.value)}
                       placeholder="e.g. 123456789"
-                    />
-                  </Field>
-                </div>
-                <div className="mt-3">
-                  <Field label="Payment QR Code Image" hint="Upload QR code image to include in UPI payment messages">
-                    <QrImageUpload
-                      value={form.qr_image_url || ""}
-                      onChange={(url) => set("qr_image_url", url)}
                     />
                   </Field>
                 </div>
@@ -1082,72 +1074,3 @@ const Row = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-const QrImageUpload = ({ value, onChange }: { value: string; onChange: (url: string) => void }) => {
-  const { data: cloudConfig } = useCloudinaryConfig();
-  const { upload, progress, uploading, error: uploadError } = useCloudinaryUpload();
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const onPickFile = async (file: File) => {
-    if (!cloudConfig?.enabled || !cloudConfig.cloudName || !cloudConfig.uploadPreset) {
-      toast.error("Image upload not configured on the server");
-      return;
-    }
-    try {
-      const res = await upload(file, { cloudName: cloudConfig.cloudName, uploadPreset: cloudConfig.uploadPreset }, "image");
-      onChange(res.secure_url);
-      toast.success("QR Code uploaded!");
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-3">
-      <div className="w-16 h-16 rounded-xl bg-gray-100 border-2 border-[#E8B968] overflow-hidden flex-shrink-0 relative flex items-center justify-center">
-        {value ? (
-          <img src={value} alt="QR Code" className="w-full h-full object-cover" />
-        ) : (
-          <ImageIcon className="w-6 h-6 text-foreground/30" />
-        )}
-        {uploading && (
-          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white">
-            <Loader2 className="w-4 h-4 animate-spin mb-0.5" />
-            <span className="text-[9px] font-extrabold">{progress}%</span>
-          </div>
-        )}
-      </div>
-      <div className="flex-1 space-y-1">
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) void onPickFile(f); if (fileRef.current) fileRef.current.value = ""; }}
-        />
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="h-8 border-[#E8B968] hover:bg-[#FFE8C7] text-[#B8651A]"
-          >
-            <Upload className="w-3.5 h-3.5 mr-1" /> {value ? "Replace QR" : "Upload QR"}
-          </Button>
-          {value && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onChange("")}
-              className="h-8 text-destructive hover:bg-destructive/10"
-            >
-              Remove
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
