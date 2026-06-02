@@ -1632,12 +1632,12 @@ admin.delete("/api/admin/prebuilt-agents/:id", async (c) => {
 });
 
 admin.post("/api/admin/ai/chat", async (c) => {
-  const { message } = await c.req.json<{ message: string }>();
+  const { message, history } = await c.req.json<{ message: string; history?: Array<{ role: "user" | "assistant"; content: string }> }>();
   if (!message) return c.json({ error: "Message is required" }, 400);
 
   const actorUserId = c.get("adminUserId");
   const { processAdminAgentMessage } = await import("../lib/admin-agent");
-  const response = await processAdminAgentMessage(actorUserId, message);
+  const response = await processAdminAgentMessage(actorUserId, message, history);
   return c.json({ response });
 });
 

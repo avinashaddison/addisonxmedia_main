@@ -120,10 +120,10 @@ export type WorkspacePreview = {
 
 export const adminApi = {
   me: () => adminRequest<AdminMe>("/me"),
-  sendAdminAiMessage: (message: string) =>
+  sendAdminAiMessage: (message: string, history?: Array<{ role: "user" | "assistant"; content: string }>) =>
     adminRequest<{ response: string }>("/ai/chat", {
       method: "POST",
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, history }),
     }),
   metrics: () => adminRequest<AdminMetrics>("/metrics"),
   workspacePreview: (id: string) => adminRequest<WorkspacePreview>(`/workspaces/${id}/preview`),

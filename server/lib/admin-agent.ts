@@ -372,14 +372,28 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 
 export async function processAdminAgentMessage(
   actorUserId: string,
-  userMessageText: string
+  userMessageText: string,
+  history?: Array<{ role: "user" | "assistant"; content: string }>
 ): Promise<string> {
   const openai = getOpenAIClient();
 
   const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: userMessageText }
+    { role: "system", content: SYSTEM_PROMPT }
   ];
+
+  if (history && history.length > 0) {
+    const cutHistory = history.slice(-10); // Keep last 10 messages
+    for (const msg of cutHistory) {
+      if (msg.role === "user" || msg.role === "assistant") {
+        openaiMessages.push({ role: msg.role, content: msg.content });
+      }
+    }
+  }
+
+  // Ensure the latest message is added to messages
+  if (openaiMessages.length === 1 || openaiMessages[openaiMessages.length - 1].content !== userMessageText) {
+    openaiMessages.push({ role: "user", content: userMessageText });
+  }
 
   let runnerCount = 0;
   const maxIterations = 5;

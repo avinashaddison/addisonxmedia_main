@@ -53,7 +53,7 @@ export const AdminAiPanel = () => {
     setLoading(true);
 
     try {
-      const res = await adminApi.sendAdminAiMessage(text);
+      const res = await adminApi.sendAdminAiMessage(text, messages);
       setMessages([...newMsgs, { role: "assistant" as const, content: res.response }]);
     } catch (err: any) {
       toast.error("AI operations failed: " + err.message);
