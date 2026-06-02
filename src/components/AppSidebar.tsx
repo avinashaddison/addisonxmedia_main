@@ -250,25 +250,6 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           <ProjectSwitcher collapsed={collapsed} />
         </div>
 
-        {/* Website mode — back arrow returns to primary sidebar */}
-        {mode === "website" && (
-          <button
-            onClick={() => handleNavigate("dashboard")}
-            title={collapsed ? "Back to main menu" : undefined}
-            className={cn(
-              "w-full h-11 rounded-xl flex items-center gap-2.5 px-2.5 transition-all bg-white border-2 border-[#E8B968] text-[#0A3D24] font-extrabold shadow-[0_2px_0_0_#E8B968] hover:bg-[#FFE8C7] active:translate-y-0.5 active:shadow-[0_1px_0_0_#E8B968] group",
-              collapsed && "justify-center px-0",
-            )}
-          >
-            <ArrowLeft className="w-4 h-4 flex-shrink-0 group-hover:-translate-x-0.5 transition" strokeWidth={2.5} />
-            {!collapsed && <span className="flex-1 text-left text-[12.5px]">Back to main</span>}
-            {collapsed && (
-              <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
-                Back to main menu
-              </span>
-            )}
-          </button>
-        )}
 
         {activeGroups.map((group) => {
           const groupColors: Record<string, string> = {
