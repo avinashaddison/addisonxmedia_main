@@ -102,7 +102,8 @@ const websiteGroups: { label: string; items: NavItem[] }[] = [
   {
     label: "Sell",
     items: [
-      { icon: Package,      label: "Products & Services", id: "site/products",  hint: "Catalog · services · inventory" },
+      { icon: Package,      label: "Physical Products",   id: "site/physical-products", hint: "Website & WhatsApp commerce catalog" },
+      { icon: Sparkles,     label: "Digital Products",    id: "site/digital-products",  hint: "E-books, downloads & licenses" },
       { icon: ShoppingCart, label: "Orders",              id: "site/orders",    hint: "Order pipeline" },
       { icon: UsersRound,   label: "Customers",           id: "site/customers", hint: "Buyers & LTV" },
       { icon: CreditCard,   label: "Payments",            id: "site/payments",  hint: "UPI + Cashfree" },
@@ -122,6 +123,7 @@ const websiteGroups: { label: string; items: NavItem[] }[] = [
     items: [
       { icon: Globe,    label: "Domain",   id: "site/domain",   hint: "Subdomain + custom" },
       { icon: Settings, label: "Settings", id: "site/settings", hint: "Tax, returns, GST" },
+      { icon: Activity, label: "Operations", id: "site/operations", hint: "Background worker & task logs" },
     ],
   },
 ];

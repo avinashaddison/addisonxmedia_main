@@ -1084,45 +1084,13 @@ import { SiteAgentTab } from "./pages/SiteAgentTab";
 import { SiteOperationsTab } from "./pages/SiteOperationsTab";
 
 export const SitePage = ({ subPath }: Props) => {
-  const [activeConsoleTab, setActiveConsoleTab] = useState<"overview" | "physical" | "digital" | "operations">("overview");
   const key = (subPath || "").toLowerCase();
 
   if (key === "") {
     return (
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#FFF6E8]">
-        {/* Unified Sub-tab Bar */}
-        <div className="flex items-center gap-2 border-b-2 border-[#E8B968] bg-white px-6 py-2.5 flex-shrink-0 z-10 shadow-sm overflow-x-auto">
-          {[
-            { id: "overview", label: "Overview", icon: Globe },
-            { id: "physical", label: "Physical Products", icon: Package },
-            { id: "digital", label: "Digital Products", icon: Sparkles },
-            { id: "operations", label: "Operations & Tasks", icon: Activity },
-          ].map((tab) => {
-            const active = activeConsoleTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveConsoleTab(tab.id as any)}
-                className={cn(
-                  "flex items-center gap-2 h-9 px-4 rounded-xl text-[12.5px] font-black tracking-wide border-2 transition-all hover:bg-muted/10 whitespace-nowrap",
-                  active
-                    ? "border-primary bg-[#0E8A4B] text-white shadow-[0_2px_0_0_#073D22]"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Console Tab Content */}
         <div className="flex-1 overflow-y-auto">
-          {activeConsoleTab === "overview" && <SiteOverview />}
-          {activeConsoleTab === "physical" && <ProductsPage filterType="physical" />}
-          {activeConsoleTab === "digital" && <ProductsPage filterType="digital" />}
-          {activeConsoleTab === "operations" && <SiteOperationsTab />}
+          <SiteOverview />
         </div>
       </div>
     );
@@ -1134,7 +1102,10 @@ export const SitePage = ({ subPath }: Props) => {
     case "domain":   return <DomainPage />;
     case "settings": return <SiteSettingsPage />;
     case "leads":    return <LeadsPage />;
-    case "products": return <ProductsPage />;
+    case "products": return <ProductsPage filterType="physical" />;
+    case "physical-products": return <ProductsPage filterType="physical" />;
+    case "digital-products": return <ProductsPage filterType="digital" />;
+    case "operations": return <SiteOperationsTab />;
     case "orders":   return <OrdersPage />;
     case "customers": return <CustomersPage />;
     case "analytics": return <AnalyticsPage />;
