@@ -11,7 +11,7 @@ import { SendProductDialog, type ProductDeliveryPayload } from "./SendProductDia
 import { encodeProductDelivery } from "./ProductDeliveryCard";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Contact, initialsFor, formatRelative } from "@/lib/inbox-types";
+import { Contact, ConversationWithContact, initialsFor, formatRelative } from "@/lib/inbox-types";
 import type { Deal, Task } from "@/lib/api-types";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 type Props = {
   contact: Contact;
+  conversation?: ConversationWithContact | null;
   conversationId?: string;
   onClose?: () => void;
 };
@@ -85,7 +86,7 @@ const allProductsListTemplate = (products: any[], isReseller: boolean) => {
          `jo chahiye uska naam bhej do 🙂`;
 };
 
-export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
+export const LeadPanel = ({ contact, conversation: propConversation, conversationId, onClose }: Props) => {
   const qc = useQueryClient();
   const { user } = useAuth();
   const initials = initialsFor(contact.name);
@@ -221,25 +222,24 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
   const dirty = tag !== contact.tag || score !== contact.score || (notes ?? "") !== (contact.notes ?? "") || isReseller !== (contact.is_reseller ?? false);
 
   // Real deals + tasks for this specific contact
-  const { data: allDeals = [] } = useQuery({
-    queryKey: ["deals", user?.id],
-    enabled: !!user,
-    queryFn: () => api.listDeals() as Promise<Deal[]>,
+  const { data: contactDeals = [] } = useQuery({
+    queryKey: ["deals", "contact", contact.id],
+    enabled: !!user && !!contact.id,
+    queryFn: () => api.listDeals({ contact_id: contact.id }) as Promise<Deal[]>,
   });
-  const { data: allTasks = [] } = useQuery({
-    queryKey: ["tasks", user?.id],
-    enabled: !!user,
-    queryFn: () => api.listTasks() as Promise<(Task & { contact?: Contact | null })[]>,
+  const { data: contactTasks = [] } = useQuery({
+    queryKey: ["tasks", "contact", contact.id],
+    enabled: !!user && !!contact.id,
+    queryFn: () => api.listTasks({ contact_id: contact.id }) as Promise<(Task & { contact?: Contact | null })[]>,
   });
-  const contactDeals = allDeals.filter((d) => d.contact_id === contact.id);
-  const contactTasks = allTasks.filter((t) => t.contact_id === contact.id);
 
+  // Fallback query if propConversation is not provided (though it is passed from InboxPage)
   const { data: conversations = [] } = useQuery({
-    queryKey: ["conversations"],
+    queryKey: ["conversations", user?.id],
     queryFn: () => api.listConversations(),
-    enabled: !!conversationId,
+    enabled: !propConversation && !!conversationId && !!user,
   });
-  const conversation = conversations.find((c: any) => c.id === conversationId);
+  const conversation = propConversation ?? conversations.find((c: any) => c.id === conversationId);
 
   const [agentToggling, setAgentToggling] = useState(false);
 
@@ -543,8 +543,9 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
         </div>
       ) : (
         <>
-          <div className="flex-1 overflow-y-auto" hidden={activeTab !== "leads"}>
-        {/* Profile + contact info */}
+          {activeTab === "leads" && (
+            <div className="flex-1 overflow-y-auto">
+              {/* Profile + contact info */}
         <div className="p-4">
           <div className="flex items-center gap-3 mb-4">
             <div className={cn(
@@ -796,6 +797,7 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
           )}
         </div>
       </div>
+      )}
 
       <Dialog open={taskOpen} onOpenChange={setTaskOpen}>
         <DialogContent>
@@ -839,17 +841,20 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
 
 
       {/* ── Tab 3: Payments & Requests ─────────────────────────── */}
-      <div className="flex-1 overflow-y-auto" hidden={activeTab !== "payment"}>
-        <PaymentTabPanel
-          contact={contact}
-          conversationId={conversationId}
-          activeAgent={activeAgent}
-        />
-      </div>
+      {activeTab === "payment" && (
+        <div className="flex-1 overflow-y-auto">
+          <PaymentTabPanel
+            contact={contact}
+            conversationId={conversationId}
+            activeAgent={activeAgent}
+          />
+        </div>
+      )}
 
       {/* ── Tab 2: Digital Product Delivery ─────────────────────────── */}
-      <div className="flex-1 overflow-y-auto" hidden={activeTab !== "product"}>
-        <div className="p-4 space-y-4">
+      {activeTab === "product" && (
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4 space-y-4">
           {/* Hero card */}
           <div className="rounded-2xl bg-gradient-to-br from-[#7E22CE] via-[#9333EA] to-[#A855F7] text-white p-4 shadow-[0_4px_0_0_#5B189E]">
             <div className="flex items-center gap-2 mb-2">
@@ -993,6 +998,7 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
           </div>
         </div>
       </div>
+      )}
       </>
     )}
 

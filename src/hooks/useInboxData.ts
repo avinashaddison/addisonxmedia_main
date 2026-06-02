@@ -66,12 +66,52 @@ export const useSendMessage = () => {
         media_type: vars.media_type ?? null,
         media_filename: vars.media_filename ?? null,
       }),
+    onMutate: async (vars) => {
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await qc.cancelQueries({ queryKey: ["messages", vars.conversationId] });
+
+      // Snapshot the previous value
+      const previousMessages = qc.getQueryData<Message[]>(["messages", vars.conversationId]);
+
+      // Optimistically update to the new value
+      if (previousMessages) {
+        const optimisticMsg: Message = {
+          id: `optimistic-${Date.now()}`,
+          conversation_id: vars.conversationId,
+          owner_id: user?.id ?? "",
+          sender_id: user?.id ?? "",
+          direction: "outbound",
+          body: vars.body,
+          status: "queued",
+          media_url: vars.media_url ?? null,
+          media_type: vars.media_type ?? null,
+          media_filename: vars.media_filename ?? null,
+          external_message_id: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as any;
+        qc.setQueryData<Message[]>(
+          ["messages", vars.conversationId],
+          [...previousMessages, optimisticMsg]
+        );
+      }
+
+      // Return a context object with the snapshotted value
+      return { previousMessages };
+    },
+    onError: (err, vars, context) => {
+      // Rollback to the previous value on error
+      if (context?.previousMessages) {
+        qc.setQueryData(["messages", vars.conversationId], context.previousMessages);
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to send");
+    },
     onSuccess: (_msg, vars) => {
-      qc.invalidateQueries({ queryKey: ["messages", vars.conversationId] });
       qc.invalidateQueries({ queryKey: ["conversations", user?.id] });
     },
-    onError: (err) => {
-      toast.error(err instanceof Error ? err.message : "Failed to send");
+    onSettled: (_data, _error, vars) => {
+      // Always refetch after error or success to sync with server
+      qc.invalidateQueries({ queryKey: ["messages", vars.conversationId] });
     },
   });
 };

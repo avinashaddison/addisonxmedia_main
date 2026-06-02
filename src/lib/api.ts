@@ -182,7 +182,10 @@ export const api = {
     post<Message>(`/conversations/${conversationId}/messages`, data),
 
   // Deals
-  listDeals: () => get<Deal[]>("/deals"),
+  listDeals: (params?: { contact_id?: string }) => {
+    const qs = params?.contact_id ? `?contact_id=${encodeURIComponent(params.contact_id)}` : "";
+    return get<Deal[]>(`/deals${qs}`);
+  },
   createDeal: (data: Record<string, unknown>) => post<Deal>("/deals", data),
   updateDeal: (id: string, data: Record<string, unknown>) => patch<Deal>(`/deals/${id}`, data),
   deleteDeal: (id: string) => del(`/deals/${id}`),
@@ -204,7 +207,10 @@ export const api = {
     post<BulkSend24hResponse>("/broadcasts/bulk-send-24h", data),
 
   // Tasks
-  listTasks: () => get<Task[]>("/tasks"),
+  listTasks: (params?: { contact_id?: string }) => {
+    const qs = params?.contact_id ? `?contact_id=${encodeURIComponent(params.contact_id)}` : "";
+    return get<Task[]>(`/tasks${qs}`);
+  },
   createTask: (data: Record<string, unknown>) => post<Task>("/tasks", data),
   updateTask: (id: string, data: Record<string, unknown>) => patch<Task>(`/tasks/${id}`, data),
   deleteTask: (id: string) => del(`/tasks/${id}`),

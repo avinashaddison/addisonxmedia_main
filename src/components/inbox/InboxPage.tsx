@@ -146,6 +146,7 @@ export const InboxPage = () => {
             <div className="absolute inset-0 flex">
               <LeadPanel
                 contact={active.contact}
+                conversation={active}
                 conversationId={active.id}
                 onClose={() => setLeadOpenDesktop(false)}
               />
@@ -168,6 +169,7 @@ export const InboxPage = () => {
           >
             <LeadPanel
               contact={active.contact}
+              conversation={active}
               conversationId={active.id}
               onClose={() => setLeadOpenTablet(false)}
             />
@@ -180,6 +182,7 @@ export const InboxPage = () => {
         <div className="absolute inset-0 z-10 bg-white flex">
           <LeadPanel
             contact={active.contact}
+            conversation={active}
             conversationId={active.id}
             onClose={() => setMobileView("chat")}
           />

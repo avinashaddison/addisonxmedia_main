@@ -179,9 +179,12 @@ app.delete("/contacts/:id", async (c) => {
 // ============================================================
 
 app.get("/deals", async (c) => {
+  const contactId = c.req.query("contact_id");
   if (!wantsPagination(c)) {
+    const conds = [eq(deal.ownerId, c.var.userId)];
+    if (contactId) conds.push(eq(deal.contactId, contactId));
     const rows = await db.query.deal.findMany({
-      where: eq(deal.ownerId, c.var.userId),
+      where: and(...conds),
       orderBy: [desc(deal.updatedAt)],
       with: { contact: true },
       limit: 1000,
@@ -190,6 +193,7 @@ app.get("/deals", async (c) => {
   }
   const { limit, cursor } = parsePaginationParams(c);
   const conds = [eq(deal.ownerId, c.var.userId)];
+  if (contactId) conds.push(eq(deal.contactId, contactId));
   if (cursor) conds.push(lt(deal.updatedAt, cursor));
   const rows = await db.query.deal.findMany({
     where: and(...conds),
@@ -595,9 +599,12 @@ app.post("/broadcasts/bulk-send-24h", requirePlan('growth', 'scale', 'enterprise
 // ============================================================
 
 app.get("/tasks", async (c) => {
+  const contactId = c.req.query("contact_id");
   if (!wantsPagination(c)) {
+    const conds = [eq(task.ownerId, c.var.userId)];
+    if (contactId) conds.push(eq(task.contactId, contactId));
     const rows = await db.query.task.findMany({
-      where: eq(task.ownerId, c.var.userId),
+      where: and(...conds),
       orderBy: [sql`${task.dueAt} ASC NULLS LAST`, desc(task.createdAt)],
       with: { contact: true },
       limit: 1000,
@@ -606,6 +613,7 @@ app.get("/tasks", async (c) => {
   }
   const { limit, cursor } = parsePaginationParams(c);
   const conds = [eq(task.ownerId, c.var.userId)];
+  if (contactId) conds.push(eq(task.contactId, contactId));
   if (cursor) conds.push(lt(task.createdAt, cursor));
   const rows = await db.query.task.findMany({
     where: and(...conds),

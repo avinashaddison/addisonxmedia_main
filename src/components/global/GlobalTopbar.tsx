@@ -67,7 +67,7 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
             <Menu className="w-5 h-5" />
           </button>
         )}
-        <Link to="/app/dashboard" className="flex items-center flex-shrink-0 transition-transform hover:scale-[1.02]">
+        <Link to="/app/dashboard" className="lg:hidden flex items-center flex-shrink-0 transition-transform hover:scale-[1.02]">
           <AddisonLogo size={28} />
         </Link>
       </div>
