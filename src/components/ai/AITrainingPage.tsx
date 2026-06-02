@@ -345,27 +345,6 @@ export const AITrainingPage = () => {
               </Field>
             </Section>
 
-            {/* Agent Payment Details */}
-            {!isPrebuilt && (
-              <Section icon={<ShieldCheck className="w-4 h-4 text-emerald-600" />} title="Agent Payment Details" desc="UPI VPA and Binance ID to receive direct payments via chat requests">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="UPI VPA" hint="Your primary VPA for receiving Indian Rupees (INR) (e.g. sharma@okaxis)">
-                    <Input
-                      value={form.upi_vpa || ""}
-                      onChange={(e) => set("upi_vpa", e.target.value)}
-                      placeholder="e.g. upiid@bank"
-                    />
-                  </Field>
-                  <Field label="Binance ID" hint="Your Binance Pay ID for receiving crypto payments (USD)">
-                    <Input
-                      value={form.binance_id || ""}
-                      onChange={(e) => set("binance_id", e.target.value)}
-                      placeholder="e.g. 123456789"
-                    />
-                  </Field>
-                </div>
-              </Section>
-            )}
 
             {/* Knowledge Base */}
             <Section icon={<Brain className="w-4 h-4 text-purple-600" />} title="Knowledge Base" desc="Add details, FAQs, or policies that the agent can retrieve during conversations">
