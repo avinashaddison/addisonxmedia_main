@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Package, Loader2, Plus, X, Trash2, Upload, ImageIcon, Edit2,
-  ExternalLink, EyeOff, Eye, IndianRupee, AlertCircle,
+  ExternalLink, EyeOff, Eye, IndianRupee, AlertCircle, Sparkles, DollarSign, RefreshCw
 } from "lucide-react";
 import { api, type ProductDto } from "@/lib/api";
 import { useCloudinaryConfig, useCloudinaryUpload } from "@/hooks/useCloudinaryUpload";
@@ -25,14 +25,25 @@ type ProductDraft = {
   stock: string;         // string; empty = not tracked
   category: string;
   status: "active" | "draft" | "archived";
+  is_digital: boolean;
+  validity: string;
+  activation_mail: string;
+  activation_time: string;
+  price_usd: string;
+  is_reseller: boolean;
+  reseller_price: string;
+  reseller_price_usd: string;
 };
 
-const blankDraft = (): ProductDraft => ({
+const blankDraft = (isDigital = false): ProductDraft => ({
   name: "", description: "", price_inr: "", photo_url: "",
   stock: "", category: "", status: "active",
+  is_digital: isDigital,
+  validity: "Lifetime", activation_mail: "Sent to your email upon payment confirmation.", activation_time: "Instant",
+  price_usd: "", is_reseller: false, reseller_price: "", reseller_price_usd: "",
 });
 
-export const ProductsPage = () => {
+export const ProductsPage = ({ filterType }: { filterType?: "physical" | "digital" }) => {
   const qc = useQueryClient();
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products"],
@@ -51,6 +62,13 @@ export const ProductsPage = () => {
 
   const publicUrl = site ? `${window.location.origin}/biz/${site.slug}` : "";
 
+  // Filter products based on selected tab
+  const filteredProducts = products.filter((p) => {
+    if (filterType === "digital") return p.is_digital;
+    if (filterType === "physical") return !p.is_digital;
+    return true;
+  });
+
   return (
     <div className="flex-1 overflow-y-auto bg-[#FFF6E8]">
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
@@ -59,18 +77,22 @@ export const ProductsPage = () => {
             <Package className="w-7 h-7" strokeWidth={2.5} />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-[24px] font-black leading-tight">Products</h1>
+            <h1 className="text-[24px] font-black leading-tight">
+              {filterType === "digital" ? "Digital Products" : filterType === "physical" ? "Physical Products" : "All Products"}
+            </h1>
             <p className="text-[14px] text-foreground/70 font-medium mt-1">
-              Your catalog — shows on your public site, customers tap "Order on WhatsApp" per product.
+              {filterType === "digital" 
+                ? "Manage your digital delivery settings, downloads, reseller rates and licensing." 
+                : "Manage inventory, categories, pricing, and photos for items shipped or picked up."}
             </p>
           </div>
-          {site && (
+          {site && !filterType && (
             <a href={`${publicUrl}#products`} target="_blank" rel="noopener noreferrer"
                className="hidden sm:inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-white border-2 border-[#E8B968] text-[12.5px] font-extrabold text-foreground shadow-[0_3px_0_0_#E8B968] hover:bg-[#FFE8C7] transition">
-              <ExternalLink className="w-3.5 h-3.5" /> View on site
+               <ExternalLink className="w-3.5 h-3.5" /> View on site
             </a>
           )}
-          <SyncCatalogButton />
+          {filterType !== "digital" && <SyncCatalogButton />}
           <button
             onClick={() => setEditingId("new")}
             className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-[#0E8A4B] text-white font-extrabold text-[13px] shadow-[0_4px_0_0_#073D22] hover:bg-[#0A6E3C] active:translate-y-0.5 active:shadow-[0_2px_0_0_#073D22] transition flex-shrink-0"
@@ -81,10 +103,10 @@ export const ProductsPage = () => {
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Stat label="Total" value={String(products.length)} accent="#0E8A4B" />
-          <Stat label="Active" value={String(products.filter((p) => p.status === "active").length)} accent="#0E8A4B" />
-          <Stat label="Drafts" value={String(products.filter((p) => p.status === "draft").length)} accent="#FF6A1F" />
-          <Stat label="Archived" value={String(products.filter((p) => p.status === "archived").length)} accent="#D4308E" />
+          <Stat label="Total" value={String(filteredProducts.length)} accent="#0E8A4B" />
+          <Stat label="Active" value={String(filteredProducts.filter((p) => p.status === "active").length)} accent="#0E8A4B" />
+          <Stat label="Drafts" value={String(filteredProducts.filter((p) => p.status === "draft").length)} accent="#FF6A1F" />
+          <Stat label="Archived" value={String(filteredProducts.filter((p) => p.status === "archived").length)} accent="#D4308E" />
         </div>
 
         {/* Grid */}
@@ -93,14 +115,14 @@ export const ProductsPage = () => {
             <div className="py-16 flex items-center justify-center">
               <Loader2 className="w-6 h-6 animate-spin text-foreground/40" />
             </div>
-          ) : products.length === 0 ? (
+          ) : filteredProducts.length === 0 ? (
             <div className="py-16 text-center px-6">
               <div className="w-16 h-16 mx-auto rounded-2xl bg-[#E6F7EE] flex items-center justify-center mb-3">
                 <Package className="w-7 h-7 text-[#0E8A4B]" />
               </div>
               <h3 className="text-[15px] font-extrabold mb-1">No products yet</h3>
               <p className="text-[12.5px] text-foreground/60 max-w-sm mx-auto leading-relaxed mb-4">
-                Add your first product — name, photo, price. We'll show it on your site with a WhatsApp order button.
+                Add your first {filterType || "product"} product — name, description, photo, and price.
               </p>
               <button
                 onClick={() => setEditingId("new")}
@@ -111,7 +133,7 @@ export const ProductsPage = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 sm:p-4">
-              {products.map((p) => (
+              {filteredProducts.map((p) => (
                 <ProductCard key={p.id} product={p} onEdit={() => setEditingId(p.id)} />
               ))}
             </div>
@@ -130,8 +152,16 @@ export const ProductsPage = () => {
                 stock: editing.stock != null ? String(editing.stock) : "",
                 category: editing.category || "",
                 status: editing.status,
+                is_digital: editing.is_digital || false,
+                validity: editing.validity || "",
+                activation_mail: editing.activation_mail || "",
+                activation_time: editing.activation_time || "",
+                price_usd: editing.price_usd != null ? String(editing.price_usd) : "",
+                is_reseller: editing.is_reseller || false,
+                reseller_price: editing.reseller_price != null ? String(editing.reseller_price) : "",
+                reseller_price_usd: editing.reseller_price_usd != null ? String(editing.reseller_price_usd) : "",
               }
-            : blankDraft()
+            : blankDraft(filterType === "digital")
           }
           editingId={editing?.id ?? null}
           onClose={() => setEditingId(null)}
@@ -174,14 +204,21 @@ const ProductCard = ({ product, onEdit }: { product: ProductDto; onEdit: () => v
             <ImageIcon className="w-12 h-12" />
           </div>
         )}
-        {product.status !== "active" && (
-          <span className={cn(
-            "absolute top-2 left-2 text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded text-white",
-            product.status === "draft" ? "bg-[#FF6A1F]" : "bg-foreground/60"
-          )}>
-            {product.status}
-          </span>
-        )}
+        <div className="absolute top-2 left-2 flex flex-col gap-1">
+          {product.status !== "active" && (
+            <span className={cn(
+              "text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded text-white shadow-sm",
+              product.status === "draft" ? "bg-[#FF6A1F]" : "bg-foreground/60"
+            )}>
+              {product.status}
+            </span>
+          )}
+          {product.is_digital && (
+            <span className="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-600 text-white shadow-sm">
+              Digital
+            </span>
+          )}
+        </div>
         {product.stock != null && Number(product.stock) === 0 && (
           <span className="absolute top-2 right-2 text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-600 text-white">
             Out of stock
@@ -194,7 +231,7 @@ const ProductCard = ({ product, onEdit }: { product: ProductDto; onEdit: () => v
           {priceNum > 0 ? (
             <span className="text-[14px] font-black tabular-nums text-[#0E8A4B]">₹{priceNum.toLocaleString("en-IN")}</span>
           ) : (
-            <span className="text-[11px] font-bold text-foreground/50">No price set</span>
+            <span className="text-[11px] font-bold text-foreground/55">No price set</span>
           )}
           <Edit2 className="w-3.5 h-3.5 text-foreground/30 group-hover:text-[#0E8A4B] transition" />
         </div>
@@ -212,7 +249,7 @@ const ProductCard = ({ product, onEdit }: { product: ProductDto; onEdit: () => v
 
 const ProductDialog = ({ initial, editingId, onClose, onSaved, onDelete }: {
   initial: ProductDraft;
-  editingId: string | null;     // null = create, otherwise the product id being edited
+  editingId: string | null;
   onClose: () => void;
   onSaved: () => void;
   onDelete?: () => void;
@@ -240,6 +277,14 @@ const ProductDialog = ({ initial, editingId, onClose, onSaved, onDelete }: {
       stock: draft.stock.trim() === "" ? null : Number(draft.stock),
       category: draft.category.trim() || null,
       status: draft.status,
+      is_digital: draft.is_digital,
+      validity: draft.validity.trim() || null,
+      activation_mail: draft.activation_mail.trim() || null,
+      activation_time: draft.activation_time.trim() || null,
+      price_usd: draft.price_usd.trim() === "" ? null : Number(draft.price_usd),
+      is_reseller: draft.is_reseller,
+      reseller_price: draft.reseller_price.trim() === "" ? null : Number(draft.reseller_price),
+      reseller_price_usd: draft.reseller_price_usd.trim() === "" ? null : Number(draft.reseller_price_usd),
     };
     if (!payload.name) {
       toast.error("Product name is required");
@@ -352,7 +397,7 @@ const ProductDialog = ({ initial, editingId, onClose, onSaved, onDelete }: {
             <input
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              placeholder="e.g. Basmati Rice (5 kg)"
+              placeholder={draft.is_digital ? "e.g. AI Marketing E-Book" : "e.g. Basmati Rice (5 kg)"}
               className="w-full px-3 py-2.5 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[14px] font-bold"
               autoFocus
             />
@@ -363,14 +408,35 @@ const ProductDialog = ({ initial, editingId, onClose, onSaved, onDelete }: {
             <textarea
               value={draft.description}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-              placeholder="e.g. Premium long-grain basmati from Punjab. Aged 12 months."
+              placeholder="Provide a detailed description of the product."
               rows={2}
               className="w-full px-3 py-2.5 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[13px] font-medium resize-none"
             />
           </Field>
 
-          {/* Price + Stock + Category */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Product Type Toggle */}
+          <div className="p-3.5 rounded-xl border border-dashed border-[#E8B968] bg-[#FFFBF4] flex items-center justify-between">
+            <div>
+              <span className="text-[12.5px] font-extrabold text-[#3D1A00]">Digital Product Mode</span>
+              <p className="text-[11px] text-foreground/60">Delivered electronically, with custom licensing and reseller settings.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDraft({ ...draft, is_digital: !draft.is_digital })}
+              className={cn(
+                "relative w-11 h-6 rounded-full transition flex-shrink-0",
+                draft.is_digital ? "bg-blue-600" : "bg-foreground/20"
+              )}
+            >
+              <span className={cn(
+                "absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                draft.is_digital ? "translate-x-[22px]" : "translate-x-0.5"
+              )} />
+            </button>
+          </div>
+
+          {/* Pricing & Catalog settings */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Field label="Price (INR)">
               <div className="relative">
                 <IndianRupee className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/45" strokeWidth={2.5} />
@@ -378,7 +444,6 @@ const ProductDialog = ({ initial, editingId, onClose, onSaved, onDelete }: {
                   type="number"
                   inputMode="decimal"
                   min="0"
-                  step="1"
                   value={draft.price_inr}
                   onChange={(e) => setDraft({ ...draft, price_inr: e.target.value })}
                   placeholder="0"
@@ -386,17 +451,36 @@ const ProductDialog = ({ initial, editingId, onClose, onSaved, onDelete }: {
                 />
               </div>
             </Field>
-            <Field label="Stock">
-              <input
-                type="number"
-                inputMode="numeric"
-                min="0"
-                value={draft.stock}
-                onChange={(e) => setDraft({ ...draft, stock: e.target.value })}
-                placeholder="—"
-                className="w-full px-3 py-2.5 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[14px] font-extrabold tabular-nums"
-              />
-            </Field>
+
+            {draft.is_digital ? (
+              <Field label="Price (USD)">
+                <div className="relative">
+                  <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/45" strokeWidth={2.5} />
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    value={draft.price_usd}
+                    onChange={(e) => setDraft({ ...draft, price_usd: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full pl-8 pr-3 py-2.5 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[14px] font-extrabold tabular-nums"
+                  />
+                </div>
+              </Field>
+            ) : (
+              <Field label="Stock">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min="0"
+                  value={draft.stock}
+                  onChange={(e) => setDraft({ ...draft, stock: e.target.value })}
+                  placeholder="—"
+                  className="w-full px-3 py-2.5 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[14px] font-extrabold tabular-nums"
+                />
+              </Field>
+            )}
+
             <Field label="Category">
               <input
                 value={draft.category}
@@ -406,7 +490,96 @@ const ProductDialog = ({ initial, editingId, onClose, onSaved, onDelete }: {
               />
             </Field>
           </div>
-          <p className="text-[10.5px] text-foreground/45 -mt-2">Leave stock empty if you don't want to track inventory.</p>
+          {!draft.is_digital && (
+            <p className="text-[10.5px] text-foreground/45 -mt-2">Leave stock empty if you don't want to track inventory.</p>
+          )}
+
+          {/* Digital Product Delivery details */}
+          {draft.is_digital && (
+            <div className="p-4 rounded-2xl border-2 border-blue-200 bg-blue-50/40 space-y-3">
+              <div className="flex items-center gap-1.5 text-blue-800 font-extrabold text-[12.5px]">
+                <Sparkles className="w-4 h-4 text-blue-600" />
+                <span>Digital Delivery Settings</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Validity">
+                  <input
+                    value={draft.validity}
+                    onChange={(e) => setDraft({ ...draft, validity: e.target.value })}
+                    placeholder="e.g. Lifetime / 1 Year"
+                    className="w-full px-3 py-2 rounded-lg bg-white border-2 border-blue-200 focus:border-blue-600 focus:outline-none text-[13px] font-bold"
+                  />
+                </Field>
+                <Field label="Activation Time">
+                  <input
+                    value={draft.activation_time}
+                    onChange={(e) => setDraft({ ...draft, activation_time: e.target.value })}
+                    placeholder="e.g. Instant / 5 mins"
+                    className="w-full px-3 py-2 rounded-lg bg-white border-2 border-blue-200 focus:border-blue-600 focus:outline-none text-[13px] font-bold"
+                  />
+                </Field>
+              </div>
+
+              <Field label="Activation Email Template (Instructions)">
+                <textarea
+                  value={draft.activation_mail}
+                  onChange={(e) => setDraft({ ...draft, activation_mail: e.target.value })}
+                  placeholder="Instructions sent automatically to the customer upon purchase."
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-lg bg-white border-2 border-blue-200 focus:border-blue-600 focus:outline-none text-[12.5px] font-medium resize-none leading-relaxed"
+                />
+              </Field>
+
+              {/* Reseller settings */}
+              <div className="pt-2 border-t border-blue-200/60">
+                <label className="flex items-center justify-between cursor-pointer mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <RefreshCw className="w-4 h-4 text-blue-600" />
+                    <span className="text-[12px] font-extrabold text-blue-900">Enable Reseller Program</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={draft.is_reseller}
+                    onChange={(e) => setDraft({ ...draft, is_reseller: e.target.checked })}
+                    className="w-4 h-4 accent-blue-600"
+                  />
+                </label>
+                {draft.is_reseller && (
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <Field label="Reseller Price (INR)">
+                      <div className="relative">
+                        <IndianRupee className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/45" strokeWidth={2.5} />
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          value={draft.reseller_price}
+                          onChange={(e) => setDraft({ ...draft, reseller_price: e.target.value })}
+                          placeholder="0"
+                          className="w-full pl-8 pr-3 py-2 rounded-lg bg-white border-2 border-blue-200 focus:border-blue-600 focus:outline-none text-[13px] font-extrabold tabular-nums"
+                        />
+                      </div>
+                    </Field>
+                    <Field label="Reseller Price (USD)">
+                      <div className="relative">
+                        <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/45" strokeWidth={2.5} />
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          value={draft.reseller_price_usd}
+                          onChange={(e) => setDraft({ ...draft, reseller_price_usd: e.target.value })}
+                          placeholder="0.00"
+                          className="w-full pl-8 pr-3 py-2 rounded-lg bg-white border-2 border-blue-200 focus:border-blue-600 focus:outline-none text-[13px] font-extrabold tabular-nums"
+                        />
+                      </div>
+                    </Field>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Status */}
           <div>
@@ -480,11 +653,6 @@ const Stat = ({ label, value, accent }: { label: string; value: string; accent: 
     <p className="text-[24px] font-black mt-1 leading-none tabular-nums">{value}</p>
   </div>
 );
-
-// ─── WhatsApp Catalog sync ─────────────────────────────────────────────
-// One-click push of all active products to Meta's Commerce Manager catalog
-// so they appear in the user's WhatsApp Business profile / catalog shortcut.
-// Requires a catalog_id to be wired on the meta_config row (Admin → Meta API).
 
 const SyncCatalogButton = () => {
   const [syncing, setSyncing] = useState(false);

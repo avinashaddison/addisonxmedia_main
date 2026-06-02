@@ -703,6 +703,14 @@ export const product = pgTable("product", {
   category: text("category"),
   status: text("status").notNull().default("active"),  // 'active' | 'draft' | 'archived'
   sortOrder: integer("sort_order").notNull().default(0),
+  isDigital: boolean("is_digital").notNull().default(false),
+  validity: text("validity"),
+  activationMail: text("activation_mail"),
+  activationTime: text("activation_time"),
+  priceUsd: numeric("price_usd", { precision: 10, scale: 2 }),
+  isReseller: boolean("is_reseller").notNull().default(false),
+  resellerPrice: numeric("reseller_price", { precision: 10, scale: 2 }),
+  resellerPriceUsd: numeric("reseller_price_usd", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

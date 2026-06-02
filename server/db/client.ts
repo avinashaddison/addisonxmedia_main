@@ -71,6 +71,14 @@ export const warmupDb = async () => {
         await db.execute(sql`ALTER TABLE "prebuilt_agent" ADD COLUMN IF NOT EXISTS "upi_vpa" text;`);
         await db.execute(sql`ALTER TABLE "prebuilt_agent" ADD COLUMN IF NOT EXISTS "binance_id" text;`);
         await db.execute(sql`ALTER TABLE "prebuilt_agent" ADD COLUMN IF NOT EXISTS "qr_image_url" text;`);
+        await db.execute(sql`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "is_digital" boolean NOT NULL DEFAULT false;`);
+        await db.execute(sql`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "validity" text;`);
+        await db.execute(sql`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "activation_mail" text;`);
+        await db.execute(sql`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "activation_time" text;`);
+        await db.execute(sql`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "price_usd" numeric(10, 2);`);
+        await db.execute(sql`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "is_reseller" boolean NOT NULL DEFAULT false;`);
+        await db.execute(sql`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "reseller_price" numeric(10, 2);`);
+        await db.execute(sql`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "reseller_price_usd" numeric(10, 2);`);
         logger.info('DB startup migrations completed successfully');
       } catch (migErr: any) {
         logger.error({ error: migErr.message || migErr }, 'DB startup migrations failed');

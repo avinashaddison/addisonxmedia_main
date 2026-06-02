@@ -66,6 +66,14 @@ app.post("/products", async (c) => {
     stock?: number | null;
     category?: string | null;
     status?: string;
+    is_digital?: boolean;
+    validity?: string | null;
+    activation_mail?: string | null;
+    activation_time?: string | null;
+    price_usd?: number | null;
+    is_reseller?: boolean;
+    reseller_price?: number | null;
+    reseller_price_usd?: number | null;
   }>();
   const name = (body.name || "").trim();
   if (!name) return c.json({ error: "Product name is required" }, 400);
@@ -90,6 +98,14 @@ app.post("/products", async (c) => {
     category: (body.category ?? null) || null,
     status,
     sortOrder: nextSort,
+    isDigital: body.is_digital ?? false,
+    validity: body.validity ?? null,
+    activationMail: body.activation_mail ?? null,
+    activationTime: body.activation_time ?? null,
+    priceUsd: body.price_usd != null ? String(body.price_usd) : null,
+    isReseller: body.is_reseller ?? false,
+    resellerPrice: body.reseller_price != null ? String(body.reseller_price) : null,
+    resellerPriceUsd: body.reseller_price_usd != null ? String(body.reseller_price_usd) : null,
   }).returning();
   return c.json(row, 201);
 });
@@ -105,6 +121,14 @@ app.patch("/products/:id", async (c) => {
     stock?: number | null;
     category?: string | null;
     status?: string;
+    is_digital?: boolean;
+    validity?: string | null;
+    activation_mail?: string | null;
+    activation_time?: string | null;
+    price_usd?: number | null;
+    is_reseller?: boolean;
+    reseller_price?: number | null;
+    reseller_price_usd?: number | null;
   }>();
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -125,6 +149,17 @@ app.patch("/products/:id", async (c) => {
     if (!["active", "draft", "archived"].includes(body.status)) return c.json({ error: "Invalid status" }, 400);
     updates.status = body.status;
   }
+  if (typeof body.is_digital === "boolean") updates.isDigital = body.is_digital;
+  if ("validity" in body) updates.validity = body.validity ?? null;
+  if ("activation_mail" in body) updates.activationMail = body.activation_mail ?? null;
+  if ("activation_time" in body) updates.activationTime = body.activation_time ?? null;
+  if (typeof body.price_usd === "number") updates.priceUsd = String(body.price_usd);
+  else if (body.price_usd === null) updates.priceUsd = null;
+  if (typeof body.is_reseller === "boolean") updates.isReseller = body.is_reseller;
+  if (typeof body.reseller_price === "number") updates.resellerPrice = String(body.reseller_price);
+  else if (body.reseller_price === null) updates.resellerPrice = null;
+  if (typeof body.reseller_price_usd === "number") updates.resellerPriceUsd = String(body.reseller_price_usd);
+  else if (body.reseller_price_usd === null) updates.resellerPriceUsd = null;
 
   const [row] = await db.update(product)
     .set(updates)

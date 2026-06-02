@@ -606,6 +606,14 @@ export const api = {
     stock?: number | null;
     category?: string | null;
     status?: "active" | "draft" | "archived";
+    is_digital?: boolean;
+    validity?: string | null;
+    activation_mail?: string | null;
+    activation_time?: string | null;
+    price_usd?: number | null;
+    is_reseller?: boolean;
+    reseller_price?: number | null;
+    reseller_price_usd?: number | null;
   }) => post<ProductDto>("/products", data),
   updateProduct: (id: string, data: Partial<{
     name: string;
@@ -615,6 +623,14 @@ export const api = {
     stock: number | null;
     category: string | null;
     status: "active" | "draft" | "archived";
+    is_digital: boolean;
+    validity: string | null;
+    activation_mail: string | null;
+    activation_time: string | null;
+    price_usd: number | null;
+    is_reseller: boolean;
+    reseller_price: number | null;
+    reseller_price_usd: number | null;
   }>) => patch<ProductDto>(`/products/${id}`, data),
   deleteProduct: (id: string) => del(`/products/${id}`),
   reorderProducts: (items: Array<{ id: string; sort_order: number }>) =>
@@ -930,6 +946,14 @@ export type ProductDto = {
   category: string | null;
   status: "active" | "draft" | "archived";
   sort_order: number;
+  is_digital: boolean;
+  validity: string | null;
+  activation_mail: string | null;
+  activation_time: string | null;
+  price_usd: string | null;
+  is_reseller: boolean;
+  reseller_price: string | null;
+  reseller_price_usd: string | null;
   created_at: string;
   updated_at: string;
 };
