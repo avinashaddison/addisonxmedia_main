@@ -40,16 +40,52 @@ type NavItem = {
 
 const groups: { label: string; items: NavItem[] }[] = [
   {
-    label: "Dashboard",
+    label: "Sales",
     items: [
       { icon: LayoutDashboard, label: "Dashboard", id: "dashboard", hint: "Command center" },
+      { icon: Inbox, label: "Chats", id: "inbox", badgeKey: "inbox", hint: "Live WhatsApp inbox", live: true },
+      { icon: Users, label: "Contacts", id: "contacts", hint: "Leads & CRM" },
+      { icon: Trophy, label: "Deals", id: "deals", hint: "Sales pipeline" },
     ],
   },
   {
+    label: "Marketing",
+    items: [
+      { icon: Target, label: "Ads Marketing", id: "ads", hint: "Meta + Google ads", smart: true },
+      { icon: Megaphone, label: "Campaigns", id: "campaigns", hint: "Multi-channel" },
+      { icon: Radio, label: "Broadcasts", id: "broadcasts", hint: "Mass messages" },
+      { icon: FileText, label: "Templates", id: "templates", hint: "Reusable messages" },
+    ],
+  },
+  {
+    label: "Automation",
+    items: [
+      { icon: Bell, label: "Follow-ups", id: "followups", badgeKey: "tasks", hint: "Tasks queue" },
+    ],
+  },
+  {
+    label: "AI",
+    items: [
+      { icon: Brain, label: "AI Agent", id: "ai-training", hint: "Teach Addison about your business", smart: true },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { icon: BarChart3, label: "Analytics", id: "analytics", hint: "Reports & insights" },
+      { icon: Activity, label: "Activity", id: "activity", hint: "System history" },
+      { icon: Plug, label: "Integrations", id: "integrations", hint: "Connect tools" },
+      { icon: Settings, label: "Settings", id: "settings", hint: "Workspace config" },
+    ],
+  },
+];
+
+const websiteGroups: { label: string; items: NavItem[] }[] = [
+  {
     label: "Website",
     items: [
-      { icon: Globe,    label: "Site Builder", id: "site",       hint: "Storefront & content" },
-      { icon: FileText, label: "Pages",        id: "site/pages",  hint: "Custom pages" },
+      { icon: Store,  label: "Site Builder", id: "site",       hint: "Everything: content, theme, branding, launch" },
+      { icon: Layers, label: "Pages",        id: "site/pages",  hint: "Custom pages" },
     ],
   },
   {
@@ -75,7 +111,7 @@ const groups: { label: string; items: NavItem[] }[] = [
       { icon: Megaphone, label: "Campaigns",  id: "campaigns", hint: "Meta ads manager" },
       { icon: Radio,     label: "Broadcasts", id: "broadcasts", hint: "WhatsApp blasts" },
       { icon: Bell,      label: "Automations",id: "followups", badgeKey: "tasks", hint: "Follow-ups" },
-      { icon: BarChart3, label: "Analytics",  id: "analytics", hint: "Store views & statistics" },
+      { icon: BarChart3, label: "Analytics",  id: "site/analytics", hint: "Store views & statistics" },
     ],
   },
   {
@@ -90,10 +126,11 @@ const groups: { label: string; items: NavItem[] }[] = [
       { icon: Globe,    label: "Domain",       id: "site/domain", hint: "Custom domain" },
       { icon: Users,    label: "Team",         id: "settings", hint: "Staff credentials" },
       { icon: Plug,     label: "Integrations", id: "integrations", hint: "APIs & keys" },
-      { icon: Settings, label: "Settings",     id: "settings", hint: "Workspace config" },
+      { icon: Settings, label: "Settings",     id: "site/settings", hint: "Workspace config" },
     ],
   },
 ];
+
 
 // Tasks-only badge query. The inbox badge is derived from useConversations()
 // below so it updates at the same 5s cadence as the chats list — instead of
@@ -123,10 +160,11 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
   });
 
   const location = useLocation();
-  const activeGroups = groups;
-  // Match path directly to find active item
-  const pathWithoutApp = location.pathname.replace(/^\/app\/?/, "");
-  const activeId = pathWithoutApp || "dashboard";
+  const mode: "primary" | "website" = location.pathname.startsWith("/app/site") ? "website" : "primary";
+  const activeGroups = mode === "website" ? websiteGroups : groups;
+  const websiteSubPath = location.pathname.replace(/^\/app\/site\/?/, "");
+  const activeId = mode === "website" ? (websiteSubPath ? `site/${websiteSubPath}` : "site") : active;
+
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
@@ -250,6 +288,25 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           <ProjectSwitcher collapsed={collapsed} />
         </div>
 
+        {/* Website mode — back arrow returns to primary sidebar */}
+        {mode === "website" && (
+          <button
+            onClick={() => handleNavigate("dashboard")}
+            title={collapsed ? "Back to main menu" : undefined}
+            className={cn(
+              "w-full h-11 rounded-xl flex items-center gap-2.5 px-2.5 transition-all bg-white border-2 border-[#E8B968] text-[#0A3D24] font-extrabold shadow-[0_2px_0_0_#E8B968] hover:bg-[#FFE8C7] active:translate-y-0.5 active:shadow-[0_1px_0_0_#E8B968] group",
+              collapsed && "justify-center px-0",
+            )}
+          >
+            <ArrowLeft className="w-4 h-4 flex-shrink-0 group-hover:-translate-x-0.5 transition" strokeWidth={2.5} />
+            {!collapsed && <span className="flex-1 text-left text-[12.5px]">Back to main</span>}
+            {collapsed && (
+              <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
+                Back to main menu
+              </span>
+            )}
+          </button>
+        )}
 
         {activeGroups.map((group) => {
           const groupColors: Record<string, string> = {
@@ -259,11 +316,10 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
             AI: "text-[#3C50E0]",
             System: "text-[#B8651A]",
             // Website-mode groups
-            Launch: "text-[#0E8A4B]",
-            Engage: "text-[#D4308E]",
-            Sell: "text-[#FF6A1F]",
+            Website: "text-[#0E8A4B]",
+            "Leads & Chats": "text-[#D4308E]",
             Growth: "text-[#3C50E0]",
-            Setup: "text-[#B8651A]",
+            Settings: "text-[#B8651A]",
           };
           return (
           <div key={group.label} className="space-y-1">
