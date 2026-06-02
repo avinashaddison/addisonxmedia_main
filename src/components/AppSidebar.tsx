@@ -398,9 +398,41 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
         })}
       </nav>
 
-
-
-
+      {/* Pinned 'Products + Sites' CTA */}
+      {mode === "primary" && (
+        <div className="px-2.5 pt-3 pb-3 flex-shrink-0">
+          <button
+            onClick={() => handleNavigate("site")}
+            onMouseEnter={() => prefetchPage("site")}
+            title={collapsed ? "Products + Sites" : undefined}
+            className={cn(
+              "relative w-full rounded-xl flex items-center gap-2.5 px-2.5 transition-all group overflow-hidden border-2 border-[#7A4A00] shadow-[0_3px_0_0_#7A4A00] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[0_1px_0_0_#7A4A00] bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white font-extrabold",
+              collapsed ? "h-11 justify-center px-0" : "h-12",
+            )}
+          >
+            <span className="absolute -top-3 -right-3 w-10 h-10 bg-[#FFD23F]/25 rounded-full blur-lg pointer-events-none" />
+            <span className="relative w-7 h-7 rounded-lg bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center flex-shrink-0 shadow-[0_2px_0_0_#B8860B]">
+              <Rocket className="w-4 h-4" strokeWidth={2.5} />
+            </span>
+            {!collapsed && (
+              <span className="relative flex-1 text-left">
+                <span className="block text-[12.5px] leading-tight">Products + Sites</span>
+                <span className="block text-[9.5px] font-bold text-[#FFD23F] uppercase tracking-wider">
+                  Site + Store builder
+                </span>
+              </span>
+            )}
+            {!collapsed && (
+              <ChevronRight className="relative w-4 h-4 text-[#FFD23F] group-hover:translate-x-0.5 transition flex-shrink-0" strokeWidth={2.5} />
+            )}
+            {collapsed && (
+              <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
+                Products + Sites
+              </span>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* User menu */}
       <div className="p-2.5 border-t-2 border-[#E8B968] bg-white">
