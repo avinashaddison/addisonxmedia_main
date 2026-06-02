@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { CommandPalette } from "./CommandPalette";
 import { NotificationCenter } from "./NotificationCenter";
-import { ThemeToggle } from "../ThemeToggle";
+
 
 type Props = { onNavigate: (page: string) => void; onMenuClick?: () => void };
 
@@ -86,7 +86,7 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
         </button>
       </div>
 
-      <ThemeToggle />
+
 
       <NotificationCenter onNavigate={onNavigate} />
 
