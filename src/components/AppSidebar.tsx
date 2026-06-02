@@ -82,45 +82,35 @@ const groups: { label: string; items: NavItem[] }[] = [
 
 const websiteGroups: { label: string; items: NavItem[] }[] = [
   {
-    label: "Website",
+    label: "Design & Content",
     items: [
-      { icon: Store,  label: "Site Builder", id: "site",       hint: "Everything: content, theme, branding, launch" },
-      { icon: Layers, label: "Pages",        id: "site/pages",  hint: "Custom pages" },
+      { icon: Store,  label: "Site Builder", id: "site",       hint: "Manage theme, sections & templates" },
+      { icon: Layers, label: "Pages",        id: "site/pages",  hint: "Add & edit pages" },
+      { icon: Search, label: "SEO Settings", id: "site/seo",    hint: "Meta tags & search optimization" },
     ],
   },
   {
-    label: "Leads & Chats",
+    label: "Leads & Bookings",
     items: [
       { icon: ClipboardList, label: "Lead Forms",    id: "site/leads", hint: "CRM capture forms" },
-      { icon: Calendar,      label: "Bookings",      id: "site/bookings", hint: "Appointments" },
+      { icon: Calendar,      label: "Bookings",      id: "site/bookings", hint: "Appointments & schedules" },
     ],
   },
   {
-    label: "Sales",
+    label: "Commerce & Sales",
     items: [
-      { icon: Package,      label: "Products",   id: "site/products", hint: "Catalog items & tabs" },
-      { icon: ShoppingCart, label: "Orders",     id: "site/orders", hint: "Pipeline & shipping" },
-      { icon: UsersRound,   label: "Customers",  id: "site/customers", hint: "CRM contacts" },
-      { icon: CreditCard,   label: "Payments",   id: "site/payments", hint: "UPI + gateways" },
+      { icon: Package,      label: "Products",   id: "site/products", hint: "Physical & digital catalog" },
+      { icon: ShoppingCart, label: "Orders",     id: "site/orders", hint: "Track payments & shipments" },
+      { icon: UsersRound,   label: "Customers",  id: "site/customers", hint: "Store buyers CRM" },
+      { icon: CreditCard,   label: "Payments",   id: "site/payments", hint: "UPI & online gateways" },
     ],
   },
   {
-    label: "Marketing",
+    label: "Reports & Setup",
     items: [
-      { icon: BarChart3, label: "Analytics",  id: "site/analytics", hint: "Store views & statistics" },
-    ],
-  },
-  {
-    label: "Growth",
-    items: [
-      { icon: Search, label: "SEO", id: "site/seo", hint: "Meta tags & SEO" },
-    ],
-  },
-  {
-    label: "Settings",
-    items: [
-      { icon: Globe,    label: "Domain",       id: "site/domain", hint: "Custom domain" },
-      { icon: Settings, label: "Settings",     id: "site/settings", hint: "Workspace config" },
+      { icon: BarChart3, label: "Store Analytics", id: "site/analytics", hint: "Views, sales & conversion rates" },
+      { icon: Globe,     label: "Custom Domain",   id: "site/domain", hint: "Connect your branding" },
+      { icon: Settings,  label: "Store Settings",  id: "site/settings", hint: "Tax, GST & business profile" },
     ],
   },
 ];
@@ -291,10 +281,10 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
             AI: "text-[#3C50E0]",
             System: "text-[#B8651A]",
             // Website-mode groups
-            Website: "text-[#0E8A4B]",
-            "Leads & Chats": "text-[#D4308E]",
-            Growth: "text-[#3C50E0]",
-            Settings: "text-[#B8651A]",
+            "Design & Content": "text-[#0E8A4B]",
+            "Leads & Bookings": "text-[#D4308E]",
+            "Commerce & Sales": "text-[#FF6A1F]",
+            "Reports & Setup": "text-[#3C50E0]",
           };
           return (
           <div key={group.label} className="space-y-1">
