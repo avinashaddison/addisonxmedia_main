@@ -400,6 +400,29 @@ export async function getHumanizedSuggestions(
   const [agent] = await db.select().from(aiAgent).where(and(eq(aiAgent.ownerId, userId), eq(aiAgent.isActive, true))).limit(1);
   if (!agent) throw new Error("No active agent found for workspace");
 
+  // Load storefront products as active agent products
+  const productsRows = await db.select().from(product)
+    .where(and(eq(product.ownerId, userId), eq(product.status, "active")))
+    .orderBy(asc(product.sortOrder));
+
+  const agentProducts = Array.isArray(agent.products) ? (agent.products as any[]) : [];
+  agent.products = productsRows.map(p => {
+    const existing = agentProducts.find((ap: any) => ap.name && ap.name.toLowerCase() === p.name.toLowerCase());
+    return {
+      name: p.name,
+      price: Number(p.priceInr) || 0,
+      imageUrl: p.photoUrl || "",
+      description: p.description || "",
+      validity: existing?.validity || "Lifetime",
+      activationMail: existing?.activationMail || existing?.activation_mail || "On your Mail",
+      activationTime: existing?.activationTime || existing?.activation_time || "10 min",
+      priceUsd: existing?.priceUsd || existing?.price_usd,
+      isReseller: existing?.isReseller || existing?.is_reseller || false,
+      resellerPrice: existing?.resellerPrice || existing?.reseller_price,
+      resellerPriceUsd: existing?.resellerPriceUsd || existing?.reseller_price_usd,
+    };
+  }) as any;
+
   // 5. Fetch last 10 messages
   const recentMessages = await db.select().from(message).where(eq(message.conversationId, conversationId)).orderBy(desc(message.createdAt)).limit(10);
   const history = recentMessages.slice().reverse();

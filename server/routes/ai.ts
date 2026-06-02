@@ -50,29 +50,53 @@ app.get("/ai/agents", async (c) => {
   const userId = c.var.userId;
   await seedAgentsIfEmpty(userId);
   const agents = await db.select().from(aiAgent).where(eq(aiAgent.ownerId, userId)).orderBy(desc(aiAgent.createdAt));
-  return c.json(agents.map(a => ({
-    id: a.id,
-    owner_id: a.ownerId,
-    name: a.name,
-    type: a.type,
-    business_name: a.businessName,
-    what_we_sell: a.whatWeSell,
-    tone: a.tone,
-    response_language: a.responseLanguage,
-    always_say: a.alwaysSay,
-    never_say: a.neverSay,
-    escalate_keywords: a.escalateKeywords,
-    products: a.products || [],
-    knowledge_base: a.knowledgeBase,
-    system_prompt: a.systemPrompt,
-    prebuilt_id: a.prebuiltId,
-    is_active: a.isActive,
-    upi_vpa: a.upiVpa || "",
-    binance_id: a.binanceId || "",
-    qr_image_url: a.qrImageUrl || "",
-    created_at: a.createdAt,
-    updated_at: a.updatedAt,
-  })));
+  const productsRows = await db.select().from(product)
+    .where(and(eq(product.ownerId, userId), eq(product.status, "active")))
+    .orderBy(asc(product.sortOrder));
+
+  return c.json(agents.map(a => {
+    const agentProducts = Array.isArray(a.products) ? (a.products as any[]) : [];
+    const mergedProducts = productsRows.map(p => {
+      const existing = agentProducts.find((ap: any) => ap.name && ap.name.toLowerCase() === p.name.toLowerCase());
+      return {
+        name: p.name,
+        price: Number(p.priceInr) || 0,
+        imageUrl: p.photoUrl || "",
+        description: p.description || "",
+        validity: existing?.validity || "Lifetime",
+        activationMail: existing?.activationMail || existing?.activation_mail || "On your Mail",
+        activationTime: existing?.activationTime || existing?.activation_time || "10 min",
+        priceUsd: existing?.priceUsd || existing?.price_usd,
+        isReseller: existing?.isReseller || existing?.is_reseller || false,
+        resellerPrice: existing?.resellerPrice || existing?.reseller_price,
+        resellerPriceUsd: existing?.resellerPriceUsd || existing?.reseller_price_usd,
+      };
+    });
+
+    return {
+      id: a.id,
+      owner_id: a.ownerId,
+      name: a.name,
+      type: a.type,
+      business_name: a.businessName,
+      what_we_sell: a.whatWeSell,
+      tone: a.tone,
+      response_language: a.responseLanguage,
+      always_say: a.alwaysSay,
+      never_say: a.neverSay,
+      escalate_keywords: a.escalateKeywords,
+      products: mergedProducts,
+      knowledge_base: a.knowledgeBase,
+      system_prompt: a.systemPrompt,
+      prebuilt_id: a.prebuiltId,
+      is_active: a.isActive,
+      upi_vpa: a.upiVpa || "",
+      binance_id: a.binanceId || "",
+      qr_image_url: a.qrImageUrl || "",
+      created_at: a.createdAt,
+      updated_at: a.updatedAt,
+    };
+  }));
 });
 
 app.post("/ai/agents", async (c) => {
@@ -97,6 +121,41 @@ app.post("/ai/agents", async (c) => {
     qrImageUrl: body.qr_image_url || null,
     isActive: false,
   }).returning();
+
+  if (body.products && Array.isArray(body.products)) {
+    const incomingNames = new Set(body.products.map((p: any) => (p.name || "").trim().toLowerCase()).filter(Boolean));
+    const dbProds = await db.select().from(product).where(and(eq(product.ownerId, userId), eq(product.status, "active")));
+    for (const dp of dbProds) {
+      if (!incomingNames.has(dp.name.toLowerCase())) {
+        await db.update(product).set({ status: "archived", updatedAt: new Date() }).where(eq(product.id, dp.id));
+      }
+    }
+
+    for (const p of body.products) {
+      if (!p.name) continue;
+      const priceStr = String(p.price || 0);
+      const [existingProd] = await db.select().from(product)
+        .where(and(eq(product.ownerId, userId), eq(product.name, p.name))).limit(1);
+      if (existingProd) {
+        await db.update(product).set({
+          priceInr: priceStr,
+          photoUrl: p.imageUrl || p.image_url || null,
+          description: p.description || null,
+          status: "active",
+          updatedAt: new Date()
+        }).where(eq(product.id, existingProd.id));
+      } else {
+        await db.insert(product).values({
+          ownerId: userId,
+          name: p.name,
+          priceInr: priceStr,
+          photoUrl: p.imageUrl || p.image_url || null,
+          description: p.description || null,
+          status: "active"
+        });
+      }
+    }
+  }
 
   return c.json({
     id: agent.id,
@@ -150,6 +209,41 @@ app.patch("/ai/agents/:id", async (c) => {
     .returning();
 
   if (!agent) return c.json({ error: "Agent not found" }, 404);
+
+  if (body.products && Array.isArray(body.products)) {
+    const incomingNames = new Set(body.products.map((p: any) => (p.name || "").trim().toLowerCase()).filter(Boolean));
+    const dbProds = await db.select().from(product).where(and(eq(product.ownerId, userId), eq(product.status, "active")));
+    for (const dp of dbProds) {
+      if (!incomingNames.has(dp.name.toLowerCase())) {
+        await db.update(product).set({ status: "archived", updatedAt: new Date() }).where(eq(product.id, dp.id));
+      }
+    }
+
+    for (const p of body.products) {
+      if (!p.name) continue;
+      const priceStr = String(p.price || 0);
+      const [existingProd] = await db.select().from(product)
+        .where(and(eq(product.ownerId, userId), eq(product.name, p.name))).limit(1);
+      if (existingProd) {
+        await db.update(product).set({
+          priceInr: priceStr,
+          photoUrl: p.imageUrl || p.image_url || null,
+          description: p.description || null,
+          status: "active",
+          updatedAt: new Date()
+        }).where(eq(product.id, existingProd.id));
+      } else {
+        await db.insert(product).values({
+          ownerId: userId,
+          name: p.name,
+          priceInr: priceStr,
+          photoUrl: p.imageUrl || p.image_url || null,
+          description: p.description || null,
+          status: "active"
+        });
+      }
+    }
+  }
 
   return c.json({
     id: agent.id,
