@@ -566,3 +566,10 @@
     box-shadow: 0 2px 0 0 hsl(var(--border)) !important;
   }
 }
+
+/* Default zoom scaling for laptops/desktops */
+@media (min-width: 1024px) {
+  html {
+    zoom: 0.9;
+  }
+}
