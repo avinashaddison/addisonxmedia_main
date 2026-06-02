@@ -1084,7 +1084,7 @@ import { SiteAgentTab } from "./pages/SiteAgentTab";
 import { SiteOperationsTab } from "./pages/SiteOperationsTab";
 
 export const SitePage = ({ subPath }: Props) => {
-  const [activeConsoleTab, setActiveConsoleTab] = useState<"overview" | "physical" | "digital" | "bookings" | "operations">("overview");
+  const [activeConsoleTab, setActiveConsoleTab] = useState<"overview" | "physical" | "digital" | "operations">("overview");
   const key = (subPath || "").toLowerCase();
 
   if (key === "") {
@@ -1096,7 +1096,6 @@ export const SitePage = ({ subPath }: Props) => {
             { id: "overview", label: "Overview", icon: Globe },
             { id: "physical", label: "Physical Products", icon: Package },
             { id: "digital", label: "Digital Products", icon: Sparkles },
-            { id: "bookings", label: "Booking Management", icon: ClipboardList },
             { id: "operations", label: "Operations & Tasks", icon: Activity },
           ].map((tab) => {
             const active = activeConsoleTab === tab.id;
@@ -1123,7 +1122,6 @@ export const SitePage = ({ subPath }: Props) => {
           {activeConsoleTab === "overview" && <SiteOverview />}
           {activeConsoleTab === "physical" && <ProductsPage filterType="physical" />}
           {activeConsoleTab === "digital" && <ProductsPage filterType="digital" />}
-          {activeConsoleTab === "bookings" && <BookingsPage />}
           {activeConsoleTab === "operations" && <SiteOperationsTab />}
         </div>
       </div>
