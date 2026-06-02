@@ -571,5 +571,14 @@
 @media (min-width: 1024px) {
   html {
     zoom: 0.9;
+    background-color: hsl(var(--background)) !important;
+  }
+  
+  /* Scale up screen height containers so they render at exactly 100% height when zoomed out */
+  .h-screen, [class*="h-screen"] {
+    height: 111.11vh !important;
+  }
+  .min-h-screen, [class*="min-h-screen"] {
+    min-height: 111.11vh !important;
   }
 }
