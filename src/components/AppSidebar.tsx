@@ -288,25 +288,6 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           <ProjectSwitcher collapsed={collapsed} />
         </div>
 
-        {/* Website mode — back arrow returns to primary sidebar */}
-        {mode === "website" && (
-          <button
-            onClick={() => handleNavigate("dashboard")}
-            title={collapsed ? "Back to main menu" : undefined}
-            className={cn(
-              "w-full h-11 rounded-xl flex items-center gap-2.5 px-2.5 transition-all bg-white border-2 border-[#E8B968] text-[#0A3D24] font-extrabold shadow-[0_2px_0_0_#E8B968] hover:bg-[#FFE8C7] active:translate-y-0.5 active:shadow-[0_1px_0_0_#E8B968] group",
-              collapsed && "justify-center px-0",
-            )}
-          >
-            <ArrowLeft className="w-4 h-4 flex-shrink-0 group-hover:-translate-x-0.5 transition" strokeWidth={2.5} />
-            {!collapsed && <span className="flex-1 text-left text-[12.5px]">Back to main</span>}
-            {collapsed && (
-              <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
-                Back to main menu
-              </span>
-            )}
-          </button>
-        )}
 
         {activeGroups.map((group) => {
           const groupColors: Record<string, string> = {
@@ -436,6 +417,45 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           </button>
         </div>
       )}
+
+      {/* Pinned 'Back to Main' CTA for website mode */}
+      {mode === "website" && (
+        <div className="px-2.5 pt-3 pb-3 flex-shrink-0">
+          <button
+            onClick={() => handleNavigate("dashboard")}
+            title={collapsed ? "Back to Main" : undefined}
+            className={cn(
+              "relative w-full rounded-xl flex items-center gap-2.5 px-2.5 transition-all duration-300 group overflow-hidden border-2 border-[#7A4A00] shadow-[0_4px_0_0_#7A4A00] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[0_1px_0_0_#7A4A00] bg-gradient-to-r from-[#0E8A4B] via-[#10B981] to-[#0A6E3C] bg-[length:200%_auto] hover:bg-right hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] text-white font-extrabold",
+              collapsed ? "h-11 justify-center px-0" : "h-12",
+            )}
+          >
+            {/* Sliding Shine Sweep */}
+            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none" />
+
+            <span className="absolute -top-3 -right-3 w-10 h-10 bg-[#FFD23F]/25 rounded-full blur-lg pointer-events-none" />
+            <span className="relative w-7 h-7 rounded-lg bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center flex-shrink-0 shadow-[0_2px_0_0_#B8860B] transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-12">
+              <ArrowLeft className="w-4 h-4 transition-transform duration-300 group-hover:-translate-x-0.5" strokeWidth={2.5} />
+            </span>
+            {!collapsed && (
+              <span className="relative flex-1 text-left">
+                <span className="block text-[12.5px] leading-tight">Back to Main</span>
+                <span className="block text-[9.5px] font-bold text-[#FFD23F] uppercase tracking-wider">
+                  Exit Website Console
+                </span>
+              </span>
+            )}
+            {!collapsed && (
+              <ChevronRight className="relative w-4 h-4 text-[#FFD23F] group-hover:translate-x-1.5 transition-transform duration-300 flex-shrink-0" strokeWidth={2.5} />
+            )}
+            {collapsed && (
+              <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
+                Back to Main
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
 
       {/* User menu */}
       <div className="p-2.5 border-t-2 border-[#E8B968] bg-white">
