@@ -188,6 +188,7 @@ export type AiAgent = {
   never_say: string;
   escalate_keywords: string;
   products: AiAgentProduct[];
+  raw_products?: AiAgentProduct[];
   knowledge_base: string;
   system_prompt: string;
   prebuilt_id?: string | null;

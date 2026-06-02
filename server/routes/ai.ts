@@ -86,6 +86,7 @@ app.get("/ai/agents", async (c) => {
       never_say: a.neverSay,
       escalate_keywords: a.escalateKeywords,
       products: mergedProducts,
+      raw_products: agentProducts,
       knowledge_base: a.knowledgeBase,
       system_prompt: a.systemPrompt,
       prebuilt_id: a.prebuiltId,

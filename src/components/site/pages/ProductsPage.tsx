@@ -58,6 +58,47 @@ export const ProductsPage = () => {
     staleTime: 30_000,
   });
 
+  const { data: agents = [] } = useQuery({
+    queryKey: ["ai-agents"],
+    queryFn: () => api.listAgents(),
+    staleTime: 30_000,
+  });
+  const activeAgent = agents.find((a) => a.is_active) || agents[0];
+  const rawProducts = activeAgent?.raw_products || [];
+
+  const [importing, setImporting] = useState(false);
+  const handleImportFromAgent = async () => {
+    if (!rawProducts.length) return;
+    setImporting(true);
+    let imported = 0;
+    try {
+      for (const rp of rawProducts) {
+        await api.createProduct({
+          name: rp.name,
+          price_inr: rp.price,
+          description: rp.description || "",
+          photo_url: rp.imageUrl || "",
+          is_digital: true, // rawProducts are digital products
+          validity: rp.validity || "Lifetime",
+          activation_mail: rp.activationMail || "Sent to your email upon payment confirmation.",
+          activation_time: rp.activationTime || "Instant",
+          price_usd: rp.priceUsd,
+          is_reseller: rp.isReseller || false,
+          reseller_price: rp.resellerPrice,
+          reseller_price_usd: rp.resellerPriceUsd,
+          status: "active",
+        });
+        imported++;
+      }
+      toast.success(`Successfully imported ${imported} products from AI Agent training data!`);
+      qc.invalidateQueries({ queryKey: ["products"] });
+    } catch (e) {
+      toast.error(`Error importing: ${(e as Error).message}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const [editingId, setEditingId] = useState<string | null>(null);  // null = no modal, "new" = create, otherwise edit
   const isNew = editingId === "new";
   const editing = editingId && editingId !== "new" ? products.find((p) => p.id === editingId) : null;
@@ -146,12 +187,36 @@ export const ProductsPage = () => {
               <p className="text-[12.5px] text-foreground/60 max-w-sm mx-auto leading-relaxed mb-4">
                 Add your first {activeTab} product — name, description, photo, and price.
               </p>
-              <button
-                onClick={() => setEditingId("new")}
-                className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-[#0E8A4B] text-white font-extrabold text-[13px] shadow-[0_4px_0_0_#073D22] hover:bg-[#0A6E3C] transition"
-              >
-                <Plus className="w-4 h-4" strokeWidth={2.5} /> Add first product
-              </button>
+              <div className="flex flex-col items-center gap-4 justify-center">
+                <button
+                  onClick={() => setEditingId("new")}
+                  className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-[#0E8A4B] text-white font-extrabold text-[13px] shadow-[0_4px_0_0_#073D22] hover:bg-[#0A6E3C] transition"
+                >
+                  <Plus className="w-4 h-4" strokeWidth={2.5} /> Add first product
+                </button>
+
+                {rawProducts.length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-[#E8B968]/30 max-w-md w-full">
+                    <div className="bg-[#FFF6E8]/70 border-2 border-[#E8B968] rounded-2xl p-4 shadow-sm flex flex-col items-center">
+                      <span className="w-8 h-8 rounded-lg bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center flex-shrink-0 shadow-md mb-2">
+                        <Sparkles className="w-4 h-4" />
+                      </span>
+                      <h4 className="text-[13px] font-black text-slate-800">AI Agent Products Found</h4>
+                      <p className="text-[11.5px] text-slate-600 mt-1 mb-4 leading-normal max-w-xs">
+                        We detected {rawProducts.length} products stored in your AI Agent training. Click below to scan and import them into this catalog.
+                      </p>
+                      <button
+                        onClick={handleImportFromAgent}
+                        disabled={importing}
+                        className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#0E8A4B] text-white font-extrabold text-[12px] shadow-[0_2px_0_0_#073D22] hover:bg-[#0A6E3C] transition disabled:opacity-50"
+                      >
+                        {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                        Import {rawProducts.length} Products
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 sm:p-4">
