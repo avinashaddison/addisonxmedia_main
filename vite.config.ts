@@ -15,17 +15,17 @@ export default defineConfig(({ mode }) => ({
     },
     proxy: {
       "/api": {
-        target: "http://localhost:4001",
+        target: "http://localhost:3001",
         changeOrigin: true,
       },
       // Public website renderer lives on Hono (server-rendered HTML), not in
       // the Vite SPA — proxy it through in dev so /biz/<slug> Just Works.
       "/biz": {
-        target: "http://localhost:4001",
+        target: "http://localhost:3001",
         changeOrigin: true,
       },
       "/biz-demo": {
-        target: "http://localhost:4001",
+        target: "http://localhost:3001",
         changeOrigin: true,
       },
     },
