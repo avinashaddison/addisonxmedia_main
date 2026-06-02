@@ -192,34 +192,6 @@ export const SiteAgentTab = () => {
             </div>
           </div>
 
-          {/* Payment configuration */}
-          <div className="bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] p-5 space-y-4">
-            <h4 className="text-[14px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
-              <DollarSign className="w-4 h-4 text-emerald-600" /> Integrated Payment Methods
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[11.5px] uppercase font-bold text-muted-foreground flex items-center gap-1">
-                  <Wallet className="w-3.5 h-3.5 text-primary" /> UPI VPA
-                </Label>
-                <Input
-                  value={form.upi_vpa || ""}
-                  onChange={(e) => set("upi_vpa", e.target.value)}
-                  placeholder="e.g. merchant@okaxis"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[11.5px] uppercase font-bold text-muted-foreground flex items-center gap-1">
-                  <Wallet className="w-3.5 h-3.5 text-purple-500" /> Binance Pay ID (USD)
-                </Label>
-                <Input
-                  value={form.binance_id || ""}
-                  onChange={(e) => set("binance_id", e.target.value)}
-                  placeholder="e.g. 987654321"
-                />
-              </div>
-            </div>
-          </div>
 
           {/* Products & Catalog */}
           <div className="bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] p-5 space-y-4">

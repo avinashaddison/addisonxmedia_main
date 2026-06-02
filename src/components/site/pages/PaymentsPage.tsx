@@ -6,16 +6,17 @@
  * different lens. "Mark paid" actions live on the order detail in OrdersPage.
  */
 
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CreditCard, Loader2, IndianRupee, CheckCircle2, AlertCircle, RotateCcw,
-  Hash, Calendar, ExternalLink,
+  Hash, Calendar, ExternalLink, Wallet, DollarSign, Save
 } from "lucide-react";
 import { api, type OrderDto } from "@/lib/api";
 import { formatRelative } from "@/lib/inbox-types";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 
 const STATUS_TABS = [
   { id: "all" as const,        label: "All",       accent: "#0A3D24" },
@@ -25,12 +26,46 @@ const STATUS_TABS = [
 ];
 
 export const PaymentsPage = () => {
+  const qc = useQueryClient();
   const [tab, setTab] = useState<"all" | "paid" | "pending" | "refunded">("all");
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["orders", "all-for-payments"],
     queryFn: () => api.getOrders(),
     refetchInterval: 30_000,
+  });
+
+  const { data: agents = [] } = useQuery({
+    queryKey: ["ai-agents"],
+    queryFn: () => api.listAgents(),
+  });
+  const activeAgent = agents.find((a) => a.is_active) || agents[0];
+
+  const [upiVpa, setUpiVpa] = useState("");
+  const [binanceId, setBinanceId] = useState("");
+
+  useEffect(() => {
+    if (activeAgent) {
+      setUpiVpa(activeAgent.upi_vpa || "");
+      setBinanceId(activeAgent.binance_id || "");
+    }
+  }, [activeAgent]);
+
+  const savePayments = useMutation({
+    mutationFn: async () => {
+      if (!activeAgent) return;
+      await api.updateAgent(activeAgent.id, {
+        upi_vpa: upiVpa,
+        binance_id: binanceId,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ai-agents"] });
+      toast.success("Payment settings saved successfully!");
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Failed to save payment settings");
+    },
   });
 
   const stats = useMemo(() => {
@@ -73,6 +108,54 @@ export const PaymentsPage = () => {
           <Stat label="Pending"   value={`₹${Math.round(stats.totalPending).toLocaleString("en-IN")}`}   accent="#FF6A1F" />
           <Stat label="Refunded"  value={`₹${Math.round(stats.totalRefunded).toLocaleString("en-IN")}`}  accent="#D4308E" />
         </div>
+
+        {/* Integrated Payment Methods Config */}
+        {activeAgent && (
+          <div className="bg-white rounded-2xl border-2 border-[#E8B968] shadow-[0_3px_0_0_#E8B968] p-5 space-y-4">
+            <div className="flex items-center justify-between border-b-2 border-[#E8B968]/30 pb-3">
+              <h3 className="text-[14px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                <DollarSign className="w-4.5 h-4.5 text-emerald-600 animate-pulse" />
+                Integrated Payment Methods (Customer Checkout)
+              </h3>
+              <button
+                onClick={() => savePayments.mutate()}
+                disabled={savePayments.isPending}
+                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#0E8A4B] text-white font-extrabold text-[12px] shadow-[0_2px_0_0_#073D22] hover:bg-[#0A6E3C] transition disabled:opacity-50"
+              >
+                {savePayments.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                Save Methods
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                  <Wallet className="w-3.5 h-3.5 text-[#0E8A4B]" /> UPI VPA (INR Payments)
+                </label>
+                <input
+                  value={upiVpa}
+                  onChange={(e) => setUpiVpa(e.target.value)}
+                  placeholder="e.g. merchant@okaxis"
+                  className="w-full px-3 py-2.5 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[13px] font-bold"
+                />
+                <p className="text-[10px] text-foreground/45">Direct-to-bank UPI transfers. Used to generate checkout QR codes.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                  <Wallet className="w-3.5 h-3.5 text-purple-500" /> Binance Pay ID (USD/Crypto Payments)
+                </label>
+                <input
+                  value={binanceId}
+                  onChange={(e) => setBinanceId(e.target.value)}
+                  placeholder="e.g. 987654321"
+                  className="w-full px-3 py-2.5 rounded-lg bg-white border-2 border-[#E8B968] focus:border-[#0E8A4B] focus:outline-none text-[13px] font-bold"
+                />
+                <p className="text-[10px] text-foreground/45">Instant USD stablecoin checkouts. Unlocks global e-commerce payments.</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Method mix */}
         {Object.keys(stats.methodCounts).length > 0 && (
