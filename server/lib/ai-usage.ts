@@ -29,6 +29,7 @@ export type AiFeature =
   | "reply_suggestion"
   | "auto_reply"
   | "ad_copy"
+  | "ad_blueprint"
   | "followup_gen"
   | "insights"
   | "test";
@@ -43,6 +44,7 @@ export const FEATURE_WEIGHT: Record<AiFeature, number> = {
   followup_gen:     1,
   insights:         2,
   ad_copy:          5,
+  ad_blueprint:     3,
   test:             0, // for internal /api/ai/ping — doesn't bill
 };
 
@@ -59,8 +61,8 @@ const PLAN_CAP: Record<string, number> = {
 // suggestions — everything else returns "upgrade required".
 const PLAN_FEATURES: Record<string, Set<AiFeature>> = {
   starter:    new Set<AiFeature>(["reply_suggestion", "test"]),
-  growth:     new Set<AiFeature>(["reply_suggestion", "auto_reply", "ad_copy", "followup_gen", "insights", "test"]),
-  enterprise: new Set<AiFeature>(["reply_suggestion", "auto_reply", "ad_copy", "followup_gen", "insights", "test"]),
+  growth:     new Set<AiFeature>(["reply_suggestion", "auto_reply", "ad_copy", "ad_blueprint", "followup_gen", "insights", "test"]),
+  enterprise: new Set<AiFeature>(["reply_suggestion", "auto_reply", "ad_copy", "ad_blueprint", "followup_gen", "insights", "test"]),
 };
 
 const monthStart = (): Date => {

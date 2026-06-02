@@ -422,6 +422,80 @@ app.get("/ads/oauth/status", (c) => {
   });
 });
 
+app.post("/ads/ai/blueprint", async (c) => {
+  const { prompt } = await c.req.json<{ prompt: string }>().catch(() => ({} as { prompt: string }));
+  if (!prompt || !prompt.trim()) {
+    return c.json({ error: "Prompt is required" }, 400);
+  }
+
+  const gate = await checkAiCap(c.var.userId, "ad_blueprint");
+  if (!gate.allowed) return c.json({ error: gate.reason, code: gate.code }, 429);
+
+  const messages = [
+    {
+      role: "system" as const,
+      content: `You are an AI Ads strategist for Meta Ads. Your task is to analyze a natural language ad request prompt from a business owner and generate a structured JSON campaign blueprint.
+Return a valid JSON object matching this exact schema:
+{
+  "name": "<3-6 word campaign name>",
+  "objective": "OUTCOME_TRAFFIC",
+  "daily_budget_inr": 800,
+  "targeting": {
+    "age_min": 18,
+    "age_max": 65,
+    "genders": [],
+    "publisher_platforms": ["facebook", "instagram"],
+    "interest_names": ["Online shopping"],
+    "location_names": ["Mumbai"]
+  },
+  "creative": {
+    "headline": "<headline copy under 40 chars>",
+    "body": "<primary text copy under 125 chars>",
+    "cta_type": "WHATSAPP_MESSAGE"
+  }
+}
+Note: objective must be one of: OUTCOME_TRAFFIC, OUTCOME_LEADS, OUTCOME_SALES, OUTCOME_AWARENESS, OUTCOME_ENGAGEMENT. cta_type must be one of: WHATSAPP_MESSAGE, LEARN_MORE, SHOP_NOW, SIGN_UP, CONTACT_US, BOOK_NOW.`
+    },
+    {
+      role: "user" as const,
+      content: `Ad Request Prompt: "${prompt}"`
+    }
+  ];
+
+  try {
+    const result = await chatJson<any>(messages, {
+      model: "gpt-4o-mini",
+      temperature: 0.3,
+      maxTokens: 500
+    });
+
+    await logAiUsage({
+      userId: c.var.userId,
+      feature: "ad_blueprint",
+      model: result.model,
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      costInr: result.costInr,
+      ok: true
+    });
+
+    return c.json({ ok: true, blueprint: result.json });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await logAiUsage({
+      userId: c.var.userId,
+      feature: "ad_blueprint",
+      model: "gpt-4o-mini",
+      promptTokens: 0,
+      completionTokens: 0,
+      costInr: 0,
+      ok: false,
+      errorMessage: msg
+    });
+    return c.json({ error: "AI blueprint generation failed", detail: msg }, 502);
+  }
+});
+
 /* ─────────── Campaigns ─────────── */
 
 /** Live + insights joined into the shape the SPA expects. Falls back to demo

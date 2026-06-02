@@ -190,7 +190,55 @@ export const CreateCampaignPage = () => {
   // wizard. One call returns 3 ad-copy variants + targeting + budget
   // suggestions. Clicking a variant auto-fills the wizard.
   const [aiOpen, setAiOpen]             = useState(true);
+  const [aiMode, setAiMode]             = useState<"copy" | "blueprint">("blueprint");
   const [aiDescription, setAiDescription] = useState("");
+  const [aiPrompt, setAiPrompt]         = useState("");
+  
+  const generateBlueprintMut = useMutation({
+    mutationFn: (prompt: string) => api.generateAdBlueprint(prompt),
+    onSuccess: (data) => {
+      const bp = data.blueprint;
+      setName(bp.name || "AI Generated Campaign");
+      
+      // Resolve objective
+      const matchObj = OBJECTIVES.find((o) => o.meta === bp.objective) || OBJECTIVES[0];
+      setObjective(matchObj.id);
+      
+      setBudget(String(bp.daily_budget_inr || 800));
+      setAgeMin(bp.targeting?.age_min || 18);
+      setAgeMax(bp.targeting?.age_max || 65);
+      
+      const gen = bp.targeting?.genders;
+      if (gen && gen.length === 1) {
+        setGender(gen[0] === 1 ? "male" : "female");
+      } else {
+        setGender("all");
+      }
+      
+      const plat = bp.targeting?.publisher_platforms;
+      setFbEnabled(plat ? plat.includes("facebook") : true);
+      setIgEnabled(plat ? plat.includes("instagram") : true);
+      
+      if (bp.targeting?.interest_names) {
+        setInterestChips(bp.targeting.interest_names.map((name: string) => ({ id: `ai:${name}`, name })));
+      }
+      
+      if (bp.targeting?.location_names && bp.targeting.location_names.length > 0) {
+        setLocationMode("custom");
+        setCustomGeos(bp.targeting.location_names.map((name: string) => ({ key: `ai:${name}`, name, type: "city" })));
+      } else {
+        setLocationMode("preset");
+      }
+      
+      setAdHeadline(bp.creative?.headline || "");
+      setAdBody(bp.creative?.body || "");
+      
+      toast.success("AI Campaign Blueprint generated & applied!");
+      setStep(2);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Blueprint generation failed"),
+  });
+
   type AiAdCopyResult = Awaited<ReturnType<typeof api.generateAdCopy>>;
   const [aiResult, setAiResult]         = useState<AiAdCopyResult | null>(null);
   const generateAdCopyMut = useMutation({
@@ -520,36 +568,94 @@ export const CreateCampaignPage = () => {
                 </div>
 
                 {aiOpen && (
-                  <div className="p-4 bg-white space-y-3">
-                    <div>
-                      <label className="text-[11px] uppercase tracking-wider font-extrabold text-foreground/60 mb-1.5 block">
-                        Describe what you're promoting
-                      </label>
-                      <textarea
-                        value={aiDescription}
-                        onChange={(e) => setAiDescription(e.target.value)}
-                        placeholder="e.g. Diwali pickle gift box, ₹999 with free home delivery, hand-made by my mom in Ranchi. Want orders from women 28-45 across India."
-                        rows={3}
-                        className="w-full rounded-xl border-2 border-[#E8B968] bg-[#FFF6E8] px-3 py-2.5 text-[13px] font-medium placeholder:text-foreground/40 focus:outline-none focus:border-[#3C50E0] focus:bg-white transition"
-                        maxLength={600}
-                      />
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-[10px] text-foreground/50 font-medium">
-                          {aiDescription.length}/600 · the more specific, the better the copy
-                        </p>
-                        <Button
-                          onClick={() => generateAdCopyMut.mutate({ description: aiDescription.trim() })}
-                          disabled={aiDescription.trim().length < 10 || generateAdCopyMut.isPending}
-                          className="bg-gradient-to-r from-[#3C50E0] to-[#1E40AF] text-white shadow-[0_3px_0_0_#2533A8] hover:from-[#2533A8] hover:to-[#1A3590]"
-                        >
-                          {generateAdCopyMut.isPending ? (
-                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</>
-                          ) : (
-                            <><Sparkles className="w-3.5 h-3.5" /> Generate</>
-                          )}
-                        </Button>
-                      </div>
+                  <div className="p-4 bg-white space-y-4">
+                    {/* Tab Switcher */}
+                    <div className="flex gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setAiMode("blueprint")}
+                        className={cn(
+                          "flex-1 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5",
+                          aiMode === "blueprint" ? "bg-white text-[#3C50E0] shadow-sm" : "text-slate-500 hover:text-slate-700"
+                        )}
+                      >
+                        <Zap className="w-3.5 h-3.5" /> Full Campaign Blueprint
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAiMode("copy")}
+                        className={cn(
+                          "flex-1 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5",
+                          aiMode === "copy" ? "bg-white text-[#3C50E0] shadow-sm" : "text-slate-500 hover:text-slate-700"
+                        )}
+                      >
+                        <FileText className="w-3.5 h-3.5" /> Copy Variants Only
+                      </button>
                     </div>
+
+                    {aiMode === "blueprint" ? (
+                      <div>
+                        <label className="text-[11px] uppercase tracking-wider font-extrabold text-foreground/60 mb-1.5 block">
+                          Campaign Prompt (AI Auto-fills targeting, budget & copy)
+                        </label>
+                        <textarea
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                          placeholder="e.g. Launch a Diwali sale for copper bottles, target health-conscious folks in Mumbai and Delhi, budget ₹1,000 per day."
+                          rows={3}
+                          className="w-full rounded-xl border-2 border-[#E8B968] bg-[#FFF6E8] px-3 py-2.5 text-[13px] font-medium placeholder:text-foreground/40 focus:outline-none focus:border-[#3C50E0] focus:bg-white transition"
+                          maxLength={600}
+                        />
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-[10px] text-foreground/50 font-medium">
+                            {aiPrompt.length}/600 · AI maps cities, interests & copy
+                          </p>
+                          <Button
+                            type="button"
+                            onClick={() => generateBlueprintMut.mutate(aiPrompt.trim())}
+                            disabled={aiPrompt.trim().length < 10 || generateBlueprintMut.isPending}
+                            className="bg-gradient-to-r from-[#3C50E0] to-[#1E40AF] text-white shadow-[0_3px_0_0_#2533A8] hover:from-[#2533A8] hover:to-[#1A3590]"
+                          >
+                            {generateBlueprintMut.isPending ? (
+                              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating Blueprint…</>
+                            ) : (
+                              <><Sparkles className="w-3.5 h-3.5" /> Generate Blueprint</>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="text-[11px] uppercase tracking-wider font-extrabold text-foreground/60 mb-1.5 block">
+                          Describe what you're promoting (AI generates copy drafts)
+                        </label>
+                        <textarea
+                          value={aiDescription}
+                          onChange={(e) => setAiDescription(e.target.value)}
+                          placeholder="e.g. Diwali pickle gift box, ₹999 with free home delivery, hand-made by my mom in Ranchi. Want orders from women 28-45 across India."
+                          rows={3}
+                          className="w-full rounded-xl border-2 border-[#E8B968] bg-[#FFF6E8] px-3 py-2.5 text-[13px] font-medium placeholder:text-foreground/40 focus:outline-none focus:border-[#3C50E0] focus:bg-white transition"
+                          maxLength={600}
+                        />
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-[10px] text-foreground/50 font-medium">
+                            {aiDescription.length}/600 · generating headline, primary text & CTA
+                          </p>
+                          <Button
+                            type="button"
+                            onClick={() => generateAdCopyMut.mutate({ description: aiDescription.trim() })}
+                            disabled={aiDescription.trim().length < 10 || generateAdCopyMut.isPending}
+                            className="bg-gradient-to-r from-[#3C50E0] to-[#1E40AF] text-white shadow-[0_3px_0_0_#2533A8] hover:from-[#2533A8] hover:to-[#1A3590]"
+                          >
+                            {generateAdCopyMut.isPending ? (
+                              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating Copy…</>
+                            ) : (
+                              <><Sparkles className="w-3.5 h-3.5" /> Generate Copy</>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Results panel */}
                     {aiResult && (

@@ -336,6 +336,8 @@ export const api = {
     };
   }) =>
     post<{ ok: true; id?: string; mode?: "campaign_only" | "full_launch"; campaign_id?: string; ad_set_id?: string; creative_id?: string; ad_id?: string }>("/ads/campaigns", data),
+  generateAdBlueprint: (prompt: string) =>
+    post<{ ok: boolean; blueprint: any }>("/ads/ai/blueprint", { prompt }),
   searchAdTargeting: (q: string) =>
     get<{ results: Array<{ key: string; name: string; type: string; country_code?: string; country_name?: string; region?: string }>; demo?: boolean }>(`/ads/targeting/search?q=${encodeURIComponent(q)}`),
   searchAdInterests: (q: string) =>
