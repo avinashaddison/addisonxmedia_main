@@ -144,7 +144,7 @@ async function executeClaimOrphanTool(actorUserId: string, phoneNumberId: string
 }
 
 // Merges duplicate accounts for a given email address
-async function executeMergeDuplicatesTool(actorUserId: string, email: string, canonicalUserId: string) {
+async function executeMergeDuplicatesTool(actorUserId: string, email: string, canonicalUserId: string, confirmed?: boolean) {
   try {
     const normEmail = email.trim().toLowerCase();
     const matches = await db.select().from(user).where(eq(sql`lower(${user.email})`, normEmail));
@@ -158,6 +158,14 @@ async function executeMergeDuplicatesTool(actorUserId: string, email: string, ca
     }
 
     const duplicateUserIds = matches.filter(u => u.id !== canonicalUserId).map(u => u.id);
+
+    if (!confirmed) {
+      return {
+        success: false,
+        requiresConfirmation: true,
+        message: `Merging duplicate users with email "${email}" onto canonical user ID "${canonicalUserId}" is a destructive action. This will permanently DELETE duplicate accounts: [${duplicateUserIds.join(", ")}]. Please reply with 'confirm' or 'yes' to proceed.`,
+      };
+    }
 
     const summary = await db.transaction(async (tx) => {
       const moved: Record<string, number> = {
@@ -233,11 +241,20 @@ async function executeMergeDuplicatesTool(actorUserId: string, email: string, ca
 async function suspendOrUpdateWorkspaceTool(
   actorUserId: string,
   targetUserId: string,
-  updates: { accountStatus?: "active" | "suspended" | "trial"; plan?: "starter" | "growth" | "enterprise"; mrrInr?: number; suspendedReason?: string }
+  updates: { accountStatus?: "active" | "suspended" | "trial"; plan?: "starter" | "growth" | "enterprise"; mrrInr?: number; suspendedReason?: string },
+  confirmed?: boolean
 ) {
   try {
     const [targetUser] = await db.select().from(user).where(eq(user.id, targetUserId)).limit(1);
     if (!targetUser) return { error: `Workspace user ID "${targetUserId}" not found` };
+
+    if (updates.accountStatus === "suspended" && !confirmed) {
+      return {
+        success: false,
+        requiresConfirmation: true,
+        message: `Suspending the workspace "${targetUser.name}" (${targetUser.email}) is a disruptive action. Please reply with 'confirm' or 'yes' to proceed.`,
+      };
+    }
 
     const set: Record<string, any> = { updatedAt: new Date() };
 
@@ -344,7 +361,8 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         type: "object",
         properties: {
           email: { type: "string", description: "The duplicate email address." },
-          canonicalUserId: { type: "string", description: "The target user ID to keep (canonical)." }
+          canonicalUserId: { type: "string", description: "The target user ID to keep (canonical)." },
+          confirmed: { type: "boolean", description: "Set to true ONLY if the super admin has explicitly typed/given permission to perform this specific destructive operation. Otherwise, you must ask them first." }
         },
         required: ["email", "canonicalUserId"]
       }
@@ -362,7 +380,8 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           accountStatus: { type: "string", enum: ["active", "suspended", "trial"], description: "Toggle account status." },
           plan: { type: "string", enum: ["starter", "growth", "enterprise"], description: "Change subscription tier." },
           mrrInr: { type: "number", description: "Monthly Recurring Revenue value in INR." },
-          suspendedReason: { type: "string", description: "Why the workspace is being suspended (if applicable)." }
+          suspendedReason: { type: "string", description: "Why the workspace is being suspended (if applicable)." },
+          confirmed: { type: "boolean", description: "Set to true ONLY if the super admin has explicitly typed/given permission to perform this specific destructive operation. Otherwise, you must ask them first." }
         },
         required: ["targetUserId"]
       }
@@ -431,14 +450,14 @@ export async function processAdminAgentMessage(
         } else if (name === "execute_claim_orphan") {
           toolResult = await executeClaimOrphanTool(actorUserId, args.phoneNumberId, args.targetUserId);
         } else if (name === "execute_merge_duplicates") {
-          toolResult = await executeMergeDuplicatesTool(actorUserId, args.email, args.canonicalUserId);
+          toolResult = await executeMergeDuplicatesTool(actorUserId, args.email, args.canonicalUserId, args.confirmed);
         } else if (name === "suspend_or_update_workspace") {
           toolResult = await suspendOrUpdateWorkspaceTool(actorUserId, args.targetUserId, {
             accountStatus: args.accountStatus,
             plan: args.plan,
             mrrInr: args.mrrInr,
             suspendedReason: args.suspendedReason
-          });
+          }, args.confirmed);
         } else {
           toolResult = { error: "Unknown tool" };
         }
