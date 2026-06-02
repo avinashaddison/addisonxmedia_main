@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ConversationList } from "./ConversationList";
 import { ChatWindow } from "./ChatWindow";
@@ -30,6 +30,30 @@ export const InboxPage = () => {
   // is predictable at each breakpoint.
   const [leadOpenTablet, setLeadOpenTablet] = useState(false);
   const [leadOpenDesktop, setLeadOpenDesktop] = useState(true);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const contactIdParam = searchParams.get("contactId");
+  const phoneParam = searchParams.get("phone");
+
+  // Auto-select conversation if contactId or phone is in the URL search params
+  useEffect(() => {
+    if (conversations.length > 0) {
+      let foundId = null;
+      if (contactIdParam) {
+        const found = conversations.find((c) => c.contact?.id === contactIdParam);
+        if (found) foundId = found.id;
+      } else if (phoneParam) {
+        const found = conversations.find((c) => c.contact?.phone === phoneParam);
+        if (found) foundId = found.id;
+      }
+      if (foundId) {
+        setActiveId(foundId);
+        setMobileView("chat");
+        // Clear params to prevent re-triggering and keep URL clean
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [conversations, contactIdParam, phoneParam, setSearchParams]);
 
   // Auto-select the first conversation when the list loads / changes
   useEffect(() => {

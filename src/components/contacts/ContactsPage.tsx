@@ -39,7 +39,7 @@ import {
   Users, Search, Plus, Download, Upload, Flame, Snowflake, CircleDot, Phone, Mail,
   TrendingUp, MessageCircle, CreditCard, Send, Sparkles, Zap,
   Clock, Filter, ChevronDown, X, CheckSquare, Square, MoreHorizontal,
-  AlertCircle, ArrowUpRight, UserPlus, Megaphone,
+  AlertCircle, ArrowUpRight, UserPlus, Megaphone, Building2, Pencil, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const useContacts = () => {
   const { user } = useAuth();
@@ -93,6 +101,7 @@ type Segment = "all" | "ready" | "followup" | "cold";
 
 export const ContactsPage = () => {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: contacts = [], isLoading } = useContacts();
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState<"all" | Contact["tag"]>("all");
@@ -102,10 +111,51 @@ export const ContactsPage = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const importInputRef = useRef<HTMLInputElement>(null);
+  
+  // New contact states
   const [newOpen, setNewOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newSaving, setNewSaving] = useState(false);
+
+  // Edit contact states
+  const [editContact, setEditContact] = useState<Contact | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editSource, setEditSource] = useState("");
+  const [editTag, setEditTag] = useState<Contact["tag"]>("cold");
+  const [editScore, setEditScore] = useState(30);
+  const [editNotes, setEditNotes] = useState("");
+  const [editIsReseller, setEditIsReseller] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Delete contact states
+  const [deleteContactTarget, setDeleteContactTarget] = useState<Contact | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+
+  const startEditContact = (c: Contact) => {
+    setEditContact(c);
+    setEditName(c.name || "");
+    setEditPhone(c.phone || "");
+    setEditEmail(c.email || "");
+    setEditSource(c.source || "");
+    setEditTag(c.tag || "cold");
+    setEditScore(c.score ?? 30);
+    setEditNotes(c.notes || "");
+    setEditIsReseller(!!c.is_reseller);
+  };
+
+  const toggleResellerDirect = async (c: Contact) => {
+    try {
+      await api.updateContact(c.id, { is_reseller: !c.is_reseller });
+      toast.success(c.is_reseller ? "Removed reseller status" : "Set as reseller");
+      qc.invalidateQueries({ queryKey: ["contacts-page"] });
+      qc.invalidateQueries({ queryKey: ["contacts-lookup"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update");
+    }
+  };
 
   // Parse a CSV file (header row + data rows) and bulk-upsert via /api/contacts/bulk.
   // Recognized columns (case-insensitive): name, phone, email, source, tag, score.
@@ -626,7 +676,14 @@ export const ContactsPage = () => {
                   {isHot && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-hot ring-2 ring-card" />}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[13px] font-semibold truncate">{c.name}</p>
+                  <p className="text-[13px] font-semibold truncate flex items-center gap-1.5">
+                    {c.name}
+                    {c.is_reseller && (
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider flex-shrink-0 bg-emerald-600/15 text-emerald-600 inline-flex items-center gap-0.5">
+                        <Building2 className="w-2 h-2" /> RESELLER
+                      </span>
+                    )}
+                  </p>
                   {c.email ? (
                     <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1">
                       <Mail className="w-2.5 h-2.5 flex-shrink-0" />
@@ -727,20 +784,19 @@ export const ContactsPage = () => {
                 </span>
               </div>
 
-              {/* Hover Quick Actions — chat opens inbox, call uses tel: link.
-                  Offer/Payment require Razorpay integration which isn't wired yet. */}
+              {/* Hover Quick Actions — chat opens inbox, call uses tel: link. */}
               <div className={cn(
                 "flex items-center justify-end gap-1 transition-all",
                 isHovered ? "opacity-100" : "opacity-0 pointer-events-none"
               )}>
-                <a
-                  href="/app/inbox"
+                <Link
+                  to={`/app/inbox?contactId=${c.id}`}
                   title={`Chat with ${c.name}`}
                   className="w-7 h-7 rounded-md bg-primary-soft hover:bg-primary text-primary hover:text-primary-foreground flex items-center justify-center transition-colors"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <MessageCircle className="w-3.5 h-3.5" />
-                </a>
+                </Link>
                 <a
                   href={`tel:${c.phone}`}
                   title={`Call ${c.phone}`}
@@ -761,12 +817,40 @@ export const ContactsPage = () => {
                 </a>
               </div>
 
-              {/* Static row meta when not hovered */}
+              {/* Dropdown menu — always visible */}
               {!isHovered && (
                 <div className="flex items-center justify-end">
-                  <button className="w-7 h-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-                    <MoreHorizontal className="w-3.5 h-3.5" />
-                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="w-7 h-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                        <MoreHorizontal className="w-3.5 h-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuLabel className="text-[10px] uppercase tracking-wider font-extrabold text-foreground/55 truncate">
+                        {c.name}
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => startEditContact(c)}>
+                        <Pencil className="w-3.5 h-3.5 mr-2" /> Edit Details
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toggleResellerDirect(c)}>
+                        <Building2 className="w-3.5 h-3.5 mr-2 text-emerald-600" />
+                        {c.is_reseller ? "Remove Reseller" : "Set as Reseller"}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => navigate(`/app/inbox?contactId=${c.id}`)}>
+                        <MessageCircle className="w-3.5 h-3.5 mr-2" /> Open Chat
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-[#D4308E] focus:text-[#D4308E] focus:bg-[#FCE5F0]"
+                        onClick={() => setDeleteContactTarget(c)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete Contact
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               )}
             </div>
@@ -850,6 +934,178 @@ export const ContactsPage = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Contact Dialog */}
+      <Dialog open={!!editContact} onOpenChange={(o) => !o && setEditContact(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#3C50E0] to-[#1E40AF] text-white flex items-center justify-center shadow-md">
+                <Pencil className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <div>
+                <DialogTitle>Edit Contact</DialogTitle>
+                <DialogDescription className="text-foreground/70 font-medium">
+                  Update details for {editContact?.name}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!editContact) return;
+              const name = editName.trim();
+              if (!name) { toast.error("Name is required"); return; }
+              setEditSaving(true);
+              try {
+                await api.updateContact(editContact.id, {
+                  name,
+                  phone: editPhone.trim(),
+                  email: editEmail.trim() || null,
+                  source: editSource.trim() || null,
+                  tag: editTag,
+                  score: editScore,
+                  notes: editNotes.trim() || null,
+                  is_reseller: editIsReseller,
+                });
+                toast.success(`${name} updated!`);
+                qc.invalidateQueries({ queryKey: ["contacts-page"] });
+                qc.invalidateQueries({ queryKey: ["contacts-lookup"] });
+                qc.invalidateQueries({ queryKey: ["conversations"] });
+                setEditContact(null);
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Failed to update");
+              } finally {
+                setEditSaving(false);
+              }
+            }}
+            className="space-y-3 mt-2"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-name">Name</Label>
+                <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} autoComplete="off" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-phone">Phone</Label>
+                <Input id="edit-phone" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} inputMode="tel" autoComplete="off" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input id="edit-email" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="optional" autoComplete="off" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-source">Source</Label>
+                <Input id="edit-source" value={editSource} onChange={(e) => setEditSource(e.target.value)} placeholder="e.g. WhatsApp Ads" autoComplete="off" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-tag">Lead Tag</Label>
+                <select
+                  id="edit-tag"
+                  value={editTag}
+                  onChange={(e) => setEditTag(e.target.value as Contact["tag"])}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="hot">🔥 Hot</option>
+                  <option value="warm">🟡 Warm</option>
+                  <option value="cold">❄️ Cold</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-score">Score ({editScore}/100)</Label>
+                <input
+                  id="edit-score"
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={editScore}
+                  onChange={(e) => setEditScore(Number(e.target.value))}
+                  className="w-full mt-2.5 accent-primary"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-notes">Notes</Label>
+              <Input id="edit-notes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Internal notes…" autoComplete="off" />
+            </div>
+            <div className="flex items-center justify-between px-1">
+              <div>
+                <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#B8651A]">Reseller Account</p>
+                <p className="text-[9.5px] text-foreground/60 mt-0.5 leading-snug">Apply reseller pricing for this contact</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditIsReseller(!editIsReseller)}
+                className={cn(
+                  "relative inline-flex h-6 w-10 items-center rounded-full transition-colors",
+                  editIsReseller ? "bg-[#0E8A4B]" : "bg-gray-200"
+                )}
+              >
+                <span className={cn(
+                  "inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                  editIsReseller ? "translate-x-5" : "translate-x-1"
+                )} />
+              </button>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button type="button" variant="outline" onClick={() => setEditContact(null)} disabled={editSaving}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={editSaving}>
+                {editSaving ? "Saving…" : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Contact Confirmation */}
+      <AlertDialog open={!!deleteContactTarget} onOpenChange={(o) => !o && setDeleteContactTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this contact?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteContactTarget && (
+                <>
+                  This will permanently remove <span className="font-bold">{deleteContactTarget.name}</span> (<span className="font-mono">{deleteContactTarget.phone}</span>) and all associated data.
+                  <br /><br />
+                  <span className="text-[#B8420A] font-semibold">This cannot be undone.</span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteSaving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[#D4308E] text-white shadow-[0_4px_0_0_#A11A6A] hover:bg-[#C02680]"
+              disabled={deleteSaving}
+              onClick={async () => {
+                if (!deleteContactTarget) return;
+                setDeleteSaving(true);
+                try {
+                  await api.deleteContact(deleteContactTarget.id);
+                  toast.success(`${deleteContactTarget.name} deleted`);
+                  qc.invalidateQueries({ queryKey: ["contacts-page"] });
+                  qc.invalidateQueries({ queryKey: ["contacts-lookup"] });
+                  setDeleteContactTarget(null);
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Delete failed");
+                } finally {
+                  setDeleteSaving(false);
+                }
+              }}
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete Contact
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageShell>
   );
 };

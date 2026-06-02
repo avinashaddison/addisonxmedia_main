@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/PageShell";
 import {
   Bell, Clock, Phone, Send, MessageCircle, CheckCircle2, AlertCircle, Plus,
   Sparkles, Trash2, Calendar, IndianRupee, Zap, Bot, RefreshCw, TrendingUp,
-  Flame, Target, ArrowUpRight, ChevronRight,
+  Flame, Target, ArrowUpRight, ChevronRight, Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -112,9 +113,11 @@ const formatINR = (n: number) =>
 // ============================================================
 export const FollowupsPage = () => {
   useTick(30_000); // live countdown ticks
+  const navigate = useNavigate();
   const { data: tasks = [], isLoading } = useTasks();
   const [autoMode, setAutoMode] = useState(false);
   const [groupBy, setGroupBy] = useState<"urgency" | "value" | "probability">("urgency");
+  const [editTask, setEditTask] = useState<TaskWithContact | null>(null);
 
   const enriched = useMemo(
     () => tasks.map((t) => ({ ...t, _value: dealValueFor(t), _due: computeDue(t.due_at) })),
@@ -271,8 +274,17 @@ export const FollowupsPage = () => {
                 return (
                   <button
                     key={i}
+                    onClick={() => {
+                      // Navigate to the relevant chat for actionable recommendations
+                      const topTask = overdue.sort((a, b) => b._value - a._value)[0] || today.sort((a, b) => b._value - a._value)[0];
+                      if (topTask?.contact?.id) {
+                        navigate(`/app/inbox?contactId=${topTask.contact.id}`);
+                      } else {
+                        navigate('/app/inbox');
+                      }
+                    }}
                     className={cn(
-                      "group text-left rounded-lg border p-3 hover:shadow-md hover:-translate-y-0.5 transition-all bg-card",
+                      "group text-left rounded-lg border p-3 hover:shadow-md hover:-translate-y-0.5 transition-all bg-card cursor-pointer",
                       insightTone[r.tone]
                     )}
                   >
@@ -336,32 +348,40 @@ export const FollowupsPage = () => {
         <>
           {overdue.length > 0 && (
             <Section title="Overdue" count={overdue.length} pulse subtitle="Replying now = 3× higher conversion">
-              {overdue.sort((a, b) => a._due.minsLeft - b._due.minsLeft).map((t) => <TaskRow key={t.id} task={t} />)}
+              {overdue.sort((a, b) => a._due.minsLeft - b._due.minsLeft).map((t) => <TaskRow key={t.id} task={t} onEdit={setEditTask} />)}
             </Section>
           )}
           {today.length > 0 && (
             <Section title="Today" count={today.length} subtitle="Close them before EOD">
-              {today.sort((a, b) => a._due.minsLeft - b._due.minsLeft).map((t) => <TaskRow key={t.id} task={t} />)}
+              {today.sort((a, b) => a._due.minsLeft - b._due.minsLeft).map((t) => <TaskRow key={t.id} task={t} onEdit={setEditTask} />)}
             </Section>
           )}
           {upcoming.length > 0 && (
             <Section title="Upcoming" count={upcoming.length}>
-              {upcoming.map((t) => <TaskRow key={t.id} task={t} />)}
+              {upcoming.map((t) => <TaskRow key={t.id} task={t} onEdit={setEditTask} />)}
             </Section>
           )}
         </>
       ) : (
         sortedPending.length > 0 && (
           <Section title={groupBy === "value" ? "By deal value" : "By closing probability"} count={sortedPending.length}>
-            {sortedPending.map((t) => <TaskRow key={t.id} task={t} />)}
+            {sortedPending.map((t) => <TaskRow key={t.id} task={t} onEdit={setEditTask} />)}
           </Section>
         )
       )}
 
       {completed.length > 0 && (
         <Section title="Completed" count={completed.length}>
-          {completed.slice(0, 5).map((t) => <TaskRow key={t.id} task={t} />)}
+          {completed.slice(0, 5).map((t) => <TaskRow key={t.id} task={t} onEdit={setEditTask} />)}
         </Section>
+      )}
+
+      {/* Edit Task Dialog */}
+      {editTask && (
+        <EditTaskDialog
+          task={editTask}
+          onClose={() => setEditTask(null)}
+        />
       )}
     </PageShell>
   );
@@ -394,7 +414,7 @@ const Section = ({
 // ============================================================
 // TASK ROW
 // ============================================================
-const TaskRow = ({ task: t }: { task: TaskWithContact & { _value?: number; _due?: ReturnType<typeof computeDue> } }) => {
+const TaskRow = ({ task: t, onEdit }: { task: TaskWithContact & { _value?: number; _due?: ReturnType<typeof computeDue> }; onEdit?: (t: TaskWithContact) => void }) => {
   const update = useUpdateTask();
   const del = useDeleteTask();
   const due = t._due ?? computeDue(t.due_at);
@@ -482,11 +502,9 @@ const TaskRow = ({ task: t }: { task: TaskWithContact & { _value?: number; _due?
 
       {/* Quick actions */}
       <div className="flex gap-1 flex-shrink-0 opacity-100 sm:opacity-60 sm:group-hover:opacity-100 transition-opacity">
-        {t.contact?.phone && (
+        {t.contact?.id && (
           <a
-            href={`https://wa.me/${t.contact.phone.replace(/\D/g, "")}`}
-            target="_blank"
-            rel="noreferrer"
+            href={`/app/inbox?contactId=${t.contact.id}`}
             className="w-8 h-8 rounded-lg bg-success-soft text-success hover:bg-success hover:text-success-foreground transition-colors flex items-center justify-center"
             title="Open chat"
           >
@@ -512,6 +530,15 @@ const TaskRow = ({ task: t }: { task: TaskWithContact & { _value?: number; _due?
           >
             <Send className="w-3.5 h-3.5" />
           </a>
+        )}
+        {onEdit && (
+          <button
+            onClick={() => onEdit(t)}
+            className="w-8 h-8 rounded-lg bg-muted hover:bg-primary hover:text-primary-foreground transition-colors flex items-center justify-center"
+            title="Edit follow-up"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
         )}
         <button
           onClick={reschedule}
@@ -678,6 +705,100 @@ const NewTaskDialog = () => {
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={create.isPending}>{create.isPending ? "Saving…" : "Add"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ============================================================
+// EDIT TASK DIALOG
+// ============================================================
+const EditTaskDialog = ({ task, onClose }: { task: TaskWithContact; onClose: () => void }) => {
+  const update = useUpdateTask();
+  const { data: contacts = [] } = useContactsLookup();
+  const [title, setTitle] = useState(task.title || "");
+  const [notes, setNotes] = useState(task.notes || "");
+  const [priority, setPriority] = useState<Priority>(task.priority || "medium");
+  const [dueAt, setDueAt] = useState(task.due_at ? new Date(task.due_at).toISOString().slice(0, 16) : "");
+  const [contactId, setContactId] = useState(task.contact_id || "");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) { toast.error("Task title is required"); return; }
+    update.mutate(
+      {
+        id: task.id,
+        title: title.trim(),
+        notes: notes.trim() || null,
+        priority,
+        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        contact_id: contactId || null,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Follow-up updated");
+          onClose();
+        },
+      }
+    );
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="w-4 h-4 text-primary" /> Edit Follow-up
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="etitle">Task *</Label>
+            <Input id="etitle" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Send pricing PDF" autoFocus />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="enotes">Notes</Label>
+            <Textarea id="enotes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Context, what was promised…" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="eprio">Priority</Label>
+              <select
+                id="eprio"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as Priority)}
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="urgent">🔴 Urgent</option>
+                <option value="high">🟡 High</option>
+                <option value="medium">🔵 Medium</option>
+                <option value="low">⚪ Low</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edue">Due</Label>
+              <Input id="edue" type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="econtact">Contact</Label>
+            <select
+              id="econtact"
+              value={contactId}
+              onChange={(e) => setContactId(e.target.value)}
+              className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">— None —</option>
+              {contacts.map((c) => (
+                <option key={c.id} value={c.id}>{c.name} · {c.phone}</option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={update.isPending}>{update.isPending ? "Saving…" : "Save"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

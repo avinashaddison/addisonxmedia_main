@@ -64,6 +64,14 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
     } catch (e) { toast.error(String(e)); }
   };
 
+  const toggleReseller = async (id: string, currentVal: boolean) => {
+    try {
+      await api.updateContact(id, { is_reseller: !currentVal });
+      qc.invalidateQueries({ queryKey: ["conversations", user?.id] });
+      toast.success(currentVal ? "Removed reseller status" : "Set as reseller");
+    } catch (e) { toast.error(String(e)); }
+  };
+
   const markUnread = async (id: string) => {
     try {
       await api.updateConversation(id, { unread_count: 1 });
@@ -449,6 +457,9 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
                     </ContextMenuItem>
                     <ContextMenuItem onClick={() => updateTag(conv.contact.id, "cold")}>
                       <Snowflake className="w-3.5 h-3.5 text-[#3C50E0]" /> Mark Cold
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => toggleReseller(conv.contact.id, !!conv.contact.is_reseller)}>
+                      <Building2 className="w-3.5 h-3.5 text-emerald-600" /> {conv.contact.is_reseller ? "Remove Reseller" : "Set as Reseller"}
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem
