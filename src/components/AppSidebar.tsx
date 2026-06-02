@@ -91,7 +91,6 @@ const websiteGroups: { label: string; items: NavItem[] }[] = [
   {
     label: "Leads & Chats",
     items: [
-      { icon: Inbox,         label: "Conversations", id: "inbox", badgeKey: "inbox", hint: "WhatsApp live chat", live: true },
       { icon: ClipboardList, label: "Lead Forms",    id: "site/leads", hint: "CRM capture forms" },
       { icon: Calendar,      label: "Bookings",      id: "site/bookings", hint: "Appointments" },
     ],
@@ -108,9 +107,6 @@ const websiteGroups: { label: string; items: NavItem[] }[] = [
   {
     label: "Marketing",
     items: [
-      { icon: Megaphone, label: "Campaigns",  id: "campaigns", hint: "Meta ads manager" },
-      { icon: Radio,     label: "Broadcasts", id: "broadcasts", hint: "WhatsApp blasts" },
-      { icon: Bell,      label: "Automations",id: "followups", badgeKey: "tasks", hint: "Follow-ups" },
       { icon: BarChart3, label: "Analytics",  id: "site/analytics", hint: "Store views & statistics" },
     ],
   },
@@ -124,8 +120,6 @@ const websiteGroups: { label: string; items: NavItem[] }[] = [
     label: "Settings",
     items: [
       { icon: Globe,    label: "Domain",       id: "site/domain", hint: "Custom domain" },
-      { icon: Users,    label: "Team",         id: "settings", hint: "Staff credentials" },
-      { icon: Plug,     label: "Integrations", id: "integrations", hint: "APIs & keys" },
       { icon: Settings, label: "Settings",     id: "site/settings", hint: "Workspace config" },
     ],
   },
