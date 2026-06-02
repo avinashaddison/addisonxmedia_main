@@ -132,6 +132,53 @@ export const AITrainingPage = () => {
     onError: (err) => toast.error(err instanceof Error ? err.message : "Ping failed"),
   });
 
+  const handleLoadTemplate = (type: string) => {
+    if (!form || isPrebuilt) return;
+    if (
+      form.what_we_sell ||
+      form.knowledge_base ||
+      form.system_prompt
+    ) {
+      if (
+        !confirm("Loading a template will overwrite your current description, knowledge base, and system prompt. Do you want to continue?")
+      ) {
+        return;
+      }
+    }
+
+    if (type === "sweets") {
+      setForm({
+        ...form,
+        what_we_sell: "Sharma Sweets sells fresh premium Indian sweets (Kaju Katli, Ladoo, Peda), custom festival gift boxes, and authentic snacks made with pure desi ghee.",
+        knowledge_base: `### BUSINESS INFO\n- Name: Sharma Sweets\n- Hours: Mon-Sat, 9 AM - 9 PM IST.\n- Contact: support@sharmasweets.com\n\n### SHIPPING & DELIVERY\n- Local Delivery (Within city): Same-day delivery for orders before 3 PM. Flat fee ₹60.\n- Domestic Shipping (India): Takes 2-3 business days. Free shipping on orders above ₹999.\n- Packaging: Sweets are vacuum-packed to ensure 100% freshness during transit.\n\n### REFUNDS & REPLACEMENTS\n- Perishable Items: No returns accepted on food items.\n- Issues: Send a photo of damaged packaging within 4 hours of delivery for a replacement.\n\n### FAQS\n- Q: Do you use pure ghee?\n  A: Yes, all our premium sweets are made using 100% pure Desi Ghee.\n- Q: Can I place bulk orders for corporate gifts?\n  A: Yes, we specialize in corporate bulk gifting. Please ask to talk to a human agent.`,
+        system_prompt: "You are a friendly sweet shop assistant. Respond in warm, polite Hinglish (mix of Hindi & English written in Roman script). Use 1-2 friendly emojis (sweets/food emojis). Keep replies short (1-2 lines). Promote product catalog checkout.",
+        tone: "friendly",
+        response_language: "hinglish"
+      });
+      toast.success("Loaded Sweet Shop Hinglish template!");
+    } else if (type === "agency") {
+      setForm({
+        ...form,
+        what_we_sell: "We provide premium digital marketing, SEO optimization, WhatsApp automation setup, and high-converting site builder development services.",
+        knowledge_base: `### BUSINESS INFO\n- Name: AddisonX Media\n- Hours: Mon-Fri, 10 AM - 6 PM IST.\n- Contact: hello@addisonxmedia.com\n\n### SERVICES & DELIVERY\n- WhatsApp Setup: Takes 3-5 business days.\n- Site Builder Setup: Completed within 7 business days.\n\n### REFUND POLICY\n- Service-based: No refunds once project milestone setup has begun.\n\n### FAQS\n- Q: Do you set up Meta Business API?\n  A: Yes, we handle full Meta WhatsApp Business API integration and verification.`,
+        system_prompt: "You are a professional, helpful assistant. Respond in clear English. Be polite, direct, and keep replies to 2 sentences max. Do not use informal slang.",
+        tone: "professional",
+        response_language: "english"
+      });
+      toast.success("Loaded Agency/Services template!");
+    } else if (type === "saas") {
+      setForm({
+        ...form,
+        what_we_sell: "We build e-commerce tools, CRM tracking systems, and automation software for local businesses.",
+        knowledge_base: `### SUPPORT INFO\n- Documentation: Available at docs.software.com\n- Hours: 24/7 automated support, human agents online Mon-Fri 9 AM - 6 PM IST.\n\n### REFUND POLICY\n- Subscription: 7-day money-back guarantee. Canceling a subscription halts future billing.\n\n### FAQS\n- Q: Is there a free trial?\n  A: Yes, we offer a 14-day free trial. No credit card required.`,
+        system_prompt: "You are a helpful software support assistant. Speak in friendly English. Keep replies short, give direct links to docs when available, and prioritize resolving user questions.",
+        tone: "casual",
+        response_language: "english"
+      });
+      toast.success("Loaded SaaS/Software template!");
+    }
+  };
+
   if (agentsLoading || !form) {
     return (
       <PageShell title="AI Agent" subtitle="Addison AI ko apne business ke baare mein sikhayein" icon={<Brain className="w-5 h-5" />}>
@@ -310,6 +357,37 @@ export const AITrainingPage = () => {
                   <ShieldCheck className="w-3.5 h-3.5" />
                   Activate Agent
                 </Button>
+              </div>
+            )}
+
+            {/* Template Selector Row */}
+            {!isPrebuilt && (
+              <div className="bg-[#FFF6E8] border-2 border-[#E8B968] rounded-2xl p-4 shadow-[0_2px_0_0_#E8B968] flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center shadow-md">
+                    <Sparkles className="w-4 h-4 text-purple-650" />
+                  </span>
+                  <div className="text-left">
+                    <h4 className="text-[12.5px] font-black text-slate-800">Quickstart Training Template</h4>
+                    <p className="text-[10px] text-foreground/60 mt-0.5">Pre-populate structured guidelines for your business type</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-end">
+                  {[
+                    { id: "sweets", label: "Sweets Shop (Hinglish)", emoji: "🍬" },
+                    { id: "agency", label: "Agency/Services", emoji: "💼" },
+                    { id: "saas", label: "SaaS/Software", emoji: "💻" }
+                  ].map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => handleLoadTemplate(tpl.id)}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white border border-[#E8B968] text-[11px] font-extrabold hover:bg-[#FFE8C7]/50 active:scale-95 transition shadow-sm"
+                    >
+                      <span>{tpl.emoji}</span> {tpl.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
