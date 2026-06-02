@@ -382,15 +382,16 @@ app.post("/broadcasts/:id/send", requirePlan('growth', 'scale', 'enterprise'), a
   const id = c.req.param("id");
   const userId = c.var.userId;
 
-  const [bc] = await db.select().from(broadcast)
-    .where(and(eq(broadcast.id, id), eq(broadcast.ownerId, userId))).limit(1);
+  const [[bc], [meta]] = await Promise.all([
+    db.select().from(broadcast)
+      .where(and(eq(broadcast.id, id), eq(broadcast.ownerId, userId))).limit(1),
+    db.select().from(metaConfig)
+      .where(eq(metaConfig.userId, userId)).limit(1)
+  ]);
   if (!bc) return c.json({ error: "Broadcast not found" }, 404);
   if (!bc.templateName) return c.json({
     error: "broadcast.template_name is required — pick an approved template before sending",
   }, 400);
-
-  const [meta] = await db.select().from(metaConfig)
-    .where(eq(metaConfig.userId, userId)).limit(1);
   if (!meta || !meta.enabled) {
     return c.json({ error: "WhatsApp not connected. Configure Meta in Settings." }, 412);
   }
@@ -482,17 +483,10 @@ app.post("/broadcasts/bulk-send-24h", requirePlan('growth', 'scale', 'enterprise
     return c.json({ error: "Message body is required" }, 400);
   }
 
-  // 1. Get Meta credentials
-  const [meta] = await db.select().from(metaConfig)
-    .where(eq(metaConfig.userId, userId)).limit(1);
-  if (!meta || !meta.enabled) {
-    return c.json({ error: "WhatsApp not connected. Configure Meta in Settings." }, 412);
-  }
-
-  // 2. Fetch all eligible conversations (to verify they are within 24h window)
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const rows = await db
-    .select({
+  const [[meta], rows] = await Promise.all([
+    db.select().from(metaConfig).where(eq(metaConfig.userId, userId)).limit(1),
+    db.select({
       conversationId: conversation.id,
       contactId: contact.id,
       contactName: contact.name,
@@ -509,7 +503,11 @@ app.post("/broadcasts/bulk-send-24h", requirePlan('growth', 'scale', 'enterprise
         gte(message.createdAt, twentyFourHoursAgo)
       )
     )
-    .groupBy(conversation.id, contact.id, contact.name, contact.phone);
+    .groupBy(conversation.id, contact.id, contact.name, contact.phone)
+  ]);
+  if (!meta || !meta.enabled) {
+    return c.json({ error: "WhatsApp not connected. Configure Meta in Settings." }, 412);
+  }
 
   let eligible = rows.map((r) => ({
     conversationId: r.conversationId,

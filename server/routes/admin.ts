@@ -56,21 +56,33 @@ admin.get("/api/admin/metrics", async (c) => {
   const week = new Date(now.getTime() - 7 * DAY);
   const month = new Date(now.getTime() - 30 * DAY);
 
-  const [users] = await db.select({ n: count() }).from(user);
-  const [activeUsers] = await db.select({ n: count() }).from(user).where(eq(user.accountStatus, "active"));
-  const [suspended] = await db.select({ n: count() }).from(user).where(eq(user.accountStatus, "suspended"));
-  const [trial] = await db.select({ n: count() }).from(user).where(eq(user.accountStatus, "trial"));
-  const [signups24h] = await db.select({ n: count() }).from(user).where(gt(user.createdAt, today));
-  const [signupsWeek] = await db.select({ n: count() }).from(user).where(gt(user.createdAt, week));
-  const [staffCount] = await db.select({ n: count() }).from(user).where(eq(user.isStaff, true));
-  const [mrr] = await db.select({ total: sql<string>`COALESCE(SUM(${user.mrrInr}), 0)` }).from(user)
-    .where(eq(user.accountStatus, "active"));
-
-  const [msgs] = await db.select({ n: count() }).from(message).where(gt(message.createdAt, today));
-  const [convosOpen] = await db.select({ n: count() }).from(conversation).where(eq(conversation.status, "open"));
-  const [dealsWon24h] = await db.select({ n: count() }).from(deal).where(and(eq(deal.stage, "won"), gt(deal.closedAt, today)));
-  const [orphans24h] = await db.select({ n: count() }).from(webhookOrphan)
-    .where(and(gt(webhookOrphan.createdAt, today), isNull(webhookOrphan.claimedUserId)));
+  const [
+    [users],
+    [activeUsers],
+    [suspended],
+    [trial],
+    [signups24h],
+    [signupsWeek],
+    [staffCount],
+    [mrr],
+    [msgs],
+    [convosOpen],
+    [dealsWon24h],
+    [orphans24h]
+  ] = await Promise.all([
+    db.select({ n: count() }).from(user),
+    db.select({ n: count() }).from(user).where(eq(user.accountStatus, "active")),
+    db.select({ n: count() }).from(user).where(eq(user.accountStatus, "suspended")),
+    db.select({ n: count() }).from(user).where(eq(user.accountStatus, "trial")),
+    db.select({ n: count() }).from(user).where(gt(user.createdAt, today)),
+    db.select({ n: count() }).from(user).where(gt(user.createdAt, week)),
+    db.select({ n: count() }).from(user).where(eq(user.isStaff, true)),
+    db.select({ total: sql<string>`COALESCE(SUM(${user.mrrInr}), 0)` }).from(user).where(eq(user.accountStatus, "active")),
+    db.select({ n: count() }).from(message).where(gt(message.createdAt, today)),
+    db.select({ n: count() }).from(conversation).where(eq(conversation.status, "open")),
+    db.select({ n: count() }).from(deal).where(and(eq(deal.stage, "won"), gt(deal.closedAt, today))),
+    db.select({ n: count() }).from(webhookOrphan).where(and(gt(webhookOrphan.createdAt, today), isNull(webhookOrphan.claimedUserId)))
+  ]);
 
   return c.json({
     users: users.n,
@@ -127,14 +139,21 @@ admin.get("/api/admin/workspaces/:id", async (c) => {
   const [w] = await db.select().from(user).where(eq(user.id, id)).limit(1);
   if (!w) return c.json({ error: "Not found" }, 404);
 
-  const [contacts] = await db.select({ n: count() }).from(contact).where(eq(contact.ownerId, id));
-  const [convos] = await db.select({ n: count() }).from(conversation).where(eq(conversation.ownerId, id));
-  const [msgs] = await db.select({ n: count() }).from(message).where(eq(message.ownerId, id));
-  const [deals] = await db.select({ n: count() }).from(deal).where(eq(deal.ownerId, id));
-  const [revenue] = await db.select({ total: sql<string>`COALESCE(SUM(${deal.value}), 0)` }).from(deal)
-    .where(and(eq(deal.ownerId, id), eq(deal.stage, "won")));
-  const [meta] = await db.select({ enabled: metaConfig.enabled, displayPhoneNumber: metaConfig.displayPhoneNumber })
-    .from(metaConfig).where(eq(metaConfig.userId, id)).limit(1);
+  const [
+    [contacts],
+    [convos],
+    [msgs],
+    [deals],
+    [revenue],
+    [meta]
+  ] = await Promise.all([
+    db.select({ n: count() }).from(contact).where(eq(contact.ownerId, id)),
+    db.select({ n: count() }).from(conversation).where(eq(conversation.ownerId, id)),
+    db.select({ n: count() }).from(message).where(eq(message.ownerId, id)),
+    db.select({ n: count() }).from(deal).where(eq(deal.ownerId, id)),
+    db.select({ total: sql<string>`COALESCE(SUM(${deal.value}), 0)` }).from(deal).where(and(eq(deal.ownerId, id), eq(deal.stage, "won"))),
+    db.select({ enabled: metaConfig.enabled, displayPhoneNumber: metaConfig.displayPhoneNumber }).from(metaConfig).where(eq(metaConfig.userId, id)).limit(1)
+  ]);
 
   return c.json({
     ...w,

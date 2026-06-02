@@ -1893,13 +1893,18 @@ const renderNotFound = (): string => `<!doctype html>
 /** Build the full RenderInput for a site row. Used by both the legacy single-page
  *  renderer and the new page-based renderer (Builder output). */
 const buildRenderInput = async (row: typeof site.$inferSelect, slug: string): Promise<RenderInput> => {
-  const [pf] = await db.select().from(profile).where(eq(profile.userId, row.userId)).limit(1);
-  const [mc] = await db.select({ displayPhoneNumber: metaConfig.displayPhoneNumber })
-    .from(metaConfig).where(eq(metaConfig.userId, row.userId)).limit(1);
-  const [u] = await db.select({ name: user.name }).from(user).where(eq(user.id, row.userId)).limit(1);
-  const productRows = await db.select().from(product)
-    .where(and(eq(product.ownerId, row.userId), eq(product.status, "active")))
-    .orderBy(asc(product.sortOrder), asc(product.createdAt));
+  const [pfResult, mcResult, uResult, productRows] = await Promise.all([
+    db.select().from(profile).where(eq(profile.userId, row.userId)).limit(1),
+    db.select({ displayPhoneNumber: metaConfig.displayPhoneNumber })
+      .from(metaConfig).where(eq(metaConfig.userId, row.userId)).limit(1),
+    db.select({ name: user.name }).from(user).where(eq(user.id, row.userId)).limit(1),
+    db.select().from(product)
+      .where(and(eq(product.ownerId, row.userId), eq(product.status, "active")))
+      .orderBy(asc(product.sortOrder), asc(product.createdAt))
+  ]);
+  const pf = pfResult[0];
+  const mc = mcResult[0];
+  const u = uResult[0];
 
   const copy = (row.copy ?? {}) as Record<string, string>;
   const theme = (row.theme ?? {}) as Record<string, string>;
@@ -2128,12 +2133,11 @@ app.get("/biz/me", async (c) => {
   const userId = session.user.id;
   let [row] = await db.select().from(site).where(eq(site.userId, userId)).limit(1);
 
-  // Auto-create site if it doesn't exist (same defaults as /api/site/me).
   if (!row) {
-    const [u] = await db.select({ name: user.name, email: user.email })
-      .from(user).where(eq(user.id, userId)).limit(1);
-    const [pf] = await db.select({ displayName: profile.displayName })
-      .from(profile).where(eq(profile.userId, userId)).limit(1);
+    const [[u], [pf]] = await Promise.all([
+      db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, userId)).limit(1),
+      db.select({ displayName: profile.displayName }).from(profile).where(eq(profile.userId, userId)).limit(1),
+    ]);
     const seedRaw = pf?.displayName || u?.name || u?.email?.split("@")[0] || "shop";
     const cleaned = seedRaw.toLowerCase().normalize("NFKD")
       .replace(/[̀-ͯ]/g, "")

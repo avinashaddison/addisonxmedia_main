@@ -69,10 +69,10 @@ app.get("/site/me", async (c) => {
   if (!row) {
     // Seed from user record + profile so the very first edit lands on
     // sensible defaults instead of empty fields.
-    const [u] = await db.select({ name: user.name, email: user.email })
-      .from(user).where(eq(user.id, userId)).limit(1);
-    const [pf] = await db.select({ displayName: profile.displayName })
-      .from(profile).where(eq(profile.userId, userId)).limit(1);
+    const [[u], [pf]] = await Promise.all([
+      db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, userId)).limit(1),
+      db.select({ displayName: profile.displayName }).from(profile).where(eq(profile.userId, userId)).limit(1),
+    ]);
 
     const seed = makeSlugSeed(pf?.displayName || u?.name || u?.email?.split("@")[0] || "shop");
     const slug = await ensureUniqueSlug(seed);
@@ -88,10 +88,10 @@ app.get("/site/me", async (c) => {
   } else if (RESERVED_SLUGS.has(row.slug)) {
     // Migrate users whose slug collides with a reserved path (eg. "me" — which
     // is the smart-redirect path at /biz/me). Re-seed from name/email.
-    const [u] = await db.select({ name: user.name, email: user.email })
-      .from(user).where(eq(user.id, userId)).limit(1);
-    const [pf] = await db.select({ displayName: profile.displayName })
-      .from(profile).where(eq(profile.userId, userId)).limit(1);
+    const [[u], [pf]] = await Promise.all([
+      db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, userId)).limit(1),
+      db.select({ displayName: profile.displayName }).from(profile).where(eq(profile.userId, userId)).limit(1),
+    ]);
     const seed = makeSlugSeed(pf?.displayName || u?.name || u?.email?.split("@")[0] || "shop");
     const newSlug = await ensureUniqueSlug(seed, userId);
     [row] = await db.update(site).set({ slug: newSlug, updatedAt: new Date() })

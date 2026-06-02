@@ -258,11 +258,12 @@ app.get("/conversations", async (c) => {
 app.get("/inbox/status", async (c) => {
   const userId = c.var.userId;
   const userEmail = c.var.userEmail;
-  const [cfg] = await db.select().from(metaConfig).where(eq(metaConfig.userId, userId)).limit(1);
-  const [{ n: conversationCount }] = await db
-    .select({ n: sql<number>`COUNT(*)::int` })
-    .from(conversation)
-    .where(eq(conversation.ownerId, userId));
+  const [[cfg], [{ n: conversationCount }]] = await Promise.all([
+    db.select().from(metaConfig).where(eq(metaConfig.userId, userId)).limit(1),
+    db.select({ n: sql<number>`COUNT(*)::int` })
+      .from(conversation)
+      .where(eq(conversation.ownerId, userId))
+  ]);
 
   return c.json({
     meta_connected: !!cfg,

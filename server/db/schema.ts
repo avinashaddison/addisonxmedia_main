@@ -456,7 +456,10 @@ export const workspace = pgTable("workspace", {
   workspaceUserId: text("workspace_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  ownerUserIdIdx: index("workspace_owner_user_id_idx").on(t.ownerUserId),
+  workspaceUserIdIdx: index("workspace_workspace_user_id_idx").on(t.workspaceUserId),
+}));
 
 export const workspaceRelations = relations(workspace, ({ one }) => ({
   owner: one(user, { fields: [workspace.ownerUserId], references: [user.id] }),

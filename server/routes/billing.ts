@@ -213,16 +213,17 @@ app.post("/billing/cashfree/create-order", async (c) => {
   // Pull user (for plan check + name/email) and profile (for phone).
   // Phone lives on `profile`, not `user`, since BetterAuth's user row is
   // auth-only — we extended onboarding to capture phone into profile.
-  const [u] = await db.select({
-    id: user.id, email: user.email, name: user.name, plan: user.plan,
-  }).from(user).where(eq(user.id, userId)).limit(1);
+  const [[u], [p]] = await Promise.all([
+    db.select({
+      id: user.id, email: user.email, name: user.name, plan: user.plan,
+    }).from(user).where(eq(user.id, userId)).limit(1),
+    db.select({ phone: profile.phone })
+      .from(profile).where(eq(profile.userId, userId)).limit(1)
+  ]);
   if (!u) return c.json({ error: "User not found" }, 404);
   if (u.plan === plan) {
     return c.json({ error: `You're already on the ${plan} plan.` }, 400);
   }
-
-  const [p] = await db.select({ phone: profile.phone })
-    .from(profile).where(eq(profile.userId, userId)).limit(1);
 
   // Cashfree requires E.164-ish phone. If we don't have one (signup-only
   // user), fall back to a placeholder — Cashfree will still accept but UPI
