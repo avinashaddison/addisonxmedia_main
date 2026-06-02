@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { CommandPalette } from "./CommandPalette";
 import { NotificationCenter } from "./NotificationCenter";
+import { AddisonLogo } from "@/components/brand/AddisonLogo";
 
 
 type Props = { onNavigate: (page: string) => void; onMenuClick?: () => void };
@@ -16,9 +17,13 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
   const [now, setNow] = useState<number>(Date.now());
   const [refreshing, setRefreshing] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [isMac, setIsMac] = useState(false);
 
   // Global ⌘K / Ctrl+K to open command palette
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsMac(navigator.platform.toUpperCase().indexOf("MAC") >= 0);
+    }
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -50,28 +55,57 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
   const syncLabel = secsAgo < 60 ? `${secsAgo}s ago` : `${Math.floor(secsAgo / 60)}m ago`;
 
   return (
-    <header className="h-16 px-3 sm:px-4 border-b border-border bg-card/70 backdrop-blur-xl flex items-center gap-2 sm:gap-3 flex-shrink-0 z-30">
-      {onMenuClick && (
+    <header className="h-16 px-3 sm:px-4 border-b border-border bg-card/70 backdrop-blur-xl flex items-center justify-between gap-3 flex-shrink-0 z-30">
+      {/* Left: Mobile Menu + Logo */}
+      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        {onMenuClick && (
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden w-10 h-10 rounded-lg hover:bg-muted flex items-center justify-center text-foreground flex-shrink-0"
+            aria-label="Open menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
+        <Link to="/app/dashboard" className="flex items-center flex-shrink-0 transition-transform hover:scale-[1.02]">
+          <AddisonLogo size={28} />
+        </Link>
+      </div>
+
+      {/* Center: Global Search Bar */}
+      <div className="flex-1 max-w-xs md:max-w-md lg:max-w-lg xl:max-w-xl mx-2 hidden md:block">
         <button
-          onClick={onMenuClick}
-          className="lg:hidden w-10 h-10 rounded-lg hover:bg-muted flex items-center justify-center text-foreground flex-shrink-0"
-          aria-label="Open menu"
+          onClick={() => setPaletteOpen(true)}
+          className="w-full flex items-center gap-2.5 px-4 py-2 rounded-full bg-[#FFF6E8] hover:bg-[#FFE9BD] border-2 border-[#E8B968] text-[#B8651A]/60 hover:text-[#B8651A] transition-all duration-200 text-left shadow-[0_2px_0_0_rgba(232,185,104,0.2)] hover:shadow-[0_2px_0_0_rgba(232,185,104,0.4)] group"
         >
-          <Menu className="w-5 h-5" />
+          <Search className="w-4 h-4 text-[#B8651A] group-hover:scale-110 transition-transform" />
+          <span className="text-[13px] text-[#B8651A] font-semibold flex-1 truncate">
+            Search contacts, chats, deals...
+          </span>
+          <kbd className="hidden lg:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-black uppercase bg-white text-[#B8651A] border border-[#E8B968] rounded shadow-sm leading-none">
+            {isMac ? "⌘K" : "Ctrl+K"}
+          </kbd>
         </button>
-      )}
+      </div>
 
-      <div className="flex-1" />
+      {/* Right Side Controls */}
+      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        {/* On Mobile: compact search button */}
+        <button
+          onClick={() => setPaletteOpen(true)}
+          className="md:hidden w-9 h-9 rounded-full bg-[#FFF1D6] hover:bg-[#FFE9BD] border-2 border-[#E8B968] flex items-center justify-center transition-colors flex-shrink-0 shadow-[0_2px_0_0_#E8B968]"
+          aria-label="Search"
+        >
+          <Search className="w-4 h-4 text-[#B8651A]" />
+        </button>
 
-      {/* Status bar — chips for WhatsApp API live-state + current plan with
-          quick "Explore Plans" upsell. Brand-styled to match the AddisonX
-          yellow/red palette so they read as part of the product, not a
-          neutral utility row. */}
-      <div className="hidden md:flex items-center gap-2 flex-shrink-0">
-        <WhatsAppStatusPill />
-        <PlanStatusPill onNavigate={onNavigate} />
+        {/* WhatsApp & Plan status pills */}
+        <div className="hidden xl:flex items-center gap-2">
+          <WhatsAppStatusPill />
+          <PlanStatusPill onNavigate={onNavigate} />
+        </div>
 
-        {/* Resync icon-only, sits at the end of the chip row */}
+        {/* Resync Button */}
         <button
           onClick={handleResync}
           disabled={refreshing}
@@ -84,11 +118,10 @@ export const GlobalTopbar = ({ onNavigate, onMenuClick }: Props) => {
             refreshing && "animate-spin"
           )} />
         </button>
+
+        {/* Notifications */}
+        <NotificationCenter onNavigate={onNavigate} />
       </div>
-
-
-
-      <NotificationCenter onNavigate={onNavigate} />
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onNavigate={onNavigate} />
     </header>
