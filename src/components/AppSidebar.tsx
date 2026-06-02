@@ -40,90 +40,57 @@ type NavItem = {
 
 const groups: { label: string; items: NavItem[] }[] = [
   {
-    label: "Sales",
+    label: "Dashboard",
     items: [
       { icon: LayoutDashboard, label: "Dashboard", id: "dashboard", hint: "Command center" },
-      { icon: Inbox, label: "Chats", id: "inbox", badgeKey: "inbox", hint: "Live WhatsApp inbox", live: true },
-      { icon: Users, label: "Contacts", id: "contacts", hint: "Leads & CRM" },
-      { icon: Trophy, label: "Deals", id: "deals", hint: "Sales pipeline" },
+    ],
+  },
+  {
+    label: "Website",
+    items: [
+      { icon: Globe,    label: "Site Builder", id: "site",       hint: "Storefront & content" },
+      { icon: FileText, label: "Pages",        id: "site/pages",  hint: "Custom pages" },
+    ],
+  },
+  {
+    label: "Leads & Chats",
+    items: [
+      { icon: Inbox,         label: "Conversations", id: "inbox", badgeKey: "inbox", hint: "WhatsApp live chat", live: true },
+      { icon: ClipboardList, label: "Lead Forms",    id: "site/leads", hint: "CRM capture forms" },
+      { icon: Calendar,      label: "Bookings",      id: "site/bookings", hint: "Appointments" },
+    ],
+  },
+  {
+    label: "Sales",
+    items: [
+      { icon: Package,      label: "Products",   id: "site/products", hint: "Catalog items & tabs" },
+      { icon: ShoppingCart, label: "Orders",     id: "site/orders", hint: "Pipeline & shipping" },
+      { icon: UsersRound,   label: "Customers",  id: "site/customers", hint: "CRM contacts" },
+      { icon: CreditCard,   label: "Payments",   id: "site/payments", hint: "UPI + gateways" },
     ],
   },
   {
     label: "Marketing",
     items: [
-      { icon: Target, label: "Ads Marketing", id: "ads", hint: "Meta + Google ads", smart: true },
-      { icon: Megaphone, label: "Campaigns", id: "campaigns", hint: "Multi-channel" },
-      { icon: Radio, label: "Broadcasts", id: "broadcasts", hint: "Mass messages" },
-      { icon: FileText, label: "Templates", id: "templates", hint: "Reusable messages" },
-    ],
-  },
-  {
-    label: "Automation",
-    items: [
-      { icon: Bell, label: "Follow-ups", id: "followups", badgeKey: "tasks", hint: "Tasks queue" },
-    ],
-  },
-  {
-    label: "AI",
-    items: [
-      { icon: Brain, label: "AI Agent", id: "ai-training", hint: "Teach Addison about your business", smart: true },
-    ],
-  },
-  {
-    label: "System",
-    items: [
-      { icon: BarChart3, label: "Analytics", id: "analytics", hint: "Reports & insights" },
-      { icon: Activity, label: "Activity", id: "activity", hint: "System history" },
-      { icon: Plug, label: "Integrations", id: "integrations", hint: "Connect tools" },
-      { icon: Settings, label: "Settings", id: "settings", hint: "Workspace config" },
-    ],
-  },
-];
-
-// Website mode — sidebar swaps to this when the user is on /app/site/*.
-// Item ids encode the route segment after /app/site, so onNavigate("site/pages")
-// resolves to /app/site/pages via Index.tsx's existing routing logic.
-const websiteGroups: { label: string; items: NavItem[] }[] = [
-  {
-    label: "Launch",
-    items: [
-      { icon: Store,  label: "Website Store", id: "site/store", hint: "Browse & preview websites" },
-      { icon: Wrench, label: "Site Manager",  id: "site",       hint: "Everything: content, theme, branding, launch" },
-    ],
-  },
-  {
-    label: "Engage",
-    items: [
-      { icon: Calendar,      label: "Bookings",         id: "site/bookings",        hint: "Appointment requests · NEW", smart: true },
-      { icon: MessageCircle, label: "WhatsApp Catalog", id: "site/whatsapp-catalog", hint: "Sync products to WhatsApp · NEW", smart: true },
-      { icon: ClipboardList, label: "Lead forms",       id: "site/leads",           hint: "Site → CRM" },
-    ],
-  },
-  {
-    label: "Sell",
-    items: [
-      { icon: Package,      label: "Physical Products",   id: "site/physical-products", hint: "Website & WhatsApp commerce catalog" },
-      { icon: Sparkles,     label: "Digital Products",    id: "site/digital-products",  hint: "E-books, downloads & licenses" },
-      { icon: ShoppingCart, label: "Orders",              id: "site/orders",    hint: "Order pipeline" },
-      { icon: UsersRound,   label: "Customers",           id: "site/customers", hint: "Buyers & LTV" },
-      { icon: CreditCard,   label: "Payments",            id: "site/payments",  hint: "UPI + Cashfree" },
-      { icon: Ticket,       label: "Coupons",             id: "site/coupons",   hint: "Discount codes" },
+      { icon: Megaphone, label: "Campaigns",  id: "campaigns", hint: "Meta ads manager" },
+      { icon: Radio,     label: "Broadcasts", id: "broadcasts", hint: "WhatsApp blasts" },
+      { icon: Bell,      label: "Automations",id: "followups", badgeKey: "tasks", hint: "Follow-ups" },
+      { icon: BarChart3, label: "Analytics",  id: "analytics", hint: "Store views & statistics" },
     ],
   },
   {
     label: "Growth",
     items: [
-      { icon: Search,    label: "SEO",       id: "site/seo",       hint: "Meta tags + sitemap" },
-      { icon: BarChart3, label: "Analytics", id: "site/analytics", hint: "Views, leads, sales" },
-      { icon: Truck,     label: "Shipping",  id: "site/shipping",  hint: "Pincode zones + rates" },
+      { icon: Search, label: "SEO", id: "site/seo", hint: "Meta tags & SEO" },
     ],
   },
   {
-    label: "Setup",
+    label: "Settings",
     items: [
-      { icon: Globe,    label: "Domain",   id: "site/domain",   hint: "Subdomain + custom" },
-      { icon: Settings, label: "Settings", id: "site/settings", hint: "Tax, returns, GST" },
-      { icon: Activity, label: "Operations", id: "site/operations", hint: "Background worker & task logs" },
+      { icon: Globe,    label: "Domain",       id: "site/domain", hint: "Custom domain" },
+      { icon: Users,    label: "Team",         id: "settings", hint: "Staff credentials" },
+      { icon: Plug,     label: "Integrations", id: "integrations", hint: "APIs & keys" },
+      { icon: Settings, label: "Settings",     id: "settings", hint: "Workspace config" },
     ],
   },
 ];
@@ -155,18 +122,11 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
     return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
   });
 
-  // Route-aware mode swap. When the user navigates into /app/site/*, the
-  // sidebar flips its menu to the Website-management one. Going back to any
-  // primary route (or hitting the back arrow) returns to the default menu.
-  // Deriving mode from the URL (not local state) means deep-links land in the
-  // right mode without an effect chain.
   const location = useLocation();
-  const mode: "primary" | "website" = location.pathname.startsWith("/app/site") ? "website" : "primary";
-  const activeGroups = mode === "website" ? websiteGroups : groups;
-  // For website-mode items, `active` is the sub-route ("pages", "theme", …) or
-  // empty for the overview. We rebuild the id the menu compares against.
-  const websiteSubPath = location.pathname.replace(/^\/app\/site\/?/, "");
-  const activeId = mode === "website" ? (websiteSubPath ? `site/${websiteSubPath}` : "site") : active;
+  const activeGroups = groups;
+  // Match path directly to find active item
+  const pathWithoutApp = location.pathname.replace(/^\/app\/?/, "");
+  const activeId = pathWithoutApp || "dashboard";
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
@@ -401,43 +361,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
         })}
       </nav>
 
-      {/* Pinned 'Launch Website' CTA — lives OUTSIDE the scrollable nav so
-          it's always visible no matter how long the nav list grows. Sits just
-          above the upgrade card as a sibling flex-shrink-0 section. */}
-      {mode === "primary" && (
-        <div className="px-2.5 pt-3 pb-3 flex-shrink-0">
-          <button
-            onClick={() => handleNavigate("site")}
-            onMouseEnter={() => prefetchPage("site")}
-            title={collapsed ? "Launch Website" : undefined}
-            className={cn(
-              "relative w-full rounded-xl flex items-center gap-2.5 px-2.5 transition-all group overflow-hidden border-2 border-[#7A4A00] shadow-[0_3px_0_0_#7A4A00] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[0_1px_0_0_#7A4A00] bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white font-extrabold",
-              collapsed ? "h-11 justify-center px-0" : "h-12",
-            )}
-          >
-            <span className="absolute -top-3 -right-3 w-10 h-10 bg-[#FFD23F]/25 rounded-full blur-lg pointer-events-none" />
-            <span className="relative w-7 h-7 rounded-lg bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center flex-shrink-0 shadow-[0_2px_0_0_#B8860B]">
-              <Rocket className="w-4 h-4" strokeWidth={2.5} />
-            </span>
-            {!collapsed && (
-              <span className="relative flex-1 text-left">
-                <span className="block text-[12.5px] leading-tight">Launch Website</span>
-                <span className="block text-[9.5px] font-bold text-[#FFD23F] uppercase tracking-wider">
-                  Site + Store builder
-                </span>
-              </span>
-            )}
-            {!collapsed && (
-              <ChevronRight className="relative w-4 h-4 text-[#FFD23F] group-hover:translate-x-0.5 transition flex-shrink-0" strokeWidth={2.5} />
-            )}
-            {collapsed && (
-              <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
-                Launch Website
-              </span>
-            )}
-          </button>
-        </div>
-      )}
+
 
 
 

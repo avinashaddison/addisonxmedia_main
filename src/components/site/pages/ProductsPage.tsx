@@ -43,8 +43,10 @@ const blankDraft = (isDigital = false): ProductDraft => ({
   price_usd: "", is_reseller: false, reseller_price: "", reseller_price_usd: "",
 });
 
-export const ProductsPage = ({ filterType }: { filterType?: "physical" | "digital" }) => {
+export const ProductsPage = () => {
   const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"physical" | "digital">("physical");
+
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products"],
     queryFn: () => api.getProducts(),
@@ -62,11 +64,10 @@ export const ProductsPage = ({ filterType }: { filterType?: "physical" | "digita
 
   const publicUrl = site ? `${window.location.origin}/biz/${site.slug}` : "";
 
-  // Filter products based on selected tab
+  // Filter products based on selected internal tab
   const filteredProducts = products.filter((p) => {
-    if (filterType === "digital") return p.is_digital;
-    if (filterType === "physical") return !p.is_digital;
-    return true;
+    if (activeTab === "digital") return p.is_digital;
+    return !p.is_digital;
   });
 
   return (
@@ -77,28 +78,49 @@ export const ProductsPage = ({ filterType }: { filterType?: "physical" | "digita
             <Package className="w-7 h-7" strokeWidth={2.5} />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-[24px] font-black leading-tight">
-              {filterType === "digital" ? "Digital Products" : filterType === "physical" ? "Physical Products" : "All Products"}
-            </h1>
+            <h1 className="text-[24px] font-black leading-tight">Products Catalog</h1>
             <p className="text-[14px] text-foreground/70 font-medium mt-1">
-              {filterType === "digital" 
-                ? "Manage your digital delivery settings, downloads, reseller rates and licensing." 
-                : "Manage inventory, categories, pricing, and photos for items shipped or picked up."}
+              Manage physical e-commerce inventory or digital products with instant delivery instructions.
             </p>
           </div>
-          {site && !filterType && (
+          {site && (
             <a href={`${publicUrl}#products`} target="_blank" rel="noopener noreferrer"
                className="hidden sm:inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-white border-2 border-[#E8B968] text-[12.5px] font-extrabold text-foreground shadow-[0_3px_0_0_#E8B968] hover:bg-[#FFE8C7] transition">
                <ExternalLink className="w-3.5 h-3.5" /> View on site
             </a>
           )}
-          {filterType !== "digital" && <SyncCatalogButton />}
+          {activeTab !== "digital" && <SyncCatalogButton />}
           <button
             onClick={() => setEditingId("new")}
             className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-[#0E8A4B] text-white font-extrabold text-[13px] shadow-[0_4px_0_0_#073D22] hover:bg-[#0A6E3C] active:translate-y-0.5 active:shadow-[0_2px_0_0_#073D22] transition flex-shrink-0"
           >
             <Plus className="w-4 h-4" strokeWidth={2.5} /> Add product
           </button>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex items-center gap-2 border-b border-[#E8B968]/40 pb-1">
+          {[
+            { id: "physical", label: "Physical Products", icon: Package },
+            { id: "digital", label: "Digital Products", icon: Sparkles },
+          ].map((tab) => {
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={cn(
+                  "flex items-center gap-2 h-9 px-4 rounded-xl text-[12.5px] font-black tracking-wide border-2 transition-all",
+                  active
+                    ? "border-primary bg-[#0E8A4B] text-white shadow-[0_2px_0_0_#073D22]"
+                    : "border-transparent text-muted-foreground hover:bg-[#FFE8C7]/50 hover:text-foreground"
+                )}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Stats */}
@@ -122,7 +144,7 @@ export const ProductsPage = ({ filterType }: { filterType?: "physical" | "digita
               </div>
               <h3 className="text-[15px] font-extrabold mb-1">No products yet</h3>
               <p className="text-[12.5px] text-foreground/60 max-w-sm mx-auto leading-relaxed mb-4">
-                Add your first {filterType || "product"} product — name, description, photo, and price.
+                Add your first {activeTab} product — name, description, photo, and price.
               </p>
               <button
                 onClick={() => setEditingId("new")}
@@ -161,7 +183,7 @@ export const ProductsPage = ({ filterType }: { filterType?: "physical" | "digita
                 reseller_price: editing.reseller_price != null ? String(editing.reseller_price) : "",
                 reseller_price_usd: editing.reseller_price_usd != null ? String(editing.reseller_price_usd) : "",
               }
-            : blankDraft(filterType === "digital")
+            : blankDraft(activeTab === "digital")
           }
           editingId={editing?.id ?? null}
           onClose={() => setEditingId(null)}
