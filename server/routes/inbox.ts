@@ -185,6 +185,7 @@ app.get("/conversations", async (c) => {
         contact_score: contact.score,
         contact_source: contact.source,
         contact_notes: contact.notes,
+        contact_isReseller: contact.isReseller,
         contact_createdAt: contact.createdAt,
         contact_updatedAt: contact.updatedAt,
       })
@@ -223,6 +224,7 @@ app.get("/conversations", async (c) => {
             score: r.contact_score,
             source: r.contact_source,
             notes: r.contact_notes,
+            is_reseller: r.contact_isReseller,
             createdAt: r.contact_createdAt,
             updatedAt: r.contact_updatedAt,
           }

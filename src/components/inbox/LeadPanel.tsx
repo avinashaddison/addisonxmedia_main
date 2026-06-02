@@ -215,9 +215,10 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
     setTag(contact.tag);
     setScore(contact.score);
     setNotes(contact.notes ?? "");
-  }, [contact.id, contact.tag, contact.score, contact.notes]);
+    setIsReseller(contact.is_reseller ?? false);
+  }, [contact.id, contact.tag, contact.score, contact.notes, contact.is_reseller]);
 
-  const dirty = tag !== contact.tag || score !== contact.score || (notes ?? "") !== (contact.notes ?? "");
+  const dirty = tag !== contact.tag || score !== contact.score || (notes ?? "") !== (contact.notes ?? "") || isReseller !== (contact.is_reseller ?? false);
 
   // Real deals + tasks for this specific contact
   const { data: allDeals = [] } = useQuery({
@@ -644,20 +645,17 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
 
 
 
-          {/* Save button — only enabled when something changed */}
-          <button
-            onClick={handleSave}
-            disabled={!dirty || saving}
-            className={cn(
-              "w-full h-9 rounded-lg flex items-center justify-center gap-1.5 text-[12px] font-bold transition-all",
-              dirty
-                ? "bg-primary text-primary-foreground hover:bg-primary-glow shadow-sm shadow-primary/20"
-                : "bg-muted text-muted-foreground cursor-not-allowed"
-            )}
-          >
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            {saving ? "Saving…" : dirty ? "Save changes" : "No changes"}
-          </button>
+          {/* Save button — only shown when something changed */}
+          {(dirty || saving) && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full h-9 rounded-lg flex items-center justify-center gap-1.5 text-[12px] font-bold transition-all bg-primary text-primary-foreground hover:bg-primary-glow shadow-sm shadow-primary/20"
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          )}
         </div>
 
 

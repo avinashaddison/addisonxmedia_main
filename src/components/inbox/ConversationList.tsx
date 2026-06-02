@@ -354,6 +354,11 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
                         {tag.label}
                       </span>
                     )}
+                    {conv.contact.is_reseller && (
+                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider flex-shrink-0 bg-emerald-600/15 text-emerald-600">
+                        RESELLER
+                      </span>
+                    )}
                   </div>
                   <span className={cn("text-[10px] flex-shrink-0 ml-2", conv.unread_count > 0 ? "text-primary font-semibold" : "text-muted-foreground")}>
                     {formatRelative(conv.last_message_at)}

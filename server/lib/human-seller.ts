@@ -64,6 +64,60 @@ export interface MessageAnalysis {
   payment_action: boolean; // True if they ask to pay, want payment QR/details, etc.
 }
 
+function calculateLeadScoreAndTag(
+  currentScore: number,
+  currentTag: "hot" | "warm" | "cold",
+  analysis: MessageAnalysis
+): { score: number; tag: "hot" | "warm" | "cold" } {
+  let score = currentScore;
+
+  // Base adjustments based on intent
+  if (analysis.intent === "payment_done") {
+    score = 100;
+  } else if (analysis.payment_action) {
+    score = Math.max(score, 90);
+  } else if (analysis.intent === "pricing" || analysis.intent === "plan_validity" || analysis.intent === "activation_time") {
+    score = Math.max(score, 60);
+  } else if (analysis.intent === "availability") {
+    score = Math.max(score, 45);
+  }
+
+  // Adjustments based on buyer type
+  if (
+    analysis.buyer_type === "serious_buyer" ||
+    analysis.buyer_type === "fast_buyer" ||
+    analysis.buyer_type === "premium_buyer" ||
+    analysis.buyer_type === "reseller"
+  ) {
+    score = Math.max(score, 75);
+  } else if (analysis.buyer_type === "timepass") {
+    score = Math.min(score, 30);
+  } else if (analysis.buyer_type === "scammer") {
+    score = Math.min(score, 10);
+  }
+
+  // Adjustments based on mood and urgency
+  if (analysis.mood === "interested") {
+    score = Math.min(100, score + 10);
+  }
+  if (analysis.urgency === "high") {
+    score = Math.min(100, score + 10);
+  }
+
+  // Cap score between 0 and 100
+  score = Math.max(0, Math.min(100, score));
+
+  // Determine tag from score
+  let tag: "hot" | "warm" | "cold" = "cold";
+  if (score >= 75) {
+    tag = "hot";
+  } else if (score >= 35) {
+    tag = "warm";
+  }
+
+  return { score, tag };
+}
+
 /**
  * MESSAGE ANALYZER & INTENT DETECTOR
  * Runs an OpenAI analysis step to extract metadata from incoming message + recent history.
@@ -500,12 +554,22 @@ Output JSON: {"suggestions":[{"type":"polite"|"sell"|"qualify","text":"..."}]}`;
       .slice(0, 3);
 
     // Save updated Memory to Database
+    const { score: newScore, tag: newTag } = calculateLeadScoreAndTag(ctc.score, ctc.tag, analysis);
+    const updates: Record<string, any> = {
+      memory: memory as any,
+      updatedAt: new Date(),
+    };
+    if (newScore > ctc.score) {
+      updates.score = newScore;
+      updates.tag = newTag;
+    }
+    if (analysis.buyer_type === "reseller") {
+      updates.isReseller = true;
+    }
+
     await db
       .update(contact)
-      .set({
-        memory: memory as any,
-        updatedAt: new Date(),
-      })
+      .set(updates)
       .where(eq(contact.id, ctc.id));
 
     return {
@@ -714,12 +778,22 @@ export async function getHumanizedAutoReply(
     memory.learning.best_performing_tone = analysis.tone;
 
     // Save memory
+    const { score: newScore, tag: newTag } = calculateLeadScoreAndTag(ctc.score, ctc.tag, analysis);
+    const updates: Record<string, any> = {
+      memory: memory as any,
+      updatedAt: new Date(),
+    };
+    if (newScore > ctc.score) {
+      updates.score = newScore;
+      updates.tag = newTag;
+    }
+    if (analysis.buyer_type === "reseller") {
+      updates.isReseller = true;
+    }
+
     await db
       .update(contact)
-      .set({
-        memory: memory as any,
-        updatedAt: new Date(),
-      })
+      .set(updates)
       .where(eq(contact.id, ctc.id));
 
     return {
