@@ -29,7 +29,7 @@ import {
   CreditCard, Truck, Ticket, ClipboardList, Search, BarChart3, Settings,
   Rocket, ExternalLink, ArrowRight, CheckCircle2, Sparkles, Wand2,
   Loader2, Copy, Eye, EyeOff, AlertCircle, Check, Edit2, Save, X,
-  ChevronDown, Code, Shield, Image as ImageIcon, BarChart, Activity, Upload,
+  ChevronDown, Code, Shield, Image as ImageIcon, BarChart, Activity, Upload, Brain
 } from "lucide-react";
 import { useCloudinaryConfig, useCloudinaryUpload } from "@/hooks/useCloudinaryUpload";
 import { api, type SiteDto } from "@/lib/api";
