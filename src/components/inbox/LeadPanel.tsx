@@ -1,16 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Phone, Mail, Tag, StickyNote, X, Flame, Snowflake, CircleDot,
   Save, Trophy, Plus, Loader2, Globe, Bell, IndianRupee,
   MessageCircle, Instagram, Link2, Facebook, Send, Settings as SettingsIcon, ExternalLink,
   Package, Sparkles, Brain, Cpu, Database, Shield, Activity,
+  QrCode, CheckCircle2, Smartphone, Info, Edit3,
 } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
-import { SendPaymentDialog } from "./SendPaymentDialog";
 import { SendProductDialog, type ProductDeliveryPayload } from "./SendProductDialog";
 import { encodeProductDelivery } from "./ProductDeliveryCard";
 import { cn } from "@/lib/utils";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Contact, initialsFor, formatRelative } from "@/lib/inbox-types";
 import type { Deal, Task } from "@/lib/api-types";
 import { toast } from "sonner";
@@ -103,7 +103,6 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
   const [notes, setNotes] = useState(contact.notes ?? "");
   const [isReseller, setIsReseller] = useState(contact.is_reseller ?? false);
   const [saving, setSaving] = useState(false);
-  const [paymentOpen, setPaymentOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
   const [sendingProductIdx, setSendingProductIdx] = useState<number | null>(null);
   const [sendingAll, setSendingAll] = useState(false);
@@ -661,21 +660,6 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
           </button>
         </div>
 
-        {/* Send pay link — only when we have an active conversation */}
-        {conversationId && (
-          <div className="px-4 py-3 border-t border-border">
-            <button
-              onClick={() => setPaymentOpen(true)}
-              className="w-full h-11 rounded-xl flex items-center justify-center gap-2 bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white text-[13px] font-extrabold shadow-[0_3px_0_0_#075A30] hover:shadow-[0_1px_0_0_#075A30] hover:translate-y-[2px] transition-all"
-            >
-              <IndianRupee className="w-4 h-4" strokeWidth={2.5} />
-              Send UPI pay link
-            </button>
-            <p className="text-[10px] text-muted-foreground font-medium text-center mt-1.5">
-              QR + tap-to-pay link · directly to WhatsApp
-            </p>
-          </div>
-        )}
 
         {/* Quick share — workspace public links sent via WhatsApp with one click */}
         {conversationId && (
@@ -855,15 +839,6 @@ export const LeadPanel = ({ contact, conversationId, onClose }: Props) => {
         </DialogContent>
       </Dialog>
 
-      {/* UPI Send-payment dialog */}
-      {conversationId && (
-        <SendPaymentDialog
-          open={paymentOpen}
-          onOpenChange={setPaymentOpen}
-          conversationId={conversationId}
-          contactName={contact.name}
-        />
-      )}
 
       {/* ── Tab 3: Payments & Requests ─────────────────────────── */}
       <div className="flex-1 overflow-y-auto" hidden={activeTab !== "payment"}>
@@ -1220,6 +1195,8 @@ const QuickShareSection = ({ contactName, conversationId }: { contactName: strin
   );
 };
 
+const PRESET_AMOUNTS = ["100", "500", "1000", "2500", "5000"] as const;
+
 const PaymentTabPanel = ({
   contact,
   conversationId,
@@ -1231,17 +1208,72 @@ const PaymentTabPanel = ({
 }) => {
   const qc = useQueryClient();
   const [payMethod, setPayMethod] = useState<"upi" | "binance">("upi");
-  const [amount, setAmount] = useState("");
-  const [selectedProductIdx, setSelectedProductIdx] = useState<string>("custom");
-  const [sending, setSending] = useState(false);
+  
+  // UPI configuration query & states
+  const cfgQ = useQuery({
+    queryKey: ["upi-config"],
+    queryFn: () => api.getUpiConfig(),
+  });
 
-  const upiVpa = activeAgent?.upi_vpa || "";
+  const [mode, setMode] = useState<"setup" | "request">("request");
+  const [amount, setAmount] = useState("500");
+  const [note, setNote] = useState("");
+  
+  // Setup form states
+  const [vpaInput, setVpaInput] = useState("");
+  const [displayNameInput, setDisplayNameInput] = useState("");
+
   const binanceId = activeAgent?.binance_id || "";
-  const qrImageUrl = activeAgent?.qr_image_url || "";
-
   const productsList = activeAgent?.products || [];
+  const [selectedProductIdx, setSelectedProductIdx] = useState<string>("custom");
+  const [sendingBinance, setSendingBinance] = useState(false);
 
-  // Recalculate amount if selected product or reseller status changes
+  // Initialize/adjust mode based on UPI config state
+  useEffect(() => {
+    if (cfgQ.data && !cfgQ.data.configured) {
+      setMode("setup");
+      setVpaInput(cfgQ.data.vpa || "");
+      setDisplayNameInput(cfgQ.data.display_name || "");
+    } else {
+      setMode("request");
+    }
+  }, [cfgQ.data]);
+
+  const saveConfig = useMutation({
+    mutationFn: () =>
+      api.saveUpiConfig({
+        vpa: vpaInput.trim(),
+        display_name: displayNameInput.trim() || undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["upi-config"] });
+      toast.success("UPI ID saved");
+      setMode("request");
+    },
+    onError: (e) => toast.error(String(e)),
+  });
+
+  const sendRequest = useMutation({
+    mutationFn: () =>
+      api.sendUpiPaymentRequest({
+        conversation_id: conversationId || "",
+        amount_inr: Number(amount),
+        note: note.trim() || undefined,
+      }),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["messages", conversationId] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success(
+        r.sent_live
+          ? `Pay link bheja gaya · ${contact.name} ko WhatsApp pe`
+          : `Pay link saved (dry-run · Meta connect karein to send live)`,
+      );
+      setNote("");
+    },
+    onError: (e) => toast.error(String(e)),
+  });
+
+  // Prefill amount when product selected
   useEffect(() => {
     if (selectedProductIdx === "custom") return;
     const pIdx = Number(selectedProductIdx);
@@ -1263,43 +1295,46 @@ const PaymentTabPanel = ({
     }
   }, [selectedProductIdx, payMethod, contact.is_reseller, productsList]);
 
-  // Construct message text
-  const contactFirstName = contact.name.split(/\s+/)[0] || contact.name;
-  let messageBody = "";
-  if (payMethod === "upi") {
-    messageBody = `💳 *PAYMENT REQUEST (UPI)*\n\nHi ${contactFirstName}! Please make the payment of *₹${amount || "0"}* via UPI to the details below:\n\n👉 *UPI ID:* \`${upiVpa || "Not Configured"}\`\n\nAfter making the payment, please share the screenshot here for instant activation. Thank you! 🙏`;
-  } else {
-    messageBody = `💳 *PAYMENT REQUEST (BINANCE)*\n\nHi ${contactFirstName}! Please make the payment of *$${amount || "0"}* (USDT) to our Binance Pay ID:\n\n👉 *Binance ID:* \`${binanceId || "Not Configured"}\`\n\nAfter making the payment, please share the screenshot here for instant activation. Thank you! 🙏`;
-  }
+  // Live preview logic for UPI link & QR code
+  const previewUpiLink = useMemo(() => {
+    if (!cfgQ.data?.vpa || !Number(amount)) return "";
+    const params = new URLSearchParams({
+      pa: cfgQ.data.vpa,
+      pn: cfgQ.data.display_name || "Business",
+      am: Number(amount).toFixed(2),
+      tn: (note.trim() || `Payment to ${cfgQ.data.display_name || "Business"}`).slice(0, 40),
+      cu: "INR",
+    });
+    return `upi://pay?${params.toString()}`;
+  }, [cfgQ.data?.vpa, cfgQ.data?.display_name, amount, note]);
 
-  const handleSendPaymentText = async () => {
+  const previewQrUrl = useMemo(() => {
+    if (!previewUpiLink) return "";
+    return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=4&data=${encodeURIComponent(previewUpiLink)}`;
+  }, [previewUpiLink]);
+
+  // Binance payment request text body
+  const contactFirstName = contact.name.split(/\s+/)[0] || contact.name;
+  const binanceMessageBody = `💳 *PAYMENT REQUEST (BINANCE)*\n\nHi ${contactFirstName}! Please make the payment of *$${amount || "0"}* (USDT) to our Binance Pay ID:\n\n👉 *Binance ID:* \`${binanceId || "Not Configured"}\`\n\nAfter making the payment, please share the screenshot here for instant activation. Thank you! 🙏`;
+
+  const handleSendBinance = async () => {
     if (!conversationId) return;
-    setSending(true);
+    setSendingBinance(true);
     try {
-      const payload: Record<string, any> = {
-        body: messageBody,
+      await api.sendMessage(conversationId, {
+        body: binanceMessageBody,
         direction: "outbound",
         status: "sent",
-      };
-
-      // If UPI and QR code image is available, send as image message
-      if (payMethod === "upi" && qrImageUrl) {
-        payload.media_url = qrImageUrl;
-        payload.media_type = "image";
-      }
-
-      await api.sendMessage(conversationId, payload);
+      });
       qc.invalidateQueries({ queryKey: ["messages", conversationId] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
-      toast.success("Payment details shared directly in chat! ✨");
+      toast.success("Binance payment details shared directly in chat! ✨");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to send payment info");
+      toast.error(e instanceof Error ? e.message : "Failed to send Binance info");
     } finally {
-      setSending(false);
+      setSendingBinance(false);
     }
   };
-
-  const isConfigured = payMethod === "upi" ? !!upiVpa : !!binanceId;
 
   return (
     <div className="p-4 space-y-4">
@@ -1309,7 +1344,7 @@ const PaymentTabPanel = ({
           onClick={() => {
             setPayMethod("upi");
             setSelectedProductIdx("custom");
-            setAmount("");
+            setAmount("500");
           }}
           className={cn(
             "h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider transition-all",
@@ -1324,7 +1359,7 @@ const PaymentTabPanel = ({
           onClick={() => {
             setPayMethod("binance");
             setSelectedProductIdx("custom");
-            setAmount("");
+            setAmount("10");
           }}
           className={cn(
             "h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider transition-all",
@@ -1337,98 +1372,315 @@ const PaymentTabPanel = ({
         </button>
       </div>
 
-      {/* Info Warning if not configured */}
-      {!isConfigured && (
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
-          <span className="text-amber-500">⚠</span>
-          <p className="text-[10px] font-semibold text-amber-800 leading-snug">
-            {payMethod === "upi"
-              ? "UPI VPA is not set for this agent. Please configure it in Products & Agent settings."
-              : "Binance ID is not set for this agent. Please configure it in Products & Agent settings."}
-          </p>
-        </div>
-      )}
-
-      {/* Product Selector Dropdown */}
-      <div className="space-y-1">
-        <Label className="text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">Prefill from Product</Label>
-        <select
-          value={selectedProductIdx}
-          onChange={(e) => setSelectedProductIdx(e.target.value)}
-          className="w-full h-9 rounded-lg bg-white border-2 border-[#E8B968] px-2 text-[12px] font-bold focus:outline-none"
-        >
-          <option value="custom">-- Custom Amount --</option>
-          {productsList.map((p: any, idx: number) => {
-            let price = p.price;
-            let priceUsd = p.priceUsd || p.price_usd;
-            if (contact.is_reseller) {
-              price = p.resellerPrice || p.reseller_price || p.price;
-              priceUsd = p.resellerPriceUsd || p.reseller_price_usd || p.priceUsd || p.price_usd;
-            }
-            return (
-              <option key={idx} value={String(idx)}>
-                {p.name} ({payMethod === "upi" ? `₹${price}` : `$${priceUsd || 0}`})
-              </option>
-            );
-          })}
-        </select>
-      </div>
-
-      {/* Amount Input */}
-      <div className="space-y-1">
-        <Label className="text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">
-          Amount ({payMethod === "upi" ? "INR ₹" : "USD $"})
-        </Label>
-        <Input
-          type="number"
-          value={amount}
-          onChange={(e) => {
-            setAmount(e.target.value);
-            setSelectedProductIdx("custom");
-          }}
-          placeholder={payMethod === "upi" ? "e.g. 999" : "e.g. 12"}
-          className="h-9 text-[12px]"
-        />
-      </div>
-
-      {/* Template Preview */}
-      <div className="space-y-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5">
-        <p className="text-[9px] uppercase tracking-wider font-extrabold text-foreground/45 border-b pb-1 mb-1.5">
-          Message Preview
-        </p>
-        <p className="text-[11.5px] whitespace-pre-wrap font-medium font-sans leading-relaxed text-foreground/80">
-          {messageBody}
-        </p>
-        {payMethod === "upi" && qrImageUrl && (
-          <div className="mt-2 p-1.5 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center gap-2">
-            <img src={qrImageUrl} alt="" className="w-8 h-8 object-cover rounded border" />
-            <span className="text-[9.5px] font-bold text-emerald-800">📷 Payment QR code image will be attached</span>
+      {payMethod === "upi" ? (
+        cfgQ.isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
-        )}
-      </div>
+        ) : mode === "setup" ? (
+          /* Inline UPI Setup View */
+          <div className="space-y-4 rounded-2xl border-2 border-dashed border-[#E8B968] bg-[#FFF6E8]/30 p-4">
+            <div className="flex items-center gap-2.5 pb-2 border-b border-[#E8B968]/30">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] text-white flex items-center justify-center shadow-md">
+                <IndianRupee className="w-4 h-4" strokeWidth={2.5} />
+              </div>
+              <div>
+                <h5 className="text-[12px] font-black text-foreground">UPI ID set karein</h5>
+                <p className="text-[10px] text-foreground/60 font-medium">Automatic pay links banane ke liye</p>
+              </div>
+            </div>
 
-      {/* Action Button */}
-      <Button
-        onClick={handleSendPaymentText}
-        disabled={sending || !conversationId || !isConfigured}
-        className={cn(
-          "w-full h-11 rounded-xl text-[12.5px] font-extrabold gap-2 text-white border-0 transition-all",
-          payMethod === "upi"
-            ? "bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] shadow-[0_3px_0_0_#075A30] hover:shadow-[0_1px_0_0_#075A30]"
-            : "bg-gradient-to-br from-[#3C50E0] to-[#2533A8] shadow-[0_3px_0_0_#1A2380] hover:shadow-[0_1px_0_0_#1A2380]"
-        )}
-      >
-        {sending ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="vpa" className="text-[10.5px] font-bold text-foreground">UPI ID (VPA)</Label>
+                <Input
+                  id="vpa"
+                  value={vpaInput}
+                  onChange={(e) => setVpaInput(e.target.value.toLowerCase())}
+                  placeholder="9709707311@upi  · ya  name@okhdfcbank"
+                  className="font-mono text-[12px] h-9"
+                  autoFocus
+                />
+                <p className="text-[9.5px] text-foreground/50 font-medium">
+                  Format: <span className="font-mono">number@upi</span> or <span className="font-mono">name@okaxis</span>
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="dname" className="text-[10.5px] font-bold text-foreground">
+                  Display name <span className="text-foreground/40 ml-0.5 font-normal text-[9.5px]">(optional)</span>
+                </Label>
+                <Input
+                  id="dname"
+                  value={displayNameInput}
+                  onChange={(e) => setDisplayNameInput(e.target.value.slice(0, 40))}
+                  placeholder="Addison X Media"
+                  className="text-[12px] h-9"
+                  maxLength={40}
+                />
+                <p className="text-[9.5px] text-foreground/50 font-medium">
+                  UPI app me customer ko dikhne wala naam.
+                </p>
+              </div>
+
+              <div className="flex items-start gap-2 p-2.5 rounded-xl bg-[#FFF1D6] border border-[#E8B968]/70">
+                <Info className="w-3.5 h-3.5 text-[#B8651A] flex-shrink-0 mt-0.5" />
+                <p className="text-[9.5px] font-medium text-foreground/80 leading-normal">
+                  Paisa direct apke UPI account me aayega. Hum koi transaction fee nahi lete.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              {cfgQ.data?.configured && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 h-9 text-[11px] font-extrabold"
+                  onClick={() => setMode("request")}
+                >
+                  Cancel
+                </Button>
+              )}
+              <Button
+                size="sm"
+                className="flex-1 h-9 text-[11px] font-extrabold"
+                disabled={saveConfig.isPending || !vpaInput.trim()}
+                onClick={() => saveConfig.mutate()}
+              >
+                {saveConfig.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
+                Save UPI ID
+              </Button>
+            </div>
+          </div>
         ) : (
-          <Send className="w-4 h-4" />
-        )}
-        Send Payment Info
-      </Button>
-      {!conversationId && (
-        <p className="text-[10px] text-foreground/55 font-medium text-center italic">
-          Open a conversation first to enable sending
-        </p>
+          /* Inline UPI Request View */
+          <div className="space-y-4">
+            {/* Product Selector Dropdown */}
+            {productsList.length > 0 && (
+              <div className="space-y-1">
+                <Label className="text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">Prefill from Product</Label>
+                <select
+                  value={selectedProductIdx}
+                  onChange={(e) => setSelectedProductIdx(e.target.value)}
+                  className="w-full h-9 rounded-lg bg-white border-2 border-[#E8B968] px-2 text-[12px] font-bold focus:outline-none"
+                >
+                  <option value="custom">-- Custom Amount --</option>
+                  {productsList.map((p: any, idx: number) => {
+                    let price = p.price;
+                    if (contact.is_reseller) {
+                      price = p.resellerPrice || p.reseller_price || p.price;
+                    }
+                    return (
+                      <option key={idx} value={String(idx)}>
+                        {p.name} (₹{price})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
+
+            {/* Amount and Note */}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">
+                  Amount (₹)
+                </Label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0E8A4B]" />
+                  <Input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => {
+                      setAmount(e.target.value);
+                      setSelectedProductIdx("custom");
+                    }}
+                    min={1}
+                    max={100000}
+                    placeholder="e.g. 500"
+                    className="pl-9 text-lg font-black tabular-nums h-10"
+                  />
+                </div>
+                <div className="flex gap-1.5 flex-wrap pt-0.5">
+                  {PRESET_AMOUNTS.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => {
+                        setAmount(p);
+                        setSelectedProductIdx("custom");
+                      }}
+                      className={cn(
+                        "px-2.5 py-1 rounded-full text-[10px] font-extrabold border-2 transition tabular-nums",
+                        amount === p
+                          ? "bg-[#0E8A4B] text-white border-[#0A6E3C]"
+                          : "bg-white text-foreground/75 border-[#E8B968]/70 hover:bg-[#FFF1D6]",
+                      )}
+                    >
+                      ₹{Number(p).toLocaleString("en-IN")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">
+                  Note <span className="text-foreground/40 ml-1 font-normal text-[10px]">(optional)</span>
+                </Label>
+                <Input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value.slice(0, 40))}
+                  placeholder="e.g. Diwali Order"
+                  className="h-9 text-[12px]"
+                  maxLength={40}
+                />
+              </div>
+            </div>
+
+            {/* Live QR Code Preview Card */}
+            <div className="bg-[#FFF6E8] border-2 border-[#E8B968] rounded-2xl p-3 flex flex-col items-center text-center shadow-[0_3px_0_0_#E8B968]">
+              <p className="text-[9px] uppercase tracking-[0.15em] text-[#B8651A] font-extrabold mb-1.5">Live Preview</p>
+              {previewQrUrl ? (
+                <img
+                  src={previewQrUrl}
+                  alt="UPI QR code"
+                  className="w-full max-w-[150px] aspect-square rounded-lg bg-white p-1.5 shadow-sm border border-[#E8B968]/30"
+                />
+              ) : (
+                <div className="w-full max-w-[150px] aspect-square rounded-lg bg-white border border-dashed border-[#E8B968] flex items-center justify-center text-[#B8651A]">
+                  <QrCode className="w-8 h-8 opacity-40" />
+                </div>
+              )}
+              <p className="text-[13px] font-black tabular-nums mt-1.5 text-[#0A6E3C]">
+                ₹{Number(amount || 0).toLocaleString("en-IN")}
+              </p>
+              <p className="text-[9.5px] text-foreground/60 font-semibold truncate w-full">
+                to {cfgQ.data?.display_name || cfgQ.data?.vpa || "—"}
+              </p>
+            </div>
+
+            {/* Send Action */}
+            <div className="space-y-2">
+              <Button
+                onClick={() => sendRequest.mutate()}
+                disabled={sendRequest.isPending || !amount || Number(amount) < 1 || !conversationId}
+                className="w-full h-11 rounded-xl text-[12.5px] font-extrabold gap-2 text-white border-0 bg-gradient-to-br from-[#0E8A4B] to-[#0A6E3C] shadow-[0_3px_0_0_#075A30] hover:shadow-[0_1px_0_0_#075A30] hover:translate-y-[1px] disabled:opacity-50 transition-all"
+              >
+                {sendRequest.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+                Send ₹{Number(amount || 0).toLocaleString("en-IN")} request
+              </Button>
+
+              <div className="text-center">
+                <button
+                  onClick={() => {
+                    setVpaInput(cfgQ.data?.vpa || "");
+                    setDisplayNameInput(cfgQ.data?.display_name || "");
+                    setMode("setup");
+                  }}
+                  className="text-[10px] font-extrabold text-[#3C50E0] hover:underline inline-flex items-center gap-1"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  UPI ID change karein ({cfgQ.data?.vpa})
+                </button>
+              </div>
+            </div>
+
+            {!conversationId && (
+              <p className="text-[10px] text-foreground/55 font-medium text-center italic">
+                Open a conversation first to enable sending
+              </p>
+            )}
+          </div>
+        )
+      ) : (
+        /* Binance Request View */
+        <div className="space-y-4">
+          {/* Info Warning if not configured */}
+          {!binanceId && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+              <span className="text-amber-500">⚠</span>
+              <p className="text-[10px] font-semibold text-amber-800 leading-snug">
+                Binance ID is not set for this agent. Please configure it in Products & Agent settings.
+              </p>
+            </div>
+          )}
+
+          {/* Product Selector Dropdown */}
+          {productsList.length > 0 && (
+            <div className="space-y-1">
+              <Label className="text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">Prefill from Product</Label>
+              <select
+                value={selectedProductIdx}
+                onChange={(e) => setSelectedProductIdx(e.target.value)}
+                className="w-full h-9 rounded-lg bg-white border-2 border-[#E8B968] px-2 text-[12px] font-bold focus:outline-none"
+              >
+                <option value="custom">-- Custom Amount --</option>
+                {productsList.map((p: any, idx: number) => {
+                  let priceUsd = p.priceUsd || p.price_usd;
+                  if (contact.is_reseller) {
+                    priceUsd = p.resellerPriceUsd || p.reseller_price_usd || p.priceUsd || p.price_usd;
+                  }
+                  return (
+                    <option key={idx} value={String(idx)}>
+                      {p.name} (${priceUsd || 0})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          {/* Amount Input */}
+          <div className="space-y-1">
+            <Label className="text-[10px] font-extrabold uppercase tracking-wider text-[#B8651A]">
+              Amount (USD $)
+            </Label>
+            <Input
+              type="number"
+              value={amount}
+              onChange={(e) => {
+                setAmount(e.target.value);
+                setSelectedProductIdx("custom");
+              }}
+              placeholder="e.g. 10"
+              className="h-9 text-[12px]"
+            />
+          </div>
+
+          {/* Template Preview */}
+          <div className="space-y-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5">
+            <p className="text-[9px] uppercase tracking-wider font-extrabold text-foreground/45 border-b pb-1 mb-1.5">
+              Message Preview
+            </p>
+            <p className="text-[11px] whitespace-pre-wrap font-medium font-sans leading-relaxed text-foreground/80">
+              {binanceMessageBody}
+            </p>
+          </div>
+
+          {/* Action Button */}
+          <Button
+            onClick={handleSendBinance}
+            disabled={sendingBinance || !conversationId || !binanceId}
+            className="w-full h-11 rounded-xl text-[12.5px] font-extrabold gap-2 text-white border-0 bg-gradient-to-br from-[#3C50E0] to-[#2533A8] shadow-[0_3px_0_0_#1A2380] hover:shadow-[0_1px_0_0_#1A2380] hover:translate-y-[1px] disabled:opacity-50 transition-all"
+          >
+            {sendingBinance ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            Send Payment Info
+          </Button>
+
+          {!conversationId && (
+            <p className="text-[10px] text-foreground/55 font-medium text-center italic">
+              Open a conversation first to enable sending
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
