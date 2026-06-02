@@ -2034,55 +2034,68 @@ const LivePreviewCard = ({
   loading: boolean;
   optimizeAI: boolean;
 }) => (
-  <div className="bg-gradient-to-br from-[#0A3D24] to-[#0D4E2E] text-white rounded-2xl border-2 border-[#0A3D24] shadow-[0_4px_0_0_#072917] p-5 relative overflow-hidden">
-    <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "20px 20px" }} />
-    <div className="relative">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-9 h-9 rounded-lg bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center">
+  <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/70 backdrop-blur-xl p-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] text-slate-100">
+    {/* Subtle soft glowing backlights behind the glass */}
+    <div className="absolute -right-16 -top-16 w-36 h-36 rounded-full bg-emerald-500/20 blur-3xl pointer-events-none" />
+    <div className="absolute -left-16 -bottom-16 w-36 h-36 rounded-full bg-teal-500/10 blur-3xl pointer-events-none" />
+    
+    <div className="relative z-10 space-y-3.5">
+      {/* Header */}
+      <div className="flex items-center gap-2.5">
+        <div className="w-9 h-9 rounded-xl bg-white/5 backdrop-blur-md border border-white/15 flex items-center justify-center text-emerald-400 shadow-inner flex-shrink-0">
           <Eye className="w-4 h-4" strokeWidth={2.5} />
         </div>
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.18em] text-[#FFD23F] font-extrabold flex items-center gap-1.5">
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400 flex items-center gap-1.5">
             {mode === "live" ? "Live estimate · Meta" : mode === "warming" ? "Estimate warming up" : "Demo estimate"}
-            {loading && <Loader2 className="w-3 h-3 animate-spin" />}
+            {loading && <Loader2 className="w-3 h-3 animate-spin text-emerald-400" />}
           </p>
-          <p className="text-[13px] font-extrabold truncate max-w-[240px]">{name || "Naya campaign"}</p>
+          <p className="text-[13px] font-extrabold text-white truncate">{name || "Naya campaign"}</p>
         </div>
       </div>
 
-      <PreviewStat label="Per day"   value={`₹${dailySpend.toLocaleString("en-IN")}`} />
-      <PreviewStat label="Per week"  value={`₹${(dailySpend * 7).toLocaleString("en-IN")}`} />
-      <PreviewStat label="Per month" value={`₹${(dailySpend * 30).toLocaleString("en-IN")}`} />
+      {/* Spend Stats */}
+      <div className="space-y-1">
+        <PreviewStat label="Per day"   value={`₹${dailySpend.toLocaleString("en-IN")}`} />
+        <PreviewStat label="Per week"  value={`₹${(dailySpend * 7).toLocaleString("en-IN")}`} />
+        <PreviewStat label="Per month" value={`₹${(dailySpend * 30).toLocaleString("en-IN")}`} />
+      </div>
 
-      <div className="border-t border-white/15 my-3" />
+      <div className="h-px bg-white/10 my-2" />
 
+      {/* Audience Stats */}
       {audienceSizeLow !== undefined && audienceSizeHigh !== undefined && audienceSizeHigh > 0 && (
-        <div className="mb-3">
-          <p className="text-[10px] uppercase tracking-[0.15em] text-[#FFD23F] font-extrabold mb-1">Audience size</p>
-          <p className="text-[14px] font-extrabold">
-            {compactNum(audienceSizeLow)}<span className="opacity-60 mx-1">–</span>{compactNum(audienceSizeHigh)} people
+        <div className="space-y-0.5">
+          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">Audience size</p>
+          <p className="text-[14px] font-extrabold text-white">
+            {compactNum(audienceSizeLow)}<span className="text-white/40 mx-1">–</span>{compactNum(audienceSizeHigh)} <span className="text-xs text-slate-400 font-medium">people</span>
           </p>
         </div>
       )}
 
-      <p className="text-[10px] uppercase tracking-[0.15em] text-[#FFD23F] font-extrabold mb-1.5">Expected daily reach</p>
-      <p className="text-2xl font-black tracking-tight">
-        {compactNum(reachLow)}<span className="opacity-60 mx-1">–</span>{compactNum(reachHigh)}
-        <span className="text-[11px] opacity-70 font-medium ml-1">people</span>
-      </p>
-
-      <div className="mt-3">
-        <p className="text-[10px] uppercase tracking-[0.15em] text-[#FFD23F] font-extrabold mb-1.5">Expected {objectiveObj.label.toLowerCase()}</p>
-        <p className="text-2xl font-black tracking-tight tabular-nums">
-          {resultsLow}<span className="opacity-60 mx-1">–</span>{resultsHigh}
-          <span className="text-[11px] opacity-70 font-medium ml-1">/ day</span>
+      {/* Expected daily reach */}
+      <div className="space-y-0.5">
+        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">Expected daily reach</p>
+        <p className="text-2xl font-extrabold tracking-tight text-white">
+          {compactNum(reachLow)}<span className="text-white/40 mx-1">–</span>{compactNum(reachHigh)}
+          <span className="text-xs text-slate-450 font-medium ml-1">people</span>
         </p>
       </div>
 
+      {/* Expected outcomes */}
+      <div className="space-y-0.5">
+        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">Expected {objectiveObj.label.toLowerCase()}</p>
+        <p className="text-2xl font-extrabold tracking-tight text-white tabular-nums">
+          {resultsLow}<span className="text-white/40 mx-1">–</span>{resultsHigh}
+          <span className="text-xs text-slate-450 font-medium ml-1">/ day</span>
+        </p>
+      </div>
+
+      {/* AI Indicator */}
       {optimizeAI && (
-        <div className="mt-3 px-3 py-2 rounded-lg bg-white/10 border border-white/20 flex items-center gap-2">
-          <Brain className="w-3.5 h-3.5 text-[#FFD23F]" />
-          <p className="text-[11px] font-extrabold">Addison AI active — performance auto-tuned</p>
+        <div className="mt-3 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-sm flex items-center gap-2">
+          <Brain className="w-3.5 h-3.5 text-emerald-400" />
+          <p className="text-[11px] font-extrabold text-emerald-300">Addison AI active — performance auto-tuned</p>
         </div>
       )}
     </div>
