@@ -439,12 +439,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
         </div>
       )}
 
-      {/* Plan-aware Upgrade card — replaces the static "Addison AI / Online" card.
-          - Free / Starter → big saffron CTA pushing toward the next tier
-          - Growth / Scale → quiet plan badge with "Manage plan" link
-          - Pending upgrade → progress banner so they know we're processing
-          - Enterprise → custom-plan plate, no upgrade arrow */}
-      <SidebarUpgradeCard collapsed={collapsed} onNavigate={handleNavigate} />
+
 
       {/* User menu */}
       <div className="p-2.5 border-t-2 border-[#E8B968] bg-white">
