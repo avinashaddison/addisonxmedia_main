@@ -1080,11 +1080,55 @@ import { WebsiteStorePage } from "./pages/WebsiteStorePage";
 import { BuilderPage } from "./pages/BuilderPage";
 import { BookingsPage } from "./pages/BookingsPage";
 import { WhatsAppCatalogPage } from "./pages/WhatsAppCatalogPage";
+import { SiteAgentTab } from "./pages/SiteAgentTab";
+import { SiteOperationsTab } from "./pages/SiteOperationsTab";
 
 export const SitePage = ({ subPath }: Props) => {
+  const [activeConsoleTab, setActiveConsoleTab] = useState<"overview" | "products" | "agent" | "operations">("overview");
   const key = (subPath || "").toLowerCase();
+
+  if (key === "") {
+    return (
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#FFF6E8]">
+        {/* Unified Sub-tab Bar */}
+        <div className="flex items-center gap-2 border-b-2 border-[#E8B968] bg-white px-6 py-2.5 flex-shrink-0 z-10 shadow-sm">
+          {[
+            { id: "overview", label: "Overview", icon: Globe },
+            { id: "products", label: "Product & Inventory", icon: Package },
+            { id: "agent", label: "AI Agent Training", icon: Brain },
+            { id: "operations", label: "Operations & Tasks", icon: Activity },
+          ].map((tab) => {
+            const active = activeConsoleTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveConsoleTab(tab.id as any)}
+                className={cn(
+                  "flex items-center gap-2 h-9 px-4 rounded-xl text-[12.5px] font-black tracking-wide border-2 transition-all hover:bg-muted/10",
+                  active
+                    ? "border-primary bg-[#0E8A4B] text-white shadow-[0_2px_0_0_#073D22]"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Console Tab Content */}
+        <div className="flex-1 overflow-y-auto">
+          {activeConsoleTab === "overview" && <SiteOverview />}
+          {activeConsoleTab === "products" && <ProductsPage />}
+          {activeConsoleTab === "agent" && <SiteAgentTab />}
+          {activeConsoleTab === "operations" && <SiteOperationsTab />}
+        </div>
+      </div>
+    );
+  }
+
   switch (key) {
-    case "": return <SiteOverview />;
     case "theme":    return <ThemePage />;
     case "seo":      return <SeoPage />;
     case "domain":   return <DomainPage />;
