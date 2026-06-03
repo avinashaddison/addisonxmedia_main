@@ -443,6 +443,149 @@ const sec = {
   </div>
 </section>`;
   },
+
+  feature_grid: (p: SectionProps, c: SectionCtx) => {
+    const heading = String(p.heading || "Why choose us");
+    const items = Array.isArray(p.items) ? (p.items as Array<{ icon?: string; title?: string; description?: string }>).filter((it) => it && (it.title || it.description)) : [];
+    if (items.length === 0) return "";
+    const cols = items.length <= 3 ? "sm:grid-cols-3" : items.length <= 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3";
+    return `<section class="py-12 sm:py-16 px-4 bg-gray-50">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-10">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(c.theme.primary)}">Why us</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">${esc(heading)}</h3>
+    </div>
+    <div class="grid ${cols} gap-4">
+      ${items.map((it) => `<div class="p-5 rounded-2xl bg-white border-2 shadow-sm hover:-translate-y-0.5 transition" style="border-color: ${esc(c.theme.primary)}18">
+        <div class="text-[28px] mb-3">${esc(it.icon || "✨")}</div>
+        <h4 class="text-[14px] font-extrabold leading-tight mb-1.5">${esc(it.title || "")}</h4>
+        <p class="text-[12.5px] text-gray-600 leading-relaxed">${esc(it.description || "")}</p>
+      </div>`).join("")}
+    </div>
+  </div>
+</section>`;
+  },
+
+  stats: (p: SectionProps, c: SectionCtx) => {
+    const heading = String(p.heading || "");
+    const items = Array.isArray(p.items) ? (p.items as Array<{ value?: string; label?: string }>).filter((it) => it && (it.value || it.label)) : [];
+    if (items.length === 0) return "";
+    return `<section class="py-10 sm:py-14 px-4">
+  <div class="max-w-5xl mx-auto">
+    ${heading ? `<div class="text-center mb-8">
+      <h3 class="text-[22px] sm:text-[26px] font-black leading-tight">${esc(heading)}</h3>
+    </div>` : ""}
+    <div class="grid grid-cols-2 sm:grid-cols-${Math.min(items.length, 4)} gap-4 sm:gap-6">
+      ${items.map((it) => `<div class="text-center p-5 rounded-2xl bg-white border-2 shadow-sm" style="border-color: ${esc(c.theme.primary)}15">
+        <p class="text-[28px] sm:text-[36px] font-black tabular-nums leading-none mb-1.5" style="color: ${esc(c.theme.primary)}">${esc(it.value || "0")}</p>
+        <p class="text-[11px] sm:text-[12px] font-extrabold uppercase tracking-wider text-gray-500">${esc(it.label || "")}</p>
+      </div>`).join("")}
+    </div>
+  </div>
+</section>`;
+  },
+
+  cta_banner: (p: SectionProps, c: SectionCtx) => {
+    const heading = String(p.heading || "Ready to get started?");
+    const description = String(p.description || "");
+    const ctaText = String(p.cta_text || "Get Started");
+    const ctaLink = String(p.cta_link || "#products");
+    const isExternal = ctaLink.startsWith("http");
+    return `<section class="py-16 px-4">
+  <div class="max-w-4xl mx-auto rounded-3xl p-8 sm:p-12 text-center text-white relative overflow-hidden" style="background: linear-gradient(135deg, ${esc(c.theme.primary)}, ${esc(c.theme.primary)}cc)">
+    <div class="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-25" style="background: ${esc(c.theme.accent)}"></div>
+    <div class="absolute -bottom-8 -left-8 w-36 h-36 rounded-full blur-3xl opacity-20" style="background: ${esc(c.theme.accent)}"></div>
+    <div class="relative">
+      <h3 class="text-[26px] sm:text-[34px] font-black leading-tight mb-3">${esc(heading)}</h3>
+      ${description ? `<p class="text-[14px] sm:text-[15px] opacity-90 max-w-xl mx-auto mb-6 leading-relaxed">${esc(description)}</p>` : ""}
+      <a href="${isExternal ? esc(ctaLink) : `/biz/${esc(c.slug)}${esc(ctaLink)}`}"${isExternal ? ' target="_blank" rel="noopener noreferrer"' : ""}
+         class="inline-flex items-center gap-2 h-14 px-8 rounded-2xl bg-white font-black text-[15px] shadow-[0_5px_0_0_rgba(0,0,0,0.2)] transition hover:-translate-y-1" style="color: ${esc(c.theme.primary)}">
+        ⚡ ${esc(ctaText)}
+      </a>
+    </div>
+  </div>
+</section>`;
+  },
+
+  pricing_table: (p: SectionProps, c: SectionCtx) => {
+    const heading = String(p.heading || "Choose your plan");
+    const items = Array.isArray(p.items) ? (p.items as Array<{ name?: string; price?: string; period?: string; features?: string[]; cta_text?: string; cta_link?: string; highlighted?: boolean }>).filter((it) => it && it.name) : [];
+    if (items.length === 0) return "";
+    return `<section class="py-12 sm:py-16 px-4">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-10">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(c.theme.primary)}">Pricing</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">${esc(heading)}</h3>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-${Math.min(items.length, 3)} gap-5 items-start">
+      ${items.map((tier) => {
+        const highlighted = tier.highlighted === true;
+        const features = Array.isArray(tier.features) ? tier.features : [];
+        return `<div class="rounded-2xl border-2 ${highlighted ? "shadow-xl scale-[1.02]" : "shadow-sm"} overflow-hidden" style="border-color: ${highlighted ? esc(c.theme.primary) : `${esc(c.theme.primary)}22`}">
+          ${highlighted ? `<div class="py-1.5 text-center text-white text-[10px] font-extrabold uppercase tracking-wider" style="background: ${esc(c.theme.primary)}">Most popular</div>` : ""}
+          <div class="p-6">
+            <h4 class="text-[16px] font-extrabold">${esc(tier.name || "")}</h4>
+            <div class="mt-3 mb-4 flex items-baseline gap-1.5">
+              <span class="text-[36px] font-black tabular-nums" style="color: ${esc(c.theme.primary)}">${esc(tier.price || "Free")}</span>
+              ${tier.period ? `<span class="text-[12px] text-gray-500 font-bold">/ ${esc(tier.period)}</span>` : ""}
+            </div>
+            <ul class="space-y-2 mb-6">
+              ${features.map((f) => `<li class="flex items-start gap-2 text-[13px]"><span class="text-emerald-600 font-black flex-shrink-0 mt-0.5">✓</span><span>${esc(String(f))}</span></li>`).join("")}
+            </ul>
+            <a href="${tier.cta_link ? esc(String(tier.cta_link)) : "#products"}" class="block text-center h-12 leading-[48px] rounded-xl font-extrabold text-[14px] transition hover:-translate-y-0.5 ${highlighted ? "text-white shadow-lg" : "bg-white border-2"}" style="${highlighted ? `background: ${esc(c.theme.primary)}` : `border-color: ${esc(c.theme.primary)}33; color: ${esc(c.theme.primary)}`}">
+              ${esc(tier.cta_text || "Get started")}
+            </a>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>
+</section>`;
+  },
+
+  countdown_timer: (p: SectionProps, c: SectionCtx) => {
+    const heading = String(p.heading || "Limited time offer");
+    const description = String(p.description || "Don't miss out — this deal expires soon!");
+    const endDate = String(p.end_date || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]);
+    const timerId = `axct_${Math.random().toString(36).slice(2, 8)}`;
+    return `<section class="py-12 sm:py-16 px-4">
+  <div class="max-w-3xl mx-auto text-center p-8 sm:p-10 rounded-3xl border-2" style="border-color: ${esc(c.theme.primary)}33; background: linear-gradient(135deg, ${esc(c.theme.accent)}15, ${esc(c.theme.primary)}08)">
+    <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(c.theme.primary)}">⏰ Hurry</p>
+    <h3 class="text-[24px] sm:text-[30px] font-black leading-tight mb-2">${esc(heading)}</h3>
+    <p class="text-[13px] text-gray-600 mb-6">${esc(description)}</p>
+    <div id="${timerId}" class="flex justify-center gap-3 sm:gap-5">
+      <div class="text-center"><div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 flex items-center justify-center text-[24px] sm:text-[32px] font-black tabular-nums bg-white" style="border-color: ${esc(c.theme.primary)}33; color: ${esc(c.theme.primary)}" data-unit="d">00</div><p class="text-[10px] font-bold text-gray-500 mt-1.5 uppercase tracking-wider">Days</p></div>
+      <div class="text-center"><div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 flex items-center justify-center text-[24px] sm:text-[32px] font-black tabular-nums bg-white" style="border-color: ${esc(c.theme.primary)}33; color: ${esc(c.theme.primary)}" data-unit="h">00</div><p class="text-[10px] font-bold text-gray-500 mt-1.5 uppercase tracking-wider">Hours</p></div>
+      <div class="text-center"><div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 flex items-center justify-center text-[24px] sm:text-[32px] font-black tabular-nums bg-white" style="border-color: ${esc(c.theme.primary)}33; color: ${esc(c.theme.primary)}" data-unit="m">00</div><p class="text-[10px] font-bold text-gray-500 mt-1.5 uppercase tracking-wider">Mins</p></div>
+      <div class="text-center"><div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border-2 flex items-center justify-center text-[24px] sm:text-[32px] font-black tabular-nums bg-white" style="border-color: ${esc(c.theme.primary)}33; color: ${esc(c.theme.primary)}" data-unit="s">00</div><p class="text-[10px] font-bold text-gray-500 mt-1.5 uppercase tracking-wider">Secs</p></div>
+    </div>
+    <script>(function(){var end=new Date("${esc(endDate)}T23:59:59").getTime();var el=document.getElementById("${timerId}");function u(){var n=end-Date.now();if(n<=0){el.innerHTML='<p class="text-[16px] font-extrabold" style="color:${esc(c.theme.primary)}">🎉 Offer has ended!</p>';return;}var d=Math.floor(n/86400000);var h=Math.floor((n%86400000)/3600000);var m=Math.floor((n%3600000)/60000);var s=Math.floor((n%60000)/1000);var units=el.querySelectorAll("[data-unit]");units.forEach(function(u){if(u.dataset.unit==="d")u.textContent=String(d).padStart(2,"0");if(u.dataset.unit==="h")u.textContent=String(h).padStart(2,"0");if(u.dataset.unit==="m")u.textContent=String(m).padStart(2,"0");if(u.dataset.unit==="s")u.textContent=String(s).padStart(2,"0");});}u();setInterval(u,1000);})();</script>
+  </div>
+</section>`;
+  },
+
+  video_embed: (p: SectionProps, c: SectionCtx) => {
+    const heading = String(p.heading || "Watch how it works");
+    const videoUrl = String(p.video_url || "");
+    if (!videoUrl) return "";
+    // Extract YouTube/Vimeo embed URL
+    let embedUrl = videoUrl;
+    const ytMatch = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/);
+    if (ytMatch) embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
+    const vimeoMatch = videoUrl.match(/vimeo\.com\/(\d+)/);
+    if (vimeoMatch) embedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+    return `<section class="py-12 sm:py-16 px-4">
+  <div class="max-w-4xl mx-auto">
+    <div class="text-center mb-8">
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.2em] mb-2" style="color: ${esc(c.theme.primary)}">Watch</p>
+      <h3 class="text-[26px] sm:text-[32px] font-black leading-tight">${esc(heading)}</h3>
+    </div>
+    <div class="relative w-full rounded-2xl overflow-hidden border-2 shadow-xl bg-black" style="border-color: ${esc(c.theme.primary)}22; padding-top: 56.25%;">
+      <iframe src="${esc(embedUrl)}" class="absolute inset-0 w-full h-full" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+    </div>
+  </div>
+</section>`;
+  },
 };
 
 const SHARED_LEADFORM_SCRIPT = `<script>
@@ -2032,18 +2175,36 @@ ${faviconTag}${robotsTag}${ga4Snippet}${metaPixelSnippet}${customHead}
         : `<div class="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-[14px] flex-shrink-0 shadow" style="background: linear-gradient(135deg, ${esc(theme.primary)}, ${esc(theme.accent)})">${esc((business.name || "?").slice(0, 1).toUpperCase())}</div>`}
       <h1 class="font-extrabold text-[15px] truncate">${esc(business.name)}</h1>
     </a>
-    ${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer" class="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-white text-[12px] font-extrabold transition hover:opacity-90" style="background: ${esc(theme.primary)}">💬 ${esc(vocabFor(input.template).orderButtonText)}</a>` : ""}
+    <div class="flex items-center gap-2">
+      ${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer" class="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-white text-[12px] font-extrabold transition hover:opacity-90" style="background: #25D366">💬 WhatsApp</a>` : ""}
+      <a href="/biz/${esc(slug)}/my-orders" class="hidden sm:inline-flex items-center gap-1 h-9 px-2.5 rounded-lg text-[11.5px] font-extrabold text-gray-600 hover:bg-gray-100 transition">📦 Orders</a>
+      <a href="/biz/${esc(slug)}/cart" class="relative inline-flex items-center justify-center w-10 h-10 rounded-xl hover:bg-gray-100 transition" aria-label="Cart" id="ax-cart-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="m1 1 4 0 2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6 6 6"/></svg>
+        <span id="ax-cart-badge" class="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full text-white text-[10px] font-black flex items-center justify-center shadow-sm hidden" style="background: ${esc(theme.primary)}">0</span>
+      </a>
+    </div>
   </div>
 </header>
-${pageNav}`;
+${pageNav}
+<script>(function(){try{var c=JSON.parse(localStorage.getItem('ax_cart_'+location.pathname.split('/')[2])||'[]');var n=c.reduce(function(t,i){return t+(i.qty||1);},0);var b=document.getElementById('ax-cart-badge');if(b&&n>0){b.textContent=n>99?'99+':n;b.classList.remove('hidden');}}catch(e){}})();</script>`;
+
+  // Build footer page links from available pages (skip Home which is linked from logo)
+  const footerPages = pages.filter((pg) => pg.path !== "/").slice(0, 6);
+  const footerPageLinks = footerPages.length > 0
+    ? `<div class="flex flex-wrap justify-center gap-4 mb-4">
+        ${footerPages.map((pg) => `<a href="/biz/${esc(slug)}${pg.path}" class="text-[12px] font-bold hover:underline" style="color: ${esc(theme.primary)}">${esc(pg.title || pg.path.replace(/^\//, "").replace(/-/g, " "))}</a>`).join("")}
+        <a href="/biz/${esc(slug)}/cart" class="text-[12px] font-bold hover:underline" style="color: ${esc(theme.primary)}">🛒 Cart</a>
+        <a href="/biz/${esc(slug)}/my-orders" class="text-[12px] font-bold hover:underline" style="color: ${esc(theme.primary)}">📦 My Orders</a>
+      </div>` : "";
 
   const bodyClose = `
-<footer class="py-8 px-4 border-t" style="border-color: ${esc(theme.primary)}22">
+<footer class="py-10 px-4 border-t bg-gray-50" style="border-color: ${esc(theme.primary)}22">
   <div class="max-w-5xl mx-auto text-center">
+    ${footerPageLinks}
     <p class="text-[12px] text-gray-500">© ${new Date().getFullYear()} ${esc(business.name)} · Made with <a href="/" class="font-extrabold" style="color: ${esc(theme.primary)}">AddisonX</a></p>
   </div>
 </footer>
-${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer" class="fixed bottom-5 right-5 w-14 h-14 rounded-full flex items-center justify-center text-white text-[24px] shadow-xl transition hover:scale-110" style="background: ${esc(theme.primary)}" aria-label="Chat on WhatsApp">💬</a>` : ""}
+${business.whatsapp ? `<a href="${esc(business.whatsapp)}" target="_blank" rel="noopener noreferrer" class="fixed bottom-5 right-5 w-14 h-14 rounded-full flex items-center justify-center text-white text-[24px] shadow-xl transition hover:scale-110 z-40" style="background: #25D366" aria-label="Chat on WhatsApp">💬</a>` : ""}
 ${SHARED_LEADFORM_SCRIPT}
 </body></html>`;
 

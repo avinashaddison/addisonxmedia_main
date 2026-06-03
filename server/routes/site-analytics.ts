@@ -8,7 +8,7 @@
  */
 
 import { Hono } from "hono";
-import { sql, eq, and, gte } from "drizzle-orm";
+import { sql, eq, and, gte, desc } from "drizzle-orm";
 import { db } from "../db/client";
 import { siteAnalyticsEvent } from "../db/schema";
 import { requireAuth, type AuthVariables } from "../middleware/auth";
@@ -117,6 +117,19 @@ app.get("/site/analytics/top-pages", async (c) => {
     LIMIT 12
   `);
   return c.json(rows.rows ?? rows);
+});
+
+app.get("/site/analytics/recent", async (c) => {
+  const userId = c.var.userId;
+  const limit = Math.min(Number(c.req.query("limit") ?? 20), 100);
+
+  const rows = await db.select()
+    .from(siteAnalyticsEvent)
+    .where(eq(siteAnalyticsEvent.ownerId, userId))
+    .orderBy(desc(siteAnalyticsEvent.occurredAt))
+    .limit(limit);
+
+  return c.json(rows);
 });
 
 export default app;

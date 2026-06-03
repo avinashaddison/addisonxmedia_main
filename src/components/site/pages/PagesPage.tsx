@@ -13,6 +13,7 @@ import {
   FileText, Loader2, Plus, X, Trash2, Edit2, ArrowUp, ArrowDown,
   Image as ImageIcon, MessageCircle, HelpCircle, Star, Map, Clock,
   ClipboardList, Phone, Sparkles, Package, ExternalLink, EyeOff, Layers,
+  LayoutGrid, BarChart3, Megaphone, DollarSign, Timer, Video,
 } from "lucide-react";
 import { api, type SitePageDto, type SiteSection } from "@/lib/api";
 import { toast } from "sonner";
@@ -39,6 +40,29 @@ const SECTION_LIBRARY: Array<{
     defaults: { heading: "Get in touch", description: "We'll reply on WhatsApp." } },
   { type: "contact",      label: "Contact",      description: "WhatsApp + UPI + social cards", icon: Phone,
     defaults: { heading: "Reach us" } },
+  { type: "feature_grid", label: "Feature Grid", description: "Benefits grid with icons", icon: LayoutGrid,
+    defaults: { heading: "Why choose us", items: [
+      { icon: "⚡", title: "Fast", description: "Lightning fast delivery" },
+      { icon: "🛡️", title: "Secure", description: "100% safe payments" },
+      { icon: "💬", title: "Support", description: "WhatsApp support included" },
+    ] } },
+  { type: "stats",        label: "Stats",        description: "Numbers that impress", icon: BarChart3,
+    defaults: { heading: "", items: [
+      { value: "10K+", label: "Happy customers" },
+      { value: "4.9★", label: "Average rating" },
+      { value: "⚡30s", label: "Delivery time" },
+    ] } },
+  { type: "cta_banner",   label: "CTA Banner",   description: "Full-width call-to-action", icon: Megaphone,
+    defaults: { heading: "Ready to get started?", description: "", cta_text: "Get Started", cta_link: "#products" } },
+  { type: "pricing_table", label: "Pricing",      description: "Tiered pricing cards", icon: DollarSign,
+    defaults: { heading: "Choose your plan", items: [
+      { name: "Starter", price: "₹199", period: "one-time", features: ["Basic access", "Email support"], highlighted: false },
+      { name: "Pro", price: "₹499", period: "one-time", features: ["Full access", "WhatsApp support", "Free updates"], highlighted: true },
+    ] } },
+  { type: "countdown_timer", label: "Countdown", description: "Urgency timer for offers", icon: Timer,
+    defaults: { heading: "Limited time offer", description: "Don't miss out!", end_date: new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0] } },
+  { type: "video_embed",  label: "Video",        description: "YouTube / Vimeo embed", icon: Video,
+    defaults: { heading: "Watch how it works", video_url: "" } },
 ];
 
 const sectionMeta = (type: string) => SECTION_LIBRARY.find((s) => s.type === type) || SECTION_LIBRARY[0];
@@ -396,6 +420,113 @@ const SectionPropsEditor = ({ section, onChange }: { section: SiteSection; onCha
       </div>
     );
   }
+  // ─── New section types ───────────────────────────────────
+  if (section.type === "feature_grid") {
+    const items = Array.isArray((section.props as any).items) ? (section.props as any).items as Array<{ icon?: string; title?: string; description?: string }> : [];
+    return (
+      <div className="space-y-2">
+        <input value={String(p.heading || "")} onChange={(e) => onChange({ heading: e.target.value })} placeholder="Section heading"
+               className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] font-bold" />
+        {items.map((it, idx) => (
+          <div key={idx} className="flex gap-1.5">
+            <input value={it.icon || ""} onChange={(e) => { const next = [...items]; next[idx] = { ...next[idx], icon: e.target.value }; onChange({ items: next }); }} placeholder="🔥"
+                   className="w-12 px-1.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] text-center" />
+            <input value={it.title || ""} onChange={(e) => { const next = [...items]; next[idx] = { ...next[idx], title: e.target.value }; onChange({ items: next }); }} placeholder="Title"
+                   className="flex-1 px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] font-bold" />
+            <input value={it.description || ""} onChange={(e) => { const next = [...items]; next[idx] = { ...next[idx], description: e.target.value }; onChange({ items: next }); }} placeholder="Description"
+                   className="flex-[2] px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px]" />
+            <button onClick={() => onChange({ items: items.filter((_, i) => i !== idx) })} className="w-7 h-7 rounded hover:bg-[#FCE5F0] text-[#D4308E] flex items-center justify-center"><X className="w-3.5 h-3.5" /></button>
+          </div>
+        ))}
+        <button onClick={() => onChange({ items: [...items, { icon: "✨", title: "", description: "" }] })}
+                className="text-[11px] font-extrabold text-[#3C50E0] hover:text-[#2533A8]">+ Add feature</button>
+      </div>
+    );
+  }
+  if (section.type === "stats") {
+    const items = Array.isArray((section.props as any).items) ? (section.props as any).items as Array<{ value?: string; label?: string }> : [];
+    return (
+      <div className="space-y-2">
+        <input value={String(p.heading || "")} onChange={(e) => onChange({ heading: e.target.value })} placeholder="Section heading (optional)"
+               className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] font-bold" />
+        {items.map((it, idx) => (
+          <div key={idx} className="flex gap-2">
+            <input value={it.value || ""} onChange={(e) => { const next = [...items]; next[idx] = { ...next[idx], value: e.target.value }; onChange({ items: next }); }} placeholder="10K+"
+                   className="w-24 px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] font-bold" />
+            <input value={it.label || ""} onChange={(e) => { const next = [...items]; next[idx] = { ...next[idx], label: e.target.value }; onChange({ items: next }); }} placeholder="Label"
+                   className="flex-1 px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px]" />
+            <button onClick={() => onChange({ items: items.filter((_, i) => i !== idx) })} className="w-7 h-7 rounded hover:bg-[#FCE5F0] text-[#D4308E] flex items-center justify-center"><X className="w-3.5 h-3.5" /></button>
+          </div>
+        ))}
+        <button onClick={() => onChange({ items: [...items, { value: "", label: "" }] })}
+                className="text-[11px] font-extrabold text-[#3C50E0] hover:text-[#2533A8]">+ Add stat</button>
+      </div>
+    );
+  }
+  if (section.type === "cta_banner") return (
+    <div className="space-y-2">
+      <input value={String(p.heading || "")} onChange={(e) => onChange({ heading: e.target.value })} placeholder="Heading"
+             className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] font-bold" />
+      <input value={String(p.description || "")} onChange={(e) => onChange({ description: e.target.value })} placeholder="Description text"
+             className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px]" />
+      <div className="flex gap-2">
+        <input value={String(p.cta_text || "")} onChange={(e) => onChange({ cta_text: e.target.value })} placeholder="Button text"
+               className="flex-1 px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] font-bold" />
+        <input value={String(p.cta_link || "")} onChange={(e) => onChange({ cta_link: e.target.value })} placeholder="/shop or https://..."
+               className="flex-1 px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] font-mono" />
+      </div>
+    </div>
+  );
+  if (section.type === "pricing_table") {
+    const items = Array.isArray((section.props as any).items) ? (section.props as any).items as Array<{ name?: string; price?: string; period?: string; features?: string[]; highlighted?: boolean }> : [];
+    return (
+      <div className="space-y-2">
+        <input value={String(p.heading || "")} onChange={(e) => onChange({ heading: e.target.value })} placeholder="Section heading"
+               className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] font-bold" />
+        {items.map((tier, idx) => (
+          <div key={idx} className="p-2.5 rounded-lg border border-[#E8B968]/60 bg-[#FFF6E8]/30 space-y-1.5">
+            <div className="flex gap-1.5">
+              <input value={tier.name || ""} onChange={(e) => { const next = [...items]; next[idx] = { ...next[idx], name: e.target.value }; onChange({ items: next }); }} placeholder="Plan name"
+                     className="flex-1 px-2 py-1 rounded border border-[#E8B968] text-[11px] font-bold" />
+              <input value={tier.price || ""} onChange={(e) => { const next = [...items]; next[idx] = { ...next[idx], price: e.target.value }; onChange({ items: next }); }} placeholder="₹499"
+                     className="w-20 px-2 py-1 rounded border border-[#E8B968] text-[11px] font-bold" />
+              <label className="flex items-center gap-1 text-[10px] font-bold">
+                <input type="checkbox" checked={tier.highlighted || false} onChange={(e) => { const next = [...items]; next[idx] = { ...next[idx], highlighted: e.target.checked }; onChange({ items: next }); }} className="w-3 h-3 accent-[#0E8A4B]" />
+                Featured
+              </label>
+              <button onClick={() => onChange({ items: items.filter((_, i) => i !== idx) })} className="w-6 h-6 rounded hover:bg-[#FCE5F0] text-[#D4308E] flex items-center justify-center"><X className="w-3 h-3" /></button>
+            </div>
+            <input value={(tier.features || []).join(", ")} onChange={(e) => { const next = [...items]; next[idx] = { ...next[idx], features: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) }; onChange({ items: next }); }} placeholder="Features (comma separated)"
+                   className="w-full px-2 py-1 rounded border border-[#E8B968] text-[10.5px]" />
+          </div>
+        ))}
+        <button onClick={() => onChange({ items: [...items, { name: "", price: "", features: [], highlighted: false }] })}
+                className="text-[11px] font-extrabold text-[#3C50E0] hover:text-[#2533A8]">+ Add tier</button>
+      </div>
+    );
+  }
+  if (section.type === "countdown_timer") return (
+    <div className="space-y-2">
+      <input value={String(p.heading || "")} onChange={(e) => onChange({ heading: e.target.value })} placeholder="Heading"
+             className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] font-bold" />
+      <input value={String(p.description || "")} onChange={(e) => onChange({ description: e.target.value })} placeholder="Description"
+             className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px]" />
+      <div>
+        <label className="text-[10px] font-extrabold uppercase tracking-wider text-foreground/65 mb-1 block">End date</label>
+        <input type="date" value={String(p.end_date || "")} onChange={(e) => onChange({ end_date: e.target.value })}
+               className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] font-mono" />
+      </div>
+    </div>
+  );
+  if (section.type === "video_embed") return (
+    <div className="space-y-2">
+      <input value={String(p.heading || "")} onChange={(e) => onChange({ heading: e.target.value })} placeholder="Section heading"
+             className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] font-bold" />
+      <input value={String(p.video_url || "")} onChange={(e) => onChange({ video_url: e.target.value })} placeholder="YouTube or Vimeo URL"
+             className="w-full px-2.5 py-1.5 rounded-lg border border-[#E8B968] text-[12px] font-mono" />
+      <p className="text-[10px] text-foreground/55 italic">Paste a YouTube or Vimeo link — it auto-embeds.</p>
+    </div>
+  );
   // For hours / leadform / contact — no extra config, they pull from profile/settings
   return <p className="text-[11px] text-foreground/55 italic">Pulls from your site settings — no extra config needed.</p>;
 };

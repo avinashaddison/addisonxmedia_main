@@ -597,4 +597,118 @@ app.post("/ai/ad-copy", requirePlan('growth', 'scale', 'enterprise'), async (c) 
   }
 });
 
+const BUILDER_SYSTEM_INSTRUCTION = `You are Addison's Agent Builder Specialist. Your job is to help the user configure and train their AI conversational agent through a natural, helpful chat interface.
+
+The agent has these properties that you can suggest updates for:
+- name: A name to distinguish this agent internally (e.g. "Pizza Sales Bot")
+- business_name: The public business name shown to customers (e.g. "Pizza Palace")
+- what_we_sell: 2-3 lines describing the products/services sold.
+- knowledge_base: Details, policies, FAQs that ground the agent.
+- system_prompt: Direct instructions, rules, and few-shot examples telling the agent how to behave.
+- tone: One of these strict values: "friendly", "professional", "casual", "urgent_sales".
+- response_language: One of these strict values: "auto", "hinglish", "hindi", "english".
+
+Guidelines:
+1. Be encouraging, helpful, and concise. Explain what changes you are suggesting.
+2. Only suggest updates in "agent_updates" for fields that the user wants to set, change, or that are logically implied by their request. If no fields should be updated, omit or leave "agent_updates" empty.
+3. Keep the "reply" conversational and friendly.
+4. Output a JSON object with this exact shape:
+{
+  "reply": "Conversational response to the user here...",
+  "agent_updates": {
+    "name": "...",
+    "business_name": "...",
+    "what_we_sell": "...",
+    "knowledge_base": "...",
+    "system_prompt": "...",
+    "tone": "friendly|professional|casual|urgent_sales",
+    "response_language": "auto|hinglish|hindi|english"
+  }
+}
+`;
+
+app.post("/ai/builder-chat", async (c) => {
+  if (!isAiConfigured()) return c.json({ error: "AI not configured on server" }, 503);
+
+  const userId = c.var.userId;
+  const body = await c.req.json<{ agent_id?: string; messages?: any[] }>().catch(() => null);
+  if (!body || !Array.isArray(body.messages)) {
+    return c.json({ error: "messages array is required" }, 400);
+  }
+
+  const gate = await checkAiCap(userId, "builder_chat");
+  if (!gate.allowed) return c.json({ error: gate.reason, code: gate.code }, 429);
+
+  try {
+    let agentContext = "";
+    if (body.agent_id) {
+      const [agent] = await db.select().from(aiAgent).where(and(eq(aiAgent.id, body.agent_id), eq(aiAgent.ownerId, userId))).limit(1);
+      if (agent) {
+        agentContext = `Current Agent Configuration:\n` + JSON.stringify({
+          name: agent.name,
+          business_name: agent.businessName,
+          what_we_sell: agent.whatWeSell,
+          knowledge_base: agent.knowledgeBase,
+          system_prompt: agent.systemPrompt,
+          tone: agent.tone,
+          response_language: agent.responseLanguage
+        }, null, 2);
+      }
+    }
+
+    const messages = [
+      { role: "system" as const, content: BUILDER_SYSTEM_INSTRUCTION + (agentContext ? `\n\n${agentContext}` : "") },
+      ...body.messages.map((m: any) => ({
+        role: (m.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
+        content: String(m.content || "")
+      }))
+    ];
+
+    const result = await chatJson<{
+      reply: string;
+      agent_updates?: {
+        name?: string;
+        business_name?: string;
+        what_we_sell?: string;
+        knowledge_base?: string;
+        system_prompt?: string;
+        tone?: string;
+        response_language?: string;
+      };
+    }>(messages, {
+      model: "gpt-4o-mini",
+      temperature: 0.6,
+      maxTokens: 1200
+    });
+
+    await logAiUsage({
+      userId,
+      feature: "builder_chat",
+      model: result.model,
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      costInr: result.costInr,
+      ok: true
+    });
+
+    return c.json({
+      reply: result.json.reply,
+      agent_updates: result.json.agent_updates || {}
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await logAiUsage({
+      userId,
+      feature: "builder_chat",
+      model: "gpt-4o-mini",
+      promptTokens: 0,
+      completionTokens: 0,
+      costInr: 0,
+      ok: false,
+      errorMessage: msg
+    });
+    return c.json({ error: "AI Builder Chat failed", detail: msg }, 502);
+  }
+});
+
 export default app;

@@ -26,7 +26,9 @@ if (!process.env.BETTER_AUTH_SECRET) {
 // trailing slash, so strip any the operator pasted in by mistake — otherwise
 // every session call gets rejected and the SPA hangs on a blank screen.
 const stripSlash = (s: string) => s.replace(/\/+$/, "");
-const PROD_URL = process.env.BETTER_AUTH_URL ? stripSlash(process.env.BETTER_AUTH_URL) : undefined;
+const PROD_URL = process.env.NODE_ENV === "production" && process.env.BETTER_AUTH_URL
+  ? stripSlash(process.env.BETTER_AUTH_URL)
+  : undefined;
 const extraTrusted = (process.env.TRUSTED_ORIGINS ?? "")
   .split(",").map((s) => stripSlash(s.trim())).filter(Boolean);
 const trustedOrigins = [

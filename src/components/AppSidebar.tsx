@@ -84,9 +84,10 @@ const websiteGroups: { label: string; items: NavItem[] }[] = [
   {
     label: "Design & Content",
     items: [
-      { icon: Store,  label: "Site Builder", id: "site",       hint: "Manage theme, sections & templates" },
-      { icon: Layers, label: "Pages",        id: "site/pages",  hint: "Add & edit pages" },
-      { icon: Search, label: "SEO Settings", id: "site/seo",    hint: "Meta tags & search optimization" },
+      { icon: LayoutDashboard, label: "Dashboard", id: "site",       hint: "Site overview & tracking" },
+      { icon: Wrench,          label: "Customization", id: "site/customization", hint: "Branding, pages & sections" },
+      { icon: Palette,         label: "Theme",        id: "site/theme",    hint: "Prebuilt themes & styling" },
+      { icon: Search,          label: "SEO Settings", id: "site/seo",    hint: "Meta tags & search optimization" },
     ],
   },
   {

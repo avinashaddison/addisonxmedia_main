@@ -32,7 +32,8 @@ export type AiFeature =
   | "ad_blueprint"
   | "followup_gen"
   | "insights"
-  | "test";
+  | "test"
+  | "builder_chat";
 
 // How much each feature counts against the monthly cap. Tuned so the cheap
 // features cost 1 (matches user mental model: "one AI action") and the
@@ -46,6 +47,7 @@ export const FEATURE_WEIGHT: Record<AiFeature, number> = {
   ad_copy:          5,
   ad_blueprint:     3,
   test:             0, // for internal /api/ai/ping — doesn't bill
+  builder_chat:     1,
 };
 
 // Monthly cap per plan. -1 means unlimited (Enterprise).
@@ -60,9 +62,9 @@ const PLAN_CAP: Record<string, number> = {
 // Which features each plan is allowed to call AT ALL. Starter only gets reply
 // suggestions — everything else returns "upgrade required".
 const PLAN_FEATURES: Record<string, Set<AiFeature>> = {
-  starter:    new Set<AiFeature>(["reply_suggestion", "test"]),
-  growth:     new Set<AiFeature>(["reply_suggestion", "auto_reply", "ad_copy", "ad_blueprint", "followup_gen", "insights", "test"]),
-  enterprise: new Set<AiFeature>(["reply_suggestion", "auto_reply", "ad_copy", "ad_blueprint", "followup_gen", "insights", "test"]),
+  starter:    new Set<AiFeature>(["reply_suggestion", "test", "builder_chat"]),
+  growth:     new Set<AiFeature>(["reply_suggestion", "auto_reply", "ad_copy", "ad_blueprint", "followup_gen", "insights", "test", "builder_chat"]),
+  enterprise: new Set<AiFeature>(["reply_suggestion", "auto_reply", "ad_copy", "ad_blueprint", "followup_gen", "insights", "test", "builder_chat"]),
 };
 
 const monthStart = (): Date => {

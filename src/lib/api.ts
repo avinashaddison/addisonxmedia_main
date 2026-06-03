@@ -771,6 +771,8 @@ export const api = {
     get<Array<{ source: string; views: string }>>(`/site/analytics/sources?days=${days}`),
   getSiteAnalyticsTopPages: (days = 30) =>
     get<Array<{ path: string; views: string }>>(`/site/analytics/top-pages?days=${days}`),
+  getSiteAnalyticsRecent: (limit = 20) =>
+    get<SiteAnalyticsEvent[]>(`/site/analytics/recent?limit=${limit}`),
 
   // Meta BSP cost estimate (this month) — what Meta will bill the workspace.
   getMetaCostEstimate: () => get<{
@@ -798,6 +800,19 @@ export const api = {
   },
   activateAgent: (id: string) => post<{ ok: boolean }>(`/ai/agents/${id}/activate`),
   deleteAgent: (id: string) => del(`/ai/agents/${id}`),
+  builderChat: (data: { agent_id: string; messages: Array<{ role: string; content: string }> }) =>
+    post<{
+      reply: string;
+      agent_updates?: {
+        name?: string;
+        business_name?: string;
+        what_we_sell?: string;
+        knowledge_base?: string;
+        system_prompt?: string;
+        tone?: string;
+        response_language?: string;
+      };
+    }>("/ai/builder-chat", data),
 
   // Workspaces
   listWorkspaces: () => get<{ workspaces: Array<{ id: string; name: string; workspace_user_id: string; metaConnected?: boolean }>; active_workspace_id: string }>("/workspaces"),
@@ -864,7 +879,7 @@ export type OrderDto = {
 
 export type SiteSection = {
   id: string;
-  type: "hero" | "about" | "products" | "gallery" | "testimonials" | "faq" | "hours" | "leadform" | "contact";
+  type: "hero" | "about" | "products" | "gallery" | "testimonials" | "faq" | "hours" | "leadform" | "contact" | "feature_grid" | "stats" | "cta_banner" | "pricing_table" | "countdown_timer" | "video_embed";
   props: Record<string, unknown>;
 };
 
@@ -922,6 +937,19 @@ export type AnalyticsCounters = {
   orders: string;
   revenue: string;
   unique_visitors?: string;
+};
+
+export type SiteAnalyticsEvent = {
+  id: string;
+  siteId: string;
+  ownerId: string;
+  eventType: "view" | "lead" | "cart_add" | "order";
+  path: string | null;
+  referrerHost: string | null;
+  valueInr: string | null;
+  sessionHash: string | null;
+  userAgent: string | null;
+  occurredAt: string;
 };
 
 export type CustomerDto = {

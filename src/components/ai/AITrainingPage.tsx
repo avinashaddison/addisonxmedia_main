@@ -48,6 +48,7 @@ export const AITrainingPage = () => {
 
   // Selected agent state
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [isFloatingChatOpen, setIsFloatingChatOpen] = useState(false);
   
   // Set initial selected agent to the active one
   useEffect(() => {
@@ -546,9 +547,43 @@ export const AITrainingPage = () => {
 
           {/* Live preview - 1 col */}
           <div className="xl:col-span-1">
-            <LivePreview agent={form} />
+            <LivePreview agent={form} setForm={setForm} />
           </div>
         </div>
+      </div>
+
+      {/* Floating Chat Builder for Mobile/Tablet */}
+      <div className="xl:hidden">
+        {/* FAB Button */}
+        <button
+          type="button"
+          onClick={() => setIsFloatingChatOpen((prev) => !prev)}
+          className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-tr from-[#FF6A1F] to-[#FF8C37] text-white flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all animate-bounce-subtle"
+        >
+          {isFloatingChatOpen ? <X className="w-6 h-6" /> : <MessageSquareText className="w-6 h-6" />}
+        </button>
+
+        {/* Floating Chat Window */}
+        {isFloatingChatOpen && (
+          <div className="fixed bottom-24 right-6 z-50 w-[340px] sm:w-[380px] h-[500px] bg-white border-2 border-[#E8B968] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-slide-up">
+            <div className="bg-[#FFF6E8] border-b border-[#E8B968] p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600 animate-pulse" />
+                <span className="text-xs font-black uppercase tracking-wider text-slate-800">AI Agent Builder</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFloatingChatOpen(false)}
+                className="text-foreground/50 hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 p-4 overflow-hidden flex flex-col">
+              <ChatBuilderContent agent={form} setForm={setForm} />
+            </div>
+          </div>
+        )}
       </div>
     </PageShell>
   );
@@ -646,7 +681,119 @@ const UsageMeter = ({ usage }: { usage: any }) => {
   );
 };
 
-const LivePreview = ({ agent }: { agent: AiAgent }) => {
+const ChatBuilderContent = ({ agent, setForm }: { agent: AiAgent; setForm: React.Dispatch<React.SetStateAction<AiAgent | null>> }) => {
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([
+    {
+      role: "assistant",
+      content: "Hi! I am your AI Agent Builder Specialist. 🤖\n\nTell me about your business (e.g., your name, what you sell, your tone, or language), and I will configure the settings automatically!"
+    }
+  ]);
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || chatLoading) return;
+
+    const userMsg = chatInput.trim();
+    setChatInput("");
+
+    const newMessages = [...messages, { role: "user" as const, content: userMsg }];
+    setMessages(newMessages);
+    setChatLoading(true);
+
+    try {
+      const res = await api.builderChat({
+        agent_id: agent.id,
+        messages: newMessages
+      });
+
+      setMessages([...newMessages, { role: "assistant", content: res.reply }]);
+
+      if (res.agent_updates && Object.keys(res.agent_updates).length > 0) {
+        setForm((prev) => {
+          if (!prev) return prev;
+          const next = { ...prev };
+          let updatedCount = 0;
+          const updates = res.agent_updates!;
+
+          if (updates.name !== undefined && updates.name !== prev.name) { next.name = updates.name; updatedCount++; }
+          if (updates.business_name !== undefined && updates.business_name !== prev.business_name) { next.business_name = updates.business_name; updatedCount++; }
+          if (updates.what_we_sell !== undefined && updates.what_we_sell !== prev.what_we_sell) { next.what_we_sell = updates.what_we_sell; updatedCount++; }
+          if (updates.knowledge_base !== undefined && updates.knowledge_base !== prev.knowledge_base) { next.knowledge_base = updates.knowledge_base; updatedCount++; }
+          if (updates.system_prompt !== undefined && updates.system_prompt !== prev.system_prompt) { next.system_prompt = updates.system_prompt; updatedCount++; }
+          if (updates.tone !== undefined && updates.tone !== prev.tone) { next.tone = updates.tone; updatedCount++; }
+          if (updates.response_language !== undefined && updates.response_language !== prev.response_language) { next.response_language = updates.response_language; updatedCount++; }
+
+          if (updatedCount > 0) {
+            toast.success(`Updated ${updatedCount} settings from chat! Click "Save training" to save.`, {
+              duration: 4000
+            });
+          }
+          return next;
+        });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Chat building failed");
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full flex-1 min-h-0">
+      <div className="flex-1 overflow-y-auto space-y-3 pr-1 min-h-0 mb-3 border border-slate-100 rounded-xl p-2.5 bg-slate-50/50 flex flex-col">
+        {messages.map((msg, idx) => (
+          <div
+            key={idx}
+            className={cn(
+              "max-w-[85%] rounded-2xl px-3.5 py-2 text-[12.5px] leading-relaxed shadow-sm",
+              msg.role === "assistant"
+                ? "self-start bg-white border border-[#E8B968]/30 rounded-bl-none text-foreground mr-auto"
+                : "self-end bg-[#E6F7EE] border border-[#0E8A4B]/20 rounded-br-none text-slate-800 ml-auto"
+            )}
+            style={{ whiteSpace: "pre-line" }}
+          >
+            {msg.content}
+          </div>
+        ))}
+        {chatLoading && (
+          <div className="self-start max-w-[85%] bg-white border border-[#E8B968]/30 rounded-2xl rounded-bl-none px-3.5 py-2 text-[11px] text-muted-foreground flex items-center gap-1.5 shadow-sm mr-auto">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-[#FF6A1F]" />
+            Thinking...
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <form onSubmit={handleSendMessage} className="flex gap-1.5 mt-auto">
+        <Input
+          value={chatInput}
+          onChange={(e) => setChatInput(e.target.value)}
+          disabled={chatLoading}
+          placeholder="Describe your business..."
+          className="h-9 text-[12.5px] flex-1 bg-white border-[#E8B968] focus-visible:ring-[#FF6A1F]"
+        />
+        <Button
+          type="submit"
+          disabled={chatLoading || !chatInput.trim()}
+          className="h-9 px-4 bg-[#FF6A1F] hover:bg-[#E85C12] text-white shadow-sm flex items-center justify-center font-bold text-[12px]"
+        >
+          Send
+        </Button>
+      </form>
+    </div>
+  );
+};
+
+const LivePreview = ({ agent, setForm }: { agent: AiAgent; setForm: React.Dispatch<React.SetStateAction<AiAgent | null>> }) => {
+  const [activeTab, setActiveTab] = useState<"preview" | "chat">("preview");
+
   const greetings: Record<string, string> = {
     hinglish: "Hi! Aap ka query receive ho gaya 🙏 — bata dijiye kya help chahiye?",
     hindi: "नमस्ते! आपकी जानकारी प्राप्त हो गई 🙏 — बताइए हम कैसे मदद कर सकते हैं?",
@@ -657,44 +804,94 @@ const LivePreview = ({ agent }: { agent: AiAgent }) => {
     friendly: "Friendly",
     professional: "Professional",
     casual: "Casual",
+    danger: "Sales push",
     urgent_sales: "Sales push",
   };
 
+  const isPrebuilt = agent.type === "prebuilt_sales" || !!agent.prebuilt_id;
+
   return (
-    <div className="sticky top-4 bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] p-4">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-[11px] font-extrabold uppercase tracking-wider text-foreground/60">Live Preview</p>
-        <span className="text-[10px] bg-[#FFD23F] text-[#7A4A00] font-extrabold rounded px-1.5 py-0.5">PREVIEW</span>
+    <div className="sticky top-4 bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] overflow-hidden flex flex-col">
+      {/* Tab Switcher */}
+      <div className="flex border-b border-[#E8B968] bg-[#FFF6E8]/40">
+        <button
+          type="button"
+          onClick={() => setActiveTab("preview")}
+          className={cn(
+            "flex-1 py-3 text-[11px] font-black uppercase tracking-wider transition-all text-center border-b-2",
+            activeTab === "preview"
+              ? "border-[#FF6A1F] text-[#FF6A1F] bg-white font-extrabold"
+              : "border-transparent text-foreground/50 hover:text-foreground/75 font-bold"
+          )}
+        >
+          Live Preview
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("chat")}
+          className={cn(
+            "flex-1 py-3 text-[11px] font-black uppercase tracking-wider transition-all text-center border-b-2 flex items-center justify-center gap-1",
+            activeTab === "chat"
+              ? "border-[#FF6A1F] text-[#FF6A1F] bg-white font-extrabold"
+              : "border-transparent text-foreground/50 hover:text-foreground/75 font-bold"
+          )}
+        >
+          <Sparkles className="w-3.5 h-3.5 animate-pulse text-purple-600" />
+          Chat Builder
+        </button>
       </div>
 
-      {/* WhatsApp-style sample */}
-      <div className="bg-[#FFF6E8] rounded-xl p-3 border border-[#E8B968]/60 mb-3">
-        <div className="self-start max-w-[88%] bg-white rounded-2xl rounded-bl-md px-3 py-2 shadow-sm border border-[#E8B968]/40 mb-2">
-          <p className="text-[11.5px] text-foreground/70 italic">Customer: "Hello, tools kya hain?"</p>
-        </div>
-        <div className="ml-4 max-w-[88%] bg-[#E6F7EE] rounded-2xl rounded-br-md px-3 py-2 shadow-sm border border-[#0E8A4B]/20">
-          <p className="text-[12px] leading-relaxed">
-            {agent.business_name
-              ? `Hi! 👋 ${agent.business_name} se contact karne ke liye thanks. `
-              : "Hi! 👋 Thanks for reaching out. "}
-            {greetings[agent.response_language].replace(greetings[agent.response_language].split("!")[0] + "! ", "")}
-          </p>
-          <p className="text-[8px] text-foreground/40 mt-1 text-right">12:34 PM · AI draft</p>
-        </div>
-      </div>
+      <div className="p-4 flex flex-col flex-1">
+        {activeTab === "preview" ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-foreground/60">Live Preview</p>
+              <span className="text-[10px] bg-[#FFD23F] text-[#7A4A00] font-extrabold rounded px-1.5 py-0.5">PREVIEW</span>
+            </div>
 
-      <div className="space-y-1.5 text-[11px]">
-        <Row label="Active Agent" value={agent.name} />
-        <Row label="Tone" value={toneTags[agent.tone] || agent.tone} />
-        <Row label="Language" value={agent.response_language} />
-        <Row label="Tools/Products" value={agent.products ? `${agent.products.length} products` : "0 products"} />
-        <Row label="KB Size" value={agent.knowledge_base ? `${agent.knowledge_base.length} chars` : "0 chars"} />
-        <Row label="AI Brain" value={agent.system_prompt ? `${agent.system_prompt.length} chars` : "0 chars"} />
-      </div>
+            {/* WhatsApp-style sample */}
+            <div className="bg-[#FFF6E8] rounded-xl p-3 border border-[#E8B968]/60">
+              <div className="self-start max-w-[88%] bg-white rounded-2xl rounded-bl-md px-3 py-2 shadow-sm border border-[#E8B968]/40 mb-2">
+                <p className="text-[11.5px] text-foreground/70 italic">Customer: "Hello, tools kya hain?"</p>
+              </div>
+              <div className="ml-4 max-w-[88%] bg-[#E6F7EE] rounded-2xl rounded-br-md px-3 py-2 shadow-sm border border-[#0E8A4B]/20">
+                <p className="text-[12px] leading-relaxed">
+                  {agent.business_name
+                    ? `Hi! 👋 ${agent.business_name} se contact karne ke liye thanks. `
+                    : "Hi! 👋 Thanks for reaching out. "}
+                  {greetings[agent.response_language].replace(greetings[agent.response_language].split("!")[0] + "! ", "")}
+                </p>
+                <p className="text-[8px] text-foreground/40 mt-1 text-right">12:34 PM · AI draft</p>
+              </div>
+            </div>
 
-      <p className="text-[10px] text-foreground/55 mt-3 leading-snug">
-        Tone dynamically matches the customer's chat style in live chats. If the customer messages in Hinglish, Addison will reply in Hinglish.
-      </p>
+            <div className="space-y-1.5 text-[11px]">
+              <Row label="Active Agent" value={agent.name} />
+              <Row label="Tone" value={toneTags[agent.tone] || agent.tone} />
+              <Row label="Language" value={agent.response_language} />
+              <Row label="Tools/Products" value={agent.products ? `${agent.products.length} products` : "0 products"} />
+              <Row label="KB Size" value={agent.knowledge_base ? `${agent.knowledge_base.length} chars` : "0 chars"} />
+              <Row label="AI Brain" value={agent.system_prompt ? `${agent.system_prompt.length} chars` : "0 chars"} />
+            </div>
+
+            <p className="text-[10px] text-foreground/55 mt-2 leading-snug">
+              Tone dynamically matches the customer's chat style in live chats. If the customer messages in Hinglish, Addison will reply in Hinglish.
+            </p>
+          </div>
+        ) : (
+          <div className="h-[400px] flex flex-col">
+            {isPrebuilt ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
+                <ShieldAlert className="w-8 h-8 text-[#FF6A1F] mb-2" />
+                <p className="text-[12px] font-extrabold text-[#7A4A00]">Prebuilt Agent cannot be modified</p>
+                <p className="text-[10.5px] text-foreground/60 mt-1">Please select or create a custom agent to use the conversational builder.</p>
+              </div>
+            ) : (
+              <ChatBuilderContent agent={agent} setForm={setForm} />
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
