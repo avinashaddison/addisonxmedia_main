@@ -82,36 +82,12 @@ const groups: { label: string; items: NavItem[] }[] = [
 
 const websiteGroups: { label: string; items: NavItem[] }[] = [
   {
-    label: "Design & Content",
+    label: "Store Console",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard", id: "site",       hint: "Site overview & tracking" },
-      { icon: Wrench,          label: "Customization", id: "site/customization", hint: "Branding, pages & sections" },
-      { icon: Palette,         label: "Theme",        id: "site/theme",    hint: "Prebuilt themes & styling" },
-      { icon: Search,          label: "SEO Settings", id: "site/seo",    hint: "Meta tags & search optimization" },
-    ],
-  },
-  {
-    label: "Leads & Bookings",
-    items: [
-      { icon: ClipboardList, label: "Lead Forms",    id: "site/leads", hint: "CRM capture forms" },
-      { icon: Calendar,      label: "Bookings",      id: "site/bookings", hint: "Appointments & schedules" },
-    ],
-  },
-  {
-    label: "Commerce & Sales",
-    items: [
-      { icon: Package,      label: "Products",   id: "site/products", hint: "Physical & digital catalog" },
-      { icon: ShoppingCart, label: "Orders",     id: "site/orders", hint: "Track payments & shipments" },
-      { icon: UsersRound,   label: "Customers",  id: "site/customers", hint: "Store buyers CRM" },
-      { icon: CreditCard,   label: "Payments",   id: "site/payments", hint: "UPI & online gateways" },
-    ],
-  },
-  {
-    label: "Reports & Setup",
-    items: [
-      { icon: BarChart3, label: "Store Analytics", id: "site/analytics", hint: "Views, sales & conversion rates" },
-      { icon: Globe,     label: "Custom Domain",   id: "site/domain", hint: "Connect your branding" },
-      { icon: Settings,  label: "Store Settings",  id: "site/settings", hint: "Tax, GST & business profile" },
+      { icon: LayoutDashboard, label: "Dashboard", id: "site",           hint: "Overview & metrics" },
+      { icon: Package,         label: "Products",  id: "site/products",   hint: "Manage your catalog" },
+      { icon: Calendar,        label: "Bookings",  id: "site/bookings",   hint: "Appointments & schedules" },
+      { icon: CreditCard,      label: "Payments",  id: "site/payments",   hint: "UPI & online gateways" },
     ],
   },
 ];
@@ -370,10 +346,10 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           <button
             onClick={() => handleNavigate("site")}
             onMouseEnter={() => prefetchPage("site")}
-            title={collapsed ? "Products + Sites" : undefined}
+            title={collapsed ? "Manage Products" : undefined}
             className={cn(
               "relative w-full rounded-xl flex items-center gap-2.5 px-2.5 transition-all duration-300 group overflow-hidden border-2 border-[#7A4A00] shadow-[0_4px_0_0_#7A4A00] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[0_1px_0_0_#7A4A00] bg-gradient-to-r from-[#0E8A4B] via-[#10B981] to-[#0A6E3C] bg-[length:200%_auto] hover:bg-right hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] text-white font-extrabold",
-              collapsed ? "h-11 justify-center px-0" : "h-12",
+              collapsed ? "h-11 justify-center px-0" : "py-2.5 min-h-[48px]",
             )}
           >
             {/* Sliding Shine Sweep */}
@@ -381,13 +357,13 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
 
             <span className="absolute -top-3 -right-3 w-10 h-10 bg-[#FFD23F]/25 rounded-full blur-lg pointer-events-none" />
             <span className="relative w-7 h-7 rounded-lg bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center flex-shrink-0 shadow-[0_2px_0_0_#B8860B] transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12">
-              <Rocket className="w-4 h-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" strokeWidth={2.5} />
+              <Store className="w-4 h-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" strokeWidth={2.5} />
             </span>
             {!collapsed && (
               <span className="relative flex-1 text-left">
-                <span className="block text-[12.5px] leading-tight">Products + Sites</span>
+                <span className="block text-[12.5px] leading-tight">Manage Products</span>
                 <span className="block text-[9.5px] font-bold text-[#FFD23F] uppercase tracking-wider">
-                  Site + Store builder
+                  Control Panel
                 </span>
               </span>
             )}
@@ -396,7 +372,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
             )}
             {collapsed && (
               <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
-                Products + Sites
+                Manage Products
               </span>
             )}
           </button>
