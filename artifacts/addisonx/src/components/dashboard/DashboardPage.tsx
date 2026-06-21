@@ -1,6 +1,6 @@
 import {
-  MessageSquare, Users, IndianRupee, ArrowUpRight, TrendingUp, Flame, Bell, Megaphone, Radio,
-  Sparkles, Zap, Loader2, Wand2, Activity, Clock, ArrowRight, Send, Bot, Target,
+  MessageSquare, Users, IndianRupee, TrendingUp, Flame, Bell, Megaphone, Radio,
+  Sparkles, Zap, Loader2, Wand2, Clock, ArrowRight, Send, Bot, Target,
   Rocket, MousePointerClick, Brain, CheckCircle2, Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,23 +11,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { PageShell } from "@/components/PageShell";
 import { initialsFor, formatRelative } from "@/lib/inbox-types";
 import { toast } from "sonner";
-
-const useCount = (target: number, duration = 1100) => {
-  const [val, setVal] = useState(0);
-  useEffect(() => {
-    let start: number | null = null;
-    let raf = 0;
-    const step = (ts: number) => {
-      if (!start) start = ts;
-      const p = Math.min((ts - start) / duration, 1);
-      setVal(Math.floor(target * (1 - Math.pow(1 - p, 3))));
-      if (p < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-  return val;
-};
+import { KpiTile, type KpiTileData } from "@/components/dashboard/KpiTiles";
+import { RevenueChart } from "@/components/dashboard/RevenueChart";
 
 const useDashboardData = () => {
   const { user } = useAuth();
@@ -96,7 +81,6 @@ export const DashboardPage = ({ onNavigate }: Props) => {
   const { data, isLoading } = useDashboardData();
   const qc = useQueryClient();
   const [seeding, setSeeding] = useState(false);
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   const stats = useMemo(() => {
     if (!data) return { total: 0, open: 0, hot: 0, revenue7d: 0, revenueAll: 0, tasksOpen: 0, replies: 0, dealsWon: 0 };
@@ -233,32 +217,9 @@ export const DashboardPage = ({ onNavigate }: Props) => {
     });
     return days;
   }, [data]);
-  const trendMax = Math.max(1, ...trend.map((t) => t.value));
-  const trendTotal = trend.reduce((a, t) => a + t.value, 0);
-
-  // SVG area path for revenue chart
-  const chartPaths = useMemo(() => {
-    const W = 600, H = 180, padX = 24, padY = 16;
-    const innerW = W - padX * 2;
-    const innerH = H - padY * 2;
-    const points = trend.map((d, i) => {
-      const x = padX + (innerW * i) / Math.max(1, trend.length - 1);
-      const y = padY + innerH - (d.value / trendMax) * innerH;
-      return { x, y, value: d.value, label: d.label };
-    });
-    if (points.length === 0) return { line: "", area: "", points: [], W, H };
-    let line = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 0; i < points.length - 1; i++) {
-      const p0 = points[i], p1 = points[i + 1];
-      const cx = (p0.x + p1.x) / 2;
-      line += ` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;
-    }
-    const area = `${line} L ${points[points.length - 1].x} ${padY + innerH} L ${points[0].x} ${padY + innerH} Z`;
-    return { line, area, points, W, H };
-  }, [trend, trendMax]);
 
   // KPI tiles — real numbers, real trends, real sparklines, clickable
-  const tiles = [
+  const tiles: KpiTileData[] = useMemo(() => [
     {
       icon: MessageSquare, label: "Total Contacts", value: stats.total,
       trend: trends.contacts, sub: "vs pichla hafta",
@@ -303,13 +264,7 @@ export const DashboardPage = ({ onNavigate }: Props) => {
       sparkValues: series.revenue,
       live: false,
     },
-  ];
-
-  const c0 = useCount(tiles[0].value);
-  const c1 = useCount(tiles[1].value);
-  const c2 = useCount(tiles[2].value);
-  const c3 = useCount(tiles[3].value);
-  const counts = [c0, c1, c2, c3];
+  ], [stats, trends, series]);
 
   const handleSeed = async () => {
     setSeeding(true);
@@ -413,90 +368,9 @@ export const DashboardPage = ({ onNavigate }: Props) => {
 
       {/* ===== SECTION 1 — KPI CARDS ===== */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
-        {tiles.map((s, i) => {
-          const sparkW = 120, sparkH = 36;
-          const max = Math.max(1, ...s.sparkValues);
-          const norm = s.sparkValues.map((v: number) => v / max);
-          const sparkPath = norm
-            .map((v, idx) => {
-              const x = (sparkW * idx) / Math.max(1, norm.length - 1);
-              const y = sparkH - 2 - v * (sparkH - 4);
-              return `${idx === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
-            })
-            .join(" ");
-          const sparkArea = norm.length > 1 ? `${sparkPath} L ${sparkW} ${sparkH} L 0 ${sparkH} Z` : "";
-          const trendDelta = s.trend;
-          return (
-            <button
-              key={s.label}
-              onClick={() => onNavigate?.(s.page)}
-              className={cn(
-                "relative overflow-hidden rounded-2xl border-2 bg-white p-5 hover:-translate-y-1 transition-all duration-200 group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6A1F]/40",
-                s.borderClass,
-                s.shadowClass
-              )}
-              title={`Open ${s.page}`}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center shadow-md", s.iconBgInline)}>
-                  <s.icon className="w-5 h-5" strokeWidth={2.5} />
-                </div>
-                {trendDelta !== null && trendDelta !== undefined ? (
-                  <span className={cn(
-                    "text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-0.5 border",
-                    trendDelta > 0 ? "text-[#0A6E3C] bg-[#E6F7EE] border-[#0E8A4B]/30" :
-                    trendDelta < 0 ? "text-[#B8230C] bg-[#FCE5E0] border-[#FF6A1F]/30" :
-                    "text-foreground/60 bg-[#FFF1D6] border-[#E8B968]"
-                  )}>
-                    <ArrowUpRight className={cn("w-3 h-3", trendDelta < 0 && "rotate-90")} />
-                    {trendDelta > 0 ? "+" : ""}{trendDelta}%
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-extrabold text-foreground/60 bg-[#FFF1D6] border border-[#E8B968] px-2.5 py-1 rounded-full">—</span>
-                )}
-              </div>
-              <p className="relative text-[11px] text-foreground/60 font-extrabold uppercase tracking-wider flex items-center gap-1.5">
-                {s.label}
-                {s.live && (
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-[#0E8A4B] opacity-75 animate-ping" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#0E8A4B]" />
-                  </span>
-                )}
-              </p>
-              <p className={cn(
-                "relative font-black tracking-tight mt-1 tabular-nums",
-                s.label.startsWith("Revenue") ? "text-[34px] text-[#FF6A1F]" : "text-3xl text-foreground"
-              )}>
-                {s.isCurrency ? "₹" : ""}{counts[i].toLocaleString("en-IN")}
-              </p>
-              <div className="relative flex items-end justify-between mt-2 gap-2">
-                <p className="text-[11px] text-muted-foreground">{s.sub}</p>
-                {s.sparkValues.some((v: number) => v > 0) ? (
-                  <svg width={sparkW} height={sparkH} viewBox={`0 0 ${sparkW} ${sparkH}`} className="opacity-90 overflow-visible">
-                    <defs>
-                      <linearGradient id={`spark-${i}`} x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stopColor={s.sparkColor} stopOpacity="0.4" />
-                        <stop offset="100%" stopColor={s.sparkColor} stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-                    {sparkArea && <path d={sparkArea} fill={`url(#spark-${i})`} />}
-                    <path
-                      d={sparkPath}
-                      fill="none"
-                      stroke={s.sparkColor}
-                      strokeWidth="1.75"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground">No 7-day activity</span>
-                )}
-              </div>
-            </button>
-          );
-        })}
+        {tiles.map((s, i) => (
+          <KpiTile key={s.label} tile={s} index={i} onNavigate={onNavigate} />
+        ))}
       </div>
 
       {/* ===== SECTION 2 — NEEDS ATTENTION (real signals) =====
@@ -517,88 +391,7 @@ export const DashboardPage = ({ onNavigate }: Props) => {
       {/* ===== SECTION 4 — REVENUE + FUNNEL ===== */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mb-5">
         {/* Revenue area chart */}
-        <div className="xl:col-span-7 relative overflow-hidden bg-white border-2 border-[#FF6A1F] rounded-2xl p-5 lg:p-6 shadow-[0_5px_0_0_#B8420A]">
-          <div className="absolute -top-24 -right-24 w-64 h-64 bg-[#FFD23F]/30 rounded-full blur-3xl pointer-events-none" />
-          <div className="relative flex items-start justify-between mb-5 gap-3 flex-wrap">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#FF6A1F] text-white flex items-center justify-center shadow-md">
-                  <Activity className="w-4 h-4" strokeWidth={2.5} />
-                </div>
-                <div>
-                  <h3 className="text-[15px] font-black tracking-tight flex items-center gap-2">
-                    Revenue trend
-                    <span className="text-[10px] font-extrabold text-[#7A4A00] bg-[#FFD23F] border border-[#E8B400] px-2 py-0.5 rounded-full">7 din</span>
-                  </h3>
-                  <p className="text-[11px] text-foreground/60 mt-0.5 font-medium">Closed-won deals · hover for details</p>
-                </div>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] text-foreground/60 font-extrabold uppercase tracking-wider">Total kamai</p>
-              <p className="text-3xl font-black tabular-nums text-[#FF6A1F]">
-                ₹{trendTotal.toLocaleString("en-IN")}
-              </p>
-            </div>
-          </div>
-
-          <div className="relative">
-            <svg
-              viewBox={`0 0 ${chartPaths.W} ${chartPaths.H}`}
-              className="w-full h-56"
-              preserveAspectRatio="none"
-              onMouseLeave={() => setHoverIdx(null)}
-            >
-              <defs>
-                <linearGradient id="revArea" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#FF6A1F" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#FFD23F" stopOpacity="0" />
-                </linearGradient>
-                <linearGradient id="revLine" x1="0" x2="1" y1="0" y2="0">
-                  <stop offset="0%" stopColor="#FF6A1F" />
-                  <stop offset="100%" stopColor="#FFD23F" />
-                </linearGradient>
-              </defs>
-              {[0.25, 0.5, 0.75, 1].map((p) => {
-                const y = 16 + (180 - 32) * p;
-                return (
-                  <line key={p} x1="24" x2={chartPaths.W - 24} y1={y} y2={y}
-                    stroke="#E8B968" strokeWidth="1" strokeDasharray="2 4" opacity="0.6" />
-                );
-              })}
-              {trendTotal > 0 && (
-                <>
-                  <path d={chartPaths.area} fill="url(#revArea)" />
-                  <path d={chartPaths.line} fill="none" stroke="url(#revLine)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                  {chartPaths.points.map((p, i) => (
-                    <g key={i}>
-                      <rect x={p.x - 22} y={0} width={44} height={chartPaths.H} fill="transparent" onMouseEnter={() => setHoverIdx(i)} />
-                      <circle cx={p.x} cy={p.y} r={hoverIdx === i ? 6 : 4}
-                        fill="white" stroke="#FF6A1F" strokeWidth="2.5" className="transition-all" />
-                    </g>
-                  ))}
-                </>
-              )}
-              {trendTotal === 0 && (
-                <text x="50%" y="50%" textAnchor="middle" className="fill-foreground/40" style={{ fontSize: 11, fontWeight: 600 }}>
-                  Abhi koi closed-won deal nahi
-                </text>
-              )}
-            </svg>
-            <div className="flex justify-between px-6 mt-2">
-              {trend.map((d, i) => (
-                <span key={i} className={cn("text-[10px] font-extrabold uppercase tracking-wider transition-colors", hoverIdx === i ? "text-[#FF6A1F]" : "text-foreground/60")}>
-                  {d.label}
-                </span>
-              ))}
-            </div>
-            {hoverIdx !== null && trend[hoverIdx] && trend[hoverIdx].value > 0 && (
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold shadow-lg pointer-events-none">
-                {trend[hoverIdx].label} · ₹{trend[hoverIdx].value.toLocaleString("en-IN")}
-              </div>
-            )}
-          </div>
-        </div>
+        <RevenueChart trend={trend} />
 
         {/* Funnel */}
         <div className="xl:col-span-5 relative overflow-hidden bg-white border-2 border-[#0E8A4B] rounded-2xl p-5 lg:p-6 shadow-[0_5px_0_0_#0A6E3C]">

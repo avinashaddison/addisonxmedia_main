@@ -1,2 +1,3 @@
 - [Lovable structural port](lovable-structural-port.md) — some lovable.dev exports already ship a full self-hosted backend; port structurally, don't hunt for Supabase to replace.
 - [Hono api-server on Replit](hono-api-server.md) — api-server runs via tsx (not esbuild), uses own server/db schema + drizzle.config, proxied paths beyond /api.
+- [addisonx frontend build](addisonx-frontend-build.md) — vite build needs PORT set; tsc has pre-existing project-wide errors, so the build (not tsc) is the gate.
