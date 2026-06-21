@@ -7,17 +7,23 @@
 # preinstall guard rejects npm/yarn, which is why a plain `npm install` fails.
 set -euo pipefail
 
-echo "==> Enabling pnpm via corepack"
-corepack enable
-corepack prepare pnpm@10.26.1 --activate
+# Render's /usr is read-only, so `corepack enable` (which writes a global pnpm
+# symlink into /usr/bin) fails with EROFS. Instead we invoke pnpm directly via
+# `corepack pnpm …`, which runs the version pinned in the root package.json
+# "packageManager" field without installing any global shim. Disable the
+# first-run download prompt so it can't hang the non-interactive build.
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+PNPM="corepack pnpm"
+
+echo "==> Using pnpm via corepack (no global symlink; /usr is read-only on Render)"
 
 echo "==> Installing dependencies (pnpm, workspace-wide)"
-pnpm install --frozen-lockfile
+$PNPM install --frozen-lockfile
 
 echo "==> Building the Vite frontend"
 # vite.config.ts requires PORT and BASE_PATH at build time. On Render the SPA is
 # served at the domain root by the API server, so BASE_PATH must be "/".
-PORT=8080 BASE_PATH=/ pnpm --filter @workspace/addisonx run build
+PORT=8080 BASE_PATH=/ $PNPM --filter @workspace/addisonx run build
 
 echo "==> Staging the built SPA where the API server serves it (./dist)"
 # Vite outputs to artifacts/addisonx/dist/public; the server reads ./dist
@@ -34,7 +40,7 @@ cp -r artifacts/addisonx/dist/public artifacts/api-server/dist
 # schema) and whenever you change server/db/schema.ts; unset it for normal deploys.
 if [ "${RUN_DB_PUSH:-0}" = "1" ]; then
   echo "==> Pushing the database schema (drizzle-kit, RUN_DB_PUSH=1)"
-  pnpm --filter @workspace/api-server exec drizzle-kit push --force
+  $PNPM --filter @workspace/api-server exec drizzle-kit push --force
 else
   echo "==> Skipping DB schema push (set RUN_DB_PUSH=1 to enable)"
 fi
