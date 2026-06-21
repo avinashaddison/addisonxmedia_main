@@ -1,3 +1,5 @@
-- [Lovable structural port](lovable-structural-port.md) — some lovable.dev exports already ship a full self-hosted backend; port structurally, don't hunt for Supabase to replace.
-- [Hono api-server on Replit](hono-api-server.md) — api-server runs via tsx (not esbuild), uses own server/db schema + drizzle.config, proxied paths beyond /api.
-- [addisonx frontend build](addisonx-frontend-build.md) — vite build needs PORT set; tsc has pre-existing project-wide errors, so the build (not tsc) is the gate.
+- [Post-merge & drizzle push](post-merge-drizzle.md) — post-merge must push @workspace/api-server schema, never `--filter db` (empty scaffold → drops all tables); push drift is `_key` vs `_unique` naming.
+- [Lovable structural port](lovable-structural-port.md) — some lovable.dev exports ship a full self-hosted backend; the migration is structural, not a Supabase swap.
+- [Hono api-server on Replit](hono-api-server.md) — conventions for running the imported Hono backend in the api-server artifact.
+- [AddisonX frontend build](addisonx-frontend-build.md) — how to build/verify the React+Vite artifact; tsc is not the gate.
+- [AddisonX build quirks](addisonx-build-quirks.md) — non-obvious build/typecheck gotchas, run flags, intentional dual phone numbers.

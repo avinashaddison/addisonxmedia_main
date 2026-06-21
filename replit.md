@@ -39,7 +39,8 @@ _Populate as you build._
 
 ## Gotchas
 
-- `drizzle-kit push` prompts interactively; run with `--force` in this non-TTY environment.
+- `drizzle-kit push` prompts interactively; run with `--force` in this non-TTY environment. Even `--force` does NOT auto-dismiss the per-constraint "Do you want to truncate?" suggestion when adding a UNIQUE/NOT NULL constraint to a populated table — keep the DB in sync so push stays a no-op.
+- Post-merge runs `scripts/post-merge.sh`, which must push the api-server's OWN schema (`pnpm --filter @workspace/api-server exec drizzle-kit push --force`). NEVER use `pnpm --filter db push` — `db` is the unused `lib/db` scaffold with an empty schema, and pushing it tries to DROP every real table (data loss).
 - `MASTER_KEY` must be >=32 chars or the server throws in production (warns in dev). `BETTER_AUTH_SECRET` is required at startup.
 - Browser-facing origin must be in `TRUSTED_ORIGINS` or better-auth rejects auth requests (CSRF protection).
 
