@@ -692,6 +692,28 @@ export const siteLead = pgTable("site_lead", {
 
 export type SiteLead = typeof siteLead.$inferSelect;
 
+// ============================================================
+// Template-pack leads — emails captured by the public landing page's
+// "50+ Hindi WhatsApp templates" form. Stored server-side so no lead is
+// lost even if the visitor never sends the (secondary) WhatsApp message.
+// ============================================================
+
+export const templateLead = pgTable("template_lead", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull(),
+  source: text("source").notNull().default("landing_templates"),
+  ipHash: text("ip_hash"),
+  userAgent: text("user_agent"),
+  // Set once the confirmation / template-pack email has been dispatched.
+  emailedAt: timestamp("emailed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  emailUnq: uniqueIndex("template_lead_email_unq").on(t.email),
+  createdIdx: index("template_lead_created_idx").on(t.createdAt),
+}));
+
+export type TemplateLead = typeof templateLead.$inferSelect;
+
 export const product = pgTable("product", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),

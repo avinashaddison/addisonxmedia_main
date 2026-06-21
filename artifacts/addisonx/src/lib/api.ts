@@ -134,6 +134,16 @@ function normalizeAgent(agent: AiAgent): AiAgent {
 }
 
 export const api = {
+  // Public landing-page lead capture — "50+ Hindi WhatsApp templates" form.
+  // No auth; stores the email server-side so the lead is never lost. `keepalive`
+  // lets the request finish even if the page navigates / a new tab opens.
+  captureTemplateLead: (email: string, source = "landing_templates") =>
+    request<{ ok: true }>("/leads/templates", {
+      method: "POST",
+      body: JSON.stringify({ email, source }),
+      keepalive: true,
+    }),
+
   // Profile
   getProfile: () => get<Profile>("/profile"),
   updateProfile: (data: {

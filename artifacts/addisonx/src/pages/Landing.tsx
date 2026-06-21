@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useEffect, useState, memo, lazy } from "react";
+import { useEffect, useState, memo, lazy, type FormEvent } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -35,6 +35,8 @@ import { BrandLockup } from "@/components/brand/AddisonLogo";
 import { useFlag } from "@/hooks/useSystemFlags";
 import { DeferredSection } from "@/components/landing/DeferredSection";
 import { paisleyBg } from "@/components/landing/shared";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 // Below-the-fold sections are split into their own chunks and only mount as the
 // user approaches them — keeps the initial Landing bundle (nav + hero) small.
@@ -113,6 +115,40 @@ export default function Landing() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const handleTemplateSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const input = form.elements.namedItem("email") as HTMLInputElement | null;
+    const email = input?.value?.trim() ?? "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Sahi email daalein");
+      return;
+    }
+    // Open WhatsApp synchronously (must stay in the click gesture or popup
+    // blockers eat it) — this is the secondary CTA.
+    toast.success("Templates ke liye WhatsApp khul raha hai…");
+    window.open(
+      `https://wa.me/916206153116?text=${encodeURIComponent(
+        `Hi AddisonX! Mujhe 50+ Hindi WhatsApp templates chahiye. Mera email: ${email}`,
+      )}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+    form.reset();
+    // Save the lead server-side so it's never lost — even if the visitor never
+    // sends the WhatsApp message. One retry, and we surface a failure instead
+    // of swallowing it so the lead can be re-captured manually.
+    const save = (attempt: number): Promise<void> =>
+      api.captureTemplateLead(email).then(
+        () => {},
+        () => {
+          if (attempt < 2) return save(attempt + 1);
+          toast.error("Email save nahi ho paya — humein WhatsApp par bhej dein");
+        },
+      );
+    void save(1);
+  };
 
   const showDiwaliBanner = useFlag("feature_diwali_banner");
 

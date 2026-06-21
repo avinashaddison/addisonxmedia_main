@@ -41,6 +41,7 @@ import sitePageRoutes from "./routes/site-page";
 import commerceRoutes from "./routes/commerce";
 import bookingRoutes from "./routes/booking";
 import exportRoutes from "./routes/export";
+import leadsRoutes from "./routes/leads";
 import { requireVerifiedEmail } from "./middleware/requireVerifiedEmail";
 import workspaceRoutes from "./routes/workspaces";
 import { getSeoSettings, injectSeo, buildSitemapXml, buildRobotsTxt } from "./lib/seo";
@@ -139,6 +140,11 @@ app.use('/api/*', requireVerifiedEmail);
 // otherwise eat unrelated paths like /api/system/flags (public) or /api/admin/me
 // (its own auth path) and return 401 before adminRoutes gets a turn.
 app.route("/", adminRoutes);
+
+// Public lead capture (no auth) — MUST be mounted before the per-resource
+// sub-apps below, whose `app.use("*", requireAuth)` would otherwise eat this
+// path and return 401 before the leads route gets a turn.
+app.route("/api", leadsRoutes);
 
 // App API surface (each sub-app applies requireAuth on its own routes)
 app.route("/api", crmRoutes);

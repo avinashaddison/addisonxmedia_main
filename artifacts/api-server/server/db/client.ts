@@ -79,6 +79,19 @@ export const warmupDb = async () => {
         await db.execute(sql`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "is_reseller" boolean NOT NULL DEFAULT false;`);
         await db.execute(sql`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "reseller_price" numeric(10, 2);`);
         await db.execute(sql`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "reseller_price_usd" numeric(10, 2);`);
+        // Landing-page "free templates" lead capture (see 0040_template_lead.sql).
+        // Created here too so deployed DBs self-heal without a manual migration run.
+        await db.execute(sql`CREATE TABLE IF NOT EXISTS "template_lead" (
+          "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          "email" text NOT NULL,
+          "source" text NOT NULL DEFAULT 'landing_templates',
+          "ip_hash" text,
+          "user_agent" text,
+          "emailed_at" timestamp with time zone,
+          "created_at" timestamp with time zone NOT NULL DEFAULT now()
+        );`);
+        await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "template_lead_email_unq" ON "template_lead"("email");`);
+        await db.execute(sql`CREATE INDEX IF NOT EXISTS "template_lead_created_idx" ON "template_lead"("created_at" DESC);`);
         logger.info('DB startup migrations completed successfully');
       } catch (migErr: any) {
         logger.error({ error: migErr.message || migErr }, 'DB startup migrations failed');
