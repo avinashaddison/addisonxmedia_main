@@ -23,6 +23,7 @@ import { useDeleteConversation, useMarkRead } from "@/hooks/useInboxData";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { toast } from "sonner";
 
 type Props = {
@@ -45,6 +46,7 @@ const statusDot = (tag: string, hasUnread: boolean) => {
 
 export const ConversationList = ({ conversations, activeId, onSelect, loading, className, muted, onToggleMuted }: Props) => {
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 200);
   const [filter, setFilter] = useState<string>("All");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ConversationWithContact | null>(null);
@@ -93,8 +95,8 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
     // Defensive: server uses leftJoin, so contact COULD be null on data races.
     // Without these guards the whole list silently filters to [] when one row
     // is missing its contact.
-    if (search) {
-      const q = search.toLowerCase();
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
       const inName = c.contact?.name?.toLowerCase().includes(q) ?? false;
       const inPhone = c.contact?.phone?.toLowerCase().includes(q) ?? false;
       const inMsg = (c.last_message_preview ?? "").toLowerCase().includes(q);
@@ -104,7 +106,7 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
     if (filter === "Hot" && c.contact?.tag !== "hot") return false;
     if (filter === "Closed" && c.status !== "closed") return false;
     return true;
-  }), [conversations, search, filter]);
+  }), [conversations, debouncedSearch, filter]);
 
   const sortedAndFiltered = useMemo(() => [...filtered].sort((a, b) => {
     const aIsAgent = a.contact?.phone === "system_marketing";

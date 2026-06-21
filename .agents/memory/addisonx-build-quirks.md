@@ -18,3 +18,9 @@ description: Non-obvious gotchas when building/typechecking the addisonx Vite fr
 
 - Two intentional, distinct business phone numbers exist across the app — do NOT "unify" them:
   Sales/Support line `919709707311` (tel:) and WhatsApp line `916206153116` (wa.me).
+
+- Do NOT set Vite `build.cssMinify: "lightningcss"` here. lightningcss fails to parse the app's
+  heavy Tailwind v3 arbitrary-value class selectors (e.g. `.shadow-[0_8px_0_0_#0A6E3C]`) and
+  aborts the build ("No qualified name in attribute selector"). Stick with the default esbuild
+  CSS minifier. **Why:** the codebase uses arbitrary-value utilities everywhere, so this isn't a
+  one-off; the gain (~few KB gz) wasn't worth it even if it parsed.

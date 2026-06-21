@@ -31,6 +31,7 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { PageShell } from "@/components/PageShell";
@@ -104,6 +105,9 @@ export const ContactsPage = () => {
   const navigate = useNavigate();
   const { data: contacts = [], isLoading } = useContacts();
   const [search, setSearch] = useState("");
+  // Debounced copy used only for filtering — the input stays instant, but the
+  // list filter doesn't recompute on every keystroke.
+  const debouncedSearch = useDebouncedValue(search, 200);
   const [tagFilter, setTagFilter] = useState<"all" | Contact["tag"]>("all");
   const [segment, setSegment] = useState<Segment>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
@@ -258,8 +262,8 @@ export const ContactsPage = () => {
       }
       if (segment === "cold" && c.tag !== "cold") return false;
 
-      if (search) {
-        const q = search.toLowerCase();
+      if (debouncedSearch) {
+        const q = debouncedSearch.toLowerCase();
         return (
           c.name.toLowerCase().includes(q) ||
           c.phone.toLowerCase().includes(q) ||
@@ -268,7 +272,7 @@ export const ContactsPage = () => {
       }
       return true;
     });
-  }, [contacts, tagFilter, sourceFilter, scoreMin, segment, search]);
+  }, [contacts, tagFilter, sourceFilter, scoreMin, segment, debouncedSearch]);
 
   // Clear stale selections when filter changes
   useEffect(() => {
