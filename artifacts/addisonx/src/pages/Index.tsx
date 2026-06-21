@@ -80,10 +80,10 @@ const PAGES: Record<string, (nav: NavFn) => ReactNode> = {
   "reports/performance": () => <PerformanceReportPage />,
 
   // Settings
-  "settings/profile": () => <SettingsPage />,
+  "settings/profile": () => <SettingsPage initialSection="profile" />,
   "settings/team": () => <TeamPage />,
   "settings/roles": () => <RolesPage />,
-  "settings/security": () => <SettingsPage />,
+  "settings/security": () => <SettingsPage initialSection="account" />,
 
   // ── Legacy / deep-link-only routes (not in the sidebar, kept resolvable so
   // existing internal links, the topbar, dashboard quick-actions and old

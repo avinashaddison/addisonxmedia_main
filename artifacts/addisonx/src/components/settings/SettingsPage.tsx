@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { authClient, useSession } from "@/lib/auth-client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 type Section = "profile" | "integrations" | "account";
 
@@ -40,8 +42,8 @@ const sections: { id: Section; label: string }[] = [
   { id: "account",      label: "Account" },
 ];
 
-export const SettingsPage = () => {
-  const [active, setActive] = useState<Section>("profile");
+export const SettingsPage = ({ initialSection = "profile" }: { initialSection?: Section }) => {
+  const [active, setActive] = useState<Section>(initialSection);
   const [, setDirty] = useState(false);
   const { user, signOut } = useAuth();
 
@@ -1377,11 +1379,99 @@ const UsageCard = ({
 
 /* ============================== ACCOUNT ============================== */
 const AccountSection = ({ email, onSignOut }: { email?: string; onSignOut: () => Promise<void> }) => {
-  const [twoFA, setTwoFA] = useState(false);
+  const { data: session, refetch } = useSession();
+  const twoFactorEnabled = !!(session?.user as { twoFactorEnabled?: boolean } | undefined)?.twoFactorEnabled;
+
+  // change password
+  const [pwOpen, setPwOpen] = useState(false);
+  const [curPw, setCurPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+
+  // enable 2FA (two-step: confirm password → verify TOTP code)
+  const [tfOpen, setTfOpen] = useState(false);
+  const [tfStep, setTfStep] = useState<"password" | "verify">("password");
+  const [tfPw, setTfPw] = useState("");
+  const [tfCode, setTfCode] = useState("");
+  const [tfSecret, setTfSecret] = useState("");
+  const [tfBackup, setTfBackup] = useState<string[]>([]);
+  const [tfBusy, setTfBusy] = useState(false);
+
+  // disable 2FA
+  const [disOpen, setDisOpen] = useState(false);
+  const [disPw, setDisPw] = useState("");
+  const [disBusy, setDisBusy] = useState(false);
+
+  const [logoutBusy, setLogoutBusy] = useState(false);
+
+  const closeTf = () => { setTfOpen(false); setTfStep("password"); setTfPw(""); setTfCode(""); setTfSecret(""); setTfBackup([]); };
+
+  const handleChangePassword = async () => {
+    if (newPw.length < 8) { toast.error("Naya password kam se kam 8 characters ka rakhein"); return; }
+    if (newPw !== confirmPw) { toast.error("Naya password aur confirm match nahi kar rahe"); return; }
+    setPwBusy(true);
+    try {
+      const { error } = await authClient.changePassword({ currentPassword: curPw, newPassword: newPw, revokeOtherSessions: true });
+      if (error) throw new Error(error.message || "Password change nahi ho paya");
+      toast.success("Password update ho gaya — baaki devices logout", { icon: <Check className="w-4 h-4 text-success" /> });
+      setPwOpen(false); setCurPw(""); setNewPw(""); setConfirmPw("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Password change nahi ho paya");
+    } finally { setPwBusy(false); }
+  };
+
+  const handleStartEnable = async () => {
+    setTfBusy(true);
+    try {
+      const { data, error } = await authClient.twoFactor.enable({ password: tfPw });
+      if (error || !data) throw new Error(error?.message || "2FA shuru nahi ho paya");
+      setTfSecret(data.totpURI.match(/[?&]secret=([^&]+)/i)?.[1] ?? "");
+      setTfBackup(data.backupCodes ?? []);
+      setTfStep("verify");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "2FA shuru nahi ho paya");
+    } finally { setTfBusy(false); }
+  };
+
+  const handleVerifyEnable = async () => {
+    setTfBusy(true);
+    try {
+      const { error } = await authClient.twoFactor.verifyTotp({ code: tfCode.trim() });
+      if (error) throw new Error(error.message || "Code sahi nahi hai");
+      toast.success("Two-factor authentication on ho gaya", { icon: <Check className="w-4 h-4 text-success" /> });
+      closeTf(); refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Verification fail ho gaya");
+    } finally { setTfBusy(false); }
+  };
+
+  const handleDisable = async () => {
+    setDisBusy(true);
+    try {
+      const { error } = await authClient.twoFactor.disable({ password: disPw });
+      if (error) throw new Error(error.message || "2FA off nahi ho paya");
+      toast.success("Two-factor authentication off ho gaya");
+      setDisOpen(false); setDisPw(""); refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "2FA off nahi ho paya");
+    } finally { setDisBusy(false); }
+  };
+
+  const handleLogoutAll = async () => {
+    setLogoutBusy(true);
+    try {
+      const { error } = await authClient.revokeOtherSessions();
+      if (error) throw new Error(error.message || "Sessions revoke nahi ho paye");
+      toast.success("Baaki sabhi devices se logout ho gaye");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Kuch galat ho gaya");
+    } finally { setLogoutBusy(false); }
+  };
 
   return (
     <>
-      <SectionCard title="Security" subtitle="Lock down your account and active sessions" icon={<Shield className="w-4 h-4" />}>
+      <SectionCard title="Security" subtitle="Account ko lock down karein · sessions manage karein" icon={<Shield className="w-4 h-4" />}>
         <div className="space-y-2">
           <div className="flex items-center gap-3 p-3.5 rounded-xl border border-border">
             <div className="w-9 h-9 rounded-lg bg-accent-soft text-accent flex items-center justify-center"><User className="w-4 h-4" /></div>
@@ -1396,40 +1486,44 @@ const AccountSection = ({ email, onSignOut }: { email?: string; onSignOut: () =>
             <div className="w-9 h-9 rounded-lg bg-warning-soft text-warning flex items-center justify-center"><KeyRound className="w-4 h-4" /></div>
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-semibold">Change password</p>
-              <p className="text-[11px] text-muted-foreground">We'll send a confirmation email before applying</p>
+              <p className="text-[11px] text-muted-foreground">Current password daalein · naya set karein</p>
             </div>
-            <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => toast.info("Password reset email sent")}>Update</Button>
+            <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => setPwOpen(true)}>Update</Button>
           </div>
 
           <div className={cn(
             "flex items-center gap-3 p-3.5 rounded-xl border transition-colors",
-            twoFA ? "border-primary/30 bg-primary-soft/30" : "border-border"
+            twoFactorEnabled ? "border-primary/30 bg-primary-soft/30" : "border-border"
           )}>
-            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center", twoFA ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center", twoFactorEnabled ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-[13px] font-semibold">Two-factor authentication</p>
-                {twoFA && <Badge className="text-[9px] bg-success text-success-foreground border-0">Enabled</Badge>}
+                {twoFactorEnabled && <Badge className="text-[9px] bg-success text-success-foreground border-0">Enabled</Badge>}
               </div>
-              <p className="text-[11px] text-muted-foreground">Require a 6-digit code from your authenticator app</p>
+              <p className="text-[11px] text-muted-foreground">Authenticator app se 6-digit code maangega</p>
             </div>
-            <Switch checked={twoFA} onCheckedChange={(v) => { setTwoFA(v); toast.success(v ? "2FA enabled" : "2FA disabled"); }} />
+            {twoFactorEnabled ? (
+              <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => setDisOpen(true)}>Disable</Button>
+            ) : (
+              <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => setTfOpen(true)}>Enable</Button>
+            )}
           </div>
 
           <div className="flex items-center gap-3 p-3.5 rounded-xl border border-border hover:bg-muted/30 transition-colors">
             <div className="w-9 h-9 rounded-lg bg-muted text-muted-foreground flex items-center justify-center"><LogIn className="w-4 h-4" /></div>
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-semibold">Logout all devices</p>
-              <p className="text-[11px] text-muted-foreground">End every active session except this one</p>
+              <p className="text-[11px] text-muted-foreground">Is session ko chhod kar baaki sab end karein</p>
             </div>
-            <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => toast.success("All other sessions terminated")}>End all</Button>
+            <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={logoutBusy} onClick={handleLogoutAll}>{logoutBusy ? "…" : "End all"}</Button>
           </div>
         </div>
       </SectionCard>
 
-      <SectionCard title="Danger zone" subtitle="Irreversible actions — proceed carefully" icon={<AlertCircle className="w-4 h-4" />}>
+      <SectionCard title="Danger zone" subtitle="Irreversible actions — soch samajh kar" icon={<AlertCircle className="w-4 h-4" />}>
         <Button
           variant="destructive"
           className="w-full justify-start gap-2"
@@ -1438,6 +1532,101 @@ const AccountSection = ({ email, onSignOut }: { email?: string; onSignOut: () =>
           <LogOut className="w-4 h-4" /> Sign out of this session
         </Button>
       </SectionCard>
+
+      {/* Change password */}
+      <Dialog open={pwOpen} onOpenChange={(o) => { setPwOpen(o); if (!o) { setCurPw(""); setNewPw(""); setConfirmPw(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change password</DialogTitle>
+            <DialogDescription>Security ke liye baaki devices automatically logout ho jaayenge.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-[12px] font-medium">Current password</Label>
+              <Input type="password" autoComplete="current-password" value={curPw} onChange={(e) => setCurPw(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[12px] font-medium">New password</Label>
+              <Input type="password" autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="Kam se kam 8 characters" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[12px] font-medium">Confirm new password</Label>
+              <Input type="password" autoComplete="new-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPwOpen(false)} disabled={pwBusy}>Cancel</Button>
+            <Button onClick={handleChangePassword} disabled={pwBusy || !curPw || !newPw}>{pwBusy ? "Updating…" : "Update password"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Enable 2FA */}
+      <Dialog open={tfOpen} onOpenChange={(o) => (o ? setTfOpen(true) : closeTf())}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Two-factor authentication</DialogTitle>
+            <DialogDescription>
+              {tfStep === "password" ? "Apna current password confirm karein." : "Authenticator app mein setup key add karein, phir 6-digit code daalein."}
+            </DialogDescription>
+          </DialogHeader>
+          {tfStep === "password" ? (
+            <div className="space-y-1.5">
+              <Label className="text-[12px] font-medium">Current password</Label>
+              <Input type="password" autoComplete="current-password" value={tfPw} onChange={(e) => setTfPw(e.target.value)} />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-[12px] font-medium">Setup key (authenticator app mein paste karein)</Label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-[12px] font-mono break-all rounded-lg border border-border bg-muted/40 px-3 py-2">{tfSecret || "—"}</code>
+                  <Button size="sm" variant="outline" className="h-9" onClick={() => { navigator.clipboard.writeText(tfSecret); toast.success("Copied"); }}>Copy</Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">Issuer: Addison X Media · TOTP · 6 digits · 30s</p>
+              </div>
+              {tfBackup.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-[12px] font-medium">Backup codes (safe jagah save karein)</Label>
+                  <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-border bg-muted/30 p-3">
+                    {tfBackup.map((c) => <code key={c} className="text-[11px] font-mono">{c}</code>)}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label className="text-[12px] font-medium">6-digit code</Label>
+                <Input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={tfCode} onChange={(e) => setTfCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={closeTf} disabled={tfBusy}>Cancel</Button>
+            {tfStep === "password" ? (
+              <Button onClick={handleStartEnable} disabled={tfBusy || !tfPw}>{tfBusy ? "…" : "Continue"}</Button>
+            ) : (
+              <Button onClick={handleVerifyEnable} disabled={tfBusy || tfCode.length !== 6}>{tfBusy ? "Verifying…" : "Verify & enable"}</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Disable 2FA */}
+      <Dialog open={disOpen} onOpenChange={(o) => { setDisOpen(o); if (!o) setDisPw(""); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Disable two-factor authentication</DialogTitle>
+            <DialogDescription>Password confirm karein. 2FA off karne se account kam surakshit ho jaayega.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label className="text-[12px] font-medium">Current password</Label>
+            <Input type="password" autoComplete="current-password" value={disPw} onChange={(e) => setDisPw(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDisOpen(false)} disabled={disBusy}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDisable} disabled={disBusy || !disPw}>{disBusy ? "Disabling…" : "Disable 2FA"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
