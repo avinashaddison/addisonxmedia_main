@@ -55,6 +55,26 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Split large, rarely-changing vendor libs into their own cacheable
+        // chunks so they aren't re-downloaded on every app deploy.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("react-router")) return "router";
+          if (id.includes("recharts") || id.includes("/d3-")) return "charts";
+          if (id.includes("framer-motion")) return "motion";
+          if (id.includes("@radix-ui")) return "radix";
+          if (id.includes("lucide-react")) return "icons";
+          if (
+            id.includes("/react-dom/") ||
+            id.includes("/react/") ||
+            id.includes("/scheduler/")
+          )
+            return "react-vendor";
+        },
+      },
+    },
   },
   server: {
     port,

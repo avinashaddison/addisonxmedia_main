@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo, type FormEvent } from "react";
 import {
   ArrowRight,
   Check,
@@ -53,6 +53,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { FAQSection } from "@/components/landing/FAQSection";
 import { AddisonLogo, BrandLockup } from "@/components/brand/AddisonLogo";
 import { useFlag } from "@/hooks/useSystemFlags";
+import { toast } from "sonner";
 
 const HERO_ROTATING = [
   "Bharat ke",
@@ -73,6 +74,23 @@ const useRotator = (items: string[], interval = 2400) => {
   }, [items.length, interval]);
   return items[i];
 };
+
+// Isolated so the rotating hero word re-renders on its own 2.4s tick instead of
+// forcing the entire (1.7k-line) Landing tree to re-render every interval.
+const RotatingWord = memo(function RotatingWord({
+  items,
+  interval = 2400,
+}: {
+  items: string[];
+  interval?: number;
+}) {
+  const word = useRotator(items, interval);
+  return (
+    <span key={word} className="text-[#FF6A1F] inline-block animate-fade-in">
+      {word}
+    </span>
+  );
+});
 
 const useForceLight = () => {
   useEffect(() => {
@@ -96,13 +114,31 @@ export default function Landing() {
   const [scrolled, setScrolled] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
   const [solutionsOpen, setSolutionsOpen] = useState(false);
-  const rotating = useRotator(HERO_ROTATING);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const handleTemplateSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const input = e.currentTarget.elements.namedItem("email") as HTMLInputElement | null;
+    const email = input?.value?.trim() ?? "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Sahi email daalein");
+      return;
+    }
+    toast.success("Templates ke liye WhatsApp khul raha hai…");
+    window.open(
+      `https://wa.me/916206153116?text=${encodeURIComponent(
+        `Hi AddisonX! Mujhe 50+ Hindi WhatsApp templates chahiye. Mera email: ${email}`,
+      )}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+    e.currentTarget.reset();
+  };
 
   const showDiwaliBanner = useFlag("feature_diwali_banner");
 
@@ -240,13 +276,13 @@ export default function Landing() {
             )}
           </div>
 
-          <button className="lg:hidden p-2 -mr-2" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Menu">
+          <button className="lg:hidden p-2 -mr-2" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Menu" aria-expanded={mobileOpen} aria-controls="mobile-nav">
             {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
 
         {mobileOpen && (
-          <div className="lg:hidden border-t-2 border-[#E8B968] bg-[#FFF6E8] px-5 py-4 space-y-1 text-sm font-semibold animate-fade-in">
+          <div id="mobile-nav" className="lg:hidden border-t-2 border-[#E8B968] bg-[#FFF6E8] px-5 py-4 space-y-1 text-sm font-semibold animate-fade-in">
             <a href="#product" className="block py-2.5 px-2 rounded-lg hover:bg-[#FFE8C7]">Product</a>
             <a href="#solutions" className="block py-2.5 px-2 rounded-lg hover:bg-[#FFE8C7]">Solutions</a>
             <a href="#how" className="block py-2.5 px-2 rounded-lg hover:bg-[#FFE8C7]">How it works</a>
@@ -297,12 +333,7 @@ export default function Landing() {
             </div>
 
             <h1 className="text-[2.7rem] sm:text-5xl lg:text-[4.4rem] font-black tracking-[-0.03em] leading-[0.98] text-foreground">
-              <span
-                key={rotating}
-                className="text-[#FF6A1F] inline-block animate-fade-in"
-              >
-                {rotating}
-              </span>{" "}
+              <RotatingWord items={HERO_ROTATING} />{" "}
               business ko
               <br />
               WhatsApp pe{" "}
@@ -1056,11 +1087,13 @@ export default function Landing() {
             </p>
           </div>
 
-          <form className="flex flex-col sm:flex-row gap-2.5 p-2 bg-white rounded-2xl shadow-[0_6px_0_0_#7A4A00] border-2 border-[#3D1A00]">
+          <form onSubmit={handleTemplateSubmit} className="flex flex-col sm:flex-row gap-2.5 p-2 bg-white rounded-2xl shadow-[0_6px_0_0_#7A4A00] border-2 border-[#3D1A00]">
             <div className="flex-1 flex items-center px-3">
               <Mail className="w-4 h-4 text-[#FF6A1F] mr-2" />
               <input
                 type="email"
+                name="email"
+                required
                 placeholder="aapka@email.com"
                 className="flex-1 py-2.5 bg-transparent text-sm font-semibold focus:outline-none placeholder:text-foreground/40"
               />
