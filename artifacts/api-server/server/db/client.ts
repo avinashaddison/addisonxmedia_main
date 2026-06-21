@@ -92,6 +92,24 @@ export const warmupDb = async () => {
         );`);
         await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "template_lead_email_unq" ON "template_lead"("email");`);
         await db.execute(sql`CREATE INDEX IF NOT EXISTS "template_lead_created_idx" ON "template_lead"("created_at" DESC);`);
+        // Backfill plan_renews_at for already-paid users whose plan was activated
+        // before the renewal-date write path existed. Idempotent: only fills NULLs
+        // for non-free accounts, derived from their latest completed upgrade_request
+        // (completed_at + 1 year for annual, else + 1 month). Leaves trials alone
+        // (the Renewals view falls back to trial_ends_at for those).
+        await db.execute(sql`
+          UPDATE "user" u SET "plan_renews_at" = ur.renews_at
+          FROM (
+            SELECT DISTINCT ON (r."user_id") r."user_id",
+              r."completed_at" + (CASE WHEN r."billing_cycle" = 'annual' THEN interval '1 year' ELSE interval '1 month' END) AS renews_at
+            FROM "upgrade_request" r
+            WHERE r."status" = 'completed' AND r."completed_at" IS NOT NULL
+            ORDER BY r."user_id", r."completed_at" DESC
+          ) ur
+          WHERE u."id" = ur."user_id"
+            AND u."plan_renews_at" IS NULL
+            AND u."plan" IS NOT NULL AND u."plan" <> 'free';
+        `);
         logger.info('DB startup migrations completed successfully');
       } catch (migErr: any) {
         logger.error({ error: migErr.message || migErr }, 'DB startup migrations failed');

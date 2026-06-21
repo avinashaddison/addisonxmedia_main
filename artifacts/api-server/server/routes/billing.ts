@@ -26,6 +26,7 @@ import {
 } from "../integrations/cashfree";
 import logger from "../lib/logger";
 import { logActivity } from "../lib/activity-log";
+import { computeRenewsAt } from "../lib/renewal";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 app.use("*", requireAuth);
@@ -376,12 +377,13 @@ app.get("/billing/cashfree/verify/:orderId", async (c) => {
   // Activate if PAID and not already activated — idempotent (webhook may
   // have raced and beat us here, which is fine, the WHERE-clause is the gate)
   if (order.order_status === "PAID" && req.status !== "completed") {
+    const activatedAt = new Date();
     await db.transaction(async (tx) => {
       await tx.update(user)
-        .set({ plan: req.targetPlan })
+        .set({ plan: req.targetPlan, planRenewsAt: computeRenewsAt(req.billingCycle, activatedAt) })
         .where(eq(user.id, userId));
       await tx.update(upgradeRequest)
-        .set({ status: "completed", completedAt: new Date() })
+        .set({ status: "completed", completedAt: activatedAt })
         .where(eq(upgradeRequest.id, req.id));
     });
   }

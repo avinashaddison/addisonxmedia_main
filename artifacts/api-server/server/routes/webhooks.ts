@@ -7,6 +7,7 @@ import { verifyWebhookSignature as verifyCashfreeSignature } from "../integratio
 import { sendTextMessage, sendImageMessage } from "../integrations/meta";
 import { decrypt } from "../crypto";
 import { getPersonaWithDefaults } from "../lib/ai-persona";
+import { computeRenewsAt } from "../lib/renewal";
 import { chatJson, isAiConfigured } from "../integrations/openai";
 import { checkAiCap, logAiUsage } from "../lib/ai-usage";
 import { getHumanizedAutoReply } from "../lib/human-seller";
@@ -550,12 +551,13 @@ app.post("/webhooks/cashfree", async (c) => {
     // PAYMENT_SUCCESS — activate the plan if not already activated
     if (eventType === "PAYMENT_SUCCESS_WEBHOOK" && paymentStatus === "SUCCESS") {
       if (req.status !== "completed") {
+        const activatedAt = new Date();
         await db.transaction(async (tx) => {
           await tx.update(user)
-            .set({ plan: req.targetPlan })
+            .set({ plan: req.targetPlan, planRenewsAt: computeRenewsAt(req.billingCycle, activatedAt) })
             .where(eq(user.id, req.userId));
           await tx.update(upgradeRequest)
-            .set({ status: "completed", completedAt: new Date() })
+            .set({ status: "completed", completedAt: activatedAt })
             .where(and(eq(upgradeRequest.id, req.id), sql_neq_completed));
         });
       }

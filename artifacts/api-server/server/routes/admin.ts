@@ -13,6 +13,7 @@ import { invalidateSeoCache } from "../lib/seo";
 import { escapeSqlLike } from "../utils";
 import { logActivity } from "../lib/activity-log";
 import { seedPrebuiltTemplatesIfEmpty } from "../lib/ai-persona";
+import { computeRenewsAt } from "../lib/renewal";
 
 const admin = new Hono<{ Variables: AdminVariables }>();
 
@@ -550,10 +551,12 @@ admin.post("/api/admin/upgrade-requests/:id/activate", requireAdmin(["super_admi
   if (req.status === "completed") return c.json({ error: "Already completed" }, 400);
 
   // 1. Flip the user's plan
+  const activatedAt = new Date();
   const userUpdate: Record<string, unknown> = {
     plan: req.targetPlan,
     accountStatus: "active",
-    updatedAt: new Date(),
+    planRenewsAt: computeRenewsAt(req.billingCycle, activatedAt),
+    updatedAt: activatedAt,
   };
   if (body.mrr_inr !== undefined) userUpdate.mrrInr = String(body.mrr_inr);
   await db.update(user).set(userUpdate).where(eq(user.id, req.userId));
@@ -561,7 +564,7 @@ admin.post("/api/admin/upgrade-requests/:id/activate", requireAdmin(["super_admi
   // 2. Complete the request
   await db.update(upgradeRequest).set({
     status: "completed",
-    completedAt: new Date(),
+    completedAt: activatedAt,
     adminNotes: body.admin_notes ?? req.adminNotes,
     razorpayPaymentId: body.razorpay_payment_id ?? req.razorpayPaymentId,
   }).where(eq(upgradeRequest.id, id));

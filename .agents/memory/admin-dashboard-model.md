@@ -10,7 +10,7 @@ fully-built core modules and honest scaffolds. Data-source decisions, made with 
 
 - **Clients (active/suspended)** — reuse the workspaces endpoint filtered by `user.accountStatus`; suspend/unsuspend already exist. No new client table.
 - **Plans** — backed by a `subscription_plan` table; `user.plan` stays a string key referencing it. Defaults are seeded on first read.
-- **Renewals** — driven by nullable `user.planRenewsAt`, falling back to trial end. **Why:** deriving renewal dates purely from upgrade-request completion + billing cycle is unreliable for manual plan changes, cancellations, and legacy rows.
+- **Renewals** — driven by nullable `user.planRenewsAt`, falling back to trial end. **Why:** deriving renewal dates purely from upgrade-request completion + billing cycle is unreliable for manual plan changes, cancellations, and legacy rows. **Critical:** `planRenewsAt` is only useful if it is WRITTEN — every plan-activation path (Cashfree verify, Cashfree webhook, manual admin activate) must set it in the same transaction that flips `user.plan`, or the Renewals view silently stays empty for paid users. A read-only field with no writer is the trap that failed code review here.
 - **Admin coupons** — separate `platform_coupon` table. **Why:** the existing owner-scoped `coupon` table is per-customer storefront discounts — a different concept; do not overload it.
 - **Finance** — real figures from paid/completed upgrade-request rows plus summed MRR of active accounts. Refunds come from the audit log and are surfaced as "refunds/adjustments", **never relabeled as payouts**.
 - **Payouts** — honest scaffold (minimal table). **Why:** this SaaS has no real merchant-payout flow, so inventing one or aliasing refunds would be dishonest.
