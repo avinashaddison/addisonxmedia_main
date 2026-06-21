@@ -70,7 +70,12 @@ autoInstallPeers: false
 
 onlyBuiltDependencies:
   - '@swc/core'
-  - esbuild
+  # NOTE: esbuild deliberately NOT listed. Its binary is supplied by the kept
+  # `@esbuild/linux-x64` optional dependency (all other platforms are pruned in
+  # `overrides` below), so esbuild resolves at runtime WITHOUT its postinstall.
+  # Approving the build script makes pnpm run esbuild's `install.js`, whose strict
+  # binary version check crashes on Render's restored (stale) pnpm store
+  # (`Expected "X" but got "Y"`). Leaving it unapproved skips that script.
   - msw
   - unrs-resolver
 

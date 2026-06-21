@@ -4,7 +4,7 @@
   "license": "MIT",
   "packageManager": "pnpm@10.26.1",
   "scripts": {
-    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) if [ -z \"$RENDER\" ]; then echo \"Use pnpm instead\" >&2; exit 1; fi; echo \"[preinstall] Render npm detected — clearing stale node_modules so npm cannot re-run cached dep install scripts (e.g. esbuild binary skew); pnpm rebuilds in scripts/render-build.sh\" >&2; rm -rf node_modules ;; esac'",
+    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) if [ -z \"$RENDER\" ]; then echo \"Use pnpm instead\" >&2; exit 1; fi ;; esac'",
     "build": "sh -c 'if [ -n \"$RENDER\" ]; then bash scripts/render-build.sh; else pnpm run typecheck && pnpm -r --if-present run build; fi'",
     "start": "sh -c 'cd artifacts/api-server && exec env NODE_ENV=production node_modules/.bin/tsx server/index.ts'",
     "typecheck:libs": "tsc --build",
