@@ -5,6 +5,7 @@ import {
   User, DollarSign, Wallet, FileText, Loader2, CheckCircle2, Plus, Trash2
 } from "lucide-react";
 import { api, type AiAgent } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

@@ -16,9 +16,36 @@ import type {
   Task,
   Profile,
   AiAgent,
+  AiAgentProduct,
   Eligible24hChat,
   BulkSend24hResponse,
 } from "./api-types";
+
+export type { AiAgent, AiAgentProduct } from "./api-types";
+
+export type DashboardData = {
+  contacts: Contact[];
+  conversations: Conversation[];
+  messages: Message[];
+  deals: Deal[];
+  tasks: Task[];
+  campaigns: Campaign[];
+};
+
+export type AnalyticsData = {
+  contacts: Contact[];
+  conversations: Conversation[];
+  messages: Message[];
+  deals: Deal[];
+  campaigns: Campaign[];
+  broadcasts: Broadcast[];
+};
+
+export type SearchResults = {
+  contacts: Array<{ id: string; name: string | null; phone: string | null; tag: Contact["tag"] }>;
+  conversations: Array<{ id: string; last_message_preview: string | null; contact_name: string | null }>;
+  deals: Array<{ id: string; title: string; value: string | number; stage: Deal["stage"] }>;
+};
 
 class ApiError extends Error {
   status: number;
@@ -121,7 +148,7 @@ export const api = {
 
   // Sidebar / dashboard
   getSidebarBadges: () => get<{ inbox: number; tasks: number }>("/sidebar/badges"),
-  getDashboard: () => get<Record<string, unknown>>("/dashboard"),
+  getDashboard: () => get<DashboardData>("/dashboard"),
   // Money Machine view — "₹X spent → ₹Y won → Z× ROAS". Joins deals +
   // conversation attribution + ad spend snapshot. Designed for non-technical
   // owners — no impressions, no CPM, just money in / money out.
@@ -144,8 +171,8 @@ export const api = {
     open_pipeline_count: number;
     series_7d: Array<{ date: string; revenue_inr: number; deals: number }>;
   }>("/dashboard/money"),
-  getAnalytics: () => get<Record<string, unknown>>("/analytics"),
-  search: (q: string) => get<Record<string, unknown>>(`/search?q=${encodeURIComponent(q)}`),
+  getAnalytics: () => get<AnalyticsData>("/analytics"),
+  search: (q: string) => get<SearchResults>(`/search?q=${encodeURIComponent(q)}`),
   seed: () => post<{ seeded?: boolean; skipped?: boolean }>("/seed"),
 
   // Contacts
@@ -230,7 +257,17 @@ export const api = {
     phone_number_id: string;
     business_account_id?: string;
     force?: boolean;
-  }) => post<{ ok: boolean; id?: string; phone_number_id: string }>("/integrations/meta", data),
+  }) => post<{
+    ok?: boolean;
+    id?: string;
+    phone_number_id: string;
+    business_account_id?: string | null;
+    display_phone_number?: string | null;
+    verified_name?: string;
+    quality_rating?: string;
+    enabled?: boolean;
+    last_verified_at?: string | null;
+  }>("/integrations/meta", data),
   testMetaConfig: () => post<{ ok: boolean; display_phone_number?: string; verified_name?: string; quality_rating?: string; error?: string }>("/integrations/meta/test"),
   deleteMetaConfig: () => del("/integrations/meta"),
   listMetaTemplates: () => get<{ data: Array<{ name: string; language: string; status: string; category: string; components: Record<string, unknown>[] }> }>("/integrations/meta/templates"),
@@ -329,6 +366,8 @@ export const api = {
       page_id: string;
       image_url?: string;
       video_url?: string;
+      instagram_media_id?: string;
+      instagram_actor_id?: string;
       headline: string;
       body: string;
       link_url: string;
@@ -377,7 +416,7 @@ export const api = {
   listAdPages: () =>
     get<{ pages: Array<{ id: string; name: string; category: string | null }>; demo?: boolean }>("/ads/pages"),
   listInstagramVideos: (pageId: string) =>
-    get<{ videos: any[]; demo?: boolean }>(`/ads/pages/${pageId}/instagram-videos`),
+    get<{ videos: any[]; instagramActorId?: string; demo?: boolean }>(`/ads/pages/${pageId}/instagram-videos`),
 
   // UPI payment requests — sent to a customer's WhatsApp inbox as a deep link + QR.
   getUpiConfig: () =>

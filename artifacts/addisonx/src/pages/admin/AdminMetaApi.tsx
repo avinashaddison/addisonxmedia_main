@@ -134,7 +134,7 @@ const PermissionsPanel = ({ data, loading, error }: {
       }
     >
       {loading && <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#0E8A4B]" />}
-      {error && (
+      {!!error && (
         <p className="text-[12px] text-rose-600 font-bold">
           Couldn't probe permissions — {(error as Error).message}
         </p>

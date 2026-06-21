@@ -131,7 +131,6 @@ const AdminSubscriptions = () => {
                     Refund
                   </button>
                   <button
-                    as={Link}
                     className="px-3 py-1 rounded-xl text-[11px] font-extrabold bg-[#0E8A4B] border-2 border-[#0A6E3C] shadow-[0_2px_0_0_#073D22] text-white hover:bg-[#0A6E3C] active:translate-y-0.5 active:shadow-[0_1px_0_0_#073D22] transition-all flex items-center gap-1"
                   >
                     <Link to={`/admin/workspaces/${r.id}`} className="flex items-center gap-1">

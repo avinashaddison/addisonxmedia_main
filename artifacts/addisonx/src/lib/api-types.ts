@@ -136,6 +136,10 @@ export type Profile = {
   display_name: string | null;
   avatar_url: string | null;
   phone: string | null;
+  whatsapp_community_url: string | null;
+  instagram_url: string | null;
+  website_url: string | null;
+  facebook_url: string | null;
   created_at: string;
   updated_at: string;
 };

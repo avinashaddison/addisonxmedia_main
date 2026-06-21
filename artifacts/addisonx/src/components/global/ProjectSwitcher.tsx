@@ -146,7 +146,7 @@ export const ProjectSwitcher = ({ collapsed = false, showLabel = true }: Project
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="left" className="w-64 p-1.5 font-sans border-border bg-popover/95 backdrop-blur-md rounded-xl shadow-xl">
+          <DropdownMenuContent align="start" className="w-64 p-1.5 font-sans border-border bg-popover/95 backdrop-blur-md rounded-xl shadow-xl">
             <DropdownMenuLabel className="text-[10px] font-extrabold text-[#B8651A] uppercase tracking-wider px-2.5 py-1.5 flex items-center justify-between">
               <span>Switch Project</span>
               <span className="text-[8px] font-normal text-muted-foreground normal-case bg-muted px-1.5 py-0.5 rounded">
@@ -227,7 +227,7 @@ export const ProjectSwitcher = ({ collapsed = false, showLabel = true }: Project
                   <Folder className={cn("w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform duration-200", activeWorkspace?.metaConnected ? "text-[#0E8A4B]" : "text-[#B8651A]")} />
                   <span className="truncate">{activeName}</span>
                   {activeWorkspace?.metaConnected && (
-                    <BadgeCheck className="w-4 h-4 text-[#0E8A4B] fill-[#E6F7EE]/80 flex-shrink-0" title="Verified Project" />
+                    <BadgeCheck className="w-4 h-4 text-[#0E8A4B] fill-[#E6F7EE]/80 flex-shrink-0" aria-label="Verified Project" />
                   )}
                 </div>
                 <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 group-hover:translate-y-0.5 transition-transform duration-200" />

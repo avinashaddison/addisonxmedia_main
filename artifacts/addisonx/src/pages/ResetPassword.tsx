@@ -35,9 +35,9 @@ const ResetPassword = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 8) return toast.error("Password kam se kam 8 characters ka ho");
-    if (password !== confirm) return toast.error("Passwords match nahi ho rahe");
-    if (!token) return toast.error("Reset token URL mein nahi hai");
+    if (password.length < 8) { toast.error("Password kam se kam 8 characters ka ho"); return; }
+    if (password !== confirm) { toast.error("Passwords match nahi ho rahe"); return; }
+    if (!token) { toast.error("Reset token URL mein nahi hai"); return; }
     setSubmitting(true);
     try {
       const { error } = await authClient.resetPassword({ newPassword: password, token });

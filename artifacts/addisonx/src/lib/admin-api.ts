@@ -3,6 +3,8 @@
 
 import type { PrebuiltAgent } from "./api-types";
 
+export type { PrebuiltAgent } from "./api-types";
+
 function readCsrfCookie(): string | null {
   if (typeof document === "undefined") return null;
   const m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);

@@ -43,7 +43,7 @@ const blankDraft = (isDigital = false): ProductDraft => ({
   price_usd: "", is_reseller: false, reseller_price: "", reseller_price_usd: "",
 });
 
-export const ProductsPage = () => {
+export const ProductsPage = (_props: { filterType?: "physical" | "digital" }) => {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<"physical" | "digital">("physical");
 

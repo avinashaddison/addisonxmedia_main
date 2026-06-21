@@ -89,7 +89,7 @@ const fireOsNotification = (title: string, body: string) => {
       badge: "/favicon.ico",
       tag: "addisonx-inbox",  // collapse multiple unread into one banner
       renotify: true,
-    });
+    } as NotificationOptions & { renotify?: boolean });
     // Tapping the notification brings AddisonX to front + opens inbox
     n.onclick = () => {
       window.focus();

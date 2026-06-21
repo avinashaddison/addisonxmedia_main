@@ -879,7 +879,7 @@ const StepObjective = ({
       tag="Step 1 · Objective"
     />
     <div className="grid sm:grid-cols-2 gap-3">
-      {OBJECTIVES.map((o) => (
+      {OBJECTIVES.map((o: typeof OBJECTIVES[number] & { badge?: string }) => (
         <button
           key={o.id}
           onClick={() => setObjective(o.id)}

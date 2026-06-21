@@ -371,8 +371,8 @@ const AddDealDialog = ({
   }, [open, defaultStage, ai]);
 
   const submit = async () => {
-    if (!contactId) return toast.error("Select a contact");
-    if (!title.trim()) return toast.error("Add a deal title");
+    if (!contactId) { toast.error("Select a contact"); return; }
+    if (!title.trim()) { toast.error("Add a deal title"); return; }
     await create.mutateAsync({
       contact_id: contactId,
       title: title.trim(),

@@ -187,10 +187,7 @@ const AdminDiagnostics = () => {
     if (!claimGroup || !claimUserId) return;
     setSubmitting(true);
     try {
-      await adminApi.claimOrphans({
-        phoneNumberId: claimGroup.phoneNumberId,
-        userId: claimUserId,
-      });
+      await adminApi.claimWebhookOrphans(claimGroup.phoneNumberId, claimUserId);
       toast.success(`Claimed all unrouted chats to user`);
       setClaimOpen(false);
       refetchOrphans();
@@ -204,7 +201,7 @@ const AdminDiagnostics = () => {
 
   const doClearOrphans = async (phoneNumberId?: string) => {
     try {
-      await adminApi.clearOrphans({ phoneNumberId });
+      await adminApi.clearWebhookOrphans(phoneNumberId);
       toast.success("Webhook orphan logs cleared");
       refetchOrphans();
     } catch (e) {
@@ -220,7 +217,6 @@ const AdminDiagnostics = () => {
         targetUserId: toUserId,
         sourceUserIds: [fromRow.userId],
         deleteSources: false, // Keep source account, just shift the records
-        moveMetaConfig: includeMetaConfig,
       });
       toast.success(`Chats reassigned successfully`);
       setReassignOpen(false);
@@ -254,7 +250,7 @@ const AdminDiagnostics = () => {
           <TotalCard label="Total chats" value={totals.conversations} icon={Inbox} color="emerald" />
           <TotalCard label="Total contacts" value={totals.contacts} icon={UsersIcon} color="indigo" />
           <TotalCard label="Total messages" value={totals.messages} icon={MessageSquare} color="magenta" />
-          <TotalCard label="Workspaces with data" value={ownership.length} icon={Building2} color="orange" />
+          <TotalCard label="Workspaces with data" value={(ownership ?? []).length} icon={Building2} color="orange" />
         </div>
 
         {/* Deep inspector */}
