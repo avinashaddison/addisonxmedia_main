@@ -40,6 +40,10 @@ const AdminAgentPlayground = lazy(() => import("./pages/admin/AdminAgentPlaygrou
 const AdminMarketingAgent = lazy(() => import("./pages/admin/AdminMarketingAgent.tsx"));
 const UpgradeReturn = lazy(() => import("./pages/UpgradeReturn.tsx"));
 
+// Shared titled placeholder for admin menu items whose real page ships in a
+// later task. Eagerly imported (tiny) since many admin routes reference it.
+import { ComingSoon } from "@/components/common/ComingSoon";
+
 // Sensible global defaults — was using vanilla `new QueryClient()` which means
 // staleTime: 0 (refetch on every mount) + refetchOnWindowFocus: true (refetch
 // every tab focus). Both wreck perceived perf on the India→us-east-1 round trip.
@@ -117,19 +121,60 @@ const App = () => (
               >
                 <Route index element={<AdminDashboard />} />
                 <Route path="dashboard" element={<AdminDashboard />} />
+
+                {/* Client Management */}
                 <Route path="workspaces" element={<AdminWorkspaces />} />
                 <Route path="workspaces/:id" element={<AdminWorkspaceDetail />} />
+                <Route path="clients/active" element={<ComingSoon title="Active Clients" />} />
+                <Route path="clients/suspended" element={<ComingSoon title="Suspended Clients" />} />
                 <Route path="users" element={<AdminUsers />} />
+
+                {/* Subscription Management */}
                 <Route path="subscriptions" element={<AdminSubscriptions />} />
-                <Route path="audit" element={<AdminAudit />} />
-                <Route path="staff" element={<AdminStaff />} />
-                <Route path="health" element={<AdminHealth />} />
-                <Route path="settings" element={<AdminSettings />} />
-                <Route path="security" element={<AdminSecurity />} />
-                <Route path="diagnostics" element={<AdminDiagnostics />} />
-                <Route path="meta-api" element={<AdminMetaApi />} />
-                <Route path="agent-playground" element={<AdminAgentPlayground />} />
+                <Route path="subscriptions/plans" element={<ComingSoon title="Plans" />} />
+                <Route path="subscriptions/renewals" element={<ComingSoon title="Renewals" />} />
+                <Route path="subscriptions/coupons" element={<ComingSoon title="Coupons" />} />
+
+                {/* Finance */}
+                <Route path="finance/revenue" element={<ComingSoon title="Revenue" />} />
+                <Route path="finance/transactions" element={<ComingSoon title="Transactions" />} />
+                <Route path="finance/payouts" element={<ComingSoon title="Payouts" />} />
+                <Route path="finance/reports" element={<ComingSoon title="Financial Reports" />} />
+
+                {/* WhatsApp Management */}
+                <Route path="whatsapp/instances" element={<ComingSoon title="Instances" />} />
+                <Route path="whatsapp/numbers" element={<ComingSoon title="Connected Numbers" />} />
+                <Route path="whatsapp/usage" element={<ComingSoon title="Usage Analytics" />} />
                 <Route path="marketing-agent" element={<AdminMarketingAgent />} />
+
+                {/* Support Center */}
+                <Route path="support/tickets" element={<ComingSoon title="Tickets" />} />
+                <Route path="support/live-chat" element={<ComingSoon title="Live Chat" />} />
+                <Route path="support/announcements" element={<ComingSoon title="Announcements" />} />
+                <Route path="support/knowledge-base" element={<ComingSoon title="Knowledge Base" />} />
+
+                {/* Analytics */}
+                <Route path="analytics/client-growth" element={<ComingSoon title="Client Growth" />} />
+                <Route path="analytics/revenue-growth" element={<ComingSoon title="Revenue Growth" />} />
+                <Route path="diagnostics" element={<AdminDiagnostics />} />
+                <Route path="health" element={<AdminHealth />} />
+
+                {/* System Management */}
+                <Route path="staff" element={<AdminStaff />} />
+                <Route path="system/permissions" element={<ComingSoon title="Permissions" />} />
+                <Route path="meta-api" element={<AdminMetaApi />} />
+                <Route path="system/api-keys" element={<ComingSoon title="API Keys" />} />
+                <Route path="system/backups" element={<ComingSoon title="Backups" />} />
+                <Route path="settings" element={<AdminSettings />} />
+
+                {/* Security */}
+                <Route path="security/login-logs" element={<ComingSoon title="Login Logs" />} />
+                <Route path="security/activity-logs" element={<ComingSoon title="Activity Logs" />} />
+                <Route path="audit" element={<AdminAudit />} />
+                <Route path="security" element={<AdminSecurity />} />
+
+                {/* Kept reachable via direct URL (not in the new menu) */}
+                <Route path="agent-playground" element={<AdminAgentPlayground />} />
               </Route>
 
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

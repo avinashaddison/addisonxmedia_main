@@ -12,15 +12,15 @@
  *     full vertical space for the chat panel)
  */
 
-import { LayoutDashboard, MessageCircle, Trophy, Megaphone, MoreHorizontal } from "lucide-react";
+import { LayoutDashboard, MessageCircle, Users, Megaphone, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
-  { id: "dashboard", label: "Home",   Icon: LayoutDashboard },
-  { id: "inbox",     label: "Chats",  Icon: MessageCircle },
-  { id: "deals",     label: "Deals",  Icon: Trophy },
-  { id: "ads",       label: "Ads",    Icon: Megaphone },
-  { id: "more",      label: "More",   Icon: MoreHorizontal },
+  { id: "dashboard", label: "Home",      Icon: LayoutDashboard },
+  { id: "inbox",     label: "Chats",     Icon: MessageCircle },
+  { id: "customers", label: "Customers", Icon: Users },
+  { id: "campaigns", label: "Campaigns", Icon: Megaphone },
+  { id: "more",      label: "More",      Icon: MoreHorizontal },
 ] as const;
 
 type Props = {

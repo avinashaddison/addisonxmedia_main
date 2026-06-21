@@ -1,10 +1,13 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, Building2, Users, CreditCard, ScrollText, ShieldCheck,
-  Activity, Settings, LogOut, ChevronsLeft, ChevronsRight, Loader2,
-  Crown, Lock, Shuffle, Brain, Sparkles, Inbox, Megaphone, Radio,
-  BarChart3, Plug, ChevronRight, Workflow, UsersRound, Rocket, ChevronDown
+  LayoutDashboard, Building2, UserCheck, UserX, Activity, Layers, CreditCard,
+  RefreshCw, Ticket, TrendingUp, ArrowLeftRight, Banknote, FileBarChart,
+  Smartphone, Phone, BarChart3, Radio, LifeBuoy, MessageCircle, Megaphone,
+  BookOpen, LineChart, PieChart, Gauge, FileText, ShieldCheck, Key, Plug,
+  KeyRound, Database, Settings, ScrollText, FileClock, ClipboardList, Lock,
+  LogOut, ChevronsLeft, ChevronsRight, Loader2, Crown, ChevronRight,
+  ChevronDown, Rocket
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -23,6 +26,9 @@ type NavItem = {
   label: string;
   path: string;
   badge?: number;
+  // When true, the item also highlights for any deeper child path (e.g. a
+  // detail route). Used for sections that own sub-routes like workspaces/:id.
+  hasChildren?: boolean;
 };
 
 type NavGroup = {
@@ -33,34 +39,92 @@ type NavGroup = {
 
 const GROUPS: NavGroup[] = [
   {
-    label: "Main",
-    color: "text-slate-400",
+    label: "Overview",
+    color: "text-[#B8651A]",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
-      { icon: Building2, label: "Workspaces", path: "/admin/workspaces" },
-      { icon: Users, label: "Users", path: "/admin/users" },
-      { icon: Brain, label: "Agents", path: "/admin/agent-playground" },
-      { icon: Inbox, label: "Chat Inbox", path: "/admin/diagnostics", badge: 23 },
-      { icon: Megaphone, label: "Broadcasts", path: "/admin/marketing-agent" },
-      { icon: Workflow, label: "Automation", path: "/admin/health" },
-      { icon: UsersRound, label: "Contacts", path: "/admin/users" },
+      { icon: LayoutDashboard, label: "Overview", path: "/admin/dashboard" },
+    ],
+  },
+  {
+    label: "Client Management",
+    color: "text-[#0E8A4B]",
+    items: [
+      { icon: Building2, label: "All Clients", path: "/admin/workspaces", hasChildren: true },
+      { icon: UserCheck, label: "Active Clients", path: "/admin/clients/active" },
+      { icon: UserX, label: "Suspended Clients", path: "/admin/clients/suspended" },
+      { icon: Activity, label: "Client Activity", path: "/admin/users" },
+    ],
+  },
+  {
+    label: "Subscription Management",
+    color: "text-[#FF6A1F]",
+    items: [
+      { icon: Layers, label: "Plans", path: "/admin/subscriptions/plans" },
+      { icon: CreditCard, label: "Active Subscriptions", path: "/admin/subscriptions" },
+      { icon: RefreshCw, label: "Renewals", path: "/admin/subscriptions/renewals" },
+      { icon: Ticket, label: "Coupons", path: "/admin/subscriptions/coupons" },
+    ],
+  },
+  {
+    label: "Finance",
+    color: "text-[#3C50E0]",
+    items: [
+      { icon: TrendingUp, label: "Revenue", path: "/admin/finance/revenue" },
+      { icon: ArrowLeftRight, label: "Transactions", path: "/admin/finance/transactions" },
+      { icon: Banknote, label: "Payouts", path: "/admin/finance/payouts" },
+      { icon: FileBarChart, label: "Financial Reports", path: "/admin/finance/reports" },
+    ],
+  },
+  {
+    label: "WhatsApp Management",
+    color: "text-[#0E8A4B]",
+    items: [
+      { icon: Smartphone, label: "Instances", path: "/admin/whatsapp/instances" },
+      { icon: Phone, label: "Connected Numbers", path: "/admin/whatsapp/numbers" },
+      { icon: BarChart3, label: "Usage Analytics", path: "/admin/whatsapp/usage" },
+      { icon: Radio, label: "Broadcast Monitoring", path: "/admin/marketing-agent" },
+    ],
+  },
+  {
+    label: "Support Center",
+    color: "text-[#D4308E]",
+    items: [
+      { icon: LifeBuoy, label: "Tickets", path: "/admin/support/tickets" },
+      { icon: MessageCircle, label: "Live Chat", path: "/admin/support/live-chat" },
+      { icon: Megaphone, label: "Announcements", path: "/admin/support/announcements" },
+      { icon: BookOpen, label: "Knowledge Base", path: "/admin/support/knowledge-base" },
     ],
   },
   {
     label: "Analytics",
-    color: "text-slate-400",
+    color: "text-[#FF6A1F]",
     items: [
-      { icon: BarChart3, label: "Reports & Analytics", path: "/admin/dashboard" },
-      { icon: Activity, label: "Activity Logs", path: "/admin/audit" },
+      { icon: LineChart, label: "Client Growth", path: "/admin/analytics/client-growth" },
+      { icon: PieChart, label: "Revenue Growth", path: "/admin/analytics/revenue-growth" },
+      { icon: Gauge, label: "Platform Usage", path: "/admin/diagnostics" },
+      { icon: FileText, label: "System Reports", path: "/admin/health" },
     ],
   },
   {
-    label: "Settings",
-    color: "text-slate-400",
+    label: "System Management",
+    color: "text-[#3C50E0]",
     items: [
+      { icon: ShieldCheck, label: "Roles", path: "/admin/staff" },
+      { icon: Key, label: "Permissions", path: "/admin/system/permissions" },
       { icon: Plug, label: "Integrations", path: "/admin/meta-api" },
-      { icon: CreditCard, label: "Billing & Plans", path: "/admin/subscriptions" },
+      { icon: KeyRound, label: "API Keys", path: "/admin/system/api-keys" },
+      { icon: Database, label: "Backups", path: "/admin/system/backups" },
       { icon: Settings, label: "Settings", path: "/admin/settings" },
+    ],
+  },
+  {
+    label: "Security",
+    color: "text-[#B8651A]",
+    items: [
+      { icon: ScrollText, label: "Login Logs", path: "/admin/security/login-logs" },
+      { icon: FileClock, label: "Activity Logs", path: "/admin/security/activity-logs" },
+      { icon: ClipboardList, label: "Audit Logs", path: "/admin/audit" },
+      { icon: Lock, label: "Access Control", path: "/admin/security" },
     ],
   },
 ];
@@ -201,21 +265,17 @@ export const AdminShell = ({ children }: { children?: ReactNode }) => {
         {/* Nav */}
         <nav className="relative flex-1 overflow-y-auto py-4 px-3 space-y-6">
           {GROUPS.map((group) => {
-            const groupColors: Record<string, string> = {
-              Main: "text-[#0E8A4B]",
-              Analytics: "text-[#FF6A1F]",
-              Settings: "text-[#3C50E0]",
-            };
             return (
               <div key={group.label} className="space-y-1">
                 {!collapsed && (
-                  <p className={cn("text-[10px] font-extrabold uppercase tracking-[0.2em] px-3 mb-2", groupColors[group.label] || "text-slate-400")}>
+                  <p className={cn("text-[10px] font-extrabold uppercase tracking-[0.2em] px-3 mb-2", group.color || "text-slate-400")}>
                     {group.label}
                   </p>
                 )}
                 {group.items.map((item) => {
                   const isActive = location.pathname === item.path
-                    || (item.path !== "/admin/dashboard" && location.pathname.startsWith(item.path));
+                    || (item.path === "/admin/dashboard" && location.pathname === "/admin")
+                    || (item.hasChildren === true && location.pathname.startsWith(item.path + "/"));
                   return (
                     <Link
                       key={item.path + item.label}

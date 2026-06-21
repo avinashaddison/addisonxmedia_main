@@ -29,17 +29,6 @@ import adsRoutes from "./routes/ads";
 import paymentsRoutes from "./routes/payments";
 import aiRoutes from "./routes/ai";
 import billingRoutes from "./routes/billing";
-import siteRoutes from "./routes/site";
-import sitePublicRoutes from "./routes/site-public";
-import productRoutes from "./routes/product";
-import orderRoutes from "./routes/order";
-import siteAnalyticsRoutes from "./routes/site-analytics";
-import couponRoutes from "./routes/coupon";
-import shippingRoutes from "./routes/shipping";
-import orderPaymentRoutes from "./routes/order-payment";
-import sitePageRoutes from "./routes/site-page";
-import commerceRoutes from "./routes/commerce";
-import bookingRoutes from "./routes/booking";
 import exportRoutes from "./routes/export";
 import leadsRoutes from "./routes/leads";
 import { requireVerifiedEmail } from "./middleware/requireVerifiedEmail";
@@ -157,23 +146,7 @@ app.route("/api", paymentsRoutes);
 app.route("/api", aiRoutes);
 app.route("/api", workspaceRoutes);
 app.route("/api", billingRoutes);
-app.route("/api", siteRoutes);
-app.route("/api", productRoutes);
-app.route("/api", orderRoutes);
-app.route("/api", siteAnalyticsRoutes);
-app.route("/api", couponRoutes);
-app.route("/api", shippingRoutes);
-// Order payment routes — mounted at root because /biz/... + /api/cashfree/order-webhook
-// span both public and API surfaces.
-app.route("/", orderPaymentRoutes);
-app.route("/api", sitePageRoutes);
-app.route("/api", commerceRoutes);
-app.route("/api", bookingRoutes);
 app.route("/api", exportRoutes);
-
-// Public website renderer — no /api prefix. /biz/:slug is the public URL
-// customers share, so it lives next to /sitemap.xml as a top-level route.
-app.route("/", sitePublicRoutes);
 
 // /sitemap.xml + /robots.txt are dynamic — driven by admin settings, available
 // in both dev and prod so SEO checks work the same locally.

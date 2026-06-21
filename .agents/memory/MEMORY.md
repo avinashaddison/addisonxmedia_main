@@ -1,6 +1,1 @@
-- [Post-merge & drizzle push](post-merge-drizzle.md) — post-merge must push @workspace/api-server schema, never `--filter db` (empty scaffold → drops all tables); push drift is `_key` vs `_unique` naming.
-- [Lovable structural port](lovable-structural-port.md) — some lovable.dev exports ship a full self-hosted backend; the migration is structural, not a Supabase swap.
-- [Hono api-server on Replit](hono-api-server.md) — conventions for running the imported Hono backend in the api-server artifact.
-- [AddisonX frontend build](addisonx-frontend-build.md) — how to build/verify the React+Vite artifact; tsc is not the gate.
-- [AddisonX build quirks](addisonx-build-quirks.md) — non-obvious build/typecheck gotchas, run flags, intentional dual phone numbers.
-- [Render single-service deploy](render-deploy.md) — one web service serves API + Vite SPA; pnpm-only (npm guard), build copies dist/public→api-server/dist, BASE_PATH=/, DB push gated by RUN_DB_PUSH.
+- [AddisonX validation = Vite build + tsx boot, not strict tsc](addisonx-validation.md) — `tsc`/`tsc -b` has many PRE-EXISTING errors; don't chase them as regressions.

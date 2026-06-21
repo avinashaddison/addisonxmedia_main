@@ -5,15 +5,19 @@
 //
 // Vite/Rollup automatically emits a <link rel="modulepreload"> per chunk so
 // hover firing import() is essentially free if the user doesn't end up clicking.
+//
+// Keys match the sidebar item ids. Items that render a placeholder (ComingSoon)
+// have no chunk to prefetch and are simply omitted — prefetchPage() no-ops on
+// unknown ids.
 
 const PREFETCHERS: Record<string, () => Promise<unknown>> = {
   dashboard: () => import("@/components/dashboard/DashboardPage"),
   inbox: () => import("@/components/inbox/InboxPage"),
+  customers: () => import("@/components/contacts/ContactsPage"),
   contacts: () => import("@/components/contacts/ContactsPage"),
   deals: () => import("@/components/deals/DealsPage"),
   analytics: () => import("@/components/analytics/AnalyticsPage"),
   ads: () => import("@/components/ads/AdsMarketingPage"),
-  // ads: marketing module
   campaigns: () => import("@/components/campaigns/CampaignsPage"),
   broadcasts: () => import("@/components/broadcasts/BroadcastsPage"),
   templates: () => import("@/components/templates/TemplatesPage"),
@@ -21,7 +25,7 @@ const PREFETCHERS: Record<string, () => Promise<unknown>> = {
   activity: () => import("@/components/activity/ActivityPage"),
   integrations: () => import("@/components/integrations/IntegrationsPage"),
   settings: () => import("@/components/settings/SettingsPage"),
-  site: () => import("@/components/site/SitePage"),
+  "settings/profile": () => import("@/components/settings/SettingsPage"),
   admin: () => import("@/components/admin/AdminShell"),
 };
 

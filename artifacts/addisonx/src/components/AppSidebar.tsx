@@ -1,4 +1,4 @@
-import { LayoutDashboard, Inbox, Users, Megaphone, Radio, Bell, Settings, LogOut, Sparkles, Globe, ChevronsLeft, ChevronsRight, ChevronRight, Trophy, BarChart3, Brain, FileText, UsersRound, Activity, Plug, X, Bot, Workflow, Target, Shield, ScrollText, Crown, Loader2, Rocket, ArrowLeft, Palette, LayoutGrid, Package, ShoppingCart, CreditCard, Truck, Ticket, ClipboardList, Search, Store, Wrench, Layers, Calendar, MessageCircle } from "lucide-react";
+import { LayoutDashboard, UserPlus, Users, Bell, ClipboardList, StickyNote, MessageCircle, Radio, FileText, Megaphone, Receipt, CreditCard, TrendingUp, Wallet, BarChart3, PieChart, LineChart, Activity, Building2, UsersRound, Shield, Lock, Settings, LogOut, Globe, ChevronsLeft, ChevronsRight, X, ScrollText, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AddisonMark, AddisonLogo } from "@/components/brand/AddisonLogo";
@@ -13,7 +13,7 @@ import {
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { prefetchPage } from "@/lib/prefetch";
 import { useConversations } from "@/hooks/useInboxData";
@@ -40,54 +40,55 @@ type NavItem = {
 
 const groups: { label: string; items: NavItem[] }[] = [
   {
-    label: "Sales",
+    label: "Overview",
     items: [
       { icon: LayoutDashboard, label: "Dashboard", id: "dashboard", hint: "Command center" },
-      { icon: Inbox, label: "Chats", id: "inbox", badgeKey: "inbox", hint: "Live WhatsApp inbox", live: true },
-      { icon: Users, label: "Contacts", id: "contacts", hint: "Leads & CRM" },
-      { icon: Trophy, label: "Deals", id: "deals", hint: "Sales pipeline" },
     ],
   },
   {
-    label: "Marketing",
+    label: "CRM",
     items: [
-      { icon: Target, label: "Ads Marketing", id: "ads", hint: "Meta + Google ads", smart: true },
-      { icon: Megaphone, label: "Campaigns", id: "campaigns", hint: "Multi-channel" },
-      { icon: Radio, label: "Broadcasts", id: "broadcasts", hint: "Mass messages" },
-      { icon: FileText, label: "Templates", id: "templates", hint: "Reusable messages" },
-    ],
-  },
-  {
-    label: "Automation",
-    items: [
+      { icon: UserPlus, label: "Leads", id: "leads", hint: "New enquiries" },
+      { icon: Users, label: "Customers", id: "customers", hint: "Contacts & CRM" },
       { icon: Bell, label: "Follow-ups", id: "followups", badgeKey: "tasks", hint: "Tasks queue" },
+      { icon: ClipboardList, label: "Tasks", id: "tasks", hint: "To-dos" },
+      { icon: StickyNote, label: "Notes", id: "notes", hint: "Internal notes" },
     ],
   },
   {
-    label: "AI",
+    label: "Communications",
     items: [
-      { icon: Brain, label: "AI Agent", id: "ai-training", hint: "Teach Addison about your business", smart: true },
+      { icon: MessageCircle, label: "WhatsApp Inbox", id: "inbox", badgeKey: "inbox", hint: "Live WhatsApp inbox", live: true },
+      { icon: Radio, label: "Broadcast", id: "broadcasts", hint: "Mass messages" },
+      { icon: FileText, label: "Templates", id: "templates", hint: "Reusable messages" },
+      { icon: Megaphone, label: "Campaigns", id: "campaigns", hint: "Multi-channel" },
     ],
   },
   {
-    label: "System",
+    label: "Finance",
     items: [
-      { icon: BarChart3, label: "Analytics", id: "analytics", hint: "Reports & insights" },
-      { icon: Activity, label: "Activity", id: "activity", hint: "System history" },
-      { icon: Plug, label: "Integrations", id: "integrations", hint: "Connect tools" },
-      { icon: Settings, label: "Settings", id: "settings", hint: "Workspace config" },
+      { icon: Receipt, label: "Invoices", id: "invoices", hint: "Bills & invoices" },
+      { icon: CreditCard, label: "Payments", id: "payments", hint: "Payments received" },
+      { icon: TrendingUp, label: "Revenue", id: "revenue", hint: "Income overview" },
+      { icon: Wallet, label: "Expenses", id: "expenses", hint: "Spending" },
     ],
   },
-];
-
-const websiteGroups: { label: string; items: NavItem[] }[] = [
   {
-    label: "Store Console",
+    label: "Reports",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard", id: "site",           hint: "Overview & metrics" },
-      { icon: Package,         label: "Products",  id: "site/products",   hint: "Manage your catalog" },
-      { icon: Calendar,        label: "Bookings",  id: "site/bookings",   hint: "Appointments & schedules" },
-      { icon: CreditCard,      label: "Payments",  id: "site/payments",   hint: "UPI & online gateways" },
+      { icon: BarChart3, label: "Leads Report", id: "reports/leads", hint: "Lead analytics" },
+      { icon: PieChart, label: "Customer Report", id: "reports/customers", hint: "Customer insights" },
+      { icon: LineChart, label: "Revenue Report", id: "reports/revenue", hint: "Revenue trends" },
+      { icon: Activity, label: "Performance Report", id: "reports/performance", hint: "Team performance" },
+    ],
+  },
+  {
+    label: "Settings",
+    items: [
+      { icon: Building2, label: "Business Profile", id: "settings/profile", hint: "Workspace config" },
+      { icon: UsersRound, label: "Team Members", id: "settings/team", hint: "Invite & manage" },
+      { icon: Shield, label: "Roles & Permissions", id: "settings/roles", hint: "Access control" },
+      { icon: Lock, label: "Security", id: "settings/security", hint: "Account security" },
     ],
   },
 ];
@@ -119,13 +120,6 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
   });
-
-  const location = useLocation();
-  const mode: "primary" | "website" = location.pathname.startsWith("/app/site") ? "website" : "primary";
-  const activeGroups = mode === "website" ? websiteGroups : groups;
-  const websiteSubPath = location.pathname.replace(/^\/app\/site\/?/, "");
-  const activeId = mode === "website" ? (websiteSubPath ? `site/${websiteSubPath}` : "site") : active;
-
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
@@ -250,18 +244,14 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
         </div>
 
 
-        {activeGroups.map((group) => {
+        {groups.map((group) => {
           const groupColors: Record<string, string> = {
-            Sales: "text-[#0E8A4B]",
-            Marketing: "text-[#FF6A1F]",
-            Automation: "text-[#D4308E]",
-            AI: "text-[#3C50E0]",
-            System: "text-[#B8651A]",
-            // Website-mode groups
-            "Design & Content": "text-[#0E8A4B]",
-            "Leads & Bookings": "text-[#D4308E]",
-            "Commerce & Sales": "text-[#FF6A1F]",
-            "Reports & Setup": "text-[#3C50E0]",
+            Overview: "text-[#B8651A]",
+            CRM: "text-[#0E8A4B]",
+            Communications: "text-[#FF6A1F]",
+            Finance: "text-[#3C50E0]",
+            Reports: "text-[#D4308E]",
+            Settings: "text-[#0E8A4B]",
           };
           return (
           <div key={group.label} className="space-y-1">
@@ -271,7 +261,7 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
               </p>
             )}
             {group.items.map((item) => {
-              const isActive = item.id === activeId;
+              const isActive = item.id === active;
               const badgeValue = item.badgeKey ? badges?.[item.badgeKey] : 0;
               return (
                 <button
@@ -339,84 +329,6 @@ export const AppSidebar = ({ active, onNavigate, mobileOpen = false, onMobileClo
           );
         })}
       </nav>
-
-      {/* Pinned 'Products + Sites' CTA */}
-      {mode === "primary" && (
-        <div className="px-2.5 pt-3 pb-3 flex-shrink-0">
-          <button
-            onClick={() => handleNavigate("site")}
-            onMouseEnter={() => prefetchPage("site")}
-            title={collapsed ? "Manage Products" : undefined}
-            className={cn(
-              "relative w-full rounded-xl flex items-center gap-2.5 px-2.5 transition-all duration-300 group overflow-hidden border-2 border-[#7A4A00] shadow-[0_4px_0_0_#7A4A00] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[0_1px_0_0_#7A4A00] bg-gradient-to-r from-[#0E8A4B] via-[#10B981] to-[#0A6E3C] bg-[length:200%_auto] hover:bg-right hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] text-white font-extrabold",
-              collapsed ? "h-11 justify-center px-0" : "py-2.5 min-h-[48px]",
-            )}
-          >
-            {/* Sliding Shine Sweep */}
-            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none" />
-
-            <span className="absolute -top-3 -right-3 w-10 h-10 bg-[#FFD23F]/25 rounded-full blur-lg pointer-events-none" />
-            <span className="relative w-7 h-7 rounded-lg bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center flex-shrink-0 shadow-[0_2px_0_0_#B8860B] transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12">
-              <Store className="w-4 h-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" strokeWidth={2.5} />
-            </span>
-            {!collapsed && (
-              <span className="relative flex-1 text-left">
-                <span className="block text-[12.5px] leading-tight">Manage Products</span>
-                <span className="block text-[9.5px] font-bold text-[#FFD23F] uppercase tracking-wider">
-                  Control Panel
-                </span>
-              </span>
-            )}
-            {!collapsed && (
-              <ChevronRight className="relative w-4 h-4 text-[#FFD23F] group-hover:translate-x-1.5 transition-transform duration-300 flex-shrink-0" strokeWidth={2.5} />
-            )}
-            {collapsed && (
-              <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
-                Manage Products
-              </span>
-            )}
-          </button>
-        </div>
-      )}
-
-      {/* Pinned 'Back to Main' CTA for website mode */}
-      {mode === "website" && (
-        <div className="px-2.5 pt-3 pb-3 flex-shrink-0">
-          <button
-            onClick={() => handleNavigate("dashboard")}
-            title={collapsed ? "Back to Main" : undefined}
-            className={cn(
-              "relative w-full rounded-xl flex items-center gap-2.5 px-2.5 transition-all duration-300 group overflow-hidden border-2 border-[#7A4A00] shadow-[0_4px_0_0_#7A4A00] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[0_1px_0_0_#7A4A00] bg-gradient-to-r from-[#0E8A4B] via-[#10B981] to-[#0A6E3C] bg-[length:200%_auto] hover:bg-right hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] text-white font-extrabold",
-              collapsed ? "h-11 justify-center px-0" : "h-12",
-            )}
-          >
-            {/* Sliding Shine Sweep */}
-            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none" />
-
-            <span className="absolute -top-3 -right-3 w-10 h-10 bg-[#FFD23F]/25 rounded-full blur-lg pointer-events-none" />
-            <span className="relative w-7 h-7 rounded-lg bg-[#FFD23F] text-[#7A4A00] flex items-center justify-center flex-shrink-0 shadow-[0_2px_0_0_#B8860B] transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-12">
-              <ArrowLeft className="w-4 h-4 transition-transform duration-300 group-hover:-translate-x-0.5" strokeWidth={2.5} />
-            </span>
-            {!collapsed && (
-              <span className="relative flex-1 text-left">
-                <span className="block text-[12.5px] leading-tight">Back to Main</span>
-                <span className="block text-[9.5px] font-bold text-[#FFD23F] uppercase tracking-wider">
-                  Exit Website Console
-                </span>
-              </span>
-            )}
-            {!collapsed && (
-              <ChevronRight className="relative w-4 h-4 text-[#FFD23F] group-hover:translate-x-1.5 transition-transform duration-300 flex-shrink-0" strokeWidth={2.5} />
-            )}
-            {collapsed && (
-              <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#0A3D24] text-white text-[11px] font-extrabold whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-lg">
-                Back to Main
-              </span>
-            )}
-          </button>
-        </div>
-      )}
-
 
       {/* User menu */}
       <div className="p-2.5 border-t-2 border-[#E8B968] bg-white">
