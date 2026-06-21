@@ -1,1 +1,2 @@
-- [Workspace scoping model](workspace-scoping-model.md) — userId = active/virtual workspace scope; ownerUserId = real owner scope; validate cross-scope FKs (e.g. task assignee) against ownerUserId; RBAC matrix is planning-only, not enforced.
+- [Workspace scoping model](workspace-scoping-model.md) — userId = active workspace scope vs ownerUserId = real owner; validate cross-scope FKs against ownerUserId; RBAC matrix is planning-only.
+- [Admin dashboard data model](admin-dashboard-model.md) — which admin modules are fully built vs honest scaffolds, and the data-source decisions (and whys) behind each.

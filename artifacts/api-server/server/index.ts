@@ -25,6 +25,11 @@ import integrationsRoutes from "./routes/integrations";
 import metaApiRoutes from "./routes/meta-api";
 import webhookRoutes from "./routes/webhooks";
 import adminRoutes from "./routes/admin";
+import adminPlansRoutes from "./routes/admin-plans";
+import adminFinanceRoutes from "./routes/admin-finance";
+import adminAnalyticsRoutes from "./routes/admin-analytics";
+import adminSecurityRoutes from "./routes/admin-security";
+import adminScaffoldRoutes from "./routes/admin-scaffold";
 import adsRoutes from "./routes/ads";
 import paymentsRoutes from "./routes/payments";
 import aiRoutes from "./routes/ai";
@@ -133,6 +138,15 @@ app.use('/api/*', requireVerifiedEmail);
 // otherwise eat unrelated paths like /api/system/flags (public) or /api/admin/me
 // (its own auth path) and return 401 before adminRoutes gets a turn.
 app.route("/", adminRoutes);
+// Additional admin surface (subscription plans, finance, analytics, security,
+// scaffolded modules). Each is its own Hono app with its own requireAdmin()
+// gate; mounted here BEFORE the per-resource sub-apps so their `requireAuth`
+// (normal-user) middleware doesn't intercept /api/admin/* paths.
+app.route("/", adminPlansRoutes);
+app.route("/", adminFinanceRoutes);
+app.route("/", adminAnalyticsRoutes);
+app.route("/", adminSecurityRoutes);
+app.route("/", adminScaffoldRoutes);
 
 // Public lead capture (no auth) — MUST be mounted before the per-resource
 // sub-apps below, whose `app.use("*", requireAuth)` would otherwise eat this

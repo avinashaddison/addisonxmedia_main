@@ -37,6 +37,7 @@ export const user = pgTable("user", {
   accountStatus: text("account_status").notNull().default("active"),  // 'active' | 'suspended' | 'cancelled' | 'trial'
   plan: text("plan").notNull().default("starter"),                    // 'starter' | 'growth' | 'enterprise'
   trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+  planRenewsAt: timestamp("plan_renews_at", { withTimezone: true }),  // next subscription renewal (null for free/legacy)
   mrrInr: numeric("mrr_inr", { precision: 12, scale: 2 }).notNull().default("0"),
   suspendedAt: timestamp("suspended_at", { withTimezone: true }),
   suspendedReason: text("suspended_reason"),
@@ -1064,3 +1065,116 @@ export const teamMember = pgTable("team_member", {
 }));
 
 export type TeamMember = typeof teamMember.$inferSelect;
+
+// ============================================================
+// ADMIN — Subscription plans, platform coupons, payouts
+// Platform-operator facing (distinct from owner-scoped storefront `coupon`).
+// ============================================================
+
+export const subscriptionPlan = pgTable("subscription_plan", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),                                // 'free' | 'starter' | 'growth' | 'scale' | 'enterprise'
+  name: text("name").notNull(),
+  description: text("description"),
+  priceInr: numeric("price_inr", { precision: 12, scale: 2 }).notNull().default("0"),
+  billingCycle: text("billing_cycle").notNull().default("monthly"),    // 'monthly' | 'annual'
+  features: jsonb("features").notNull().default(sql`'[]'::jsonb`),      // string[]
+  isActive: boolean("is_active").notNull().default(true),
+  isPublic: boolean("is_public").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  activeIdx: index("subscription_plan_active_idx").on(t.isActive, t.sortOrder),
+}));
+
+export const platformCoupon = pgTable("platform_coupon", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(),
+  description: text("description"),
+  discountType: text("discount_type").notNull().default("percent"),    // 'percent' | 'fixed'
+  discountValue: numeric("discount_value", { precision: 12, scale: 2 }).notNull().default("0"),
+  appliesToPlan: text("applies_to_plan"),                              // plan key, null = all plans
+  maxRedemptions: integer("max_redemptions"),                          // null = unlimited
+  usedCount: integer("used_count").notNull().default(0),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  active: boolean("active").notNull().default(true),
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  activeIdx: index("platform_coupon_active_idx").on(t.active, t.expiresAt),
+}));
+
+export const payout = pgTable("payout", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  recipient: text("recipient").notNull(),
+  recipientType: text("recipient_type").notNull().default("partner"),  // 'partner' | 'affiliate' | 'vendor' | 'refund'
+  amountInr: numeric("amount_inr", { precision: 12, scale: 2 }).notNull().default("0"),
+  method: text("method").notNull().default("upi"),                     // 'upi' | 'bank' | 'manual'
+  reference: text("reference"),                                        // UPI ref / UTR / note
+  status: text("status").notNull().default("pending"),                 // 'pending' | 'processing' | 'paid' | 'failed'
+  notes: text("notes"),
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+}, (t) => ({
+  statusIdx: index("payout_status_idx").on(t.status, t.createdAt),
+}));
+
+export type SubscriptionPlan = typeof subscriptionPlan.$inferSelect;
+export type PlatformCoupon = typeof platformCoupon.$inferSelect;
+export type Payout = typeof payout.$inferSelect;
+
+// ============================================================
+// ADMIN — Scaffolded modules (Support Center, API keys, Backups)
+// Minimal backing tables for shells that are "completing next".
+// ============================================================
+
+export const supportTicket = pgTable("support_ticket", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").references(() => user.id, { onDelete: "set null" }),  // customer who raised it
+  subject: text("subject").notNull(),
+  body: text("body"),
+  category: text("category").notNull().default("general"),            // 'general' | 'billing' | 'technical' | 'whatsapp'
+  priority: text("priority").notNull().default("medium"),             // 'low' | 'medium' | 'high' | 'urgent'
+  status: text("status").notNull().default("open"),                   // 'open' | 'pending' | 'resolved' | 'closed'
+  assignedTo: text("assigned_to").references(() => user.id, { onDelete: "set null" }),  // staff member
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index("support_ticket_status_idx").on(t.status, t.createdAt),
+  assignedIdx: index("support_ticket_assigned_idx").on(t.assignedTo),
+}));
+
+export const apiKey = pgTable("api_key", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  keyPrefix: text("key_prefix").notNull(),                            // first 8 chars shown in UI
+  keyHash: text("key_hash").notNull(),                                // sha256 — never store plaintext
+  scopes: jsonb("scopes").notNull().default(sql`'[]'::jsonb`),        // string[]
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  activeIdx: index("api_key_active_idx").on(t.revokedAt, t.createdAt),
+}));
+
+export const backup = pgTable("backup", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  filename: text("filename").notNull(),
+  kind: text("kind").notNull().default("manual"),                     // 'manual' | 'scheduled'
+  sizeBytes: numeric("size_bytes", { precision: 20, scale: 0 }).notNull().default("0"),
+  status: text("status").notNull().default("pending"),               // 'pending' | 'completed' | 'failed'
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => ({
+  statusIdx: index("backup_status_idx").on(t.status, t.createdAt),
+}));
+
+export type SupportTicket = typeof supportTicket.$inferSelect;
+export type ApiKey = typeof apiKey.$inferSelect;
+export type Backup = typeof backup.$inferSelect;

@@ -40,9 +40,30 @@ const AdminAgentPlayground = lazy(() => import("./pages/admin/AdminAgentPlaygrou
 const AdminMarketingAgent = lazy(() => import("./pages/admin/AdminMarketingAgent.tsx"));
 const UpgradeReturn = lazy(() => import("./pages/UpgradeReturn.tsx"));
 
-// Shared titled placeholder for admin menu items whose real page ships in a
-// later task. Eagerly imported (tiny) since many admin routes reference it.
-import { ComingSoon } from "@/components/common/ComingSoon";
+// Admin — Task #14 core module pages + scaffold shells
+const AdminActiveClients = lazy(() => import("./pages/admin/AdminActiveClients.tsx"));
+const AdminSuspendedClients = lazy(() => import("./pages/admin/AdminSuspendedClients.tsx"));
+const AdminPlans = lazy(() => import("./pages/admin/AdminPlans.tsx"));
+const AdminRenewals = lazy(() => import("./pages/admin/AdminRenewals.tsx"));
+const AdminPlatformCoupons = lazy(() => import("./pages/admin/AdminPlatformCoupons.tsx"));
+const AdminRevenue = lazy(() => import("./pages/admin/AdminRevenue.tsx"));
+const AdminTransactions = lazy(() => import("./pages/admin/AdminTransactions.tsx"));
+const AdminPayouts = lazy(() => import("./pages/admin/AdminPayouts.tsx"));
+const AdminFinancialReports = lazy(() => import("./pages/admin/AdminFinancialReports.tsx"));
+const AdminClientGrowth = lazy(() => import("./pages/admin/AdminClientGrowth.tsx"));
+const AdminRevenueGrowth = lazy(() => import("./pages/admin/AdminRevenueGrowth.tsx"));
+const AdminLoginLogs = lazy(() => import("./pages/admin/AdminLoginLogs.tsx"));
+const AdminActivityLogs = lazy(() => import("./pages/admin/AdminActivityLogs.tsx"));
+const AdminPermissions = lazy(() => import("./pages/admin/AdminPermissions.tsx"));
+const AdminWhatsAppInstances = lazy(() => import("./pages/admin/WhatsAppInstances.tsx"));
+const AdminWhatsAppNumbers = lazy(() => import("./pages/admin/WhatsAppNumbers.tsx"));
+const AdminWhatsAppUsage = lazy(() => import("./pages/admin/WhatsAppUsage.tsx"));
+const AdminSupportTickets = lazy(() => import("./pages/admin/SupportTickets.tsx"));
+const AdminSupportLiveChat = lazy(() => import("./pages/admin/SupportLiveChat.tsx"));
+const AdminSupportAnnouncements = lazy(() => import("./pages/admin/SupportAnnouncements.tsx"));
+const AdminSupportKnowledgeBase = lazy(() => import("./pages/admin/SupportKnowledgeBase.tsx"));
+const AdminApiKeys = lazy(() => import("./pages/admin/ApiKeys.tsx"));
+const AdminBackups = lazy(() => import("./pages/admin/Backups.tsx"));
 
 // Sensible global defaults — was using vanilla `new QueryClient()` which means
 // staleTime: 0 (refetch on every mount) + refetchOnWindowFocus: true (refetch
@@ -125,51 +146,51 @@ const App = () => (
                 {/* Client Management */}
                 <Route path="workspaces" element={<AdminWorkspaces />} />
                 <Route path="workspaces/:id" element={<AdminWorkspaceDetail />} />
-                <Route path="clients/active" element={<ComingSoon title="Active Clients" />} />
-                <Route path="clients/suspended" element={<ComingSoon title="Suspended Clients" />} />
+                <Route path="clients/active" element={<AdminActiveClients />} />
+                <Route path="clients/suspended" element={<AdminSuspendedClients />} />
                 <Route path="users" element={<AdminUsers />} />
 
                 {/* Subscription Management */}
                 <Route path="subscriptions" element={<AdminSubscriptions />} />
-                <Route path="subscriptions/plans" element={<ComingSoon title="Plans" />} />
-                <Route path="subscriptions/renewals" element={<ComingSoon title="Renewals" />} />
-                <Route path="subscriptions/coupons" element={<ComingSoon title="Coupons" />} />
+                <Route path="subscriptions/plans" element={<AdminPlans />} />
+                <Route path="subscriptions/renewals" element={<AdminRenewals />} />
+                <Route path="subscriptions/coupons" element={<AdminPlatformCoupons />} />
 
                 {/* Finance */}
-                <Route path="finance/revenue" element={<ComingSoon title="Revenue" />} />
-                <Route path="finance/transactions" element={<ComingSoon title="Transactions" />} />
-                <Route path="finance/payouts" element={<ComingSoon title="Payouts" />} />
-                <Route path="finance/reports" element={<ComingSoon title="Financial Reports" />} />
+                <Route path="finance/revenue" element={<AdminRevenue />} />
+                <Route path="finance/transactions" element={<AdminTransactions />} />
+                <Route path="finance/payouts" element={<AdminPayouts />} />
+                <Route path="finance/reports" element={<AdminFinancialReports />} />
 
                 {/* WhatsApp Management */}
-                <Route path="whatsapp/instances" element={<ComingSoon title="Instances" />} />
-                <Route path="whatsapp/numbers" element={<ComingSoon title="Connected Numbers" />} />
-                <Route path="whatsapp/usage" element={<ComingSoon title="Usage Analytics" />} />
+                <Route path="whatsapp/instances" element={<AdminWhatsAppInstances />} />
+                <Route path="whatsapp/numbers" element={<AdminWhatsAppNumbers />} />
+                <Route path="whatsapp/usage" element={<AdminWhatsAppUsage />} />
                 <Route path="marketing-agent" element={<AdminMarketingAgent />} />
 
                 {/* Support Center */}
-                <Route path="support/tickets" element={<ComingSoon title="Tickets" />} />
-                <Route path="support/live-chat" element={<ComingSoon title="Live Chat" />} />
-                <Route path="support/announcements" element={<ComingSoon title="Announcements" />} />
-                <Route path="support/knowledge-base" element={<ComingSoon title="Knowledge Base" />} />
+                <Route path="support/tickets" element={<AdminSupportTickets />} />
+                <Route path="support/live-chat" element={<AdminSupportLiveChat />} />
+                <Route path="support/announcements" element={<AdminSupportAnnouncements />} />
+                <Route path="support/knowledge-base" element={<AdminSupportKnowledgeBase />} />
 
                 {/* Analytics */}
-                <Route path="analytics/client-growth" element={<ComingSoon title="Client Growth" />} />
-                <Route path="analytics/revenue-growth" element={<ComingSoon title="Revenue Growth" />} />
+                <Route path="analytics/client-growth" element={<AdminClientGrowth />} />
+                <Route path="analytics/revenue-growth" element={<AdminRevenueGrowth />} />
                 <Route path="diagnostics" element={<AdminDiagnostics />} />
                 <Route path="health" element={<AdminHealth />} />
 
                 {/* System Management */}
                 <Route path="staff" element={<AdminStaff />} />
-                <Route path="system/permissions" element={<ComingSoon title="Permissions" />} />
+                <Route path="system/permissions" element={<AdminPermissions />} />
                 <Route path="meta-api" element={<AdminMetaApi />} />
-                <Route path="system/api-keys" element={<ComingSoon title="API Keys" />} />
-                <Route path="system/backups" element={<ComingSoon title="Backups" />} />
+                <Route path="system/api-keys" element={<AdminApiKeys />} />
+                <Route path="system/backups" element={<AdminBackups />} />
                 <Route path="settings" element={<AdminSettings />} />
 
                 {/* Security */}
-                <Route path="security/login-logs" element={<ComingSoon title="Login Logs" />} />
-                <Route path="security/activity-logs" element={<ComingSoon title="Activity Logs" />} />
+                <Route path="security/login-logs" element={<AdminLoginLogs />} />
+                <Route path="security/activity-logs" element={<AdminActivityLogs />} />
                 <Route path="audit" element={<AdminAudit />} />
                 <Route path="security" element={<AdminSecurity />} />
 

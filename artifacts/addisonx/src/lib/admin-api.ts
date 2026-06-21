@@ -230,6 +230,86 @@ export const adminApi = {
     adminRequest<PrebuiltAgent>(`/prebuilt-agents/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deletePrebuiltAgent: (id: string) =>
     adminRequest<{ ok: true }>(`/prebuilt-agents/${id}`, { method: "DELETE" }),
+
+  // ── Subscription plans ──
+  plans: () => adminRequest<SubscriptionPlan[]>("/plans"),
+  createPlan: (data: Partial<SubscriptionPlan>) =>
+    adminRequest<SubscriptionPlan>("/plans", { method: "POST", body: JSON.stringify(data) }),
+  updatePlan: (id: string, data: Partial<SubscriptionPlan>) =>
+    adminRequest<SubscriptionPlan>(`/plans/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deletePlan: (id: string) => adminRequest<{ ok: true }>(`/plans/${id}`, { method: "DELETE" }),
+
+  // ── Platform coupons ──
+  coupons: () => adminRequest<PlatformCoupon[]>("/coupons"),
+  createCoupon: (data: Partial<PlatformCoupon>) =>
+    adminRequest<PlatformCoupon>("/coupons", { method: "POST", body: JSON.stringify(data) }),
+  updateCoupon: (id: string, data: Partial<PlatformCoupon>) =>
+    adminRequest<PlatformCoupon>(`/coupons/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteCoupon: (id: string) => adminRequest<{ ok: true }>(`/coupons/${id}`, { method: "DELETE" }),
+
+  // ── Renewals ──
+  renewals: () => adminRequest<RenewalsReport>("/renewals"),
+
+  // ── Finance ──
+  financeSummary: () => adminRequest<FinanceSummary>("/finance/summary"),
+  financeTransactions: (params?: { status?: string; q?: string; limit?: number }) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]))
+    ).toString();
+    return adminRequest<FinanceTransaction[]>(`/finance/transactions${qs ? `?${qs}` : ""}`);
+  },
+  financeRefunds: (limit?: number) =>
+    adminRequest<FinanceRefund[]>(`/finance/refunds${limit ? `?limit=${limit}` : ""}`),
+  financeReports: (months?: number) =>
+    adminRequest<FinanceReports>(`/finance/reports${months ? `?months=${months}` : ""}`),
+
+  // ── Payouts ──
+  payouts: () => adminRequest<Payout[]>("/payouts"),
+  createPayout: (data: {
+    recipient: string;
+    amountInr: number;
+    recipientType?: string;
+    method?: string;
+    reference?: string;
+    status?: string;
+    notes?: string;
+  }) => adminRequest<Payout>("/payouts", { method: "POST", body: JSON.stringify(data) }),
+  updatePayout: (id: string, data: { status?: string; reference?: string; notes?: string }) =>
+    adminRequest<Payout>(`/payouts/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  // ── Analytics ──
+  clientGrowth: (days?: number) =>
+    adminRequest<ClientGrowth>(`/analytics/client-growth${days ? `?days=${days}` : ""}`),
+  revenueGrowth: (months?: number) =>
+    adminRequest<RevenueGrowth>(`/analytics/revenue-growth${months ? `?months=${months}` : ""}`),
+
+  // ── Security ──
+  loginLogs: (params?: { limit?: number; staff?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.staff) qs.set("staff", "1");
+    return adminRequest<LoginLog[]>(`/security/login-logs${qs.toString() ? `?${qs}` : ""}`);
+  },
+  activityLogs: (params?: { action?: string; q?: string; limit?: number }) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]))
+    ).toString();
+    return adminRequest<ActivityLog[]>(`/security/activity-logs${qs ? `?${qs}` : ""}`);
+  },
+  permissions: () => adminRequest<PermissionMatrix>("/security/permissions"),
+
+  // ── WhatsApp management (scaffold) ──
+  whatsappNumbers: () => adminRequest<WhatsAppNumber[]>("/whatsapp/numbers"),
+  whatsappInstances: () => adminRequest<WhatsAppInstances>("/whatsapp/instances"),
+  whatsappUsage: () => adminRequest<WhatsAppUsage>("/whatsapp/usage"),
+
+  // ── Support center (scaffold) ──
+  supportTickets: (status?: string) =>
+    adminRequest<SupportTicketsReport>(`/support/tickets${status ? `?status=${status}` : ""}`),
+
+  // ── System (scaffold) ──
+  apiKeys: () => adminRequest<ApiKeyRow[]>("/api-keys"),
+  backups: () => adminRequest<BackupRow[]>("/backups"),
 };
 
 export type AdminUpgradeRequest = {
@@ -376,4 +456,204 @@ export type SystemSetting = {
   description: string | null;
   updatedBy: string | null;
   updatedAt: string;
+};
+
+// ── Subscription Management ──
+export type SubscriptionPlan = {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  priceInr: number;
+  billingCycle: string;
+  features: string[];
+  isActive: boolean;
+  isPublic: boolean;
+  sortOrder: number;
+  subscribers?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PlatformCoupon = {
+  id: string;
+  code: string;
+  description: string | null;
+  discountType: "percent" | "fixed";
+  discountValue: number;
+  appliesToPlan: string | null;
+  maxRedemptions: number | null;
+  usedCount: number;
+  startsAt: string | null;
+  expiresAt: string | null;
+  active: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RenewalRow = {
+  id: string;
+  name: string;
+  email: string;
+  plan: string;
+  mrrInr: number;
+  accountStatus: string;
+  renewsAt: string | null;
+  isTrial: boolean;
+};
+
+export type RenewalsReport = { overdue: RenewalRow[]; upcoming: RenewalRow[]; now: string };
+
+// ── Finance ──
+export type FinanceSummary = {
+  mrrInr: number;
+  arrInr: number;
+  payingCount: number;
+  revenueAllTime: number;
+  revenueThisMonth: number;
+  revenueLastMonth: number;
+  byPlan: Array<{ plan: string; count: number; mrr: number }>;
+};
+
+export type FinanceTransaction = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  targetPlan: string;
+  billingCycle: string;
+  amountInr: number | null;
+  status: string;
+  paymentRef: string | null;
+  createdAt: string;
+  completedAt: string | null;
+};
+
+export type FinanceRefund = {
+  id: string;
+  amount: number | null;
+  reason: string | null;
+  mode: string | null;
+  targetName: string | null;
+  targetEmail: string | null;
+  actorEmail: string | null;
+  createdAt: string;
+};
+
+export type FinanceReports = {
+  monthly: Array<{ month: string; revenue: number; transactions: number }>;
+  byPlan: Array<{ plan: string; revenue: number; transactions: number }>;
+};
+
+export type Payout = {
+  id: string;
+  recipient: string;
+  recipientType: string;
+  amountInr: number;
+  method: string;
+  reference: string | null;
+  status: string;
+  notes: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  paidAt: string | null;
+};
+
+// ── Analytics ──
+export type ClientGrowth = {
+  series: Array<{ date: string; signups: number; total: number }>;
+  statusBreakdown: Array<{ status: string; count: number }>;
+  totalClients: number;
+};
+
+export type RevenueGrowth = {
+  series: Array<{ month: string; revenue: number; transactions: number }>;
+  currentMrr: number;
+};
+
+// ── Security ──
+export type LoginLog = {
+  id: string;
+  userId: string;
+  name: string | null;
+  email: string | null;
+  isStaff: boolean | null;
+  adminRole: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  expiresAt: string;
+  active: boolean;
+};
+
+export type ActivityLog = {
+  id: string;
+  action: string;
+  resourceType: string | null;
+  resourceId: string | null;
+  ipAddress: string | null;
+  metadata: unknown;
+  name: string | null;
+  email: string | null;
+  createdAt: string;
+};
+
+export type PermissionMatrix = {
+  note: string;
+  roles: Array<{ key: string; label: string; desc: string }>;
+  groups: Array<{ group: string; capabilities: Array<{ key: string; label: string; roles: string[] }> }>;
+};
+
+// ── Scaffolded modules ──
+export type WhatsAppNumber = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  displayPhoneNumber: string | null;
+  phoneNumberId: string;
+  enabled: boolean;
+  lastVerifiedAt: string | null;
+  messagingLimitTier: string | null;
+  qualityRating: string | null;
+};
+
+export type WhatsAppInstances = { total: number; enabled: number; disabled: number };
+
+export type WhatsAppUsage = { messages24h: number; messages7d: number; messages30d: number; broadcastsTotal: number };
+
+export type SupportTicketRow = {
+  id: string;
+  subject: string;
+  category: string;
+  priority: string;
+  status: string;
+  name: string | null;
+  email: string | null;
+  createdAt: string;
+};
+
+export type SupportTicketsReport = {
+  tickets: SupportTicketRow[];
+  counts: Array<{ status: string; count: number }>;
+};
+
+export type ApiKeyRow = {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  scopes: string[];
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+};
+
+export type BackupRow = {
+  id: string;
+  filename: string;
+  kind: string;
+  sizeBytes: number;
+  status: string;
+  createdBy: string | null;
+  createdAt: string;
+  completedAt: string | null;
 };
