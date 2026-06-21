@@ -138,6 +138,11 @@ export const campaignChannelEnum = pgEnum("campaign_channel", ["whatsapp", "sms"
 export const broadcastStatusEnum = pgEnum("broadcast_status", ["draft", "scheduled", "sending", "sent", "failed"]);
 export const taskPriorityEnum = pgEnum("task_priority", ["low", "medium", "high", "urgent"]);
 export const taskStatusEnum = pgEnum("task_status", ["pending", "in_progress", "completed", "cancelled"]);
+// Customer Dashboard — CRM lead pipeline + finance + team
+export const leadStatusEnum = pgEnum("lead_status", ["new", "contacted", "qualified", "proposal", "won", "lost"]);
+export const invoiceStatusEnum = pgEnum("invoice_status", ["draft", "sent", "paid", "overdue", "cancelled"]);
+export const teamRoleEnum = pgEnum("team_role", ["owner", "admin", "manager", "agent", "viewer"]);
+export const teamMemberStatusEnum = pgEnum("team_member_status", ["invited", "active", "suspended"]);
 
 // ============================================================
 // App tables (ports of supabase/migrations, RLS removed —
@@ -182,6 +187,9 @@ export const contact = pgTable("contact", {
   email: text("email"),
   source: text("source"),
   tag: leadTagEnum("tag").notNull().default("cold"),
+  // CRM lead pipeline stage. NULL = treated as a "new" lead in the Leads view.
+  // Nullable on purpose so adding it to the populated contact table is push-safe.
+  leadStatus: leadStatusEnum("lead_status"),
   score: integer("score").notNull().default(0),
   notes: text("notes"),
   memory: jsonb("memory").default(sql`'{}'::jsonb`),
@@ -945,3 +953,109 @@ export const jobQueue = pgTable("job_queue", {
 }));
 
 export type JobQueue = typeof jobQueue.$inferSelect;
+
+// ============================================================
+// Customer Dashboard — Notes
+// Free-form notes, optionally attached to a contact. Owner-scoped.
+// ============================================================
+
+export const note = pgTable("note", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  contactId: uuid("contact_id").references(() => contact.id, { onDelete: "set null" }),
+  title: text("title"),
+  body: text("body").notNull(),
+  pinned: boolean("pinned").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerIdx: index("note_owner_idx").on(t.ownerId, t.createdAt),
+  contactIdx: index("note_contact_idx").on(t.contactId),
+}));
+
+export type Note = typeof note.$inferSelect;
+
+// ============================================================
+// Customer Dashboard — Finance (Invoices, line items, Expenses)
+// ============================================================
+
+export const invoice = pgTable("invoice", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  contactId: uuid("contact_id").references(() => contact.id, { onDelete: "set null" }),
+  invoiceNumber: text("invoice_number").notNull(),
+  status: invoiceStatusEnum("status").notNull().default("draft"),
+  currency: text("currency").notNull().default("INR"),
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
+  taxRate: numeric("tax_rate", { precision: 5, scale: 2 }).notNull().default("0"),
+  taxAmount: numeric("tax_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  discount: numeric("discount", { precision: 12, scale: 2 }).notNull().default("0"),
+  total: numeric("total", { precision: 12, scale: 2 }).notNull().default("0"),
+  notes: text("notes"),
+  issueDate: timestamp("issue_date", { withTimezone: true }).notNull().defaultNow(),
+  dueAt: timestamp("due_at", { withTimezone: true }),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerStatusIdx: index("invoice_owner_status_idx").on(t.ownerId, t.status),
+  contactIdx: index("invoice_contact_idx").on(t.contactId),
+}));
+
+export const invoiceLineItem = pgTable("invoice_line_item", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: uuid("invoice_id").notNull().references(() => invoice.id, { onDelete: "cascade" }),
+  description: text("description").notNull(),
+  quantity: numeric("quantity", { precision: 12, scale: 2 }).notNull().default("1"),
+  unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).notNull().default("0"),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  position: integer("position").notNull().default(0),
+}, (t) => ({
+  invoiceIdx: index("invoice_line_item_invoice_idx").on(t.invoiceId),
+}));
+
+export const expense = pgTable("expense", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  category: text("category").notNull().default("general"),
+  description: text("description").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  currency: text("currency").notNull().default("INR"),
+  vendor: text("vendor"),
+  spentAt: timestamp("spent_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerIdx: index("expense_owner_idx").on(t.ownerId, t.spentAt),
+  categoryIdx: index("expense_category_idx").on(t.ownerId, t.category),
+}));
+
+export type Invoice = typeof invoice.$inferSelect;
+export type InvoiceLineItem = typeof invoiceLineItem.$inferSelect;
+export type Expense = typeof expense.$inferSelect;
+
+// ============================================================
+// Customer Dashboard — Team roster + role assignment
+// Bounded roster/role metadata for the account owner. NOT enforced
+// cross-user auth — there is no invitation-acceptance/login flow here.
+// Scoped by the account owner (ownerUserId), not per-workspace.
+// ============================================================
+
+export const teamMember = pgTable("team_member", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  name: text("name"),
+  role: teamRoleEnum("role").notNull().default("agent"),
+  status: teamMemberStatusEnum("status").notNull().default("invited"),
+  invitedAt: timestamp("invited_at", { withTimezone: true }).notNull().defaultNow(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  ownerIdx: index("team_member_owner_idx").on(t.ownerId),
+  uniqOwnerEmail: uniqueIndex("team_member_owner_email_key").on(t.ownerId, t.email),
+}));
+
+export type TeamMember = typeof teamMember.$inferSelect;

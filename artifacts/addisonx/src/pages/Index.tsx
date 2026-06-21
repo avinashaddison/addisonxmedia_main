@@ -6,7 +6,6 @@ import { GlobalTopbar } from "@/components/global/GlobalTopbar";
 import { MobileBottomNav } from "@/components/global/MobileBottomNav";
 import { AddisonLogo } from "@/components/brand/AddisonLogo";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
-import { ComingSoon } from "@/components/common/ComingSoon";
 import { useConversations } from "@/hooks/useInboxData";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 
@@ -30,6 +29,21 @@ const CampaignAnalyticsPage = lazy(() => import("@/components/ads/CampaignAnalyt
 const AITrainingPage = lazy(() => import("@/components/ai/AITrainingPage").then((m) => ({ default: m.AITrainingPage })));
 const UpgradePage = lazy(() => import("@/components/billing/UpgradePage").then((m) => ({ default: m.UpgradePage })));
 
+// Customer Dashboard build-out — CRM, Finance, Reports & Settings pages.
+const LeadsPage = lazy(() => import("@/components/leads/LeadsPage").then((m) => ({ default: m.LeadsPage })));
+const TasksPage = lazy(() => import("@/components/tasks/TasksPage").then((m) => ({ default: m.TasksPage })));
+const NotesPage = lazy(() => import("@/components/notes/NotesPage").then((m) => ({ default: m.NotesPage })));
+const InvoicesPage = lazy(() => import("@/components/finance/InvoicesPage").then((m) => ({ default: m.InvoicesPage })));
+const PaymentsPage = lazy(() => import("@/components/finance/PaymentsPage").then((m) => ({ default: m.PaymentsPage })));
+const RevenuePage = lazy(() => import("@/components/finance/RevenuePage").then((m) => ({ default: m.RevenuePage })));
+const ExpensesPage = lazy(() => import("@/components/finance/ExpensesPage").then((m) => ({ default: m.ExpensesPage })));
+const LeadsReportPage = lazy(() => import("@/components/reports/LeadsReportPage").then((m) => ({ default: m.LeadsReportPage })));
+const CustomerReportPage = lazy(() => import("@/components/reports/CustomerReportPage").then((m) => ({ default: m.CustomerReportPage })));
+const RevenueReportPage = lazy(() => import("@/components/reports/RevenueReportPage").then((m) => ({ default: m.RevenueReportPage })));
+const PerformanceReportPage = lazy(() => import("@/components/reports/PerformanceReportPage").then((m) => ({ default: m.PerformanceReportPage })));
+const TeamPage = lazy(() => import("@/components/settings/TeamPage").then((m) => ({ default: m.TeamPage })));
+const RolesPage = lazy(() => import("@/components/settings/RolesPage").then((m) => ({ default: m.RolesPage })));
+
 type NavFn = (page: string) => void;
 
 // Full-subpath route registry. The key is the path after `/app/` and matches the
@@ -41,11 +55,11 @@ const PAGES: Record<string, (nav: NavFn) => ReactNode> = {
   dashboard: (nav) => <DashboardPage onNavigate={nav} />,
 
   // CRM
-  leads: () => <ComingSoon title="Leads" />,
+  leads: () => <LeadsPage />,
   customers: () => <ContactsPage />,
   followups: () => <FollowupsPage />,
-  tasks: () => <ComingSoon title="Tasks" />,
-  notes: () => <ComingSoon title="Notes" />,
+  tasks: () => <TasksPage />,
+  notes: () => <NotesPage />,
 
   // Communications
   inbox: () => <InboxPage />,
@@ -54,22 +68,22 @@ const PAGES: Record<string, (nav: NavFn) => ReactNode> = {
   campaigns: () => <CampaignsPage />,
 
   // Finance
-  invoices: () => <ComingSoon title="Invoices" />,
-  payments: () => <ComingSoon title="Payments" />,
-  revenue: () => <ComingSoon title="Revenue" />,
-  expenses: () => <ComingSoon title="Expenses" />,
+  invoices: () => <InvoicesPage />,
+  payments: () => <PaymentsPage />,
+  revenue: () => <RevenuePage />,
+  expenses: () => <ExpensesPage />,
 
   // Reports
-  "reports/leads": () => <ComingSoon title="Leads Report" />,
-  "reports/customers": () => <ComingSoon title="Customer Report" />,
-  "reports/revenue": () => <ComingSoon title="Revenue Report" />,
-  "reports/performance": () => <ComingSoon title="Performance Report" />,
+  "reports/leads": () => <LeadsReportPage />,
+  "reports/customers": () => <CustomerReportPage />,
+  "reports/revenue": () => <RevenueReportPage />,
+  "reports/performance": () => <PerformanceReportPage />,
 
   // Settings
   "settings/profile": () => <SettingsPage />,
-  "settings/team": () => <ComingSoon title="Team Members" />,
-  "settings/roles": () => <ComingSoon title="Roles & Permissions" />,
-  "settings/security": () => <ComingSoon title="Security" />,
+  "settings/team": () => <TeamPage />,
+  "settings/roles": () => <RolesPage />,
+  "settings/security": () => <SettingsPage />,
 
   // ── Legacy / deep-link-only routes (not in the sidebar, kept resolvable so
   // existing internal links, the topbar, dashboard quick-actions and old

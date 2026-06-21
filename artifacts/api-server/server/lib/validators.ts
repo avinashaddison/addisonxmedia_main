@@ -6,6 +6,7 @@ export const patchContactSchema = z.object({
   email: z.string().email().max(255).nullish(),
   source: z.string().max(100).nullish(),
   tag: z.enum(["hot", "warm", "cold"]),
+  leadStatus: z.enum(["new", "contacted", "qualified", "proposal", "won", "lost"]).nullish(),
   score: z.number().int().min(0).max(100),
   notes: z.string().max(10000).nullish(),
   isReseller: z.boolean().nullish(),

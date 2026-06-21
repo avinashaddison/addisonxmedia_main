@@ -33,6 +33,10 @@ import exportRoutes from "./routes/export";
 import leadsRoutes from "./routes/leads";
 import { requireVerifiedEmail } from "./middleware/requireVerifiedEmail";
 import workspaceRoutes from "./routes/workspaces";
+import notesRoutes from "./routes/notes";
+import financeRoutes from "./routes/finance";
+import teamRoutes from "./routes/team";
+import reportsRoutes from "./routes/reports";
 import { getSeoSettings, injectSeo, buildSitemapXml, buildRobotsTxt } from "./lib/seo";
 
 const app = new Hono();
@@ -147,6 +151,10 @@ app.route("/api", aiRoutes);
 app.route("/api", workspaceRoutes);
 app.route("/api", billingRoutes);
 app.route("/api", exportRoutes);
+app.route("/api", notesRoutes);
+app.route("/api", financeRoutes);
+app.route("/api", teamRoutes);
+app.route("/api", reportsRoutes);
 
 // /sitemap.xml + /robots.txt are dynamic — driven by admin settings, available
 // in both dev and prod so SEO checks work the same locally.

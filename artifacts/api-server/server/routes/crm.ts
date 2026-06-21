@@ -175,6 +175,43 @@ app.delete("/contacts/:id", async (c) => {
 });
 
 // ============================================================
+// LEADS — the CRM pipeline view over the owner's contacts.
+// Returns each contact enriched with deal aggregates so the Leads
+// board can show pipeline value per lead. Lead status lives on
+// contact.lead_status (NULL → treated as "new"). Status changes go
+// through PATCH /contacts/:id (patchContactSchema allows leadStatus).
+// ============================================================
+
+app.get("/leads", async (c) => {
+  const contacts = await db.select().from(contact)
+    .where(eq(contact.ownerId, c.var.userId))
+    .orderBy(desc(contact.createdAt))
+    .limit(2000);
+
+  const dealAgg = await db.select({
+    contactId: deal.contactId,
+    openValue: sql<string>`COALESCE(SUM(CASE WHEN ${deal.stage} NOT IN ('won','lost') THEN ${deal.value} ELSE 0 END), 0)`,
+    wonValue: sql<string>`COALESCE(SUM(CASE WHEN ${deal.stage} = 'won' THEN ${deal.value} ELSE 0 END), 0)`,
+    dealCount: sql<number>`COUNT(*)`,
+  }).from(deal)
+    .where(eq(deal.ownerId, c.var.userId))
+    .groupBy(deal.contactId);
+
+  const aggByContact = new Map(dealAgg.map((a) => [a.contactId, a]));
+  const rows = contacts.map((ct) => {
+    const agg = aggByContact.get(ct.id);
+    return {
+      ...ct,
+      leadStatus: ct.leadStatus ?? "new",
+      openValue: agg ? Number(agg.openValue) : 0,
+      wonValue: agg ? Number(agg.wonValue) : 0,
+      dealCount: agg ? Number(agg.dealCount) : 0,
+    };
+  });
+  return c.json(rows);
+});
+
+// ============================================================
 // DEALS (with contact join)
 // ============================================================
 

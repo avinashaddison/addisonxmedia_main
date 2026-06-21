@@ -19,6 +19,16 @@ import type {
   AiAgentProduct,
   Eligible24hChat,
   BulkSend24hResponse,
+  Lead,
+  Note,
+  Invoice,
+  Expense,
+  PaymentsSummary,
+  TeamMember,
+  LeadsReport,
+  CustomersReport,
+  RevenueReport,
+  PerformanceReport,
 } from "./api-types";
 
 export type { AiAgent, AiAgentProduct } from "./api-types";
@@ -115,6 +125,15 @@ const post = <T>(p: string, body?: unknown) =>
 const patch = <T>(p: string, body?: unknown) =>
   request<T>(p, { method: "PATCH", body: body ? JSON.stringify(body) : undefined });
 const del = (p: string) => request<void>(p, { method: "DELETE" });
+
+// Build a ?from=&to= query string for report endpoints (omits empty params).
+const rangeQs = (params?: { from?: string; to?: string }) => {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set("from", params.from);
+  if (params?.to) qs.set("to", params.to);
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+};
 
 function normalizeAgent(agent: AiAgent): AiAgent {
   if (!agent) return agent;
@@ -251,6 +270,49 @@ export const api = {
   createTask: (data: Record<string, unknown>) => post<Task>("/tasks", data),
   updateTask: (id: string, data: Record<string, unknown>) => patch<Task>(`/tasks/${id}`, data),
   deleteTask: (id: string) => del(`/tasks/${id}`),
+
+  // ─── Leads (CRM pipeline view over contacts) ──────────────────────────
+  // Lead status lives on the contact, so updates reuse PATCH /contacts/:id.
+  listLeads: () => get<Lead[]>("/leads"),
+  updateLead: (id: string, data: Record<string, unknown>) => patch<Contact>(`/contacts/${id}`, data),
+
+  // ─── Notes ────────────────────────────────────────────────────────────
+  listNotes: (params?: { contact_id?: string }) => {
+    const qs = params?.contact_id ? `?contact_id=${encodeURIComponent(params.contact_id)}` : "";
+    return get<Note[]>(`/notes${qs}`);
+  },
+  createNote: (data: Record<string, unknown>) => post<Note>("/notes", data),
+  updateNote: (id: string, data: Record<string, unknown>) => patch<Note>(`/notes/${id}`, data),
+  deleteNote: (id: string) => del(`/notes/${id}`),
+
+  // ─── Finance: Invoices ────────────────────────────────────────────────
+  listInvoices: () => get<Invoice[]>("/invoices"),
+  createInvoice: (data: Record<string, unknown>) => post<Invoice>("/invoices", data),
+  updateInvoice: (id: string, data: Record<string, unknown>) => patch<Invoice>(`/invoices/${id}`, data),
+  sendInvoice: (id: string) => post<Invoice>(`/invoices/${id}/send`),
+  markInvoicePaid: (id: string) => post<Invoice>(`/invoices/${id}/mark-paid`),
+  deleteInvoice: (id: string) => del(`/invoices/${id}`),
+
+  // ─── Finance: Expenses ────────────────────────────────────────────────
+  listExpenses: () => get<Expense[]>("/expenses"),
+  createExpense: (data: Record<string, unknown>) => post<Expense>("/expenses", data),
+  updateExpense: (id: string, data: Record<string, unknown>) => patch<Expense>(`/expenses/${id}`, data),
+  deleteExpense: (id: string) => del(`/expenses/${id}`),
+
+  // ─── Finance: Payments (received money feed) ──────────────────────────
+  getPayments: () => get<PaymentsSummary>("/payments"),
+
+  // ─── Team roster + roles ──────────────────────────────────────────────
+  listTeam: () => get<TeamMember[]>("/team"),
+  inviteTeamMember: (data: { email: string; name?: string; role?: string }) => post<TeamMember>("/team", data),
+  updateTeamMember: (id: string, data: Record<string, unknown>) => patch<TeamMember>(`/team/${id}`, data),
+  removeTeamMember: (id: string) => del(`/team/${id}`),
+
+  // ─── Reports (server-side aggregations, ?from&to) ─────────────────────
+  reportLeads: (params?: { from?: string; to?: string }) => get<LeadsReport>(`/reports/leads${rangeQs(params)}`),
+  reportCustomers: (params?: { from?: string; to?: string }) => get<CustomersReport>(`/reports/customers${rangeQs(params)}`),
+  reportRevenue: (params?: { from?: string; to?: string }) => get<RevenueReport>(`/reports/revenue${rangeQs(params)}`),
+  reportPerformance: (params?: { from?: string; to?: string }) => get<PerformanceReport>(`/reports/performance${rangeQs(params)}`),
 
   // Meta WhatsApp integration
   getMetaConfig: () => get<{

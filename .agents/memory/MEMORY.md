@@ -1,1 +1,1 @@
-- [AddisonX validation = Vite build + tsx boot, not strict tsc](addisonx-validation.md) — `tsc`/`tsc -b` has many PRE-EXISTING errors; don't chase them as regressions.
+- [Vite build is not a type-check](vite-build-not-typecheck.md) — esbuild passes undefined-identifier crashes (e.g. missing lucide import); run `pnpm run typecheck` to catch them.

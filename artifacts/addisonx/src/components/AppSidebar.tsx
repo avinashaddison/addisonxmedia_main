@@ -1,4 +1,4 @@
-import { LayoutDashboard, UserPlus, Users, Bell, ClipboardList, StickyNote, MessageCircle, Radio, FileText, Megaphone, Receipt, CreditCard, TrendingUp, Wallet, BarChart3, PieChart, LineChart, Activity, Building2, UsersRound, Shield, Lock, Settings, LogOut, Globe, ChevronsLeft, ChevronsRight, X, ScrollText, Crown } from "lucide-react";
+import { LayoutDashboard, UserPlus, Users, Bell, ClipboardList, StickyNote, MessageCircle, Radio, FileText, Megaphone, Receipt, CreditCard, TrendingUp, Wallet, BarChart3, PieChart, LineChart, Activity, Building2, UsersRound, Shield, Lock, Settings, LogOut, Globe, ChevronsLeft, ChevronsRight, ChevronRight, Loader2, X, ScrollText, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { AddisonMark, AddisonLogo } from "@/components/brand/AddisonLogo";

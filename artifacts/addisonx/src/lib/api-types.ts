@@ -14,6 +14,8 @@ export type TaskPriority = "low" | "medium" | "high" | "urgent";
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type AppRole = "admin" | "agent";
 
+export type LeadStatus = "new" | "contacted" | "qualified" | "proposal" | "won" | "lost";
+
 export type Contact = {
   id: string;
   owner_id: string;
@@ -22,11 +24,20 @@ export type Contact = {
   email: string | null;
   source: string | null;
   tag: LeadTag;
+  lead_status?: LeadStatus | null;
   score: number;
   notes: string | null;
   is_reseller?: boolean;
   created_at: string;
   updated_at: string;
+};
+
+// Lead = a contact enriched with deal aggregates for the CRM pipeline view.
+export type Lead = Contact & {
+  lead_status: LeadStatus;
+  open_value: number;
+  won_value: number;
+  deal_count: number;
 };
 
 export type Conversation = {
@@ -222,4 +233,157 @@ export type BulkSend24hResponse = {
     status: "sent" | "failed";
     error?: string;
   }>;
+};
+
+// ============================================================
+// Customer Dashboard — Notes, Finance, Team, Reports
+// ============================================================
+
+export type Note = {
+  id: string;
+  owner_id: string;
+  contact_id: string | null;
+  contact_name?: string | null;
+  title: string | null;
+  body: string;
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "cancelled";
+
+export type InvoiceLineItem = {
+  id: string;
+  invoice_id: string;
+  description: string;
+  quantity: string | number;
+  unit_price: string | number;
+  amount: string | number;
+  position: number;
+};
+
+export type Invoice = {
+  id: string;
+  owner_id: string;
+  contact_id: string | null;
+  contact_name?: string | null;
+  invoice_number: string;
+  status: InvoiceStatus;
+  currency: string;
+  subtotal: string | number;
+  tax_rate: string | number;
+  tax_amount: string | number;
+  discount: string | number;
+  total: string | number;
+  notes: string | null;
+  issue_date: string;
+  due_at: string | null;
+  sent_at: string | null;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+  line_items: InvoiceLineItem[];
+};
+
+export type Expense = {
+  id: string;
+  owner_id: string;
+  category: string;
+  description: string;
+  amount: string | number;
+  currency: string;
+  vendor: string | null;
+  spent_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Payment = {
+  id: string;
+  source: "deal" | "invoice";
+  label: string;
+  contact_name: string | null;
+  amount: string | number;
+  currency: string;
+  date: string;
+};
+
+export type PaymentsSummary = {
+  payments: Payment[];
+  total_received: number;
+  count: number;
+};
+
+export type TeamRole = "owner" | "admin" | "manager" | "agent" | "viewer";
+export type TeamMemberStatus = "invited" | "active" | "suspended";
+
+export type TeamMember = {
+  id: string;
+  owner_id: string;
+  email: string;
+  name: string | null;
+  role: TeamRole;
+  status: TeamMemberStatus;
+  invited_at: string;
+  accepted_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ReportRange = { from: string; to: string; granularity: "day" | "month" };
+
+export type LeadsReport = {
+  range: ReportRange;
+  totals: { total_leads: number; new_in_range: number; converted: number; conversion_rate: number };
+  by_status: Array<{ status: string; count: number }>;
+  by_tag: Array<{ tag: string; count: number }>;
+  by_source: Array<{ source: string; count: number }>;
+  timeline: Array<{ date: string; leads: number }>;
+};
+
+export type CustomersReport = {
+  range: ReportRange;
+  totals: { total_contacts: number; customers: number; new_in_range: number; avg_customer_value: number };
+  by_tag: Array<{ tag: string; count: number }>;
+  top_customers: Array<{ id: string; name: string; value: number }>;
+  timeline: Array<{ date: string; customers: number }>;
+};
+
+export type RevenueReport = {
+  range: ReportRange;
+  totals: {
+    total_revenue: number;
+    deal_revenue: number;
+    invoice_revenue: number;
+    total_expenses: number;
+    net_profit: number;
+  };
+  by_source: Array<{ source: string; value: number }>;
+  expenses_by_category: Array<{ category: string; value: number }>;
+  timeline: Array<{ date: string; revenue: number; expenses: number; net: number }>;
+};
+
+export type PerformanceReport = {
+  range: ReportRange;
+  totals: {
+    deals_won: number;
+    deals_lost: number;
+    win_rate: number;
+    open_pipeline: number;
+    tasks_completed: number;
+    tasks_pending: number;
+    broadcasts_sent: number;
+    messages_out: number;
+    messages_in: number;
+  };
+  campaign_performance: Array<{
+    id: string;
+    name: string;
+    sent: number;
+    replied: number;
+    conversions: number;
+    conversion_rate: number;
+  }>;
+  timeline: Array<{ date: string; sent: number; received: number }>;
 };
