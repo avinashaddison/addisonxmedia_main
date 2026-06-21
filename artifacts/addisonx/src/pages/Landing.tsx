@@ -145,6 +145,7 @@ export default function Landing() {
         () => {
           if (attempt < 2) return save(attempt + 1);
           toast.error("Email save nahi ho paya — humein WhatsApp par bhej dein");
+          return;
         },
       );
     void save(1);
