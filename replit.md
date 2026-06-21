@@ -1,44 +1,47 @@
-# [Project name]
+# AddisonX Media
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A WhatsApp marketing, websites & automation platform for Indian SMBs (Ranchi-based). Imported from a lovable.dev export and ported into the Replit pnpm-workspace multi-artifact stack.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/api-server run dev` — run the Hono API server (port 8080; reads `PORT`)
+- `pnpm --filter @workspace/addisonx run dev` — run the React + Vite frontend (port from `PORT`, base from `BASE_PATH`)
+- `pnpm --filter @workspace/api-server run db:push` — push DB schema (Drizzle Kit, dev only; use `--force` for non-interactive)
+- Required env/secrets: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `MASTER_KEY` (>=32 chars), `TRUSTED_ORIGINS`, `ALLOWED_ORIGINS`
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Backend: Hono + @hono/node-server, better-auth, Drizzle ORM (postgres-js), OpenAI, Resend, pino
+- Frontend: React + Vite, react-router-dom, Tailwind v3 + shadcn/ui, TanStack Query, better-auth client
+- DB: Replit PostgreSQL
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/api-server/server/` — full Hono backend (entry `server/index.ts`, auth `server/auth/`, db `server/db/schema.ts`, crypto `server/crypto.ts`)
+- `artifacts/addisonx/src/` — frontend (App router `src/App.tsx`, API wrapper `src/lib/api.ts`, auth client `src/lib/auth-client.ts`)
+- `.migration-backup/` — untouched original lovable.dev export (frontend `src/`, backend `server/`)
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- This is NOT a typical lovable→Replit Supabase swap. The export already shipped a complete self-hosted backend (Hono + better-auth + Drizzle), so the migration was a structural port: backend → `artifacts/api-server`, frontend → `artifacts/addisonx`. No Supabase to replace.
+- The api-server runs via `tsx server/index.ts` in both dev and prod (the original used tsx, not a bundler). The scaffold's esbuild `build.mjs` was removed.
+- Frontend calls relative `/api/*`; the Replit path router proxies `/api`, `/biz`, `/biz-demo`, `/sitemap.xml`, `/robots.txt`, `/health` to the api-server. No Vite dev proxy is needed.
+- DB schema lives in `server/db/schema.ts` (own drizzle.config.ts in the api-server), NOT in the shared `lib/db`. The shared `lib/*` scaffold packages are left unused.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+WhatsApp Business API marketing platform: shared team inbox, AI auto-reply (Hindi), broadcasts, UPI payments in chat, CRM, billing, plus an admin panel. Signups are gated behind a feature flag (currently disabled) — sign-in only.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+_Populate as you build._
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- `drizzle-kit push` prompts interactively; run with `--force` in this non-TTY environment.
+- `MASTER_KEY` must be >=32 chars or the server throws in production (warns in dev). `BETTER_AUTH_SECRET` is required at startup.
+- Browser-facing origin must be in `TRUSTED_ORIGINS` or better-auth rejects auth requests (CSRF protection).
 
 ## Pointers
 

@@ -1,0 +1,319 @@
+/**
+ * UPI payment routes.
+ *
+ * Customers tap a `upi://pay?...` deep link → their UPI app (PhonePe / GPay /
+ * Paytm / BHIM) opens with the amount + payee pre-filled. The operator just
+ * has to type the amount + optional note, the rest is auto-built from their
+ * stored VPA. The customer also gets a QR they can scan from another device.
+ *
+ * No money flows through our server — we just construct the deep link and a
+ * QR image URL. Reconciliation happens when the operator's bank/PSP notifies
+ * them (out of scope for now; could later wire to Razorpay/Cashfree webhooks).
+ */
+
+import { Hono } from "hono";
+import { and, eq } from "drizzle-orm";
+import { db } from "../db/client";
+import { profile, conversation, contact, metaConfig, message, deal } from "../db/schema";
+import { requireAuth, type AuthVariables } from "../middleware/auth";
+import { sendTextMessage, sendImageMessage } from "../integrations/meta";
+import { decrypt } from "../crypto";
+
+const app = new Hono<{ Variables: AuthVariables }>();
+app.use("*", requireAuth);
+
+/** Read the operator's UPI config (VPA + display name). */
+app.get("/payments/upi/config", async (c) => {
+  const [row] = await db.select({
+    upiVpa: profile.upiVpa,
+    upiDisplayName: profile.upiDisplayName,
+  }).from(profile).where(eq(profile.userId, c.var.userId)).limit(1);
+
+  return c.json({
+    vpa: row?.upiVpa ?? "",
+    display_name: row?.upiDisplayName ?? "",
+    configured: Boolean(row?.upiVpa),
+  });
+});
+
+/** Save the operator's UPI config. */
+app.patch("/payments/upi/config", async (c) => {
+  const body = await c.req.json<{ vpa?: string; display_name?: string }>();
+  const vpa = body.vpa?.trim() ?? "";
+  const displayName = body.display_name?.trim() ?? "";
+
+  // Light VPA validation — should be `name@handle` form. Don't validate too
+  // strictly because UPI handles vary (@upi / @ybl / @paytm / @okhdfcbank /
+  // @okaxis / etc.).
+  if (vpa && !/^[\w.-]+@[\w.-]+$/.test(vpa)) {
+    return c.json({ error: "UPI VPA looks invalid. Format: name@handle (e.g. 9709707311@upi)" }, 400);
+  }
+
+  await db.update(profile)
+    .set({ upiVpa: vpa || null, upiDisplayName: displayName || null, updatedAt: new Date() })
+    .where(eq(profile.userId, c.var.userId));
+
+  return c.json({ ok: true, vpa, display_name: displayName, configured: Boolean(vpa) });
+});
+
+/**
+ * Build a UPI deep link + send it to a conversation via WhatsApp.
+ *
+ * Body: { conversation_id, amount_inr, note? }
+ *
+ * Deep link spec: https://www.npci.org.in/PDF/npci/upi/Standard-Operating-Procedure-UPI-V2.pdf
+ *   upi://pay?pa={VPA}&pn={DISPLAY_NAME}&am={AMOUNT}&tn={NOTE}&cu=INR
+ *
+ * QR is generated via api.qrserver.com (same service we use for 2FA QR codes)
+ * — no server-side image generation needed, no extra dep.
+ */
+app.post("/payments/upi/send", async (c) => {
+  const userId = c.var.userId;
+  const body = await c.req.json<{
+    conversation_id: string;
+    amount_inr: number;
+    note?: string;
+  }>();
+
+  if (!body.conversation_id) return c.json({ error: "conversation_id required" }, 400);
+  if (!body.amount_inr || body.amount_inr < 1) {
+    return c.json({ error: "amount_inr must be ≥ 1" }, 400);
+  }
+  if (body.amount_inr > 1_00_000) {
+    return c.json({ error: "Per-transaction UPI limit is ₹1,00,000. Split into multiple requests." }, 400);
+  }
+
+  // Pull operator's UPI config
+  const [pf] = await db.select().from(profile).where(eq(profile.userId, userId)).limit(1);
+  if (!pf?.upiVpa) {
+    return c.json({ error: "Pehle UPI ID set karein (Settings → Payments)" }, 400);
+  }
+  const vpa = pf.upiVpa;
+  const displayName = pf.upiDisplayName || pf.displayName || "Business";
+
+  // Pull conversation + contact for WhatsApp sending
+  const [conv] = await db.select({
+    id: conversation.id,
+    contactId: conversation.contactId,
+  }).from(conversation)
+    .where(and(eq(conversation.id, body.conversation_id), eq(conversation.ownerId, userId)))
+    .limit(1);
+  if (!conv) return c.json({ error: "Conversation not found" }, 404);
+
+  const [ctc] = await db.select({ phone: contact.phone, name: contact.name })
+    .from(contact).where(eq(contact.id, conv.contactId)).limit(1);
+  if (!ctc) return c.json({ error: "Contact not found" }, 404);
+
+  // Build the UPI deep link
+  const amount = body.amount_inr.toFixed(2);
+  const note = (body.note ?? `Payment to ${displayName}`).slice(0, 40);
+  const params = new URLSearchParams({
+    pa: vpa,
+    pn: displayName,
+    am: amount,
+    tn: note,
+    cu: "INR",
+  });
+  const upiLink = `upi://pay?${params.toString()}`;
+  // 280×280 source — chat bubble renders at 200px with object-contain, so we
+  // ship a slightly higher native res for retina without dominating the
+  // bubble. The old 400×400 produced an over-sized image that scrolled
+  // half the chat off-screen.
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=${encodeURIComponent(upiLink)}`;
+
+  // Short caption — what customers see next to the QR. We deliberately
+  // DON'T include the raw upi://pay?... link because it looks ugly with
+  // URL-encoded chars (%40, +, etc) and the QR + UPI ID gives them both
+  // ways to pay anyway (scan on another phone, or type the UPI ID in
+  // their UPI app).
+  const messageBody =
+    `💳 *₹${body.amount_inr.toLocaleString("en-IN")} to ${displayName}*\n` +
+    `UPI ID: \`${vpa}\`\n\n` +
+    `📷 Scan the QR to pay\n\n` +
+    `_Please complete the payment_ 🙏`;
+
+  // Send the QR as an actual WhatsApp image with the short caption.
+  // Falls back to text-only if image send fails (e.g. QR URL not reachable).
+  const [cfg] = await db.select().from(metaConfig).where(eq(metaConfig.userId, userId)).limit(1);
+  let metaMessageId: string | null = null;
+  let sentLive = false;
+
+  if (cfg?.enabled && cfg.accessToken && cfg.phoneNumberId) {
+    const creds = {
+      accessToken: decrypt(cfg.accessToken),
+      phoneNumberId: cfg.phoneNumberId,
+      businessAccountId: cfg.businessAccountId,
+    };
+    const recipient = ctc.phone.replace(/^\+/, "");
+    try {
+      const sent = await sendImageMessage(creds, recipient, qrUrl, messageBody);
+      metaMessageId = sent.messages?.[0]?.id ?? null;
+      sentLive = true;
+    } catch (e) {
+      console.error("[payments/upi/send] image send failed, retrying as text", e);
+      try {
+        const sent = await sendTextMessage(creds, recipient, messageBody);
+        metaMessageId = sent.messages?.[0]?.id ?? null;
+        sentLive = true;
+      } catch (e2) {
+        console.error("[payments/upi/send] WhatsApp send failed", e2);
+        // Fall through — we still record the message locally
+      }
+    }
+  }
+
+  // Record the outbound message in our DB so it shows in the chat
+  await db.insert(message).values({
+    conversationId: conv.id,
+    ownerId: userId,
+    senderId: userId,
+    direction: "outbound",
+    body: messageBody,
+    mediaUrl: qrUrl,
+    status: sentLive ? "sent" : "queued",
+    externalMessageId: metaMessageId,
+  });
+
+  // Bump conversation
+  await db.update(conversation).set({
+    lastMessageAt: new Date(),
+    lastMessagePreview: `💳 Payment request — ₹${body.amount_inr.toLocaleString("en-IN")}`,
+    updatedAt: new Date(),
+  }).where(eq(conversation.id, conv.id));
+
+  return c.json({
+    ok: true,
+    upi_link: upiLink,
+    qr_url: qrUrl,
+    amount_inr: body.amount_inr,
+    note,
+    sent_live: sentLive,
+    mode: sentLive ? "live" : "dry-run",
+  });
+});
+
+/**
+ * Mark a UPI payment-request message as received.
+ *
+ * Triggered by the "Payment received" button on the operator's outbound
+ * PaymentRequestCard in chat. Does three things atomically (best-effort):
+ *
+ *   1. Parse amount + payee from the message body (same regex the card uses)
+ *   2. Create a `won` deal so the amount flows into Money Machine + reports
+ *   3. Send a thank-you WhatsApp message to the customer
+ *
+ * Idempotency: appends the marker " [PAID]" to the original message body.
+ * Re-sending the same messageId is a no-op (returns 409). The frontend's
+ * parser detects this marker and renders the card as "Paid" instead of
+ * showing the button.
+ */
+app.post("/payments/mark-received", async (c) => {
+  const userId = c.var.userId;
+  const body = await c.req.json<{ messageId: string }>();
+  if (!body.messageId) return c.json({ error: "messageId required" }, 400);
+
+  // Load the message + verify ownership + grab the conversation/contact context
+  const [row] = await db.select({
+    msgId: message.id,
+    msgBody: message.body,
+    msgDirection: message.direction,
+    conversationId: message.conversationId,
+    contactId: conversation.contactId,
+    contactName: contact.name,
+    contactPhone: contact.phone,
+  }).from(message)
+    .innerJoin(conversation, eq(conversation.id, message.conversationId))
+    .innerJoin(contact, eq(contact.id, conversation.contactId))
+    .where(and(eq(message.id, body.messageId), eq(message.ownerId, userId)))
+    .limit(1);
+
+  if (!row) return c.json({ error: "Message not found" }, 404);
+  if (row.msgDirection !== "outbound") return c.json({ error: "Only outbound payment requests can be marked received" }, 400);
+  if (row.msgBody.includes("[PAID]")) return c.json({ error: "Already marked as received" }, 409);
+
+  // Parse amount from the body (same shape as PaymentRequestCard parser)
+  const amountMatch = row.msgBody.match(/💳\s*\*?₹?\s*([\d,]+(?:\.\d+)?)\s*(?:to|→|->)\s*([^\n*]+?)\*?$/im);
+  if (!amountMatch) return c.json({ error: "Could not parse payment amount from message" }, 400);
+  const amount = Number(amountMatch[1].replace(/,/g, ""));
+  if (!Number.isFinite(amount) || amount <= 0) return c.json({ error: "Invalid amount in message" }, 400);
+
+  // Create the won deal — this is what Money Machine / dashboard reads
+  const [created] = await db.insert(deal).values({
+    ownerId: userId,
+    contactId: row.contactId,
+    conversationId: row.conversationId,
+    title: `UPI payment — ₹${amount.toLocaleString("en-IN")}`,
+    value: String(amount),
+    currency: "INR",
+    stage: "won",
+    probability: 100,
+    closedAt: new Date(),
+  }).returning();
+
+  // Append the [PAID] marker to the original message so the card flips state.
+  await db.update(message)
+    .set({ body: `${row.msgBody.trim()} [PAID]` })
+    .where(eq(message.id, body.messageId));
+
+  // Send a styled thank-you back to the customer over WhatsApp (best-effort —
+  // a failed thank-you message shouldn't roll back the deal/marker above).
+  const thankYouBody = `✅ *Payment received — thank you!* 🙏\n\n₹${amount.toLocaleString("en-IN")} confirmed.\n\nYour order is being processed. We'll keep you posted right here.`;
+  let thankYouSent = false;
+  let thankYouError: string | undefined;
+  try {
+    const [meta] = await db.select().from(metaConfig)
+      .where(eq(metaConfig.userId, userId)).limit(1);
+
+    if (meta && meta.enabled) {
+      const creds = {
+        accessToken: decrypt(meta.accessToken),
+        phoneNumberId: meta.phoneNumberId,
+        businessAccountId: meta.businessAccountId,
+      };
+      const to = row.contactPhone.replace(/^\+/, "");
+      const sent = await sendTextMessage(creds, to, thankYouBody);
+      // Persist the outbound thank-you so it appears in chat
+      await db.insert(message).values({
+        conversationId: row.conversationId,
+        ownerId: userId,
+        senderId: userId,
+        direction: "outbound",
+        body: thankYouBody,
+        status: "sent",
+        externalMessageId: sent.messages?.[0]?.id ?? null,
+      });
+      thankYouSent = true;
+    } else {
+      // No Meta config — still record the thank-you locally so the UI shows it
+      await db.insert(message).values({
+        conversationId: row.conversationId,
+        ownerId: userId,
+        senderId: userId,
+        direction: "outbound",
+        body: thankYouBody,
+        status: "sent",
+      });
+      thankYouSent = true;
+    }
+
+    // Bump conversation preview to the thank-you so the inbox list shows it
+    await db.update(conversation).set({
+      lastMessageAt: new Date(),
+      lastMessagePreview: `✅ Payment received — ₹${amount.toLocaleString("en-IN")}`,
+      updatedAt: new Date(),
+    }).where(and(eq(conversation.id, row.conversationId), eq(conversation.ownerId, userId)));
+  } catch (e) {
+    thankYouError = e instanceof Error ? e.message : "Failed to send thank-you";
+    console.error("[payments/mark-received] thank-you send failed", e);
+  }
+
+  return c.json({
+    ok: true,
+    deal: created,
+    amount_inr: amount,
+    thank_you_sent: thankYouSent,
+    thank_you_error: thankYouError,
+  });
+});
+
+export default app;

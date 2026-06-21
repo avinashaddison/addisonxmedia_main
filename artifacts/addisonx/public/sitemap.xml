@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset
+  xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml"
+  xmlns:image="http://www.google.com/schemas/sitemaps-image/1.1">
+
+  <!-- Home -->
+  <url>
+    <loc>https://addisonx.in/</loc>
+    <lastmod>2026-05-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="en-in" href="https://addisonx.in/" />
+    <xhtml:link rel="alternate" hreflang="hi-in" href="https://addisonx.in/hi" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://addisonx.in/" />
+    <image:image>
+      <image:loc>https://addisonx.in/og-image.png</image:loc>
+      <image:title>AddisonX — WhatsApp Business CRM for India</image:title>
+      <image:caption>India's #1 AI-powered WhatsApp Business platform · Ranchi, Jharkhand</image:caption>
+    </image:image>
+  </url>
+
+  <!-- Auth -->
+  <url>
+    <loc>https://addisonx.in/auth</loc>
+    <lastmod>2026-05-18</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Legal -->
+  <url>
+    <loc>https://addisonx.in/privacy</loc>
+    <lastmod>2026-05-18</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://addisonx.in/terms</loc>
+    <lastmod>2026-05-18</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+</urlset>

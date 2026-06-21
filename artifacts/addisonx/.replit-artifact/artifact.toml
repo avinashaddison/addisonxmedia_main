@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "AddisonX Media"
+version = "1.0.0"
+id = "artifacts/addisonx"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19662
+
+[services.development]
+run = "pnpm --filter @workspace/addisonx run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/addisonx", "run", "build" ]
+publicDir = "artifacts/addisonx/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19662"
+BASE_PATH = "/"

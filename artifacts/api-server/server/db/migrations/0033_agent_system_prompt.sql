@@ -1,0 +1,1 @@
+ALTER TABLE ai_agent ADD COLUMN IF NOT EXISTS system_prompt TEXT DEFAULT '';

@@ -18,3 +18,23 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+BETTER_AUTH_SECRET = "kRz14uWCzXCndK106JlLVW6nIUR0Tnbd84RdIpDUK9A="
+MASTER_KEY = "3be40f208df4f3d22a83ccdaf96dc31f4ef1eca86de3faf6e6f8845f7b93bc44"
+TRUSTED_ORIGINS = "https://e6425bcc-6af3-4969-9d29-31924b2d4c61-00-231tq7o1lwdk1.pike.replit.dev"
+ALLOWED_ORIGINS = "https://e6425bcc-6af3-4969-9d29-31924b2d4c61-00-231tq7o1lwdk1.pike.replit.dev"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 19662
+externalPort = 3000

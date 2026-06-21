@@ -4,29 +4,29 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
-    "build": "node ./build.mjs",
-    "start": "node --enable-source-maps ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "dev": "tsx server/index.ts",
+    "build": "echo 'no build step (tsx runtime)'",
+    "start": "tsx server/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@workspace/api-zod": "workspace:*",
-    "@workspace/db": "workspace:*",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "drizzle-orm": "catalog:",
-    "express": "^5.2.1",
-    "pino": "^9.14.0",
-    "pino-http": "^10.5.0"
+    "@hono/node-server": "^2.0.2",
+    "better-auth": "^1.6.9",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.18",
+    "openai": "^6.38.0",
+    "pino": "^10.3.1",
+    "postgres": "^3.4.9",
+    "resend": "^6.12.3",
+    "tsx": "^4.21.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@types/cookie-parser": "^1.4.10",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
     "@types/node": "catalog:",
-    "esbuild": "0.27.3",
-    "esbuild-plugin-pino": "^2.3.3",
-    "pino-pretty": "^13.1.3",
-    "thread-stream": "3.1.0"
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.9.3"
   }
 }
