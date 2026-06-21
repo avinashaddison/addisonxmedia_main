@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode } from "react";
+import { createContext, useContext, useMemo, useCallback, ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
 
 type BetterAuthUser = {
@@ -42,30 +42,32 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { data, isPending } = authClient.useSession();
 
-  const user: CompatUser | null = data?.user
-    ? {
-        id: data.user.id,
-        email: data.user.email,
-        user_metadata: { display_name: data.user.name },
-      }
-    : null;
-
-  const signOut = async () => {
+  // Stable identity so consumers don't re-render just because the provider did.
+  const signOut = useCallback(async () => {
     await authClient.signOut();
-  };
+  }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session: (data as Session | null) ?? null,
-        loading: isPending,
-        signOut,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  // Memoize the whole context value. Previously a fresh `user` object + context
+  // object were built on every render, so EVERY useAuth() consumer re-rendered
+  // whenever the provider re-rendered — app-wide churn. Now the value only
+  // changes when the session data or loading flag actually changes.
+  const value = useMemo<AuthContextValue>(() => {
+    const user: CompatUser | null = data?.user
+      ? {
+          id: data.user.id,
+          email: data.user.email,
+          user_metadata: { display_name: data.user.name },
+        }
+      : null;
+    return {
+      user,
+      session: (data as Session | null) ?? null,
+      loading: isPending,
+      signOut,
+    };
+  }, [data, isPending, signOut]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

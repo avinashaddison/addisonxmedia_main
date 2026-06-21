@@ -1,5 +1,5 @@
 import { Search, Bell, BellOff, Trash2, CheckCheck, Flame, Snowflake, Copy, ExternalLink, MessageCircleOff, Building2, Loader2, Sparkles, Brain } from "lucide-react";
-import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { ConversationWithContact, tagLabel, initialsFor, formatRelative, splitTextWithLinks } from "@/lib/inbox-types";
 import { NewConversationDialog } from "./NewConversationDialog";
@@ -87,7 +87,9 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
     } catch (e) { toast.error(String(e)); }
   };
 
-  const filtered = conversations.filter((c) => {
+  // Memoized so hovering a row / opening a menu (which bump local state) doesn't
+  // re-filter and re-sort the entire conversation list on every render.
+  const filtered = useMemo(() => conversations.filter((c) => {
     // Defensive: server uses leftJoin, so contact COULD be null on data races.
     // Without these guards the whole list silently filters to [] when one row
     // is missing its contact.
@@ -102,15 +104,15 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
     if (filter === "Hot" && c.contact?.tag !== "hot") return false;
     if (filter === "Closed" && c.status !== "closed") return false;
     return true;
-  });
+  }), [conversations, search, filter]);
 
-  const sortedAndFiltered = [...filtered].sort((a, b) => {
+  const sortedAndFiltered = useMemo(() => [...filtered].sort((a, b) => {
     const aIsAgent = a.contact?.phone === "system_marketing";
     const bIsAgent = b.contact?.phone === "system_marketing";
     if (aIsAgent && !bIsAgent) return -1;
     if (!aIsAgent && bIsAgent) return 1;
     return 0;
-  });
+  }), [filtered]);
 
   // Keyboard navigation: ↑ ↓ to switch chats
   useEffect(() => {
@@ -297,7 +299,7 @@ export const ConversationList = ({ conversations, activeId, onSelect, loading, c
                   onMouseEnter={() => setHoveredId(conv.id)}
                   onMouseLeave={() => setHoveredId(null)}
                   className={cn(
-                    "relative w-full flex items-start gap-3 px-4 py-3 text-left transition-all border-b border-[#E8B968]/40 group",
+                    "relative w-full flex items-start gap-3 px-4 py-3 text-left transition-all border-b border-[#E8B968]/40 group [content-visibility:auto] [contain-intrinsic-size:auto_84px]",
                     isActive
                       ? "bg-[#E6F7EE]"
                       : isMarketingAgent

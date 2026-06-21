@@ -653,7 +653,7 @@ export const ContactsPage = () => {
               onMouseEnter={() => setHoveredId(c.id)}
               onMouseLeave={() => setHoveredId(null)}
               className={cn(
-                "grid grid-cols-[36px_1.6fr_120px_1fr_120px_140px_110px_90px_120px] gap-3 px-4 py-3 border-b border-border/50 last:border-b-0 items-center transition-all relative",
+                "grid grid-cols-[36px_1.6fr_120px_1fr_120px_140px_110px_90px_120px] gap-3 px-4 py-3 border-b border-border/50 last:border-b-0 items-center transition-all relative [content-visibility:auto] [contain-intrinsic-size:auto_64px]",
                 isSelected ? "bg-primary-soft/50" : "hover:bg-muted/40",
                 isHot && !isSelected && "bg-gradient-to-r from-hot-soft/20 to-transparent hot-glow",
                 inactive && "opacity-70"
