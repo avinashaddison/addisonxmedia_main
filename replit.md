@@ -13,8 +13,9 @@ A WhatsApp marketing, websites & automation platform for Indian SMBs (Ranchi-bas
 
 Deploys as a SINGLE web service: the Hono api-server also serves the built Vite SPA from `./dist` when `NODE_ENV=production` (the `SERVE_STATIC` block in `server/index.ts`). Config lives in `render.yaml` (blueprint) + `scripts/render-build.sh`.
 
-- Build Command: `bash scripts/render-build.sh` (corepack→pnpm; npm/yarn are rejected by the root `preinstall` guard — that was the original deploy failure)
-- Start Command: `cd artifacts/api-server && node_modules/.bin/tsx server/index.ts` (package-local tsx, no pnpm needed at runtime)
+- An EXISTING manual Render service keeps Render's default commands (`npm install … && npm run build`, `npm start`) — they now work. The root `preinstall` guard rejects npm/yarn ONLY when Render's `$RENDER` env var is absent (i.e. local dev); on Render, root `build` routes to `scripts/render-build.sh` and root `start` runs the api-server with the staged SPA. `render.yaml` does NOT override an existing manual service's commands, which is why the first two deploy attempts kept failing on the old npm build command.
+- Blueprint / explicit Build Command: `bash scripts/render-build.sh` (corepack→pnpm)
+- Explicit Start Command: `cd artifacts/api-server && node_modules/.bin/tsx server/index.ts` (package-local tsx, no pnpm needed at runtime)
 - The build sets `BASE_PATH=/` and `PORT` (vite.config requires both), builds the SPA, then copies `artifacts/addisonx/dist/public` → `artifacts/api-server/dist` (vite outDir is `dist/public`; the server serves `./dist`).
 - DB schema push is gated behind `RUN_DB_PUSH=1` (set it for the first deploy and after schema changes; leave unset for routine deploys). Startup migrations only self-heal a few columns, not the full schema.
 - Render env vars: `NODE_ENV=production`, `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (this service's https URL), `MASTER_KEY`, `TRUSTED_ORIGINS` + `ALLOWED_ORIGINS` (the service's https origin). Frontend calls relative `/api/*` → same origin, so no proxy/CORS gymnastics for a single-service deploy.

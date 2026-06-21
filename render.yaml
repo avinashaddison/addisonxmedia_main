@@ -8,11 +8,13 @@
 # -> connect the repo -> Render reads this file. After the first deploy, fill the
 # `sync: false` secrets in the Render dashboard, then trigger a redeploy.
 #
-# Already have a manually-created Render service? Just set its Build Command to
-#   bash scripts/render-build.sh
-# and its Start Command to
-#   cd artifacts/api-server && node_modules/.bin/tsx server/index.ts
-# and add the env vars below.
+# Already have a manually-created Render service (render.yaml does NOT override
+# its commands)? You do NOT need to change the Build/Start commands: the root
+# package.json now makes Render's default `npm install … && npm run build` and
+# `npm start` work (npm is allowed only when Render's $RENDER var is set, and the
+# build/start are routed to pnpm + the staged SPA). Just add the env vars below
+# and redeploy. (Optionally you can still set Build Command to
+# `bash scripts/render-build.sh` for an explicit pnpm build.)
 
 services:
   - type: web
