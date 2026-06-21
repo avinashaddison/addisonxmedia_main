@@ -131,6 +131,8 @@ export type Task = {
   owner_id: string;
   contact_id: string | null;
   conversation_id: string | null;
+  assigned_to_member_id: string | null;
+  assigned_member?: { id: string; name: string | null; email: string; role: TeamRole } | null;
   title: string;
   notes: string | null;
   due_at: string | null;

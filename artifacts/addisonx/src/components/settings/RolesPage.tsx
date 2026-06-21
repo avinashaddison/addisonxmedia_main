@@ -84,7 +84,8 @@ export const RolesPage = () => {
 
         {/* PERMISSION MATRIX */}
         <div className="bg-white border-2 border-[#E8B968] rounded-2xl shadow-[0_3px_0_0_#E8B968] p-4">
-          <h3 className="text-[13px] font-extrabold mb-3">Permission matrix</h3>
+          <h3 className="text-[13px] font-extrabold mb-1">Permission matrix</h3>
+          <p className="text-[11px] font-semibold text-foreground/45 mb-3">Planning reference — har role ka intended access. Single-login workspace hai, isliye abhi runtime enforcement nahi hota; roles members ko neeche assign hote hain.</p>
           <div className="overflow-x-auto">
             <table className="w-full text-[12px]">
               <thead>

@@ -8,6 +8,7 @@ import {
   deal,
   metaConfig,
   task,
+  teamMember,
   message,
   conversation,
 } from "../db/schema";
@@ -643,7 +644,7 @@ app.get("/tasks", async (c) => {
     const rows = await db.query.task.findMany({
       where: and(...conds),
       orderBy: [sql`${task.dueAt} ASC NULLS LAST`, desc(task.createdAt)],
-      with: { contact: true },
+      with: { contact: true, assignedMember: true },
       limit: 1000,
     } as any);
     return c.json(rows);
@@ -655,7 +656,7 @@ app.get("/tasks", async (c) => {
   const rows = await db.query.task.findMany({
     where: and(...conds),
     orderBy: [sql`${task.dueAt} ASC NULLS LAST`, desc(task.createdAt)],
-    with: { contact: true },
+    with: { contact: true, assignedMember: true },
     limit,
   } as any);
   const next_cursor = rows.length === limit ? encodeCursor((rows[rows.length - 1] as any).createdAt) : null;
@@ -671,10 +672,19 @@ app.post("/tasks", async (c) => {
       .limit(1);
     if (!owned) return c.json({ error: "Contact not found" }, 404);
   }
+  // Assignee must be a team member owned by the real account owner (team is
+  // owner-scoped via ownerUserId, while tasks are scoped to the active workspace user).
+  if (body.assigned_to_member_id) {
+    const [m] = await db.select({ id: teamMember.id }).from(teamMember)
+      .where(and(eq(teamMember.id, body.assigned_to_member_id), eq(teamMember.ownerId, c.var.ownerUserId)))
+      .limit(1);
+    if (!m) return c.json({ error: "Team member not found" }, 404);
+  }
   const [row] = await db.insert(task).values({
     ownerId: c.var.userId,
     contactId: body.contact_id ?? null,
     conversationId: body.conversation_id ?? null,
+    assignedToMemberId: body.assigned_to_member_id ?? null,
     title: body.title,
     notes: body.notes ?? null,
     dueAt: body.due_at ?? null,
@@ -688,6 +698,12 @@ app.patch("/tasks/:id", async (c) => {
   const id = c.req.param("id");
   const raw = toCamel<Record<string, any>>(await c.req.json());
   const body = patchTaskSchema.parse(raw);
+  if (body.assignedToMemberId) {
+    const [m] = await db.select({ id: teamMember.id }).from(teamMember)
+      .where(and(eq(teamMember.id, body.assignedToMemberId), eq(teamMember.ownerId, c.var.ownerUserId)))
+      .limit(1);
+    if (!m) return c.json({ error: "Team member not found" }, 404);
+  }
   const [row] = await db.update(task)
     .set({ ...body, updatedAt: new Date() })
     .where(and(eq(task.id, id), eq(task.ownerId, c.var.userId)))

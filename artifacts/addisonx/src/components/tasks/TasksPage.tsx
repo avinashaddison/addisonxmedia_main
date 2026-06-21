@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { CheckSquare, Plus, Trash2, Pencil, Calendar, CheckCircle2, Circle, Download } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { CheckSquare, Plus, Trash2, Pencil, Calendar, CheckCircle2, Circle, Download, Users } from "lucide-react";
 import { PageShell } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,10 +15,12 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useContactsLookup } from "@/hooks/useCrmData";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { formatDate, toDateInput, downloadCsv } from "@/lib/format";
 import { toast } from "sonner";
-import type { Task, TaskPriority, Contact } from "@/lib/api-types";
+import { api } from "@/lib/api";
+import type { Task, TaskPriority, Contact, TeamMember } from "@/lib/api-types";
 
 type TaskWithContact = Task & { contact?: Contact | null };
 
@@ -37,6 +40,8 @@ export const TasksPage = () => {
   const update = useUpdateTask();
   const del = useDeleteTask();
   const { data: contacts = [] } = useContactsLookup();
+  const { user } = useAuth();
+  const { data: members = [] } = useQuery({ queryKey: ["team", user?.id], enabled: !!user, queryFn: () => api.listTeam() });
 
   const [filter, setFilter] = useState<Filter>("all");
   const [editTask, setEditTask] = useState<TaskWithContact | null>(null);
@@ -68,8 +73,8 @@ export const TasksPage = () => {
     if (filtered.length === 0) { toast.error("No tasks to export"); return; }
     downloadCsv(
       `tasks-${new Date().toISOString().slice(0, 10)}.csv`,
-      ["Title", "Status", "Priority", "Due", "Contact", "Notes"],
-      filtered.map((t) => [t.title, t.status, t.priority, t.due_at ? formatDate(t.due_at) : "", t.contact?.name ?? "", t.notes ?? ""]),
+      ["Title", "Status", "Priority", "Due", "Contact", "Assignee", "Notes"],
+      filtered.map((t) => [t.title, t.status, t.priority, t.due_at ? formatDate(t.due_at) : "", t.contact?.name ?? "", t.assigned_member?.name ?? t.assigned_member?.email ?? "", t.notes ?? ""]),
     );
     toast.success(`Exported ${filtered.length} tasks`);
   };
@@ -135,6 +140,7 @@ export const TasksPage = () => {
                   <div className="flex items-center gap-3 mt-0.5 text-[11px] font-semibold text-foreground/55 flex-wrap">
                     {t.due_at && <span className="inline-flex items-center gap-1"><Calendar className="w-3 h-3" /> {formatDate(t.due_at)}</span>}
                     {t.contact?.name && <span>· {t.contact.name}</span>}
+                    {t.assigned_member && <span className="inline-flex items-center gap-1 text-[#0E8A4B]"><Users className="w-3 h-3" /> {t.assigned_member.name || t.assigned_member.email}</span>}
                     {t.notes && <span className="truncate">· {t.notes}</span>}
                   </div>
                 </div>
@@ -156,6 +162,7 @@ export const TasksPage = () => {
         <TaskFormDialog
           task={editTask}
           contacts={contacts}
+          members={members}
           saving={create.isPending || update.isPending}
           onClose={() => { setFormOpen(false); setEditTask(null); }}
           onSubmit={(data) => {
@@ -186,9 +193,10 @@ export const TasksPage = () => {
   );
 };
 
-const TaskFormDialog = ({ task, contacts, saving, onClose, onSubmit }: {
+const TaskFormDialog = ({ task, contacts, members, saving, onClose, onSubmit }: {
   task: TaskWithContact | null;
   contacts: { id: string; name: string }[];
+  members: TeamMember[];
   saving: boolean;
   onClose: () => void;
   onSubmit: (data: Record<string, unknown>) => void;
@@ -198,6 +206,7 @@ const TaskFormDialog = ({ task, contacts, saving, onClose, onSubmit }: {
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? "medium");
   const [dueAt, setDueAt] = useState(toDateInput(task?.due_at));
   const [contactId, setContactId] = useState(task?.contact_id ?? "");
+  const [assignedMemberId, setAssignedMemberId] = useState(task?.assigned_to_member_id ?? "");
 
   const submit = () => {
     if (!title.trim()) { toast.error("Title is required"); return; }
@@ -207,6 +216,7 @@ const TaskFormDialog = ({ task, contacts, saving, onClose, onSubmit }: {
       priority,
       due_at: dueAt ? new Date(dueAt).toISOString() : null,
       contact_id: contactId || null,
+      assigned_to_member_id: assignedMemberId || null,
     });
   };
 
@@ -240,6 +250,14 @@ const TaskFormDialog = ({ task, contacts, saving, onClose, onSubmit }: {
               <option value="">No contact</option>
               {contacts.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
             </select>
+          </div>
+          <div>
+            <Label>Assign to (optional)</Label>
+            <select value={assignedMemberId} onChange={(e) => setAssignedMemberId(e.target.value)} className="w-full h-10 px-2 rounded-lg bg-[#FFF6E8] border-2 border-[#E8B968] text-[13px] font-semibold focus:outline-none focus:border-[#FF6A1F]">
+              <option value="">Unassigned</option>
+              {members.map((m) => <option key={m.id} value={m.id}>{m.name || m.email}</option>)}
+            </select>
+            {members.length === 0 && <p className="text-[11px] font-semibold text-foreground/45 mt-1">Pehle Settings → Team Members mein log add karein.</p>}
           </div>
           <div>
             <Label>Notes</Label>

@@ -56,5 +56,6 @@ export const patchTaskSchema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]),
   status: z.enum(["pending", "in_progress", "completed", "cancelled"]),
   contactId: z.string().max(100).nullish(),
+  assignedToMemberId: z.string().max(100).nullish(),
   completedAt: z.string().max(30).nullish(),
 }).partial();

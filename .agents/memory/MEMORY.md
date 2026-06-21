@@ -1,1 +1,1 @@
-- [Vite build is not a type-check](vite-build-not-typecheck.md) — esbuild passes undefined-identifier crashes (e.g. missing lucide import); run `pnpm run typecheck` to catch them.
+- [Workspace scoping model](workspace-scoping-model.md) — userId = active/virtual workspace scope; ownerUserId = real owner scope; validate cross-scope FKs (e.g. task assignee) against ownerUserId; RBAC matrix is planning-only, not enforced.

@@ -316,6 +316,9 @@ export const task = pgTable("task", {
   ownerId: text("owner_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   contactId: uuid("contact_id").references(() => contact.id, { onDelete: "set null" }),
   conversationId: uuid("conversation_id").references(() => conversation.id, { onDelete: "set null" }),
+  // Assignee = a roster team member (NOT a login identity). Owner-scoped via
+  // teamMember.ownerId; null when unassigned or the member is removed.
+  assignedToMemberId: uuid("assigned_to_member_id").references(() => teamMember.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   notes: text("notes"),
   dueAt: timestamp("due_at", { withTimezone: true }),
@@ -326,6 +329,7 @@ export const task = pgTable("task", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   ownerStatusDueIdx: index("task_owner_status_due_idx").on(t.ownerId, t.status, t.dueAt),
+  assignedMemberIdx: index("task_assigned_member_idx").on(t.assignedToMemberId),
 }));
 
 // ============================================================
@@ -452,6 +456,7 @@ export const dealRelations = relations(deal, ({ one }) => ({
 export const taskRelations = relations(task, ({ one }) => ({
   contact: one(contact, { fields: [task.contactId], references: [contact.id] }),
   conversation: one(conversation, { fields: [task.conversationId], references: [conversation.id] }),
+  assignedMember: one(teamMember, { fields: [task.assignedToMemberId], references: [teamMember.id] }),
 }));
 
 export const broadcastRelations = relations(broadcast, ({ one }) => ({
