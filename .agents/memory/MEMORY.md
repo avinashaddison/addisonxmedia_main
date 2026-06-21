@@ -3,3 +3,4 @@
 - [Hono api-server on Replit](hono-api-server.md) — conventions for running the imported Hono backend in the api-server artifact.
 - [AddisonX frontend build](addisonx-frontend-build.md) — how to build/verify the React+Vite artifact; tsc is not the gate.
 - [AddisonX build quirks](addisonx-build-quirks.md) — non-obvious build/typecheck gotchas, run flags, intentional dual phone numbers.
+- [Render single-service deploy](render-deploy.md) — one web service serves API + Vite SPA; pnpm-only (npm guard), build copies dist/public→api-server/dist, BASE_PATH=/, DB push gated by RUN_DB_PUSH.

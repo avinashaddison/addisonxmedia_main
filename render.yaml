@@ -1,0 +1,64 @@
+# Render.com blueprint for AddisonX Media (pnpm monorepo).
+#
+# Single web service: the Hono API server (artifacts/api-server) also serves the
+# built Vite SPA (artifacts/addisonx) from one Node process. The database is
+# external (Neon, Render Postgres, etc.) — DATABASE_URL is supplied as a secret.
+#
+# Deploy: push this repo to GitHub -> Render dashboard -> "New +" -> "Blueprint"
+# -> connect the repo -> Render reads this file. After the first deploy, fill the
+# `sync: false` secrets in the Render dashboard, then trigger a redeploy.
+#
+# Already have a manually-created Render service? Just set its Build Command to
+#   bash scripts/render-build.sh
+# and its Start Command to
+#   cd artifacts/api-server && node_modules/.bin/tsx server/index.ts
+# and add the env vars below.
+
+services:
+  - type: web
+    name: addisonx
+    runtime: node
+    plan: starter
+    region: singapore
+    buildCommand: bash scripts/render-build.sh
+    # Run the API server from its own dir so it serves ./dist (the staged SPA).
+    # Uses the package-local tsx binary, so pnpm isn't needed at runtime.
+    startCommand: cd artifacts/api-server && node_modules/.bin/tsx server/index.ts
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Set to 1 for the FIRST deploy (creates the DB schema) and whenever you
+      # change server/db/schema.ts; leave unset/0 for routine deploys so the
+      # build never risks a destructive drizzle-kit push prompt.
+      - key: RUN_DB_PUSH
+        value: "1"
+      # --- Required ---
+      # Postgres connection string (e.g. Neon pooler URL with ?sslmode=require).
+      - key: DATABASE_URL
+        sync: false
+      # 32+ char random string. Generate: openssl rand -base64 32
+      - key: BETTER_AUTH_SECRET
+        sync: false
+      # The full https://… URL of this Render service (set after first deploy).
+      - key: BETTER_AUTH_URL
+        sync: false
+      # 32+ char key used to encrypt sensitive columns. Generate: openssl rand -hex 32
+      - key: MASTER_KEY
+        sync: false
+      # Comma-separated browser origins better-auth will trust (CSRF). Include
+      # this service's https URL, e.g. https://addisonx.onrender.com
+      - key: TRUSTED_ORIGINS
+        sync: false
+      # Comma-separated CORS origins. Same value as TRUSTED_ORIGINS for a
+      # single-service deploy.
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # --- Optional integrations ---
+      - key: META_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        sync: false
